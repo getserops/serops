@@ -13,26 +13,26 @@ artefacts live under one `deploy/` tree.
 Three paths — chart is identical. Published by `.github/workflows/
 helm-release.yml` on every `v*.*.*` tag.
 
-**OCI** (recommended):
+**OCI** (recommended). The chart needs a database and a Redis broker —
+your own for production:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
   --version 1.0.0 \
   --namespace serops --create-namespace \
-  --set django.secretKey="$(openssl rand -hex 64)"
+  --set django.secretKey="$(openssl rand -hex 64)" \
+  --set database.url="postgres://serops:PASSWORD@your-pg-host:5432/serops" \
+  --set broker.url="redis://:PASSWORD@your-redis-host:6379/0"
 ```
+
+or bundled ones for a lab: replace the last two lines with
+`--set devServices.postgresql.enabled=true --set devServices.redis.enabled=true`.
+With neither, the pods fail to start.
 
 > **AI provider keys are not set here.** SerOps reads RCA keys
 > per-organisation from the database, never from the environment — a
 > cluster-wide key would pool quota and billing across every org on the
-> instance. Add yours after install at **Settings → AI → API Keys**.
-
-**Classic Helm HTTP repo**:
-
-```bash
-helm repo add getserops https://getserops.github.io/serops
-helm install serops getserops/serops --namespace serops --create-namespace
-```
+> instance. Add yours after install at **Settings → AI Providers**.
 
 **From source** (lab / demo with bundled PG + Redis):
 
