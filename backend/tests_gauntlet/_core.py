@@ -89,7 +89,7 @@ class GauntletContext:
     project_service: str = os.environ.get('GAUNTLET_SERVICE', 'checkout')
     environment: str = os.environ.get('GAUNTLET_ENV', 'production')
 
-    base_url: str = os.environ.get('GAUNTLET_BASE_URL', 'https://178-104-127-241.nip.io')
+    base_url: str = os.environ.get('GAUNTLET_BASE_URL', 'https://localhost')
     user_email: str = os.environ.get('GAUNTLET_USER', 'gauntlet@serops.internal')
     user_password: str = os.environ.get('GAUNTLET_PWD', 'Gauntlet-Str0ngP4ss-2026')
     ingest_key: str = os.environ.get('GAUNTLET_INGEST_KEY', '')

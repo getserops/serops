@@ -139,7 +139,7 @@ NAT.
 ## Retention
 
 Traces follow the same tenant retention policy as logs and metrics
-(configurable in Settings → Data Retention). Sampled-out spans at the
+(configurable in Settings → Data Management). Sampled-out spans at the
 SDK level never reach SerOps, so head-based sampling is the standard
 knob for controlling volume.
 
@@ -162,7 +162,7 @@ IDs.
 If you already ship traces to Jaeger, Zipkin, or Datadog APM and don't
 want to change your pipeline, SerOps can **pull** traces from them at
 RCA time instead of receiving them via OTLP. Configure a trace
-provider under *Settings → Integrations*:
+provider under *Settings → Global Integrations*:
 
 | Provider       | Host / endpoint                        | Auth                       |
 |----------------|----------------------------------------|----------------------------|

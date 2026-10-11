@@ -7,7 +7,7 @@ Playwright cross-cutting invariants that run against seeded fixture batches on e
 **Step 1 — seed fixtures on e2e** (needs Claude tokens):
 
 ```bash
-ssh root@178.104.127.241 'docker exec serops-backend python -m tests_gauntlet.seed_ui_fixtures'
+ssh root@<e2e-host> 'docker exec serops-backend python -m tests_gauntlet.seed_ui_fixtures'
 ```
 
 Creates 10 stable-id `gt-ui-*` batches on org 1. Idempotent — safe to re-run. Takes ~5 min (one AI call per fixture, ~30s each).
@@ -55,7 +55,7 @@ AIAnalyzedBatch.objects.filter(batch_id__startswith='gt-ui-').delete()
 
 | Var | Default |
 |---|---|
-| `GAUNTLET_BASE_URL` | `https://178-104-127-241.nip.io` |
+| `GAUNTLET_BASE_URL` | `https://localhost` |
 | `GAUNTLET_USER` | `gauntlet@serops.internal` |
 | `GAUNTLET_PWD` | `Gauntlet-Str0ngP4ss-2026` |
 | `GAUNTLET_ORG_ID` | `1` |

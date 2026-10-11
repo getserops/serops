@@ -95,7 +95,7 @@ docker exec ollama ollama pull qwen3:8b
 
 ## Step 3 — Configure SerOps
 
-*Settings → AI → Providers*, select **Ollama (Local)**.
+*Settings → AI Providers*, select **Ollama (Local)**.
 
 - **Base URL**: `http://<ollama-host>:11434/v1/` (note the trailing
   `/v1/` — that's Ollama's OpenAI-compat endpoint).
@@ -159,7 +159,7 @@ instance is fine.
 ## Cost budget still applies
 
 Even at $0 per token, you can enforce a "max batches per month"
-policy via **Settings → AI → Monthly budget** (Q3.3) — set
+policy via **Settings → AI Providers → Monthly budget** (Q3.3) — set
 `monthly_budget_usd` to a nominal value with tightened
 `price_input_per_million` / `price_output_per_million` on the
 Ollama row to represent your amortized hardware cost. The

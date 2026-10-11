@@ -22,7 +22,7 @@ Without deduplication, each batch would create a new issue, leading to hundreds 
 
 ## Configuration Settings
 
-Navigate to **Settings > Issue Settings** to configure deduplication for your organisation.
+Navigate to **Settings > Data Management** to configure deduplication for your organisation.
 
 ### Settings Reference
 
@@ -55,7 +55,7 @@ The dedup window controls how long SerOps remembers an issue fingerprint when ch
 
 ## Configure via the UI
 
-1. Navigate to **Settings > Issue Settings**
+1. Navigate to **Settings > Data Management**
 2. Adjust the settings:
     - Toggle **Deduplication Enabled** on or off
     - Select the **Dedup Window** from the dropdown

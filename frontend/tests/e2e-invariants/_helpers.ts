@@ -9,7 +9,7 @@
 import type { Page, APIRequestContext, ConsoleMessage, Request } from '@playwright/test';
 
 export const CONFIG = {
-  baseURL: process.env.GAUNTLET_BASE_URL || 'https://178-104-127-241.nip.io',
+  baseURL: process.env.GAUNTLET_BASE_URL || 'https://localhost',
   user: process.env.GAUNTLET_USER || 'gauntlet@serops.internal',
   password: process.env.GAUNTLET_PWD || 'Gauntlet-Str0ngP4ss-2026',
 };

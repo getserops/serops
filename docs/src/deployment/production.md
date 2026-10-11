@@ -28,7 +28,7 @@ observability tools you already run.
     stack you already run. Elasticsearch / Loki / Datadog /
     Prometheus / CloudWatch / VictoriaMetrics / Mimir / OpenSearch
     are **not** shipped in this Compose file — you configure them
-    from *Settings → Integrations* after the app is up.
+    from *Settings → Global Integrations* after the app is up.
 
 ---
 
@@ -201,7 +201,7 @@ eating-your-own-dogfood for free.
 
 Once the app is up:
 
-1. **Settings → Integrations** → add your log provider (Elasticsearch,
+1. **Settings → Global Integrations** → add your log provider (Elasticsearch,
    Loki, Datadog, CloudWatch, etc.).
 2. Add your SCM provider (GitHub, GitLab, Bitbucket, Azure DevOps) so
    AI analysis can reference recent commits.

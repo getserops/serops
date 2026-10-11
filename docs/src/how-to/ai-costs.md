@@ -23,7 +23,7 @@ Realistic minimums by workload:
 |----------|--------------------------|
 | Evaluation / demo (single project, high Sentinel threshold, ≤20 batches/day) | Provider free tiers OK |
 | Small production install (1 project, default batch cadence) | **Anthropic Build tier** (pay-as-you-go, ~$3-8/month with prompt caching) or **local Ollama** |
-| Multi-project / multi-cluster | **Paid Claude Sonnet / Gemini Pro** on a workspace-scoped key with a monthly budget cap set at Settings → AI |
+| Multi-project / multi-cluster | **Paid Claude Sonnet / Gemini Pro** on a workspace-scoped key with a monthly budget cap set at Settings → AI Providers |
 | Air-gapped / privacy-sensitive | **Ollama on the same VM** — unlimited, ~8-16 GB RAM, [setup guide](on-prem-ai-ollama.md) |
 
 **How to blunt the impact if you must stay free:** raise `BATCH_GENERATION_INTERVAL` to 30 minutes (from the 5-minute default), enable Sentinel active mode with a strict `quiet_min_error_count` threshold, and pin analysis to one project. That combination realistically fits under 20 AI calls per day.
@@ -107,8 +107,8 @@ SerOps has five levers, roughly in order of impact:
       * **OpenAI / DeepSeek**: system-role message with a ≥1,024-token prefix qualifies for automatic caching (OpenAI ~50% off, DeepSeek ~90% off).
       * **Gemini**: implicit caching kicks in at 4,096 tokens — SerOps' prefix falls under that on 3.5-flash, so no cache win here today. Wiring is in place for later prefix growth.
       The whole batch-analysis prompt was refactored into `(system_static, user_dynamic)` tuples in `ai_model/prompts.get_batch_analysis_prompt_parts` — the static half is byte-stable across batches (verified by tests) so cache hits are guaranteed.
-4. **Recent Resolutions Context cap** — `memory_max_items` in Settings → Data bounds how many past resolutions get injected per prompt. Lower = fewer input tokens.
-5. **Cheaper default model** — most analyses don't need the largest model. Switch the org default to a cheaper provider (e.g. `gemini-2.5-flash` or `claude-haiku-4.5`) under Settings → AI.
+4. **Recent Resolutions Context cap** — `memory_max_items` in Settings → Data Management bounds how many past resolutions get injected per prompt. Lower = fewer input tokens.
+5. **Cheaper default model** — most analyses don't need the largest model. Switch the org default to a cheaper provider (e.g. `gemini-2.5-flash` or `claude-haiku-4.5`) under Settings → AI Providers.
 
 ---
 

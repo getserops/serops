@@ -95,7 +95,7 @@ See [Data Protection](../security/data-protection.md) for full details.
 
 ## Model Selection
 
-Configure the AI model in **Settings → AI**.
+Configure the AI model in **Settings → AI Providers**.
 SerOps supports a pluggable architecture. While **Gemini** and **DeepSeek** are defaults, you can register other providers (like Claude) in the database.
 
 | Model | Best For |
@@ -130,7 +130,7 @@ If your question contains keywords like `logs`, `metrics`, `issues`, or `code`, 
 
 ### Send Message
 ```
-POST /api/ai/generate/
+POST /api/chat/generate-text/
 Content-Type: application/json
 
 {
@@ -142,17 +142,17 @@ Content-Type: application/json
 
 ### Get Chat History
 ```
-GET /api/ai/chat/{chat_id}/history/
+GET /api/chat/chats/{chat_id}/
 ```
 
 ### List Sessions
 ```
-GET /api/ai/chat/sessions/
+GET /api/chat/chat-sessions/
 ```
 
 ### Delete Session
 ```
-DELETE /api/ai/chat/{chat_id}/
+DELETE /api/chat/chats/delete/{chat_id}
 ```
 
 ---

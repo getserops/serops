@@ -6,13 +6,13 @@
  * gauntlet is invoked manually or from a Playwright container.
  *
  * Env overrides (all optional):
- *   GAUNTLET_BASE_URL     https://178-104-127-241.nip.io (default)
+ *   GAUNTLET_BASE_URL     https://localhost (default)
  *   GAUNTLET_USER         gauntlet@serops.internal (default)
  *   GAUNTLET_PWD          Gauntlet-Str0ngP4ss-2026 (default)
  */
 import { defineConfig, devices } from '@playwright/test';
 
-const baseURL = process.env.GAUNTLET_BASE_URL || 'https://178-104-127-241.nip.io';
+const baseURL = process.env.GAUNTLET_BASE_URL || 'https://localhost';
 
 export default defineConfig({
   testDir: './tests/e2e-invariants',

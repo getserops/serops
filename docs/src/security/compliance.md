@@ -37,7 +37,7 @@ Every significant action is logged with:
 
 ### Viewing Audit Logs
 
-Navigate to **Settings → Audit Logs**:
+Navigate to **Settings → Audit Log**:
 
 - Filter by date range
 - Filter by action type
@@ -72,7 +72,7 @@ Every batch analysis generates a `RedactionReport` for compliance:
 
 ## Data Retention
 
-Configure automatic data cleanup in **Settings → Data**:
+Configure automatic data cleanup in **Settings → Data Management**:
 
 | Setting | Options |
 |---------|---------|

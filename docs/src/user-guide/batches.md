@@ -19,7 +19,7 @@ A batch is a snapshot of your system at a point in time:
 
 ## Batch Creation
 
-Batches are created automatically at a configurable interval (default: every 10 minutes). Each organisation can set its own interval (5 minutes to 12 hours) under **Settings → Data → Batch Generation Interval**. See [Batch Generation Interval](../admin/data-retention.md#batch-generation-interval) for details.
+Batches are created automatically at a configurable interval (default: every 10 minutes). Each organisation can set its own interval (5 minutes to 12 hours) under **Settings → Data Management → Batch Generation Interval**. See [Batch Generation Interval](../admin/data-retention.md#batch-generation-interval) for details.
 
 ### Pipeline Overview
 
@@ -235,7 +235,7 @@ The AI will have full context of:
 
 ### Auto-Cleanup
 
-Configure in **Settings → Data**:
+Configure in **Settings → Data Management**:
 - Retention period (7-365 days)
 - Cleanup frequency (daily/weekly/monthly)
 
@@ -255,7 +255,7 @@ GET /api/data/batches/{batch_id}/
 
 ### Trigger Analysis
 ```
-POST /api/ai/analyze-batch/
+POST /api/chat/analyze-batch/
 {
   "batch_id": "batch_20260107_143000_a1b2",
   "model": "gemini"

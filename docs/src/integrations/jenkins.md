@@ -12,12 +12,12 @@ Connect Jenkins pipelines to SerOps for build and deployment tracking.
 
 ## Setup
 
-Jenkins integrations are configured in **Settings → Integrations**.
+Jenkins integrations are configured in **Settings → Global Integrations**.
 
 1. In Jenkins: **User Profile → Configure → API Token**
 2. Click **Add new Token** and give it a name (e.g., "SerOps Integration")
 3. Copy the generated token
-4. In SerOps: **Settings → Integrations**
+4. In SerOps: **Settings → Global Integrations**
 5. Click **+ Add Integration** and select **Jenkins**
 6. Enter:
    - **Name**: Identifier (e.g., "Production Jenkins")
@@ -69,7 +69,7 @@ For real-time updates, configure Jenkins to notify SerOps:
 2. In SerOps, find the CI/CD binding for your service and copy the **Webhook URL** and **Token**
    - URL format: `https://your-serops.com/api/webhooks/jenkins/{binding_id}/`
    - Token is auto-generated on binding creation
-   - Alternatively, call `POST /api/cicd-bindings/{id}/setup-webhook/` to get the URL
+   - Alternatively, call `POST /api/projects/cicd-bindings/{id}/setup-webhook/` to get the URL
 3. In your pipeline configuration, add a post-build action:
    - **URL**: The binding-specific URL from step 2
    - **Content-Type**: `application/json`

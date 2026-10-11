@@ -44,7 +44,7 @@ Prometheus supports multiple authentication methods depending on your deployment
 
 ## Kubernetes setup
 
-Set the integration's `topology_mode` to `kubernetes` (Settings → Integrations → your Prometheus integration → Topology Mode, or `PATCH` the API) to switch SerOps from node-level PromQL to container-level metrics aggregated by service:
+Set the integration's `topology_mode` to `kubernetes` (Settings → Global Integrations → your Prometheus integration → Topology Mode, or `PATCH` the API) to switch SerOps from node-level PromQL to container-level metrics aggregated by service:
 
 | Query | VM mode | Kubernetes mode |
 |-------|---------|-----------------|

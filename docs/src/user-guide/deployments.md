@@ -60,4 +60,4 @@ The `suggest` endpoint returns proposed deployments for a newly-registered clust
 
 ## Composed filter (dashboard, batches, issues)
 
-The header filter picker (Batch 54) lets you scope the whole UI to any combination of cluster / environment / region / namespace at once. The selection persists across page reloads via a single JSON blob in `localStorage`. Clearing the cluster automatically clears the namespace to keep the invariant intact.
+The header filter picker lets you scope the whole UI to any combination of cluster / environment / region / namespace at once. The selection persists across page reloads via a single JSON blob in `localStorage`. Clearing the cluster automatically clears the namespace to keep the invariant intact.

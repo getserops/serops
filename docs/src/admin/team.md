@@ -69,4 +69,4 @@ All team changes are logged:
 | Role change | `TEAM_ROLE_CHANGE` |
 | Remove | `TEAM_REMOVE` |
 
-View in **Settings → Audit Logs**.
+View in **Settings → Audit Log**.

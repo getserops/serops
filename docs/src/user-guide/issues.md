@@ -188,7 +188,7 @@ Mark an issue as fixed:
 3. If the same issue recurs, it will be reopened automatically
 
 !!! tip "Resolution quality feeds future AI analyses"
-    When **Recent Resolutions Context** is enabled (Settings → Data), the `root_cause` text on resolved issues is passed to the AI as diagnostic context for new batches in the same project. A descriptive root cause (a sentence or two) becomes useful institutional memory; one-word resolutions like "fixed" are filtered out. See [Recent Resolutions Context](../admin/issue-settings.md#recent-resolutions-context) for the full configuration.
+    When **Recent Resolutions Context** is enabled (Settings → Data Management), the `root_cause` text on resolved issues is passed to the AI as diagnostic context for new batches in the same project. A descriptive root cause (a sentence or two) becomes useful institutional memory; one-word resolutions like "fixed" are filtered out. See [Recent Resolutions Context](../admin/issue-settings.md#recent-resolutions-context) for the full configuration.
 
 ### Mute
 

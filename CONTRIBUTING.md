@@ -92,7 +92,7 @@ cp .env.example .env
 # Set DJANGO_SECRET_KEY and the DB credentials.
 #
 # AI provider keys do NOT go in .env. They are entered in the UI after first
-# login (Settings → AI → API Keys) and stored per organisation, encrypted at
+# login (Settings → AI Providers) and stored per organisation, encrypted at
 # rest. Nothing reads ANTHROPIC_API_KEY or its siblings from the environment.
 docker compose up -d --build
 docker compose exec backend python manage.py migrate

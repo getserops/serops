@@ -4,7 +4,7 @@ Manage your organisation's SCM and CI/CD provider connections from a central loc
 
 ## Overview
 
-**Location**: Settings → Integrations
+**Location**: Settings → Global Integrations
 
 Global Integrations store credentials and configuration for connecting to external providers like GitLab, GitHub, Jenkins, and Azure DevOps. Once configured, these integrations can be used by any project in your organisation.
 

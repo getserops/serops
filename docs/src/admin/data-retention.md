@@ -4,7 +4,7 @@ Configure batch generation intervals, automatic cleanup policies, and audit log 
 
 ## Batch Generation Interval
 
-**Location**: Settings → Data → Batch Generation Interval
+**Location**: Settings → Data Management → Batch Generation Interval
 
 Controls how frequently SerOps collects logs, metrics, traces, and other data sources to create analysis batches. Each organisation can set its own interval independently.
 
@@ -30,7 +30,7 @@ Controls how frequently SerOps collects logs, metrics, traces, and other data so
 
 ### How to configure
 
-1. Go to **Settings → Data**
+1. Go to **Settings → Data Management**
 2. Open the **Batch Generation Interval** section
 3. Select the desired interval (5 minutes to 12 hours)
 4. Click **Save**
@@ -41,7 +41,7 @@ The new interval takes effect within 1 minute. Existing in-progress batches are 
 
 ## Retention Policy
 
-**Location**: Settings → Data → Retention Policy
+**Location**: Settings → Data Management → Retention Policy
 
 | Setting | Description |
 |---------|-------------|

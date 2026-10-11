@@ -22,7 +22,7 @@ graph LR
 
 Global Integrations store your SCM credentials once and let you reuse them across all projects.
 
-1. Navigate to **Settings > Integrations**
+1. Navigate to **Settings > Global Integrations**
 2. Click **Add Integration**
 3. Select your provider type:
 
@@ -89,7 +89,7 @@ Each CI/CD binding gets its own unique webhook URL and auto-generated secret. Yo
 ### Automatic Setup (Recommended)
 
 1. Navigate to your service's CI/CD binding
-2. Click **Setup Webhook** (or call `POST /api/cicd-bindings/{id}/setup-webhook/`)
+2. Click **Setup Webhook** (or call `POST /api/projects/cicd-bindings/{id}/setup-webhook/`)
 3. SerOps registers the webhook URL and secret with the provider automatically (GitLab, GitHub, Bitbucket)
 
 > **Note**: Jenkins and Azure DevOps require manual configuration — the setup action returns the URL and token for you to configure manually.

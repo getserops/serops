@@ -32,7 +32,7 @@ Personal preferences accessible from any page:
 
 ## AI Settings
 
-**Location**: Settings → AI
+**Location**: Settings → AI Providers
 
 ### Model Selection
 
@@ -44,7 +44,7 @@ Personal preferences accessible from any page:
 
 ### Provider Configuration
 
-Manage AI providers and private API keys in **Settings > AI > Manage Providers**. You can now add custom providers (e.g., Local Ollama) or configure existing ones (Claude, DeepSeek).
+Manage AI providers and private API keys in **Settings > AI Providers > Manage Providers**. You can now add custom providers (e.g., Local Ollama) or configure existing ones (Claude, DeepSeek).
 
 #### Adding/Editing a Provider
 1.  Click **Add Provider** or **Edit Config**.
@@ -186,7 +186,7 @@ Supported providers:
 
 ## Integration Settings
 
-**Location**: Settings → Integrations
+**Location**: Settings → Global Integrations
 
 Manage global provider integrations:
 
@@ -200,7 +200,7 @@ Manage global provider integrations:
 
 ## Observability Configuration
 
-**Location**: Settings → Integrations
+**Location**: Settings → Global Integrations
 
 Log, metric, and trace providers are configured alongside SCM and
 CI/CD providers on the Integrations page — there is no separate
@@ -275,7 +275,7 @@ See the [Configuration Reference](../deployment/configuration.md#email-smtp) for
 
 ## Data Settings
 
-**Location**: Settings → Data
+**Location**: Settings → Data Management
 
 ### Retention Policy
 | Setting | Options |
@@ -317,7 +317,7 @@ See [Clusters](clusters.md).
 
 ## Traces
 
-**Location**: Settings → Traces
+**Location**: Settings → Distributed Traces
 
 Manage OTLP ingest keys for distributed tracing. Each key is shown
 once on creation and stored as a hash afterwards, following the same

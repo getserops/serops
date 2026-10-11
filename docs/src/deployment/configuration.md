@@ -14,7 +14,7 @@ Complete reference for all environment variables consumed by SerOps.
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `DEBUG` | No | `False` | Django debug mode. **Must be `False` in production.** |
-| `PROJECT_NAME` | No | `serops` | Instance name displayed in the UI and emails |
+| `PROJECT_NAME` | No | `serops-backend` | Instance name used in emails |
 | `DJANGO_SECRET_KEY` | Yes | -- | Django secret key for cryptographic signing. Must be unique per deployment. |
 | `ALLOWED_HOSTS` | Yes | -- | Comma-separated list of allowed hostnames (e.g., `serops.yourdomain.com,backend`) |
 | `CORS_ALLOWED_ORIGINS` | Yes | -- | Comma-separated CORS origins (e.g., `https://serops.yourdomain.com`) |
@@ -42,11 +42,14 @@ Complete reference for all environment variables consumed by SerOps.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SEROPS_DOMAIN` | Yes | `http://localhost` | Your domain or IP where SerOps will be accessible (e.g., `https://serops.yourdomain.com`) |
-| `API_URL` | No | `http://backend:8000/api` | Internal Docker network URL for the backend. Usually no need to change. |
-| `REACT_URL` | No | `http://frontend:3000` | Internal Docker network URL for the frontend. Usually no need to change. |
-| `BASE_URL` | Yes | `http://localhost` | Public-facing base URL for link generation in emails and notifications |
-| `SERVER_URL` | Yes | `http://localhost:8000/api` | Public-facing API URL used by the frontend to reach the backend |
+| `SEROPS_DOMAIN` | Yes | `localhost` | Bare hostname SerOps is served on (e.g. `serops.yourdomain.com`) — **no scheme**. Caddy uses it as its site address and requests a Let's Encrypt certificate for it. |
+| `API_URL` | Yes | -- | Public API URL, e.g. `https://serops.yourdomain.com/api`. Used to build account-activation links in emails. |
+| `SERVER_URL` | Yes | -- | Public API URL, normally the same as `API_URL`. Used for the webhook URLs SerOps registers in GitLab, GitHub and other providers — it must be reachable from them. |
+| `REACT_URL` | Yes | -- | Public UI URL, e.g. `https://serops.yourdomain.com`. Added to the CORS allow-list automatically. |
+| `BASE_URL` | Yes | -- | Public UI URL used in links inside emails and notifications. |
+
+The quick-start `.env.example` derives all four from `SEROPS_DOMAIN`, so a
+compose install only sets the domain.
 
 ---
 
@@ -59,7 +62,6 @@ Complete reference for all environment variables consumed by SerOps.
 | `DB_PASSWORD` | Yes | -- | PostgreSQL password |
 | `DB_HOST` | No | `postgres` | PostgreSQL host. Use `postgres` for the bundled container or your server hostname for external. |
 | `DB_PORT` | No | `5432` | PostgreSQL port |
-| `POSTGRES_PORT` | No | `5432` | Host port to expose the bundled PostgreSQL container on. Leave empty to disable host access. |
 | `DATABASE_URL` | No | -- | Full connection string, e.g. `postgres://user:pass@host:5432/serops`. When set and parseable it **overrides** all `DB_*` variables above. |
 
 !!! tip "`DATABASE_URL` or `DB_*` — pick one per install"
@@ -98,7 +100,6 @@ DB_PASSWORD=s3cur3-pa$$word
 | `CELERY_BROKER_URL` | No | `redis://redis:6379/0` | Redis URL for the Celery message broker |
 | `CELERY_RESULT_BACKEND` | No | `redis://redis:6379/0` | Redis URL for Celery task results |
 | `REDIS_URL` | No | value of `CELERY_BROKER_URL` | Redis URL for the distributed lock backend used by the batch scheduler. Falls back to `CELERY_BROKER_URL` when unset. |
-| `REDIS_PORT` | No | `6379` | Host port to expose the bundled Redis container on |
 
 ---
 
@@ -107,9 +108,10 @@ DB_PASSWORD=s3cur3-pa$$word
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `BATCH_SCHEDULER_TICK_RATE` | No | `1` | How often (in minutes) Celery Beat checks whether any organisation is due for a new batch. Keep at `1` unless you need to reduce scheduler overhead. |
+| `BATCH_GENERATION_INTERVAL` | No | `15` | Default batch interval in minutes for organisations that have not set their own. |
 
 !!! info "Batch Generation Interval"
-    The batch generation interval is configured **per-organisation** via **Settings > Data > Batch Generation Interval** in the UI. There is no system-wide environment variable for this setting.
+    Each organisation can override the interval in **Settings > Data Management > Batch Generation Interval**; `BATCH_GENERATION_INTERVAL` only applies where it has not.
 
 ---
 
@@ -117,7 +119,7 @@ DB_PASSWORD=s3cur3-pa$$word
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `EMAIL_BACKEND` | No | `console` | Django email backend class. Use `django.core.mail.backends.smtp.EmailBackend` for production. |
+| `EMAIL_BACKEND` | No | `django.core.mail.backends.smtp.EmailBackend` | Django email backend class. The quick-start `.env.example` sets `django.core.mail.backends.console.EmailBackend`, which prints emails to the backend log instead of sending them. |
 | `EMAIL_HOST` | No | -- | SMTP server hostname (e.g., `smtp.gmail.com`) |
 | `EMAIL_HOST_USER` | No | -- | SMTP username / email address |
 | `EMAIL_HOST_PASSWORD` | No | -- | SMTP password or app-specific password |
@@ -138,31 +140,13 @@ DEFAULT_FROM_EMAIL=SerOps <serops@yourdomain.com>
 ```
 
 !!! note
-    When `EMAIL_BACKEND` is set to `console` (the default), emails are printed to stdout instead of being sent. This is useful for development but must be changed for production.
+    With the console backend (the quick-start default), emails are printed to the backend log instead of being sent — fine for a trial, but invitations and password resets never reach anyone. Switch to SMTP for real use.
 
 !!! tip "Verify SMTP after config"
     Run `python manage.py check_smtp <your-address@example.com>` (or `docker compose exec backend python manage.py check_smtp …` in Docker deployments) to send a test email. The command also prints which env vars are currently in effect.
 
 !!! info "No UI editor for SMTP"
     SMTP configuration is env-only (Grafana model). Change requires restarting the backend. The `SystemMailSettings` UI + `/api/settings/mail/` endpoints were removed 2026-09-01 to eliminate the lifecycle-email hijack risk on multi-tenant hosts.
-
----
-
-## Network / Ports
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `FRONTEND_PORT` | No | `80` | Host port for the frontend container |
-| `BACKEND_PORT` | No | `8000` | Host port for the backend API container |
-
----
-
-## Performance Tuning
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `BACKEND_MEM_LIMIT` | No | `1g` | Memory limit for the backend container (e.g., `1g`, `2g`) |
-| `BACKEND_CPUS` | No | `1` | CPU limit for the backend container |
 
 ---
 
@@ -182,9 +166,7 @@ DEFAULT_FROM_EMAIL=SerOps <serops@yourdomain.com>
 
 !!! warning "The default is `false`, and it is easy to get caught by"
     Metrics are half of what the AI reasons over, so almost every install
-    wants `METRICS_ENABLED=true`. This table previously said the default was
-    `true`; it is not — `Data/tasks.py` reads
-    `os.getenv('METRICS_ENABLED', 'false')`.
+    wants `METRICS_ENABLED=true`.
 
     * **docker-compose**: `.env.example` sets it to `true`, so compose
       installs are unaffected.
@@ -197,43 +179,17 @@ DEFAULT_FROM_EMAIL=SerOps <serops@yourdomain.com>
 
 ## Example `.env`
 
-A complete production configuration:
+The authoritative template is
+[`deploy/quick-start/.env.example`](https://github.com/getserops/serops/blob/main/deploy/quick-start/.env.example)
+— copy it rather than writing one from scratch. A production install on
+`serops.yourdomain.com` with SMTP changes these lines from the template:
 
 ```env
-# General
-DEBUG=False
-PROJECT_NAME=serops
-SEROPS_VERSION=latest
+SEROPS_DOMAIN=serops.yourdomain.com
+DJANGO_SECRET_KEY=<python3 -c "import secrets; print(secrets.token_urlsafe(64))">
+POSTGRES_PASSWORD=<openssl rand -hex 24>
+REDIS_PASSWORD=<openssl rand -hex 24>
 
-# Security
-DJANGO_SECRET_KEY=your-unique-secret-key-at-least-50-chars
-
-# Database (bundled PostgreSQL)
-DB_NAME=serops
-DB_USER=serops
-DB_PASSWORD=your-secure-db-password
-DB_HOST=postgres
-DB_PORT=5432
-
-# Redis / Celery (bundled Redis)
-CELERY_BROKER_URL=redis://redis:6379/0
-CELERY_RESULT_BACKEND=redis://redis:6379/0
-
-# Networking
-SEROPS_DOMAIN=https://serops.yourdomain.com
-API_URL=http://backend:8000/api
-REACT_URL=http://frontend:3000
-BASE_URL=https://serops.yourdomain.com
-SERVER_URL=https://serops.yourdomain.com:8000/api
-ALLOWED_HOSTS=serops.yourdomain.com,backend
-CORS_ALLOWED_ORIGINS=https://serops.yourdomain.com
-FRONTEND_PORT=80
-BACKEND_PORT=8000
-
-# Batch Processing
-BATCH_SCHEDULER_TICK_RATE=1
-
-# Email
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
 EMAIL_HOST=smtp.yourdomain.com
 EMAIL_HOST_USER=noreply@yourdomain.com
@@ -241,12 +197,10 @@ EMAIL_HOST_PASSWORD=smtp-password
 EMAIL_USE_TLS=True
 EMAIL_PORT=587
 DEFAULT_FROM_EMAIL=SerOps <noreply@yourdomain.com>
-
-# Performance
-BACKEND_MEM_LIMIT=1g
-BACKEND_CPUS=1
-METRICS_ENABLED=true
 ```
+
+The URL variables, database settings and Redis/Celery URLs are derived
+from these by `.env.example` and the compose file.
 
 ---
 
@@ -259,7 +213,7 @@ After setting environment variables, verify they are loaded correctly:
 docker exec serops-backend python manage.py check --deploy
 
 # Verify database connectivity
-docker exec serops-backend python manage.py dbshell -c "SELECT 1;"
+docker exec serops-backend python manage.py check --database default
 
 # Verify Celery broker connectivity
 docker exec serops-backend celery -A api inspect ping

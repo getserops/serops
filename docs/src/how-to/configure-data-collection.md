@@ -88,7 +88,7 @@ If your metrics come from Kubernetes (EKS / GKE / AKS), set the integration's `t
 
 - **CloudWatch (EKS)**: enable Container Insights on the cluster + install the CloudWatch agent DaemonSet. Metrics land in the `ContainerInsights` namespace.
 
-Switch modes in the SerOps UI (Settings → Integrations → your metric provider → Topology Mode) or via API (`PATCH /api/integrations/observability/<id>/ topology_mode=kubernetes`). The change takes effect on the next query — no restart required.
+Switch modes in the SerOps UI (Settings → Global Integrations → your metric provider → Topology Mode) or via API (`PATCH /api/integrations/observability/<id>/ topology_mode=kubernetes`). The change takes effect on the next query — no restart required.
 
 ### Alias support (Datadog USM, OpenTelemetry, Kubernetes)
 
@@ -523,7 +523,7 @@ The enrichment values must match what you configured in SerOps:
 
 After configuring your agents, verify data is flowing correctly:
 
-- [ ] **Health check passes**: Go to **Settings > Integrations > Observability** and run a health check on your provider
+- [ ] **Health check passes**: Go to **Settings > Global Integrations > Observability** and run a health check on your provider
 - [ ] **Service names match**: The `service_name` in your logs exactly matches a service registered under your project
 - [ ] **Environment names match**: The `environment` in your logs matches an enabled environment in your project settings (or a known alias)
 - [ ] **Logs are queryable**: Check your provider directly (Kibana, Grafana, Datadog UI) to confirm enriched fields are present on log entries

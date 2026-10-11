@@ -12,7 +12,7 @@ Connect Azure DevOps to SerOps for repository tracking, pipeline monitoring, and
 
 ## Setup
 
-Configuration is managed in **Settings → Integrations**.
+Configuration is managed in **Settings → Global Integrations**.
 
 1. In Azure DevOps: **User Settings → Personal Access Tokens**
 2. Create a new token with scopes:
@@ -20,7 +20,7 @@ Configuration is managed in **Settings → Integrations**.
    - `Build: Read`
    - `Release: Read`
    - `Project and Team: Read`
-3. In SerOps: **Settings → Integrations**
+3. In SerOps: **Settings → Global Integrations**
 4. Click **+ Add Integration** and select **Azure DevOps**
 5. Enter:
    - **Name**: Identifier (e.g., "Corporate Azure DevOps")
@@ -61,7 +61,7 @@ SerOps uses this to construct API URLs and token generation links.
 SerOps auto-generates a webhook secret when you create a CI/CD binding. To get the webhook URL:
 
 1. Navigate to the service's CI/CD binding
-2. Click **Setup Webhook** (or call `POST /api/cicd-bindings/{id}/setup-webhook/`)
+2. Click **Setup Webhook** (or call `POST /api/projects/cicd-bindings/{id}/setup-webhook/`)
 3. Copy the returned URL for manual configuration in Azure DevOps
 
 > **Note**: Azure DevOps does not support programmatic webhook creation, so the URL must be configured manually in Service Hooks.

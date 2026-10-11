@@ -70,7 +70,7 @@ service:
       exporters: [prometheusremotewrite]
 ```
 
-Then in SerOps → Settings → Integrations → Add Observability:
+Then in SerOps → Settings → Global Integrations → Add Observability:
 
 - **Provider**: Grafana Loki
 - **URL**: `http://loki:3100`

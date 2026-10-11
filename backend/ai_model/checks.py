@@ -41,7 +41,7 @@ EMBEDDINGS_ONLY_ENV_VAR = 'OPENAI_API_KEY'
 # Phrased as a clause so it reads correctly whether it opens a sentence or
 # continues one.
 _WHERE_KEYS_GO = (
-    'keys belong in the UI under Settings → AI → API Keys, stored per '
+    'keys belong in the UI under Settings → AI Providers, stored per '
     'organisation and encrypted at rest, so one deployment can serve several '
     'organisations without pooling their quota or billing'
 )

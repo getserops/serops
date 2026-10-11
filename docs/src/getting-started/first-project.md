@@ -70,7 +70,7 @@ is **logs + SCM + CI/CD** but any subset works (see
 [auto-detect](../architecture/multi-tenancy.md) — the AI adapts to
 what's available).
 
-1. Go to **Settings > Integrations**.
+1. Go to **Settings > Global Integrations**.
 2. Click **+ Add Integration** and pick a provider.
 3. Fill the connection form and click **Save**.
 4. Click **Verify** to confirm the credentials work.
@@ -134,7 +134,7 @@ If the webhook fires but nothing appears in SerOps, check
 
 SerOps aggregates logs, metrics, distributed traces, code changes, and CI/CD
 outputs into a **batch** at a configurable interval (default: every few
-minutes; see **Settings > Data**).
+minutes; see **Settings > Data Management**).
 
 1. Go to the **Data** page.
 2. When your first batch appears, click it to open the detail view.
@@ -169,7 +169,7 @@ for what to do when the cap trips.
 
 | Issue | Solution |
 |-------|----------|
-| No batches ever appear | Check that at least one service is connected + the log provider is verified. Check **Settings > Data** for batch cadence. |
+| No batches ever appear | Check that at least one service is connected + the log provider is verified. Check **Settings > Data Management** for batch cadence. |
 | Batches appear but are empty | Log provider isn't returning matches for the batch time window. Verify the `service_name` field in your logs matches the SerOps service name exactly — see [Configure Data Collection Agents](../how-to/configure-data-collection.md). |
 | Batches analyzed but AI shows "No API key configured" | Add an AI provider under **Settings > AI Providers** and click **Test Connection**. |
 | Analysis fails with `AUTH_ERROR` / `QUOTA_EXCEEDED` | See the [AI Analysis error table](../troubleshooting.md#ai-analysis). |

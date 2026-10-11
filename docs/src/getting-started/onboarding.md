@@ -8,19 +8,23 @@ When you first log in to SerOps, the wizard walks you through the essential step
 
 ## Steps
 
-Observability is the only **required** step (SerOps is useless without one). Everything else is skippable — you can add SCM + CI/CD bindings later from the project page.
+Only **Source Control** and **CI/CD** can be skipped — you can add those
+bindings later from the project page. Every other step completes when the
+thing it asks for exists.
 
-| Step | Name | Required | Description |
-|------|------|:--------:|-------------|
-| 1 | **Observability provider** | ✅ | Connect Elasticsearch, OpenSearch, Loki, Datadog, CloudWatch, Prometheus, VictoriaMetrics, or Mimir. Sets up log ingestion — SerOps needs at least one to analyse anything. |
-| 2 | **Project + first service** | — | Create a project and its first service (name + environment). Auto-created if you connect a provider that returns projects. |
-| 3 | **SCM binding** | — (skippable) | Link the service to a GitLab / GitHub / Bitbucket / Azure DevOps repository (used to correlate deployments + commits with incidents). |
-| 4 | **CI/CD binding** | — (skippable) | Link a CI/CD pipeline (GitLab CI, GitHub Actions, Jenkins, Bitbucket, Azure DevOps) so pipeline failures feed into the batch analysis. |
-| 5 | **Run first analysis** | — | After the observability provider is connected, a **Run first analysis now** button appears. Click to trigger an on-demand batch. The wizard streams progress and lands you on the resulting issue page — no waiting for the scheduler. |
+| Step | Name | Skippable | Description |
+|------|------|:---------:|-------------|
+| 1 | **AI Model** | — | Add an API key for Gemini, Claude, OpenAI or DeepSeek, or configure Ollama (local, no key). Keys are stored per organisation and encrypted at rest. |
+| 2 | **Observability** | — | Connect a log or metric provider. SerOps needs at least one to analyse anything. |
+| 3 | **Project** | — | Create your first project. |
+| 4 | **Service** | — | Add a service to the project. |
+| 5 | **Source Control** | ✅ | Link the service to a GitLab / GitHub / Bitbucket / Azure DevOps repository, so incidents can be correlated with commits and deployments. |
+| 6 | **CI/CD** | ✅ | Link a CI/CD pipeline (GitLab CI, GitHub Actions, Jenkins, Bitbucket, Azure DevOps) so pipeline failures feed into the analysis. |
+| 7 | **First Analysis** | — | Waits for the first batch analysis to complete. |
 
 ## Skipping steps
 
-Every step except observability has a **Skip for now** button. Skipped steps show as "Not configured yet" on the project page later, with a one-click link back to the same form.
+Source Control and CI/CD have a **Skip for now** button. Skipped steps show as "Not configured yet" on the project page later, with a one-click link back to the same form. Closing the wizard (`POST /api/organisation/onboarding/skip/`) only hides it; a resume chip in the top bar brings it back.
 
 ## Post-onboarding upsells
 
@@ -37,15 +41,16 @@ Admins can reset the onboarding state to re-run the wizard (useful when onboardi
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/organisation/onboarding/status/` | `GET` | Get current onboarding step and completion data |
-| `/api/organisation/onboarding/status/` | `PUT` | Update the current step with associated data |
-| `/api/organisation/onboarding/skip/` | `POST` | Skip the onboarding wizard |
+| `/api/organisation/onboarding/status/` | `PUT` | Skip an optional step (`action: skip_step`) or store wizard scratch data (`action: store_data`) |
+| `/api/organisation/onboarding/skip/` | `POST` | Dismiss the wizard UI (progress is kept) |
+| `/api/organisation/onboarding/resume/` | `POST` | Show the wizard again after a dismiss |
 | `/api/organisation/onboarding/reset/` | `POST` | Reset onboarding to the beginning |
 
 ### Progress is computed, not reported
 
-There is no endpoint to mark a step complete. `/onboarding/status/` is
-read-only, and every read recomputes progress from actual database
-state: the "connect an integration" step turns green when an
+There is no endpoint to mark a step complete. `PUT /onboarding/status/`
+can only skip the two optional steps, and every read recomputes progress
+from actual database state: the "connect an integration" step turns green when an
 integration exists, not when a client says so.
 
 That means you advance onboarding by doing the thing — and equally,

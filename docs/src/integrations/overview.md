@@ -95,7 +95,7 @@ graph TD
 
 ## Setting Up Integrations
 
-1. **Add a Global Integration**: Go to **Settings > Integrations > Add Integration**
+1. **Add a Global Integration**: Go to **Settings > Global Integrations > Add Integration**
 2. **Add a Service**: Go to your project, click **+ New Service**, and select the integration
 3. **Verify**: Run a health check to confirm connectivity
 4. **Configure Webhooks** (optional): Set up webhooks for real-time updates

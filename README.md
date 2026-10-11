@@ -33,12 +33,18 @@ cp .env.example .env  # edit domain + secrets
 docker compose up -d
 ```
 
-**Kubernetes (Helm):**
+**Kubernetes (Helm)** — lab install with bundled Postgres + Redis; for
+production pass `database.url` / `broker.url` instead (see the
+[Helm guide](https://serops.ai/docs/deployment/helm/)):
 ```bash
-helm install serops oci://ghcr.io/getserops/charts/serops
+helm install serops oci://ghcr.io/getserops/charts/serops \
+  --namespace serops --create-namespace \
+  --set django.secretKey="$(openssl rand -hex 64)" \
+  --set devServices.postgresql.enabled=true \
+  --set devServices.redis.enabled=true
 ```
 
-**AI provider keys are not set in `.env` or in Helm values.** Add them in the UI after first login under **Settings → AI → API Keys**. They are stored per organisation and encrypted at rest, so nothing reads `ANTHROPIC_API_KEY` or its siblings from the environment. SerOps needs at least one key — Anthropic, Google Gemini, OpenAI, DeepSeek, or Ollama (keyless, on-prem) — before it can analyse anything.
+**AI provider keys are not set in `.env` or in Helm values.** Add them in the UI after first login under **Settings → AI Providers**. They are stored per organisation and encrypted at rest, so nothing reads `ANTHROPIC_API_KEY` or its siblings from the environment. SerOps needs at least one key — Anthropic, Google Gemini, OpenAI, DeepSeek, or Ollama (keyless, on-prem) — before it can analyse anything.
 
 Full guides in [docs/](docs/) or at https://serops.ai/docs.
 

@@ -10,7 +10,7 @@ v1.0.0 — entries under **[Unreleased]** ship in the next tagged release.
 
 ## [Unreleased]
 
-### Added — Notification delivery model (PR-N)
+### Added — Notification delivery model
 
 SerOps notifications now follow the Grafana / Alertmanager / Sentry
 pattern: **one uniform table of delivery targets** plus **one routing
@@ -176,7 +176,7 @@ table** that decides which targets fire for which incident.
 - **Webhook URL Mismatch**: GitLab webhook registrations now use per-binding URLs (`/webhooks/gitlab/{binding_id}/`) with the secret token, instead of the old generic `/gitlab/webhook/` path that couldn't resolve bindings.
 
 ### Added
-- **`setup-webhook` Action**: New `POST /api/cicd-bindings/{id}/setup-webhook/` endpoint to register webhooks with CI/CD providers automatically. Supports GitLab, GitHub, and Bitbucket API registration; returns manual config URL for Jenkins and Azure DevOps.
+- **`setup-webhook` Action**: New `POST /api/projects/cicd-bindings/{id}/setup-webhook/` endpoint to register webhooks with CI/CD providers automatically. Supports GitLab, GitHub, and Bitbucket API registration; returns manual config URL for Jenkins and Azure DevOps.
 - **Payload-Based Binding Resolution**: Legacy webhook URLs (without `binding_id`) now fall back to resolving the binding from the payload's `project.id` field, ensuring backwards compatibility.
 - **Legacy GitLab Webhook Route**: Added `/webhooks/gitlab/` route for existing webhooks registered with the old URL pattern.
 

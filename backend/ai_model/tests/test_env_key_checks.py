@@ -61,7 +61,7 @@ class WarnsAboutKeysNothingReadsTest(SimpleTestCase):
     def test_the_hint_says_where_keys_actually_go(self):
         found = _run(GOOGLE_API_KEY='g')
         self.assertIn('Settings', found[0].hint)
-        self.assertIn('API Keys', found[0].hint)
+        self.assertIn('AI Providers', found[0].hint)
 
     def test_the_secret_value_is_never_echoed(self):
         """The whole point is that this appears in deployment logs."""

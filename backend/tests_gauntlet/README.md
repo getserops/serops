@@ -34,7 +34,7 @@ docker run --rm --network code_serops \
 **On e2e** (the way we validate before shipping):
 
 ```bash
-ssh root@178.104.127.241 'docker exec \
+ssh root@<e2e-host> 'docker exec \
   -e GAUNTLET_MODEL=claude \
   serops-backend \
   python -m tests_gauntlet.run_gauntlet --tier 0'
@@ -49,7 +49,7 @@ ssh root@178.104.127.241 'docker exec \
 | `GAUNTLET_SERVICE` | `checkout` | Service on that project. |
 | `GAUNTLET_ENV` | `production` | Environment label. |
 | `GAUNTLET_MODEL` | `claude` | AI provider (claude/gemini/deepseek/etc). |
-| `GAUNTLET_BASE_URL` | `https://178-104-127-241.nip.io` | For HTTP surfaces (alerts/OTLP). |
+| `GAUNTLET_BASE_URL` | `https://localhost` | For HTTP surfaces (alerts/OTLP). |
 | `GAUNTLET_USER` | `gauntlet@serops.internal` | For UI tests. |
 | `GAUNTLET_PWD` | `Gauntlet-Str0ngP4ss-2026` | For UI tests. |
 | `GAUNTLET_INGEST_KEY` | `` | Bearer token for OTLP `/api/traces/v1/traces`. |

@@ -12,7 +12,7 @@ Connect Bitbucket repositories to SerOps for code change tracking and pipeline m
 
 ## Setup
 
-Configuration is managed in **Settings → Integrations**.
+Configuration is managed in **Settings → Global Integrations**.
 
 ### Bitbucket Cloud
 
@@ -21,7 +21,7 @@ Configuration is managed in **Settings → Integrations**.
    - `Repositories: Read`
    - `Pipelines: Read` (for CI/CD)
    - `Webhooks: Read and write` (optional, for auto-setup)
-3. In SerOps: **Settings → Integrations**
+3. In SerOps: **Settings → Global Integrations**
 4. Click **+ Add Integration** and select **Bitbucket**
 5. Enter:
    - **Name**: Identifier (e.g., "Team Bitbucket")
@@ -60,7 +60,7 @@ Configuration is managed in **Settings → Integrations**.
 SerOps auto-generates a webhook secret when you create a CI/CD binding. To register the webhook with Bitbucket automatically:
 
 1. Navigate to the service's CI/CD binding
-2. Click **Setup Webhook** (or call `POST /api/cicd-bindings/{id}/setup-webhook/`)
+2. Click **Setup Webhook** (or call `POST /api/projects/cicd-bindings/{id}/setup-webhook/`)
 
 ### Manual Setup
 

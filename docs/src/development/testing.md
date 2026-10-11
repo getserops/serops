@@ -35,23 +35,22 @@ Do NOT add an e2e test for:
 # From backend/
 make test-e2e          # e2e only
 make test-unit         # unit + view tests, skipping e2e
-make test              # the full canonical suite (unit + e2e)
+make test              # curated core suite (key view tests + e2e)
 make test-fast         # smoke run: e2e + one representative view suite
 ```
 
-Equivalent without Make:
+The Make targets run a curated subset. The **whole** backend suite — what
+CI runs — is plain `manage.py test`:
 
 ```bash
 docker exec -e DJANGO_SETTINGS_MODULE=api.test_settings serops_backend_dev \
-  python manage.py test tests_e2e --verbosity=2 --keepdb
+  python manage.py test --noinput --keepdb
 ```
 
-!!! warning "`--keepdb` goes stale after a migration"
-    `--keepdb` reuses a cached test database, which is a large speed
-    win but will produce baffling `DoesNotExist` failures on
-    seed-migration data after you add a migration. If tests fail in a
-    way that makes no sense, drop `--keepdb` and add `--noinput` for
-    one clean run before you start debugging the test itself.
+`--keepdb` reuses the test database between runs and is safe to repeat:
+transactional tests subclass `Utils.testing.SeedPreservingTransactionTestCase`,
+which restores migration seed data after every flush. New transactional
+tests must use that base class rather than `TransactionTestCase`.
 
 ### Frontend
 

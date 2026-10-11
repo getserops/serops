@@ -63,7 +63,7 @@ batch. Codes below match `AIServiceError.code`.
 | `TIMEOUT` | Request exceeded the adapter timeout (default 120s) | Batch is too large — split it via a shorter batch interval — or increase `timeout_seconds` under **Settings > AI Providers > Provider Config** (only recommended for slow local Ollama). |
 | `NETWORK_ERROR` | Connection failed at TCP / DNS level | Almost always self-hosted: Ollama container down, wrong `api_base_url`, network policy blocking egress. Test with `curl <api_base_url>/models`. |
 | `CONTENT_BLOCKED` | Provider safety filter refused the content | Gemini's SAFETY filter can trip on log content that looks like an attack. Retry usually fails — either switch providers for this batch or increase the PII-redaction aggressiveness in **Settings > Security**. |
-| `AI_BUDGET_EXCEEDED` | Monthly cost cap reached | Raise **Settings > AI > Monthly budget** or wait for the calendar month to reset. Rule-based issue creation (Sentinel, correlation engine) still runs — AI polish is what's paused. |
+| `AI_BUDGET_EXCEEDED` | Monthly cost cap reached | Raise **Settings > AI Providers > Monthly budget** or wait for the calendar month to reset. Rule-based issue creation (Sentinel, correlation engine) still runs — AI polish is what's paused. |
 | `TRUNCATED` | Model hit its output-token limit mid-response | The partial answer is salvaged rather than discarded: the issues the model had finished writing are kept, the batch is labelled `(truncated)` with a note on the analysis, and any half-written trailing issue is dropped rather than published with missing fields. Re-analyse for the complete picture, or raise `max_tokens` under **Settings > AI Providers > Provider Config**. You will only see this code with no analysis attached when the response was cut before any usable text arrived. |
 | `PROVIDER_NOT_SUPPORTED` | Provider name doesn't map to a known adapter | Check that the provider is in the AIModelProvider catalog. |
 | `UNKNOWN_ERROR` | Adapter couldn't categorise the failure | Check `raw_error` on the batch for the original provider message. If it's a new pattern, open an issue so we can add classification. |
@@ -90,7 +90,7 @@ is salvaged from the primary instead.
 | Symptom | Meaning |
 |---|---|
 | Batch used fallback provider name | Primary failed once; automatic fallback fired. Expected. |
-| Every batch uses fallback | Primary circuit is OPEN — check **Settings > AI Health** for the reason. |
+| Every batch uses fallback | Primary circuit is OPEN — check **Settings > AI Providers** for the reason. |
 | Both providers erroring | Provider outage or a bad prompt (rare). Look at `raw_error` on the batch. The reported error is the **primary's**, with the fallback's code appended to the message — so `QUOTA_EXCEEDED ... Fallback provider gemini also failed (AUTH_ERROR)` means your chosen provider is out of quota *and* the fallback's key is bad. Fix the first one; the second is a separate problem. |
 
 ## Notifications
@@ -98,19 +98,19 @@ is salvaged from the primary instead.
 | Issue | Check | Solution |
 |-------|-------|----------|
 | Not receiving emails | Email config | Verify SMTP settings in `.env`. Check spam/junk folder. |
-| Not receiving Slack alerts | Webhook URL | Verify the Slack webhook URL in **Settings > Notification Channels**. Test with the "Send test" button on the channel. |
+| Not receiving Slack alerts | Webhook URL | Verify the Slack webhook URL in **Settings > Delivery Channels**. Test with the "Send test" button on the channel. |
 | Slack channel accepted but no messages arrive | Channel filters | Check the channel's trigger filters + severity floor — you may be filtering the events out. |
 | PagerDuty pages nobody | Integration key | Ensure the Events API v2 integration key is for the correct service, not the account. |
 | OpsGenie alerts appear at P4 | Non-paging by design | SerOps posts as P4 to be additive to your existing pager schedule. Escalate manually via the alert if needed. |
 | Too many notifications | Preferences | Configure severity filters, quiet hours, or digest frequency in **Notification Preferences**. |
-| Escalation not triggering | Rules | Verify escalation rules are configured in **Settings > Escalation Rules**. |
+| Escalation not triggering | Rules | Verify escalation rules are configured in **Settings > Routing Rules > Escalation Rules**. |
 | Notifications delayed | Quiet hours | Check if quiet hours are active. Notifications are held and delivered as a summary afterward. |
 
 ## Distributed traces (OTLP)
 
 | Issue | Check | Solution |
 |-------|-------|----------|
-| Collector returns 401 | Ingest key | Bearer token must match a key issued under **Settings > Traces > OTLP Ingest Keys**. |
+| Collector returns 401 | Ingest key | Bearer token must match a key issued under **Settings > Distributed Traces**. |
 | Collector returns 400 | Payload | SerOps only accepts OTLP/HTTP JSON — set your Collector exporter to `otlphttp` (not `otlp`). |
 | Traces ingested but not appearing on batches | Time window | Batch trace correlation uses the batch's time window. Traces older than the batch or from a service not in the project don't appear. |
 | Trace count on batch is 0 | Service names | The trace's `service.name` resource attribute must match a registered SerOps service name (case-insensitive). |
@@ -128,7 +128,7 @@ is salvaged from the primary instead.
 | Symptom | Meaning | Action |
 |---|---|---|
 | Yellow banner "AI budget at 80%" | Warn threshold reached | Non-blocking; either raise the cap or expect the hard cap soon. |
-| Batches marked `AI_BUDGET_EXCEEDED` | Hard cap reached | Rule-based issues still fire; AI RCA polish is paused until the calendar month resets. Raise **Settings > AI > Monthly budget** to resume. |
+| Batches marked `AI_BUDGET_EXCEEDED` | Hard cap reached | Rule-based issues still fire; AI RCA polish is paused until the calendar month resets. Raise **Settings > AI Providers > Monthly budget** to resume. |
 | Cost snapshot shows zero after AI calls ran | Token-usage recording failure | Check backend logs for `AITokenUsage` write errors. Rare — usually a DB write permission issue. |
 
 ## Deployment

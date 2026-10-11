@@ -1,6 +1,6 @@
 # Webhook Setup Guide
 
-SerOps receives CI/CD pipeline events and deployment events via webhooks. Every webhook URL is tied to a specific **CI/CD Binding** you create in SerOps under **Settings → Projects → Services → CI/CD Bindings**. The binding provides multi-tenancy isolation (only your org's data flows to your batches) and lets you configure per-binding secrets for signature verification.
+SerOps receives CI/CD pipeline events and deployment events via webhooks. Every webhook URL is tied to a specific **CI/CD Binding** you create in SerOps under **Projects → Services → CI/CD Bindings**. The binding provides multi-tenancy isolation (only your org's data flows to your batches) and lets you configure per-binding secrets for signature verification.
 
 This page covers:
 
@@ -14,7 +14,7 @@ This page covers:
 ## Where to find your webhook URL
 
 1. Log in to SerOps as an admin
-2. Navigate to **Settings → Projects → \<your project\> → Services → \<service\> → CI/CD Bindings**
+2. Navigate to **Projects → \<your project\> → Services → \<service\> → CI/CD Bindings**
 3. Create a binding (Provider = the tool you're wiring up, Binding Type = `build` / `deploy` / etc.)
 4. Copy the **Webhook URL** shown on the binding detail page. It looks like:
 
@@ -298,7 +298,7 @@ EOT
 SerOps supports HMAC-SHA256 signatures on all webhook endpoints. Highly recommended for any webhook exposed on a public URL.
 
 1. **Generate a secret**: any 32+ char random string. `openssl rand -hex 32` works.
-2. **Set it on the binding**: **Settings → Projects → Services → CI/CD Bindings → \<binding\> → Webhook Secret**.
+2. **Set it on the binding**: **Projects → Services → CI/CD Bindings → \<binding\> → Webhook Secret**.
 3. **Compute + attach the signature** on every request:
 
 ```

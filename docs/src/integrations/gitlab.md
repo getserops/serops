@@ -14,7 +14,7 @@ Connect GitLab to SerOps for pipeline logs, code changes, and deployment trackin
 
 All integrations must be configured in **Settings** before they can be used in projects.
 
-1. Navigate to **Settings → Integrations**
+1. Navigate to **Settings → Global Integrations**
 2. Click **+ Add Integration** and select **GitLab**
 3. Enter:
     *   **Name**: Identifier for this integration (e.g. "Corporate GitLab")
@@ -35,7 +35,7 @@ Webhooks enable real-time updates.
 SerOps auto-generates a webhook secret when you create a CI/CD binding. To register the webhook with GitLab automatically:
 
 1. Navigate to the service's CI/CD binding
-2. Click **Setup Webhook** (or call `POST /api/cicd-bindings/{id}/setup-webhook/`)
+2. Click **Setup Webhook** (or call `POST /api/projects/cicd-bindings/{id}/setup-webhook/`)
 3. SerOps registers the webhook URL and secret with GitLab via API
 
 ### Manual Setup

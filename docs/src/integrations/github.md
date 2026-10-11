@@ -12,13 +12,13 @@ Connect GitHub repositories to SerOps for code change tracking and CI/CD monitor
 
 ## Setup
 
-Configuration is managed in **Settings → Integrations**.
+Configuration is managed in **Settings → Global Integrations**.
 
 1. In GitHub: **Settings → Developer settings → Personal access tokens → Tokens (classic)**
 2. Generate token with scopes:
    - `repo` - Full repository access
    - `workflow` - (Optional) For GitHub Actions
-3. In SerOps: **Settings → Integrations**
+3. In SerOps: **Settings → Global Integrations**
 4. Click **+ Add Integration** and select **GitHub**
 5. Enter:
    - **Name**: Identifier (e.g. "My GitHub")
@@ -49,7 +49,7 @@ Once added, you can select this integration when creating services via the **Add
 SerOps auto-generates a webhook secret when you create a CI/CD binding. To register the webhook with GitHub automatically:
 
 1. Navigate to the service's CI/CD binding
-2. Click **Setup Webhook** (or call `POST /api/cicd-bindings/{id}/setup-webhook/`)
+2. Click **Setup Webhook** (or call `POST /api/projects/cicd-bindings/{id}/setup-webhook/`)
 
 ### Manual Setup
 

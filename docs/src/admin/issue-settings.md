@@ -6,7 +6,7 @@ Configure how SerOps handles issue deduplication, muting, and auto-resolution at
 
 Issue Settings control noise reduction behaviour across your organisation. These settings apply to all projects and determine how SerOps groups similar issues, how long muted issues stay silent, and whether old issues are automatically resolved.
 
-Access these settings via **Settings > Issue Settings**.
+Access these settings via **Settings > Data Management**.
 
 ## Configuration Options
 

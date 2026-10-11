@@ -26,7 +26,7 @@ The models available for re-analysis depend on your organisation's configured AP
 | **Claude** | Excellent reasoning and nuance | Higher cost |
 
 !!! note
-    Any AI provider registered in **Settings > AI** with a valid API key for your organisation will appear as a re-analysis option. See [Admin Guide - Settings](../admin/settings.md) for how to configure providers.
+    Any AI provider registered in **Settings > AI Providers** with a valid API key for your organisation will appear as a re-analysis option. See [Admin Guide - Settings](../admin/settings.md) for how to configure providers.
 
 ---
 
@@ -58,7 +58,7 @@ The re-analysis task is queued as a background Celery task. Processing time depe
     Re-analysis does not replace the original analysis. Each model's results are stored separately, allowing you to compare them.
 
 !!! warning "No models showing?"
-    If the dropdown is empty, your organisation has no API keys configured for any active AI provider. Ask your admin to add API keys in **Settings > AI**.
+    If the dropdown is empty, your organisation has no API keys configured for any active AI provider. Ask your admin to add API keys in **Settings > AI Providers**.
 
 ---
 
@@ -113,7 +113,7 @@ Response:
 }
 ```
 
-Only models with an active API key (configured under Settings → AI) are returned. If your organisation has no keys configured, this returns an empty list.
+Only models with an active API key (configured under Settings → AI Providers) are returned. If your organisation has no keys configured, this returns an empty list.
 
 ### Queue a Re-Analysis
 

@@ -16,45 +16,56 @@ the PostHog-style flat monorepo pattern.
 
 ## Install paths
 
-Pick whichever fits your workflow — chart is identical across all
-three. **You do not need to clone the repo for production.**
+Pick whichever fits your workflow — the chart is identical in both.
+**You do not need to clone the repo for production.**
 
 ### 1. OCI (recommended, no repo-add needed)
 
-Available from the first `v1.0.0` release tag:
+The chart needs a database and a Redis broker. For production, point it
+at your own:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
   --version 1.0.0 \
   --namespace serops --create-namespace \
-  --set django.secretKey="$(openssl rand -hex 64)"
+  --set django.secretKey="$(openssl rand -hex 64)" \
+  --set database.url="postgres://serops:PASSWORD@your-pg-host:5432/serops" \
+  --set broker.url="redis://:PASSWORD@your-redis-host:6379/0"
 ```
+
+Prefer `database.existingSecret` / `broker.existingSecret` (keys
+`database-url` / `broker-url`) over passing credentials on the command
+line.
+
+For a lab or demo cluster, let the chart run Postgres and Redis itself:
+
+```bash
+helm install serops oci://ghcr.io/getserops/charts/serops \
+  --version 1.0.0 \
+  --namespace serops --create-namespace \
+  --set django.secretKey="$(openssl rand -hex 64)" \
+  --set devServices.postgresql.enabled=true \
+  --set devServices.redis.enabled=true
+```
+
+!!! warning "Set one of the two"
+    With neither `database.url` nor `devServices.postgresql.enabled`
+    (and likewise for the broker), the chart renders no connection
+    strings and the pods fail to start.
 
 !!! warning "AI provider keys are not a Helm value"
     SerOps reads root-cause-analysis keys per organisation from the
     database, never from the environment — a cluster-wide key would
     pool quota and billing across every organisation on the instance.
 
-    Add yours after install at **Settings → AI → API Keys**.
+    Add yours after install at **Settings → AI Providers**.
 
     The chart's one AI-related value, `ai.embeddings.openaiApiKey`, is
     optional and unrelated: it enables semantic issue similarity via
     the OpenAI embeddings API. Without it SerOps falls back to
     deterministic hash embeddings.
 
-### 2. Classic Helm HTTP repo
-
-Same chart, mirrored on GitHub Pages:
-
-```bash
-helm repo add getserops https://getserops.github.io/serops
-helm repo update
-helm install serops getserops/serops \
-  --namespace serops --create-namespace \
-  --set django.secretKey="$(openssl rand -hex 64)"
-```
-
-### 3. From source (dev / lab / customisation)
+### 2. From source (dev / lab / customisation)
 
 Bundled PG + Redis, single-command install:
 
@@ -117,7 +128,7 @@ broker:
   existingSecret: serops-broker-secret   # key: broker-url
 
 # AI PROVIDER KEYS ARE NOT SET HERE. Anthropic / Gemini / OpenAI / DeepSeek
-# keys are entered in the UI under Settings → AI → API Keys, stored per
+# keys are entered in the UI under Settings → AI Providers → API Keys, stored per
 # organisation and encrypted at rest. Nothing reads them from the environment,
 # so a Helm value or secret for them has no effect.
 #
