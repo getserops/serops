@@ -4,7 +4,8 @@
 # the Django backend, everything else to the React frontend. Caddy
 # automatically obtains and renews a Let's Encrypt certificate for the
 # SEROPS_DOMAIN env var when it is a real public hostname; for
-# `localhost` it serves plain HTTP.
+# `localhost` it serves HTTPS with a certificate from its own local CA
+# (browsers warn once) and redirects HTTP to it.
 
 {$SEROPS_DOMAIN} {
     # API + Django-served media

@@ -26,7 +26,8 @@ after signing in:
 
 ## Prerequisites
 
-- Linux host with Docker 24+ and Docker Compose v2
+- Linux host with Docker 24+ and Docker Compose v2 or newer (`docker compose`, not
+  the legacy `docker-compose`)
 - **2 GB RAM, 1 vCPU, 10 GB disk** for a single-project evaluation.
   Production sizing starts higher — see
   [System Requirements](../deployment/requirements.md)
@@ -38,8 +39,8 @@ after signing in:
 
 ## Step 1: Get the compose files
 
-The quick-start compose file and its supporting configuration live
-inside the backend repo:
+The quick-start compose file and its supporting configuration live in
+`deploy/quick-start/` of the repository:
 
 ```bash
 git clone https://github.com/getserops/serops.git
@@ -57,12 +58,12 @@ Open `.env` and set the required values:
 | Variable | How to generate |
 |---|---|
 | `DJANGO_SECRET_KEY` | `python3 -c "import secrets; print(secrets.token_urlsafe(64))"` |
-| `POSTGRES_PASSWORD` | `openssl rand -base64 24` |
-| `REDIS_PASSWORD` | `openssl rand -base64 24` |
+| `POSTGRES_PASSWORD` | `openssl rand -hex 24` |
+| `REDIS_PASSWORD` | `openssl rand -hex 24` |
 
 !!! info "AI provider keys do not go in `.env`"
     SerOps reads AI keys from the database, per organisation — never
-    from the environment. You will add yours in **Settings → AI →
+    from the environment. You will add yours in **Settings → AI Providers →
     API Keys** at [Step 5](#step-5-add-an-ai-provider-key), after the
     stack is running.
 
@@ -82,13 +83,20 @@ Point that DNS name at your host's public IP *before* starting Caddy —
 otherwise the Let's Encrypt HTTP-01 challenge fails and Caddy retries
 on its own timer.
 
-For a purely local install, leave `SEROPS_DOMAIN=localhost` — Caddy
-will serve plain HTTP on port 80.
+For a purely local install, leave `SEROPS_DOMAIN=localhost`. Caddy then
+serves `https://localhost` with a certificate from its own local
+authority, so your browser shows a certificate warning the first time —
+accept it to continue. `http://localhost` redirects there.
 
-!!! warning "Never use default values in production"
+!!! warning "Replace every `change-me-…` value"
     The `.env.example` file ships with placeholder text
-    (`change-me-…`). The compose file fails fast if any required
-    password is left as a placeholder or omitted.
+    (`change-me-…`). The compose file refuses to start if a required
+    password is missing, but it cannot tell a placeholder from a real
+    value — a stack started with the placeholders runs with publicly
+    known credentials.
+
+    Use the hex commands above: the Redis password is embedded in a
+    `redis://` URL, and a `/` (common in base64 output) breaks it.
 
 See [Configuration Reference](../deployment/configuration.md) for the
 full list of environment variables.
@@ -104,10 +112,14 @@ Five containers come up: `serops-postgres`, `serops-redis`,
 exposes ports (80 and 443) to the host — everything else is reachable
 only inside the internal `serops` Docker network.
 
-## Step 4: Initialise the database
+## Step 4: Create the first admin
+
+The backend applies database migrations itself on every start, so the
+schema is ready once `serops-backend` reports `healthy`
+(`docker compose ps`). Create the first admin account — it gets its own
+organisation:
 
 ```bash
-docker compose exec backend python manage.py migrate
 docker compose exec backend python manage.py createsuperuser
 ```
 
@@ -118,7 +130,7 @@ Sign in with the superuser you just created. The
 and walks you through the remaining steps; you can also do them
 manually.
 
-Go to **Settings → AI → API Keys**, pick your provider, and paste the
+Go to **Settings → AI Providers**, pick your provider, and paste the
 key. Keys are stored per organisation and encrypted at rest.
 
 Supported: Anthropic (Claude), Google (Gemini), OpenAI, DeepSeek, and
@@ -127,7 +139,7 @@ with no key at all.
 
 ## Step 6: Connect your observability stack
 
-Go to **Settings → Integrations** and connect at least one of the 14
+Go to **Settings → Global Integrations** and connect at least one of the
 supported observability providers so SerOps has real logs and metrics
 to analyse. See [Integrations Overview](../integrations/overview.md)
 for the full list and per-provider setup guides.
@@ -225,19 +237,17 @@ By design only Caddy exposes ports to the host:
 | 443  | Caddy (HTTPS) |
 
 Postgres and Redis are reachable only from inside the `serops` Docker
-network. To reach Postgres from a laptop for a psql session, tunnel
-via SSH:
+network. For a psql session, run it inside the container:
 
 ```bash
-ssh -L 5432:localhost:5432 root@your-server
-# then: psql -h localhost -U serops serops
+docker compose exec postgres psql -U serops serops
 ```
 
 ## Security posture
 
 - Every service that accepts a password is required to have one — the
-  compose file fails fast if `POSTGRES_PASSWORD` or `REDIS_PASSWORD`
-  aren't set.
+  compose file refuses to start if `POSTGRES_PASSWORD` or
+  `REDIS_PASSWORD` isn't set.
 - No default credentials anywhere — the `.env.example` file is a
   template, not a working config.
 - Postgres runs with data-checksums on, `pg_stat_statements` enabled
@@ -286,8 +296,8 @@ DNS points at your host and the host firewall allows port 80.
 **AI analyses aren't producing issues**
 
 Either no AI provider key is configured, or the org has no
-observability integration wired. Check **Settings → AI** for the
-provider key, and **Settings → Integrations** to connect at least one
+observability integration wired. Check **Settings → AI Providers** for the
+provider key, and **Settings → Global Integrations** to connect at least one
 of the supported log or metric providers.
 
 ---

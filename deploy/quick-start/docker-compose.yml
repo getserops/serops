@@ -87,7 +87,7 @@ services:
     #     defeats the point of pinning versions for rollbackability.
     image: ${SEROPS_BACKEND_IMAGE:-ghcr.io/getserops/backend:${SEROPS_VERSION:-1.0.0}}
     # Build fallback so a fresh source clone works without published
-    # Docker Hub images. Use ``docker compose up -d --build`` to force
+    # images. Use ``docker compose up -d --build`` to force
     # a local build; otherwise the image ref above is used if present.
     build:
       context: ../../backend

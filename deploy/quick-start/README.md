@@ -17,7 +17,7 @@ Prometheus, VictoriaMetrics, Grafana Mimir.
 
 **System requirements**
 
-- Linux host with Docker 24+ and Docker Compose v2
+- Linux host with Docker 24+ and Docker Compose v2 or newer
 - ~2 GB RAM, 1 vCPU, 10 GB disk
 - One of: Anthropic, Google Gemini, OpenAI, or DeepSeek API key
 
@@ -34,11 +34,11 @@ Open `.env` and set at minimum:
 | Variable | How to generate |
 |---|---|
 | `DJANGO_SECRET_KEY` | `python3 -c "import secrets; print(secrets.token_urlsafe(64))"` |
-| `POSTGRES_PASSWORD` | `openssl rand -base64 24` |
-| `REDIS_PASSWORD` | `openssl rand -base64 24` |
+| `POSTGRES_PASSWORD` | `openssl rand -hex 24` |
+| `REDIS_PASSWORD` | `openssl rand -hex 24` |
 
 **AI provider keys do not go in `.env`.** They are entered in the UI after
-first login, under **Settings → AI → API Keys**, and stored per organisation
+first login, under **Settings → AI Providers**, and stored per organisation
 (Fernet-encrypted at rest). Setting `ANTHROPIC_API_KEY` or any sibling in the
 environment has no effect whatsoever — this table used to list one, which sent
 self-hosters to configure a variable nothing reads and left them wondering why
@@ -124,18 +124,16 @@ By design only Caddy exposes ports to the host:
 | 443 | Caddy (HTTPS) |
 
 Postgres and Redis are reachable only from inside the `serops` Docker
-network. To reach Postgres from a laptop for a psql session, tunnel
-via SSH:
+network. For a psql session, run it inside the container:
 
 ```bash
-ssh -L 5432:localhost:5432 root@your-server
-# then: psql -h localhost -U serops serops
+docker compose exec postgres psql -U serops serops
 ```
 
 ## Security posture
 
 - Every service that accepts a password is required to have one — the
-  compose file fails fast if `POSTGRES_PASSWORD` or `REDIS_PASSWORD`
+  compose file refuses to start if `POSTGRES_PASSWORD` or `REDIS_PASSWORD`
   aren't set.
 - No default credentials anywhere — the `.env.example` file is a
   template, not a working config.
