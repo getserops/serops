@@ -1,0 +1,170 @@
+/* OnboardingWizard.css - Styles for the onboarding wizard */
+
+.onboarding-wizard {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 480px;
+    max-width: calc(100vw - 48px);
+    z-index: 1200;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    border-radius: 16px;
+    background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+}
+
+.onboarding-wizard:hover {
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
+}
+
+.onboarding-wizard.minimized {
+    width: auto;
+    cursor: pointer;
+}
+
+.onboarding-wizard.minimized:hover {
+    transform: translateY(-2px);
+}
+
+.onboarding-wizard.loading {
+    min-height: 100px;
+}
+
+/* Step icon styling */
+.step-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(33, 150, 243, 0.1) 0%, rgba(33, 150, 243, 0.05) 100%);
+}
+
+/* Current step card */
+.current-step-card {
+    background: linear-gradient(135deg, rgba(33, 150, 243, 0.05) 0%, rgba(156, 39, 176, 0.03) 100%);
+    border-color: rgba(33, 150, 243, 0.2);
+    transition: all 0.3s ease;
+}
+
+.current-step-card:hover {
+    border-color: rgba(33, 150, 243, 0.4);
+}
+
+/* Stepper customization */
+.onboarding-wizard .MuiStepper-root {
+    padding: 8px 0;
+}
+
+.onboarding-wizard .MuiStepLabel-label {
+    font-size: 0.7rem;
+}
+
+.onboarding-wizard .MuiStepIcon-root {
+    font-size: 1.5rem;
+}
+
+.onboarding-wizard .MuiStepIcon-root.Mui-completed {
+    color: #4caf50;
+}
+
+.onboarding-wizard .MuiStepIcon-root.Mui-active {
+    color: #2196f3;
+}
+
+/* Progress bar */
+.onboarding-wizard .MuiLinearProgress-root {
+    background-color: rgba(33, 150, 243, 0.1);
+}
+
+.onboarding-wizard .MuiLinearProgress-bar {
+    background: linear-gradient(90deg, #2196f3 0%, #9c27b0 100%);
+}
+
+/* Button styling */
+.onboarding-wizard .MuiButton-contained {
+    background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+    text-transform: none;
+    font-weight: 600;
+    padding: 8px 20px;
+}
+
+.onboarding-wizard .MuiButton-contained:hover {
+    background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
+    box-shadow: 0 6px 16px rgba(33, 150, 243, 0.4);
+}
+
+.onboarding-wizard .MuiButton-outlined {
+    text-transform: none;
+    border-width: 2px;
+}
+
+.onboarding-wizard .MuiButton-text {
+    text-transform: none;
+}
+
+/* Chip styling for completed steps */
+.onboarding-wizard .MuiChip-colorSuccess {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: #2e7d32;
+}
+
+.onboarding-wizard .MuiChip-colorSuccess .MuiChip-icon {
+    color: #4caf50;
+}
+
+/* Animation for entrance */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.onboarding-wizard {
+    animation: slideInUp 0.4s ease-out;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .onboarding-wizard {
+        background: linear-gradient(145deg, #1e1e1e 0%, #2d2d2d 100%);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .step-icon {
+        background: linear-gradient(135deg, rgba(33, 150, 243, 0.2) 0%, rgba(33, 150, 243, 0.1) 100%);
+    }
+
+    .current-step-card {
+        background: linear-gradient(135deg, rgba(33, 150, 243, 0.1) 0%, rgba(156, 39, 176, 0.05) 100%);
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .onboarding-wizard {
+        bottom: 0;
+        right: 0;
+        width: 100%;
+        max-width: 100%;
+        border-radius: 16px 16px 0 0;
+    }
+
+    .step-icon {
+        width: 60px;
+        height: 60px;
+    }
+
+    .step-icon svg {
+        font-size: 32px !important;
+    }
+}

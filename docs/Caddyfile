@@ -1,0 +1,115 @@
+# ─────────────────────────────────────────────────────────────
+# SerOps reverse-proxy config
+#
+# One Caddy container fronts three logical surfaces:
+#   1. serops.ai / www.serops.ai  — landing (root) + docs (/docs)
+#   2. docs.serops.ai              — legacy backlink 301 → serops.ai/docs
+#   3. app.serops.ai               — demo instance (backend + SPA)
+#
+# Deployed from this repo to /root/workspace/docs/Caddyfile on the
+# server. Restart with:
+#   docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+# or fall back to a container restart if reload fails validation.
+# ─────────────────────────────────────────────────────────────
+
+
+# ═════════════════════════════════════════════════════════════
+# Marketing landing + docs (subdirectory)
+# ═════════════════════════════════════════════════════════════
+serops.ai, www.serops.ai {
+    # Pre-launch: keep search engines out of everything until launch
+    # day. The landing app also emits <meta robots> and a
+    # disallow-all robots.txt via Next.js metadata; the header here
+    # is belt-and-suspenders (covers non-HTML responses like the
+    # docs sitemap.xml). Remove this line at launch.
+    header X-Robots-Tag "noindex, nofollow"
+
+    # Pre-launch: shared password gate. Anyone with the credentials
+    # (share out-of-band with reviewers, testers, potential first
+    # customers) sees the site. Bots + CT-log scrapers hit 401.
+    #
+    # Username: preview
+    #
+    # Rotate by regenerating with
+    #   docker exec serops_docs_caddy caddy hash-password --plaintext '<new>'
+    # then dropping the hash in here and hot-reloading Caddy.
+    # Remove this whole block at launch.
+    basic_auth {
+        preview $2a$14$6h81fDCANIz9Qmf7DUp7burtcEjoxdRGWnt1vixBUVxzGjXuaKaPq
+    }
+
+    # www.serops.ai → apex (single canonical host)
+    @www host www.serops.ai
+    redir @www https://serops.ai{uri} permanent
+
+    # Docs live at /docs. mkdocs builds the static site with root-
+    # relative file layout (index.html at /, assets under /assets/…),
+    # but the browser requests them under /docs/… because that's what
+    # the served HTML links point at. handle_path strips the /docs
+    # prefix before forwarding so /docs/assets/foo.css → /assets/foo.css
+    # inside the container. The site_url is still set to
+    # https://serops.ai/docs/ so canonicals + sitemap URLs are correct
+    # for search engines — that's independent of file layout.
+    handle_path /docs/* {
+        reverse_proxy serops_docs:80
+    }
+    # Also handle the bare /docs (no trailing slash) by redirecting
+    # to /docs/ so the handle_path rule catches it. Without this,
+    # /docs alone would fall through to the landing block.
+    @docsBare path /docs
+    redir @docsBare /docs/ 301
+
+    # Everything else = landing (Next.js).
+    # serops-landing listens on port 80 internally (published on
+    # host port 3000, but Caddy reaches it via the docker network).
+    handle {
+        reverse_proxy serops-landing:80
+    }
+}
+
+# ═════════════════════════════════════════════════════════════
+# Legacy docs URL — permanent 301 to the new location
+#
+# Every old docs.serops.ai/foo/bar link redirects to
+# serops.ai/docs/foo/bar. Kept indefinitely — costs nothing and
+# preserves every existing backlink from HN posts, blog posts,
+# search-index caches, and internal wikis.
+# ═════════════════════════════════════════════════════════════
+docs.serops.ai {
+    redir https://serops.ai/docs{uri} permanent
+}
+
+# ═════════════════════════════════════════════════════════════
+# Demo instance
+# ═════════════════════════════════════════════════════════════
+app.serops.ai {
+    # Pre-launch: keep search engines away from the demo too — no
+    # value in ranking the demo instance in Google before launch.
+    # Remove this line at launch if you want search visibility on
+    # the demo (probably you don't — search should point at
+    # serops.ai, not app.serops.ai).
+    header X-Robots-Tag "noindex, nofollow"
+
+    # Django admin — closed to the public on the demo host. This
+    # instance has only the seeded demo user; admin functions are
+    # done via `docker exec … manage.py` when needed. Blocking here
+    # eliminates the Django admin login form as an attack surface
+    # (brute-force, CVE hunting) without touching the Django code —
+    # self-hosters running their own instance still get admin at
+    # /api/admin/ as normal.
+    handle /api/admin* {
+        respond "Not found" 404
+    }
+    # Backend API — anything under /api goes to Django
+    handle /api/* {
+        reverse_proxy serops-backend:8000
+    }
+    # Static media served by Django (avatars, logos, etc.)
+    handle /images/* {
+        reverse_proxy serops-backend:8000
+    }
+    # Everything else is the React SPA
+    handle {
+        reverse_proxy serops-frontend:3000
+    }
+}

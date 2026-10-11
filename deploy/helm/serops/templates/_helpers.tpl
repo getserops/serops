@@ -1,0 +1,78 @@
+{{/* Chart-name helper — respects nameOverride. */}}
+{{- define "serops.name" -}}
+{{- default .Chart.Name .Values.global.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/* Fully-qualified name (release + chart).
+     Collapses when the release is already named after the chart, so
+     `helm install serops ./serops` yields serops-backend rather than
+     serops-serops-backend. This is the standard helm create idiom. */}}
+{{- define "serops.fullname" -}}
+{{- if .Values.global.fullnameOverride -}}
+{{- .Values.global.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default .Chart.Name .Values.global.nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Names of the optional bundled dev services. */}}
+{{- define "serops.devPostgresHost" -}}
+{{ printf "%s-postgres" (include "serops.fullname" .) }}
+{{- end -}}
+{{- define "serops.devRedisHost" -}}
+{{ printf "%s-redis" (include "serops.fullname" .) }}
+{{- end -}}
+
+{{/* Effective DATABASE_URL.
+     devServices.postgresql wins when enabled, so turning on the bundled
+     database actually connects the app to it. Previously enabling it
+     deployed a Postgres and changed nothing else, and the backend crashed
+     on a missing database-url secret key. */}}
+{{- define "serops.databaseUrl" -}}
+{{- if .Values.devServices.postgresql.enabled -}}
+{{- printf "postgres://%s:%s@%s:5432/%s"
+      .Values.devServices.postgresql.user
+      .Values.devServices.postgresql.password
+      (include "serops.devPostgresHost" .)
+      .Values.devServices.postgresql.database -}}
+{{- else -}}
+{{- .Values.database.url -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Effective CELERY_BROKER_URL — same precedence as the database. */}}
+{{- define "serops.brokerUrl" -}}
+{{- if .Values.devServices.redis.enabled -}}
+{{- printf "redis://%s:6379/0" (include "serops.devRedisHost" .) -}}
+{{- else -}}
+{{- .Values.broker.url -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Common labels stamped on every resource. */}}
+{{- define "serops.labels" -}}
+helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+app.kubernetes.io/name: {{ include "serops.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end -}}
+
+{{/* Selector labels for a component (backend, frontend, worker, beat). */}}
+{{- define "serops.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "serops.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: {{ .component }}
+{{- end -}}
+
+{{/* Image reference — appVersion fallback for tag. */}}
+{{- define "serops.image" -}}
+{{- $repo := .repository -}}
+{{- $tag := default .root.Chart.AppVersion .tag -}}
+{{ printf "%s:%s" $repo $tag }}
+{{- end -}}

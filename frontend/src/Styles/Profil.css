@@ -1,0 +1,264 @@
+/* Center the dashboard content */
+.dashboard {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: #f4f4f4;
+}
+
+/* Wrap the card inside a container for better centering */
+.card-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: 600px;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* Card profile styles */
+.card-profil {
+  font-size: 14px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, .05);
+  margin-top: 100px;
+  border-radius: 20px;
+  align-items: center;
+  width: 100%;
+  position: relative;
+  padding-bottom: 20px;
+}
+
+/* Form label style */
+.card-profil .form-label {
+  font-family: 'Euclid Circular A';
+  font-style: normal;
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 16px;
+  display: flex;
+  align-items: center;
+}
+
+/* Form control style */
+.card-profil .form-control {
+  font-size: 14px;
+  box-shadow: none;
+  height: 41px;
+  width: 100%;
+  background-color: #F2F4FF;
+  border: 1.5px solid #BAC6F5;
+  border-radius: 10px;
+  margin-top: 5px;
+  align-items: center;
+}
+
+.card-profil .form-control:focus {
+  border-color: #2B47D6;
+}
+
+/* Button styles */
+.card-profil .btn {
+  font-weight: 500;
+  font-size: 16px;
+  box-shadow: 0 4px 10px var(--shadow-color);
+  display: flex;
+  color: white;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  width: 130px;
+  height: 41px;
+  margin-top: 28px;
+  margin-left: 192px;
+  background: #2B47D6;
+  border-radius: 10px;
+}
+
+.card-profil .btn:focus {
+  background-color: white;
+  border: #2B47D6;
+  color: #2B47D6;
+}
+
+.card-profil .btn:focus,
+.card-profil .btn:active:focus {
+  box-shadow: none !important;
+}
+
+/* Button icon styles */
+.card-profil .btn-icon {
+  background-color: #fff;
+  border: 1.5px solid #D0D0D0;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, .2);
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding: 16px 24px;
+  gap: 8px;
+  width: 320px;
+  height: 41px;
+  border-radius: 10px;
+}
+
+/* Avatar circle styles */
+.circle-avatar {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  margin-top: -30%;
+  border: 2px solid #2B47D6;
+  border-radius: 50%;
+  background-color: white;
+  margin-bottom: 20px;
+}
+
+.default-avatar {
+  width: 100%;
+  height: 100%;
+  background-color: lightgray;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+/* Image avatar style */
+.image-avatar {
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Image profile style */
+.img-pro {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  object-fit: cover;
+}
+
+/* Edit overlay style */
+.edit-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Camera icon styles */
+.card-profil .camera-icon {
+  color: #2B47D6;
+  font-size: 16px;
+  cursor: pointer;
+  position: absolute;
+  bottom: 6%;
+  right: 4%;
+  padding: 8px;
+  background-color: #fff;
+  border-radius: 50%;
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+/* Update Password button styles - Modification de la marge */
+.btn-update-password {
+  background-color: #2B47D6 !important;
+  color: white !important;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px var(--shadow-color);
+  margin-top: 10px;
+  margin-left: auto;
+}
+
+.btn-add-project:hover {
+  background-color: #1a36b0 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(43, 71, 214, 0.3);
+}
+
+.btn-add-project i {
+  display: flex;
+  align-items: center;
+}
+
+/* Modal styles */
+.model {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.model-body {
+  padding: 25px;
+}
+
+.form-btn {
+  display: flex;
+  justify-content: flex-end;
+  gap: 15px;
+  padding: 15px 25px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.cancel-button {
+  background-color: #f0f0f0 !important;
+  color: #333 !important;
+}
+
+.submit-button {
+  background-color: #2B47D6 !important;
+  color: white !important;
+}
+
+/* Alert message styling */
+.ant-alert {
+  margin-bottom: 20px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 767px) {
+  .card-profil {
+    margin-top: 50px;
+    padding: 20px;
+  }
+
+  .circle-avatar {
+    width: 120px;
+    height: 120px;
+    margin-top: -20%;
+  }
+
+  .btn-add-project {
+    width: 100%;
+    justify-content: center;
+    float: none;
+    margin-top: 10px;
+    /* Conserve la même modification en responsive */
+  }
+
+  .card-profil .btn {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}

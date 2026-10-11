@@ -1,0 +1,39 @@
+# Pre-commit hooks for the SerOps backend.
+#
+# Primary goal: block accidental commits of .env* files (the local
+# .env at repo root contains live production credentials — DB
+# password, Google API key, Brevo SMTP credentials). Even though
+# .env is in .gitignore, a `git add -A .` or an editor plugin can
+# still stage it. detect-private-key catches the classic
+# BEGIN PRIVATE KEY / SSH RSA header case.
+#
+# Install once per contributor machine:
+#     pip install pre-commit
+#     pre-commit install
+#
+# Then every `git commit` runs these checks locally.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=1024']
+      - id: check-merge-conflict
+      - id: check-yaml
+        # Django app dirs sometimes have jinja-templated YAML that
+        # PyYAML can't parse cleanly. Restrict to CI / config files.
+        files: '\.(yml|yaml)$'
+        exclude: '^(providers/|integrations/).*template.*'
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  # Block any .env* file from being staged. .env.example is
+  # allowed because it holds only placeholder values.
+  - repo: local
+    hooks:
+      - id: forbid-env-files
+        name: Block .env* commits (except .env.example)
+        entry: bash -c 'for f in "$@"; do case "$f" in *.env|*.env.dev|*.env.local|*.env.prod|*.env.production|*.env.staging|.env|.env.dev|.env.local|.env.prod|.env.production|.env.staging) echo "REFUSING to commit env file: $f (contains secrets)"; exit 1;; esac; done' --
+        language: system
+        pass_filenames: true

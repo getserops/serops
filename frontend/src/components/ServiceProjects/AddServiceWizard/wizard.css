@@ -1,0 +1,328 @@
+/**
+ * Wizard CSS styles
+ * Clean, modern styling for the step-by-step wizard
+ */
+
+/* Progress bar */
+.wizard-progress {
+    margin-bottom: 2rem;
+    padding: 0 1rem;
+}
+
+.wizard-progress-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wizard-step {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    background: #e9ecef;
+    color: #6c757d;
+    border: 2px solid #e9ecef;
+}
+
+.wizard-step.active {
+    background: var(--bs-primary, #0d6efd);
+    color: white;
+    border-color: var(--bs-primary, #0d6efd);
+    box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.15);
+}
+
+.wizard-step.completed {
+    background: #198754;
+    color: white;
+    border-color: #198754;
+}
+
+.wizard-step .step-check {
+    font-size: 16px;
+}
+
+.wizard-connector {
+    flex: 1;
+    height: 3px;
+    background: #e9ecef;
+    max-width: 120px;
+    margin: 0 8px;
+    transition: background 0.3s ease;
+}
+
+.wizard-connector.completed {
+    background: #198754;
+}
+
+.wizard-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.75rem;
+    padding: 0 1rem;
+}
+
+.wizard-label {
+    font-size: 13px;
+    color: #6c757d;
+    text-align: center;
+    flex: 1;
+    transition: color 0.3s ease;
+}
+
+.wizard-label.active {
+    color: var(--bs-primary, #0d6efd);
+    font-weight: 600;
+}
+
+/* Type selection cards */
+.type-selection-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.type-card {
+    display: flex;
+    align-items: center;
+    padding: 1.25rem;
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: white;
+}
+
+.type-card:hover {
+    border-color: var(--bs-primary, #0d6efd);
+    background: #f8f9ff;
+    transform: translateX(4px);
+}
+
+.type-card.selected {
+    border-color: var(--bs-primary, #0d6efd);
+    background: rgba(13, 110, 253, 0.05);
+}
+
+.type-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-right: 1rem;
+    background: #f0f4ff;
+}
+
+.type-card.selected .type-card-icon {
+    background: var(--bs-primary, #0d6efd);
+    color: white;
+}
+
+.type-card-content {
+    flex: 1;
+}
+
+.type-card-title {
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 4px;
+    color: #212529;
+}
+
+.type-card-description {
+    font-size: 13px;
+    color: #6c757d;
+    margin: 0;
+}
+
+.type-card-arrow {
+    color: #adb5bd;
+    font-size: 18px;
+    transition: transform 0.2s ease;
+}
+
+.type-card:hover .type-card-arrow {
+    transform: translateX(4px);
+    color: var(--bs-primary, #0d6efd);
+}
+
+/* Provider buttons */
+.provider-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.provider-btn {
+    padding: 0.5rem 1rem;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.provider-btn:hover {
+    border-color: var(--bs-primary, #0d6efd);
+}
+
+.provider-btn.active {
+    border-color: var(--bs-primary, #0d6efd);
+    background: var(--bs-primary, #0d6efd);
+    color: white;
+}
+
+/* Wizard actions */
+.wizard-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e9ecef;
+}
+
+.wizard-actions-left {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.wizard-actions-right {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* Step content */
+.wizard-step-content {
+    min-height: 300px;
+}
+
+.wizard-step-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    color: #212529;
+}
+
+.wizard-step-subtitle {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-bottom: 1.5rem;
+}
+
+/* Form sections */
+.wizard-form-section {
+    margin-bottom: 1.5rem;
+}
+
+.wizard-form-label {
+    font-weight: 500;
+    font-size: 14px;
+    margin-bottom: 0.5rem;
+    color: #495057;
+}
+
+/* Verification badge */
+.verification-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.verification-badge.success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.verification-badge.loading {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.verification-badge.error {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Optional section */
+.optional-section {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 1.25rem;
+    border: 1px solid #e9ecef;
+}
+
+.optional-toggle {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.optional-card {
+    flex: 1;
+    padding: 1rem;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.optional-card:hover {
+    border-color: var(--bs-primary, #0d6efd);
+}
+
+.optional-card.selected {
+    border-color: var(--bs-primary, #0d6efd);
+    background: rgba(13, 110, 253, 0.05);
+}
+
+.optional-card-icon {
+    font-size: 24px;
+    margin-bottom: 0.5rem;
+}
+
+.optional-card-label {
+    font-weight: 500;
+    font-size: 14px;
+}
+
+/* Infra type pills */
+.infra-type-pills {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.infra-pill {
+    padding: 0.5rem 1rem;
+    border: 2px solid #e9ecef;
+    border-radius: 20px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+}
+
+.infra-pill:hover {
+    border-color: var(--bs-primary, #0d6efd);
+}
+
+.infra-pill.active {
+    border-color: var(--bs-primary, #0d6efd);
+    background: var(--bs-primary, #0d6efd);
+    color: white;
+}

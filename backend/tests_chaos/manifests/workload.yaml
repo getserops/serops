@@ -1,0 +1,178 @@
+# Three-tier chaos workload: loadgen -> checkout -> api -> cache
+#
+# Labelled `app: <name>` so the shippers derive service_name from it, and
+# deployed into `production` so environment resolves from the namespace —
+# the same derivation path documented for Promtail and Fluent Bit.
+#
+# Memory limits are deliberately small (96Mi) so a leak trips an OOMKill in
+# tens of seconds rather than tens of minutes.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cache
+  namespace: production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cache
+  template:
+    metadata:
+      labels:
+        app: cache
+      annotations:
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+        - name: cache
+          image: chaos-svc:3
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SVC_ROLE
+              value: cache
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.observability.svc.cluster.local:4318
+          ports:
+            - containerPort: 8080
+          resources:
+            requests: {cpu: 25m, memory: 48Mi}
+            limits: {cpu: 500m, memory: 96Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cache
+  namespace: production
+spec:
+  selector:
+    app: cache
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+      annotations:
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+        - name: api
+          image: chaos-svc:3
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SVC_ROLE
+              value: api
+            - name: DOWNSTREAM_URL
+              value: http://cache.production.svc.cluster.local:8080
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.observability.svc.cluster.local:4318
+          ports:
+            - containerPort: 8080
+          resources:
+            requests: {cpu: 25m, memory: 48Mi}
+            limits: {cpu: 500m, memory: 96Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: production
+spec:
+  selector:
+    app: api
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout
+  namespace: production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: checkout
+  template:
+    metadata:
+      labels:
+        app: checkout
+      annotations:
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+        - name: checkout
+          image: chaos-svc:3
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SVC_ROLE
+              value: checkout
+            - name: DOWNSTREAM_URL
+              value: http://api.production.svc.cluster.local:8080
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.observability.svc.cluster.local:4318
+          ports:
+            - containerPort: 8080
+          resources:
+            requests: {cpu: 25m, memory: 48Mi}
+            limits: {cpu: 500m, memory: 96Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: checkout
+  namespace: production
+spec:
+  selector:
+    app: checkout
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen
+  namespace: production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loadgen
+  template:
+    metadata:
+      labels:
+        app: loadgen
+    spec:
+      containers:
+        - name: loadgen
+          image: chaos-svc:3
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SVC_ROLE
+              value: loadgen
+            - name: TARGET_URL
+              value: http://checkout.production.svc.cluster.local:8080
+            - name: RPS
+              value: "3"
+          resources:
+            requests: {cpu: 25m, memory: 32Mi}
+            limits: {cpu: 300m, memory: 64Mi}

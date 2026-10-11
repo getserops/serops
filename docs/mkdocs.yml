@@ -1,0 +1,217 @@
+site_name: SerOps Documentation
+site_description: AI-powered incident detection and resolution platform
+site_url: https://serops.ai/docs/
+repo_url: https://github.com/getserops/serops
+repo_name: getserops/serops
+docs_dir: src
+copyright: >
+  Copyright &copy; 2026 SerOps contributors —
+  <a href="license/">AGPL-3.0</a>
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.indexes
+    - navigation.path
+    - search.highlight
+    - search.share
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+# Pages deliberately kept out of the nav: they are redirect stubs left behind
+# when a large page was split, so old external links keep resolving instead of
+# 404ing. Declaring them here states the intent and keeps `--strict` quiet about
+# them, which is what lets the link validation below be an error rather than a
+# note nobody reads.
+not_in_nav: |
+  api-reference.md
+  architecture.md
+  admin/observability.md
+
+# Link problems must fail the build, not scroll past in the log.
+#
+# mkdocs reports broken anchors and unresolvable relative links at INFO by
+# default, so `mkdocs build --strict` happily succeeded while three were live:
+# a link to `../backend` that means nothing inside the rendered site, and two
+# anchors that were near-misses for their real headings
+# (`#use-an-external-postgresql` for a section called "Use an external
+# Postgres"). Raised to warnings so --strict turns them into failures.
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+plugins:
+  - search
+  - tags
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - tables
+  - attr_list
+  - md_in_html
+  - def_list
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+extra_css:
+  - assets/stylesheets/custom.css
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: getting-started/quick-start-self-hosted.md
+    - First Project: getting-started/first-project.md
+    - Onboarding Wizard: getting-started/onboarding.md
+  - Deployment:
+    - System Requirements: deployment/requirements.md
+    - Production Deployment: deployment/production.md
+    - Kubernetes (Helm): deployment/helm.md
+    - Configuration Reference: deployment/configuration.md
+    - Backup & Restore: deployment/backup-restore.md
+    - Upgrading: deployment/upgrading.md
+    - Versioning: deployment/versioning.md
+  - User Guide:
+    - Dashboard: user-guide/dashboard.md
+    - Batches & Analysis: user-guide/batches.md
+    - Metrics: user-guide/metrics.md
+    - Code Changes: user-guide/code-changes.md
+    - Issues: user-guide/issues.md
+    - AI Chat: user-guide/ai-chat.md
+    - Projects & Services: user-guide/projects.md
+    - Environments: user-guide/environments.md
+    - Deployments: user-guide/deployments.md
+    - Notifications: user-guide/notifications.md
+  - How-To Guides:
+    - Connect Your First Provider: how-to/connect-provider.md
+    - Configure Data Collection Agents: how-to/configure-data-collection.md
+    - Set Up Infrastructure Services: how-to/infrastructure-services.md
+    - Compare AI Models: how-to/compare-ai-models.md
+    - Configure Quiet Hours: how-to/quiet-hours.md
+    - Tune Issue Deduplication: how-to/tune-deduplication.md
+    - Set Up Escalation Rules: how-to/escalation-rules.md
+    - Track AI Costs: how-to/ai-costs.md
+    - Sentinel Tiered Intelligence: how-to/sentinel.md
+    - Historical Intelligence (Similar Incidents + Post-mortems): how-to/intelligence.md
+    - On-prem AI (Ollama): how-to/on-prem-ai-ollama.md
+    - OTEL-forward stacks: how-to/otel-first-setup.md
+  - Integrations:
+    - Overview: integrations/overview.md
+    - Webhook Setup Guide: integrations/webhooks.md
+    - SCM Providers:
+      - GitLab: integrations/gitlab.md
+      - GitHub: integrations/github.md
+      - Azure DevOps: integrations/azure-devops.md
+      - Bitbucket: integrations/bitbucket.md
+    - CI/CD Providers:
+      - GitLab CI: integrations/gitlab.md
+      - GitHub Actions: integrations/github.md
+      - Jenkins: integrations/jenkins.md
+      - Azure Pipelines: integrations/azure-devops.md
+      - Bitbucket Pipelines: integrations/bitbucket.md
+    - Observability Providers:
+      - Overview: integrations/observability-overview.md
+      - Elasticsearch: integrations/elasticsearch.md
+      - OpenSearch: integrations/opensearch.md
+      - Grafana Loki: integrations/loki.md
+      - Splunk: integrations/splunk.md
+      - Prometheus: integrations/prometheus.md
+      - VictoriaMetrics: integrations/victoriametrics.md
+      - Grafana Mimir: integrations/mimir.md
+      - Datadog: integrations/datadog.md
+      - AWS CloudWatch: integrations/cloudwatch.md
+      - Google Cloud: integrations/gcp.md
+      - Azure Monitor: integrations/azure.md
+    - Distributed Traces:
+      - OpenTelemetry (OTLP): integrations/traces.md
+    - Real-time Alerts:
+      - Alertmanager / Grafana / Datadog Monitors: integrations/alerts.md
+    - GitOps:
+      - ArgoCD + Flux: integrations/gitops.md
+    - Post-RCA Notifications:
+      - Slack / Teams / PagerDuty / OpsGenie: integrations/notifications.md
+  - Admin Guide:
+    - Settings Reference: admin/settings.md
+    - Global Integrations: admin/integrations.md
+    - Notifications: admin/notifications.md
+    - Team Management: admin/team.md
+    - Data Retention: admin/data-retention.md
+    - Issue Settings: admin/issue-settings.md
+    - Kubernetes Clusters: admin/clusters.md
+    - Self-metrics (/metrics/): admin/self-metrics.md
+  - Security:
+    - Authentication & SSO: security/authentication.md
+    - Data Protection: security/data-protection.md
+    - Compliance & Audit: security/compliance.md
+  - Architecture:
+    - System Overview: architecture/overview.md
+    - Data Model: architecture/data-model.md
+    - AI Resilience: architecture/ai-resilience.md
+    - Multi-Tenancy: architecture/multi-tenancy.md
+  - Development:
+    - Testing: development/testing.md
+  - API Reference:
+    - Overview: api/overview.md
+    - Authentication: api/authentication.md
+    - Projects & Services: api/projects.md
+    - Batches & Data: api/batches.md
+    - Issues: api/issues.md
+    - AI & Chat: api/ai.md
+    - Notifications: api/notifications.md
+    - Integrations: api/integrations.md
+    - Observability: api/observability.md
+    - Clusters: api/clusters.md
+    - Traces: api/traces.md
+    - Settings & Admin: api/settings.md
+    - Dashboard & Analytics: api/analytics.md
+  - Troubleshooting: troubleshooting.md
+  - Changelog: changelog.md
+  - License: license.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/getserops
+  generator: false

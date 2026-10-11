@@ -1,0 +1,136 @@
+# GitLab CI — the pipeline that actually runs today.
+#
+# .github/workflows/ exists for an eventual GitHub publish; GitLab does not read
+# it, so without this file none of those checks executed anywhere. The two are
+# deliberate duplicates of the same four checks. If you change one, change both
+# — or delete the other when the hosting question is settled.
+#
+# Jobs are path-scoped: a docs typo does not boot Postgres.
+
+stages: [test]
+
+default:
+  interruptible: true
+
+# ---------------------------------------------------------------------------
+# Backend — Django + Celery
+# ---------------------------------------------------------------------------
+backend:
+  stage: test
+  image: python:3.12
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+  variables:
+    POSTGRES_DB: test_serops
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: testpass
+    DJANGO_SETTINGS_MODULE: api.test_settings
+    DJANGO_SECRET_KEY: ci-test-secret-key-not-for-production
+    DEBUG: 'True'
+    TEST_DB_HOST: postgres
+    TEST_DB_PORT: '5432'
+    TEST_DB_NAME: test_serops
+    TEST_DB_USER: postgres
+    TEST_DB_PASSWORD: testpass
+    REDIS_URL: redis://redis:6379/0
+    CELERY_BROKER_URL: redis://redis:6379/0
+    CELERY_RESULT_BACKEND: redis://redis:6379/0
+    # Registration and team-invite flows build activation links from these,
+    # and the tests assert the link was sent. Locally they come from a .env
+    # that is gitignored, so without them four tests fail on a clean checkout
+    # for reasons that look nothing like the cause.
+    API_URL: http://localhost:8000
+    REACT_URL: http://localhost:3000
+    SERVER_URL: http://localhost:8000
+  cache:
+    key:
+      files: [backend/requirements.txt]
+    paths: [.pip-cache]
+  before_script:
+    - export PIP_CACHE_DIR="$CI_PROJECT_DIR/.pip-cache"
+    - apt-get update -qq && apt-get install -y -qq libpq-dev
+    - cd backend
+    # Pinned: ruff's defaults change between releases, and an unpinned install
+    # let 0.17 redefine what passes. Rules live in backend/ruff.toml.
+    - pip install --quiet -r requirements.txt ruff==0.17.0
+  script:
+    - ruff check .
+    - python manage.py makemigrations --check --dry-run
+    # The whole suite, not a named subset. A hand-maintained module list goes
+    # stale the moment an app is added, and one such list kept 402 tests hidden
+    # behind an empty tests.py stub for months.
+    - python manage.py test --verbosity=1 --noinput
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [backend/**/*]
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes: [backend/**/*]
+
+# ---------------------------------------------------------------------------
+# Frontend — React + Vite
+# ---------------------------------------------------------------------------
+frontend:
+  stage: test
+  image: node:20
+  cache:
+    key:
+      files: [frontend/package-lock.json]
+    paths: [frontend/node_modules]
+  before_script:
+    - cd frontend
+    - npm ci --prefer-offline --no-audit --fund=false
+  script:
+    - npm run lint
+    - npm test
+    - npm run build
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [frontend/**/*]
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes: [frontend/**/*]
+
+# ---------------------------------------------------------------------------
+# Docs — MkDocs
+# ---------------------------------------------------------------------------
+docs:
+  stage: test
+  image: python:3.12-alpine
+  before_script:
+    - cd docs
+    # The same two packages docs/Dockerfile installs, so CI and the published
+    # image build the site identically.
+    - pip install --quiet --no-cache-dir mkdocs-material pymdown-extensions
+  script:
+    # --strict turns warnings into failures, and mkdocs.yml raises broken
+    # anchors and unresolvable links to warnings. Three were live in the
+    # published docs before anything checked.
+    - mkdocs build --strict
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [docs/**/*]
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes: [docs/**/*]
+
+# ---------------------------------------------------------------------------
+# Helm chart
+# ---------------------------------------------------------------------------
+chart:
+  stage: test
+  image:
+    name: alpine/helm:3.16.2
+    entrypoint: ['']
+  script:
+    - helm lint deploy/helm/serops
+    # Proves the chart renders. secretKey is required, so a throwaway value is
+    # supplied rather than making the template tolerate its absence.
+    - helm template serops deploy/helm/serops
+      --kube-version 1.31.0
+      --set django.secretKey=ci-render-only
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [deploy/helm/**/*]
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes: [deploy/helm/**/*]

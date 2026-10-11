@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="/favicon.ico" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="description" content="Web site created using Vite" />
+  <link rel="apple-touch-icon" href="/logo192.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <title>SerOps</title>
+</head>
+
+<body>
+  <noscript>You need to enable JavaScript to run this app.</noscript>
+  <div id="root"></div>
+  <script type="module" src="/src/index.jsx"></script>
+  <script>
+    // Global function for copying code blocks
+    function copyCodeToClipboard(button) {
+      const code = button.getAttribute('data-code')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');
+
+      navigator.clipboard.writeText(code).then(function () {
+        // Success - update button
+        const textSpan = button.querySelector('.copy-text');
+        const originalText = textSpan.textContent;
+        button.classList.add('copied');
+        textSpan.textContent = 'Copied!';
+
+        setTimeout(function () {
+          button.classList.remove('copied');
+          textSpan.textContent = originalText;
+        }, 2000);
+      }).catch(function (err) {
+        console.error('Failed to copy:', err);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = code;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+
+        const textSpan = button.querySelector('.copy-text');
+        textSpan.textContent = 'Copied!';
+        setTimeout(function () {
+          textSpan.textContent = 'Copy';
+        }, 2000);
+      });
+    }
+  </script>
+</body>
+
+</html>

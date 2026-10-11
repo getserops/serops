@@ -1,0 +1,11 @@
+# Ignore build outputs
+site/
+__pycache__/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,353 @@
+.frame {
+    align-items: center;
+    justify-content: center;
+    display: flex;
+    flex-direction: column;
+    gap: 4vh;
+   
+  }
+  
+  
+  
+  .frame .div-4 {
+      align-items: center;
+      display: inline-flex;
+      flex: 0 0 auto;
+      flex-direction: column;
+      position: relative;
+      width: 100%;
+      margin-top: -5%;
+    }
+  
+    .frame .div-5 {
+      align-items: center;
+      display: inline-flex;
+      flex: 0 0 auto;
+      flex-direction: column;
+      gap: 2vh; 
+      position: relative;
+      width: 100%;
+      
+    }
+  
+  
+  .text-wrapper-2 {
+      color: #2B47D6;
+      font-family: "Euclid Circular A-Regular", Helvetica;
+      font-size: 3vw;
+      font-weight: 400;
+      height: 4vh;
+      letter-spacing: 1.09px;
+      line-height: 0vw;
+      position: relative;
+      
+    }
+    
+    .frame .p {
+      color: #8C8C8C;
+      font-family: "Euclid Circular A-Regular", Helvetica;
+      font-size: 0.8vw;
+      font-weight: 400;
+      letter-spacing: 1.09px;
+      line-height: 2vw;
+      position: relative;
+      white-space: nowrap;
+      
+    }
+  .title {
+      margin-top: 5%;
+      margin-bottom: -5%;
+  
+  }
+  
+  .frame .form-field,
+  .frame .form-label {
+      align-items: flex-start;
+      display: flex;
+      flex: 0 0 auto;
+      flex-direction: column;
+      position: relative;
+      width: 23vw; 
+      min-width: 100%;
+      
+      
+    }
+  
+    
+  
+    .frame .form-control {
+      background-color: #F2F4FF; 
+      align-items: flex-start;
+      display: flex;
+      flex: 0 0 auto;
+      flex-direction: column;
+      position: relative;
+      
+      border-radius: 10px;
+      height: 50px;
+    }
+  
+    .frame .form-control {
+      align-self: stretch ;
+      flex: 0 0 auto ;
+    }
+  
+   
+    .frame .forgot-password {
+      color: rgba(43, 71, 214, 1);
+      font-family: "Poppins", Helvetica;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0;
+      line-height: normal;
+      position: relative;
+      left: 30%;
+      
+      
+      
+      
+    }
+    
+  /*Sign in , continue , back n sign up Blue button ( different steps) */
+  .frame .btn {
+      
+      box-shadow: 0 4px 10px ;
+      color: white;
+      background: #2B47D6;
+      align-items: center;
+      display: flex;
+      flex: 0 0 auto;
+      flex-direction: column;
+      gap: 0.5vw;
+      justify-content: center;
+      position: relative;
+      width: 100%; 
+      padding: 1.5vh 2vw;
+      border-radius: 10px;
+  }
+  
+  .frame a {
+      font-weight: 600;
+      text-decoration: none;
+      font-size: 14px;
+      cursor: pointer;
+      font-family: 'Poppins';
+      font-style: normal;
+      line-height: 21px;
+      color: #2B47D6;
+      
+  }
+  
+  .frame .padding.bg-primary .lead {
+      opacity: .8;
+  }
+  
+  .frame .padding.bg-primary .help-links {
+      text-align: center;
+      padding: 0;
+      margin: 0;
+      position: absolute;
+      left: 0;
+      
+  }
+  
+  /* blue title , welcome , step1 , step2*/
+  .frame h2 {
+      
+      font-family: 'Euclid Circular A';
+      font-style: normal;
+      font-weight: 400;
+      font-size: 3em;	
+      color: #2B47D6;
+      
+      
+  }
+  
+  .frame p {
+      
+      color: #8C8C8C;
+      font-family: 'Euclid Circular A';
+      font-style: normal;
+      font-weight: 400;
+      font-size: 16px;
+      line-height: 22px;
+          
+  }
+  
+  .frame .paraghraph-login{
+      
+      font-family: 'Euclid Circular A';
+      font-style: normal;
+      font-weight: 400;
+      font-size: 16px;
+      line-height: 22px;
+      color: #8C8C8C;
+      
+      
+  }
+  
+  .frame .lead {
+  
+      font-size: 14px;
+      line-height: 24px;
+      margin-bottom: 5px;
+      font-weight: 400;
+  }
+   
+  
+  .frame .form-control:focus {
+      border-color:#2B47D6;
+  }
+  
+  
+  
+  .frame .btn:focus,
+  .frame .btn:active:focus {
+      box-shadow: none !important;
+  }
+   
+  /* image icon in button sign up with google */
+  .frame .img-google{
+      height: 2.5vh;
+      position: relative;
+      width: 2.5vh;
+  }
+  
+  .frame .btn-google-auth {
+      
+      
+      background-color: rgba(255, 255, 255, 1);
+      border: 1.5px solid;
+      border-color: rgba(208, 208, 208, 1);
+      box-shadow: 0 1px 1px rgba(0, 0, 0, .2);
+      gap: 1vw;
+      padding: 1.5vh 2vw;
+      width: 100%;
+    }
+  
+  .frame .signup-google-text {
+      color: rgba(22, 22, 22, 1);
+      font-family: "EuclidCircular A-Medium";
+      font-size: 18px;
+      font-style: normal;
+      font-weight: 500;
+      line-height: normal;
+      position: relative;
+      width: fit-content;
+    }
+  
+  .frame .signin-text {
+      color:  rgba(255, 255, 255, 1);
+      font-family: "EuclidCircular A-Medium";
+      font-size: 18px;
+      font-style: normal;
+      font-weight: 500;
+      line-height: normal;
+      margin-top: -1.5px;
+      position: relative;
+      
+    }
+  
+  .frame .don-t-have-an {
+      color: transparent;
+      font-family: "Poppins", Helvetica;
+      font-size: 16px;
+      font-weight: 400;
+      letter-spacing: 0;
+      line-height: normal;
+      position: relative;
+      
+    }
+  
+  .register1-frame {
+      align-items: center;
+      justify-content: center;
+      display: flex;
+      flex-direction: column;
+      gap: 1vh;
+  
+  }
+    
+    .splash-container {
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      width: 100%;
+      align-items: center;
+    }
+    
+    .splash {
+      align-items: center;
+      display: inline-flex;
+      flex-direction: column;
+      gap: 3vw; 
+      position: relative;
+    }
+    
+    .logo {
+      height: 8vw;
+      
+    }
+    
+    .illustration {
+      height: 24vw; 
+      width: 24vw; 
+    }
+    
+  
+  
+  
+  /*new css*/
+    
+    .welcome-back {
+      align-items: center; /* Change to center align items vertically */
+      display: flex; /* Use regular flex display */
+      flex-direction: column;
+      gap: 20px;
+      position: relative;
+      text-align: center; /* Center align text */
+    }
+    
+    .welcome-back .text-wrapper {
+      color: #2B47D6;
+      font-family: "Euclid Circular A-Regular", Helvetica;
+      font-size: 38px; /* Decrease font size for smaller screens */
+      font-weight: 400;
+      letter-spacing: 0.5px; /* Decrease letter spacing for smaller screens */
+      line-height: 36px; /* Increase line height for better readability */
+      margin-top: 0; /* Remove negative margin-top */
+      position: relative;
+      width: 100%; /* Use full width of the container */
+    }
+    
+    .welcome-back .div {
+      color: #8C8C8C;
+      font-family: "Euclid Circular A-Regular", Helvetica;
+      font-size: 14px; /* Decrease font size for smaller screens */
+      font-weight: 400;
+      letter-spacing: 0.5px; /* Decrease letter spacing for smaller screens */
+      line-height: 20px; /* Increase line height for better readability */
+      position: relative;
+      white-space: normal; /* Allow text to wrap on smaller screens */
+      width: 100%; /* Use full width of the container */
+    }
+    
+    /* Media query for screens smaller than a certain width (adjust as needed) */
+    @media (max-width: 768px) {
+      .welcome-back .text-wrapper {
+        font-size: 24px; /* Adjust font size for smaller screens */
+        letter-spacing: 0.3px; /* Adjust letter spacing for smaller screens */
+        line-height: 28px; /* Adjust line height for smaller screens */
+      }
+    
+      .welcome-back .div {
+        font-size: 12px; /* Adjust font size for smaller screens */
+        letter-spacing: 0.2px; /* Adjust letter spacing for smaller screens */
+        line-height: 16px; /* Adjust line height for smaller screens */
+      }
+    }
+  
+  
+  
+    
+    

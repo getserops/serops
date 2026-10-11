@@ -1,0 +1,105 @@
+{{/*
+  Runs `manage.py migrate` on install and upgrade.
+
+  Without this the chart deployed a backend against an empty database and
+  every request failed on missing tables, with no indication that a manual
+  step had been skipped — the operator had to know to exec into a pod.
+
+  Helm hook rather than an initContainer: an initContainer would run once
+  per replica and per restart, so N replicas race on the same migration.
+  A post-install/post-upgrade hook runs exactly once per release revision.
+
+  Deliberately NOT hook-failed in the delete policy: when a migration fails
+  the Job is what tells you why, so it is kept for inspection and only
+  cleared before the next run.
+*/}}
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "serops.fullname" . }}-migrate
+  labels:
+    {{- include "serops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrate
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "serops.selectorLabels" (dict "Chart" .Chart "Release" .Release "Values" .Values "component" "migrate") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      initContainers:
+        # Wait for the database to accept connections before migrating.
+        # Without this the Job's first attempt reliably loses the race with a
+        # cold Postgres ("connection refused") and only succeeds on a
+        # backoffLimit retry — which leaves a failed pod behind and, on a
+        # slower cluster, can exhaust the retries entirely.
+        #
+        # Reuses the backend image so there is no second image to pull or
+        # keep patched, and it already has psycopg2.
+        - name: wait-for-db
+          image: {{ include "serops.image" (dict "repository" .Values.backend.image.repository "tag" .Values.backend.image.tag "root" $) }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
+                  key: database-url
+          command:
+            - python
+            - -c
+            - |
+              import os, sys, time
+              from urllib.parse import urlparse
+              import psycopg2
+              u = urlparse(os.environ['DATABASE_URL'])
+              deadline = time.time() + {{ .Values.migrations.waitForDatabaseSeconds }}
+              last = None
+              while time.time() < deadline:
+                  try:
+                      psycopg2.connect(
+                          dbname=(u.path or '').lstrip('/'), user=u.username,
+                          password=u.password, host=u.hostname,
+                          port=u.port or 5432, connect_timeout=3,
+                      ).close()
+                      print('database is accepting connections')
+                      sys.exit(0)
+                  except Exception as exc:
+                      last = exc
+                      time.sleep(2)
+              sys.exit(f'database not reachable within {{ .Values.migrations.waitForDatabaseSeconds }}s: {last}')
+          resources:
+            {{- toYaml .Values.migrations.resources | nindent 12 }}
+      containers:
+        - name: migrate
+          image: {{ include "serops.image" (dict "repository" .Values.backend.image.repository "tag" .Values.backend.image.tag "root" $) }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command: ["python", "manage.py", "migrate", "--noinput"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "serops.fullname" . }}-config
+          env:
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.django.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
+                  key: django-secret-key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
+                  key: database-url
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.broker.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
+                  key: broker-url
+          resources:
+            {{- toYaml .Values.migrations.resources | nindent 12 }}
+{{- end }}
