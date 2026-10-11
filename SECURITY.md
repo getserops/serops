@@ -36,9 +36,7 @@ Older versions receive fixes only for CRITICAL severity issues.
 ## Scope
 
 In scope: everything in this repository — `backend/`, `frontend/`, `docs/` and
-the deployment manifests under `deploy/`. These were once three separate
-repositories (`getserops/backend`, `getserops/frontend`, `getserops/docs`),
-which is why older links point at them.
+the deployment manifests under `deploy/`.
 
 Out-of-scope:
 

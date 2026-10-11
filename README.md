@@ -23,8 +23,6 @@ serops/
     └── helm/serops/    # Kubernetes Helm chart
 ```
 
-`backend/`, `frontend/` and `docs/` were once three separate repositories, which is why older links point at `getserops/backend` and friends. They are directories now; one clone gets everything.
-
 ## Install
 
 **Docker Compose (single node):**
