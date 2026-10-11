@@ -3,9 +3,8 @@
 > **Status: draft pending legal review.** This document was prepared from the
 > structure of the Apache Software Foundation's Individual CLA, which is the
 > most widely used and widely understood shape in open source. It has **not**
-> been reviewed by a lawyer. Section 11 lists the specific clauses that need
-> that review and why. Do not require signatures against this text until it has
-> been reviewed.
+> been reviewed by a lawyer. Do not require signatures against this text until
+> it has been reviewed.
 
 ## Why this exists
 
@@ -172,56 +171,3 @@ up at publish time; see `CONTRIBUTING.md`.
 This agreement covers Contributions to the SerOps repository: `backend/`,
 `frontend/`, `docs/`, and `deploy/`. It governs only the rights described above
 and creates no employment, partnership, or agency relationship.
-
----
-
-## 11. For legal review
-
-The clauses below are the ones that carry real consequence, and the reasons they
-need a lawyer's eye rather than a template's:
-
-1. **§2 relicensing right.** This is the clause the entire commercial-license
-   business depends on, and it is also the clause contributors scrutinise most.
-   Confirm the wording is broad enough to permit proprietary redistribution and
-   sublicensing, while remaining narrow enough that contributors are willing to
-   sign. Compare against the Apache ICLA (grant-based) and the alternative of
-   outright copyright assignment, which is stronger for the project and
-   materially more off-putting to contributors.
-
-2. **Grant versus assignment.** This draft deliberately chooses a broad license
-   grant over assignment, following Grafana's model. Confirm a grant is
-   sufficient in the jurisdictions that matter for enforcement, and in
-   particular whether it survives in jurisdictions with strong inalienable
-   moral rights.
-
-3. **§3 patent termination.** Check the trigger is not broader than intended —
-   as drafted, litigation by *any* entity terminates the license, which may be
-   wider than you want.
-
-4. **§4 employer permission.** Verify this is sufficient for the jurisdictions
-   where contributors are likely to be employed, or whether a signed Corporate
-   CLA should be mandatory rather than an alternative.
-
-5. **§6 warranty disclaimer.** Confirm enforceability, particularly against
-   consumer-protection rules in the EU and UK.
-
-6. **Enforceability of click/email acceptance.** Confirm that the §9 mechanisms
-   form a binding agreement in the relevant jurisdictions, and that records are
-   retained in a form that would be adequate as evidence.
-
-7. **Governing law and venue.** This draft deliberately states none. A lawyer
-   should advise whether to add them and which, balancing enforceability against
-   deterring international contributors.
-
-8. **Data protection.** Collecting contributor names and email addresses is
-   processing personal data. Confirm the lawful basis, retention period, and
-   whether a privacy notice must accompany the signing flow under GDPR.
-
-9. **Interaction with AGPL §13.** Confirm nothing here conflicts with the
-   obligations AGPL-3.0 already imposes on the project's own distribution.
-
-10. **Prior contributions.** If any contribution is accepted before this
-    agreement is in force, it is not covered. Decide whether to require
-    retroactive acceptance or to treat affected files as AGPL-only — which
-    would need tracking, because it constrains what the commercial release can
-    contain.
