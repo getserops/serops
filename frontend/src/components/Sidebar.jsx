@@ -22,7 +22,6 @@ import {
   FaServer,
 } from "react-icons/fa";
 import { RiDashboardHorizontalFill } from "react-icons/ri";
-import useCapabilities from "../hooks/useCapabilities";
 import { NavLink, useLocation } from "react-router-dom";
 import { useMediaQuery } from "@mui/material";
 import { useTranslation } from "react-i18next";
@@ -33,7 +32,6 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const isSmallScreen = useMediaQuery("(max-width: 860px)");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const location = useLocation();
-  const { has } = useCapabilities();
 
   const user = JSON.parse(localStorage.getItem("user")) || {};
   const [organisation, setOrganisation] = useState(
@@ -165,14 +163,15 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       name: t('globalIntegrations.title'),
       icon: <FaPlug />,
     },
-    // Ingest-key management page — same visibility rule as the main
-    // Traces nav entry. A user with no traces setup should not be
-    // pushed into an empty API-key page.
-    ...(has('traces') ? [{
+    // Ingest-key management page — always visible. It used to share the
+    // Traces nav rule, but that capability turns on only once an active
+    // ingest key exists, and keys are created on this page: an OTLP user
+    // starting from zero could never reach it.
+    {
       path: "/dash/settings/traces",
       name: t('traces.settings.menuLabel'),
       icon: <FaKey />,
-    }] : []),
+    },
     // Cluster management — only useful for K8s installs, but always
     // visible under Settings so users discover the feature. Empty
     // state on the page itself guides them.
