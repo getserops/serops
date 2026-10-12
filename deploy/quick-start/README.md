@@ -182,7 +182,7 @@ DNS points at your host and the host firewall allows port 80.
 
 Either no AI provider key is configured, or the org has no observability
 integration wired. Check **Settings → AI** for the provider key, and
-**Settings → Integrations** to connect at least one of the supported
+**Settings → Global Integrations** to connect at least one of the supported
 log or metric providers (Elasticsearch, OpenSearch, Loki, Datadog,
 CloudWatch, Prometheus, VictoriaMetrics, Mimir).
 
