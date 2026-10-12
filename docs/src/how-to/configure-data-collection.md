@@ -56,14 +56,16 @@ All log providers use the **same canonical field names**. Configure your log shi
 
 ### Kubernetes topology mode
 
-If your metrics come from Kubernetes (EKS / GKE / AKS), set the integration's `topology_mode` to `kubernetes`. This flips SerOps' metric queries from node-level (`node_cpu_seconds_total`) to **container-level aggregated by service** (`sum by (service_name)(rate(container_cpu_usage_seconds_total{...}[5m]))`) — so "what's the CPU of the `checkout` service?" gives the right answer regardless of where pods run today.
+If your metrics come from Kubernetes, set the integration's `topology_mode` to `kubernetes`. This flips SerOps' metric queries from node-level (`node_cpu_seconds_total`) to **container-level aggregated by service** (`sum by (service_name)(rate(container_cpu_usage_seconds_total{...}[5m]))`) — so "what's the CPU of the `checkout` service?" gives the right answer regardless of where pods run today.
 
 | Setting | VM mode (default) | Kubernetes mode |
 |---------|-------------------|-----------------|
 | **Prometheus** metric | `node_cpu_seconds_total`, `node_memory_MemTotal_bytes` | `sum by (service_name)(rate(container_cpu_usage_seconds_total[5m]))`, `sum by (service_name)(container_spec_memory_limit_bytes)` |
 | **Datadog** metric | `avg:system.cpu.user`, `avg:system.mem.total` | `avg:kubernetes.cpu.usage.total{...} by {service_name}`, `avg:kubernetes.memory.limits{...} by {service_name}` |
 | **CloudWatch** namespace | `AWS/EC2` + `CWAgent` | `ContainerInsights` (`pod_cpu_utilization`, `pod_memory_working_set`) |
-| Best for | Bare-metal, VMs, EC2 instances | EKS / GKE / AKS clusters where pods move |
+| Best for | Bare-metal, VMs, EC2 instances | Kubernetes clusters where pods move |
+
+Kubernetes mode is verified with Prometheus on single-node clusters; the Datadog and CloudWatch columns are not yet validated live. See [Tested environments](../integrations/overview.md#tested-environments).
 
 **Prerequisites for `kubernetes` mode**:
 

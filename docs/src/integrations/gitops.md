@@ -4,7 +4,7 @@ SerOps ingests native ArgoCD and Flux notifications so deploy events
 land in the "Recent Deployments" panel — and, more importantly, feed
 the AI RCA prompt as `code_changes` context. When a service degrades
 right after a deploy, the AI links them automatically (`slow_span_
-after_deploy` correlation, Item #12).
+after_deploy` correlation).
 
 You do **not** need to write custom notification templates — this
 endpoint accepts the vendor's default payload and translates on our

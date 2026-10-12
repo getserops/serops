@@ -112,7 +112,11 @@ Cloud Logging and Cloud Monitoring are both paged iterators. SerOps intentionall
 | Invalid GCP bareword error | A severity string contains characters outside `[A-Za-z0-9_]` — usually a bad config value |
 | Health check passes but searches return nothing | The service account can list metadata but has no data-read grant on the specific log names / metric types |
 
-## Kubernetes (GKE) mode — Item #18
+## Kubernetes (GKE) mode
+
+!!! warning "Not yet validated on a live GKE cluster"
+    This mode is implemented and unit-tested, but has not yet run against a
+    live GKE cluster. See [Tested environments](overview.md#tested-environments).
 
 For GKE clusters, set the integration's `topology_mode` to `kubernetes`.
 SerOps will then:

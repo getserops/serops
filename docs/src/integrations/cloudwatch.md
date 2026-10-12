@@ -69,6 +69,10 @@ SerOps automatically maps Prometheus-style metric names to CloudWatch metrics:
 
 ## Kubernetes setup (EKS Container Insights)
 
+!!! warning "Not yet validated on a live EKS cluster"
+    This mode is implemented and unit-tested, but has not yet run against a
+    live EKS cluster. See [Tested environments](overview.md#tested-environments).
+
 Set the integration's `topology_mode` to `kubernetes` to switch SerOps from `AWS/EC2` + `CWAgent` namespaces to `ContainerInsights` (pod-level metrics):
 
 | Query | VM mode | Kubernetes mode |

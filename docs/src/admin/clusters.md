@@ -85,7 +85,7 @@ curl -X PATCH https://your-serops-host/api/projects/42/ \
 
 Projects without a cluster assignment show under "All clusters" only.
 
-## Cluster picker (Item #19)
+## Cluster picker
 
 A **cluster dropdown** appears in the header when your org has 2+
 clusters. It defaults to "All clusters" and persists in localStorage
@@ -101,7 +101,7 @@ The picker forwards `?cluster=<id>` on relevant API calls. Backend
 endpoints silently ignore invalid ids (never 500 on stale picker
 state).
 
-## Workload view (Item #19)
+## Workload view
 
 The **Workloads by Cluster** card on the dashboard groups all your
 projects + services under their assigned cluster. Rendered only

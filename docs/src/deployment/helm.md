@@ -226,7 +226,7 @@ kubectl delete namespace serops
 
 ## Not yet in the chart
 
-Tracked separately (see the launch plan's quality backlog):
+Planned for a later release:
 
 * **Migration init container** — currently a one-off `kubectl exec`.
 * **HPA definitions** — bring your own targeting CPU 70% on backend + worker.

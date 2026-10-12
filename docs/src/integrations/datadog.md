@@ -66,6 +66,11 @@ SerOps automatically maps Prometheus-style metric names to Datadog metrics:
 
 ## Kubernetes setup
 
+!!! warning "Not yet validated against a live Datadog account"
+    The Datadog adapter, including this mode, is implemented and unit-tested,
+    but has not yet run against a live account or an in-cluster Datadog Agent.
+    See [Tested environments](overview.md#tested-environments).
+
 Set the integration's `topology_mode` to `kubernetes` to switch SerOps from `system.*` metrics (host-level) to `kubernetes.*` metrics aggregated per service:
 
 | Query | VM mode | Kubernetes mode |
@@ -106,7 +111,7 @@ metadata:
 
 SerOps' log-side aliases (`service` → `service_name`, `env` → `environment`) mean you don't have to add SerOps-specific tags — the standard USM tags work.
 
-**APM tip**: if your DD agents send traces, the same tagging flows through — Batch 5+ of the launch plan (distributed traces) will correlate them with logs and metrics automatically.
+**APM tip**: if your DD agents send traces, the same tagging flows through, so SerOps can correlate them with logs and metrics. See [Distributed Traces](traces.md).
 
 ## Health Check
 

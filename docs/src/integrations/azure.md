@@ -119,7 +119,11 @@ Callers can always supply a raw KQL string instead — the adapter accepts `sear
 | "Invalid KQL datetime literal" | Time-range values weren't clean ISO timestamps. Usually a caller passed something else (a Unix epoch, a formatted string). Feed a `datetime` to `LogQuery.time_range` and let the translator format it |
 | Empty results with no error | Time-range window is too narrow, the AppTraces table doesn't have `Properties.project_name`/`Properties.environment` set (your instrumentation isn't populating them yet), or the workspace has no data in that period |
 
-## Kubernetes (AKS) mode — Item #18
+## Kubernetes (AKS) mode
+
+!!! warning "Not yet validated on a live AKS cluster"
+    This mode is implemented and unit-tested, but has not yet run against a
+    live AKS cluster. See [Tested environments](overview.md#tested-environments).
 
 For AKS clusters, set the integration's `topology_mode` to
 `kubernetes` and point `default_resource_uri` at the **AKS cluster**

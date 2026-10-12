@@ -3,7 +3,7 @@
 Two AI-powered features that turn SerOps into a **learning system**
 across incidents.
 
-## Similar incidents (Item #27)
+## Similar incidents
 
 When SerOps resolves an issue, it computes an **embedding** of the
 resolved text (root cause + recommendation + component + type) and
@@ -46,7 +46,7 @@ before the API call — same policy as batch analysis. Set
 `OPENAI_API_KEY=""` to fall back to the hash backend and keep all
 data local.
 
-## Post-mortem draft generator (Item #28)
+## Post-mortem draft generator
 
 **Turn an incident into a starting post-mortem in one click.**
 
@@ -70,7 +70,7 @@ draft"*. A modal opens with:
 
 * The batch's top 3 issues (root cause + recommendation).
 * Deploys in the incident window (code_changes).
-* **Similar past resolved incidents** (via Item #27) — surfaces
+* **Similar past resolved incidents** (see [Similar incidents](#similar-incidents)) — surfaces
   precedent + how the team fixed it before, under a `## Precedent`
   section.
 

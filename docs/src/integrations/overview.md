@@ -56,6 +56,24 @@ Log, metric, and trace providers for fetching application data for AI analysis.
     same way via the Datadog integration. See
     [Distributed Traces](traces.md) for both paths.
 
+## Tested environments
+
+Every adapter above has unit tests. Not every one has yet run end to end
+against a live system, and this table says which have.
+
+| Area | Status |
+|------|--------|
+| Self-hosting | Docker Compose and the Helm chart, verified end to end. |
+| Kubernetes workloads | Verified on **single-node** clusters (minikube, KinD): Fluent Bit → Elasticsearch, Promtail → Loki, Prometheus with cAdvisor and kube-state-metrics, and OTLP traces. |
+| Live-tested backends | Elasticsearch, OpenSearch, Grafana Loki, Prometheus, VictoriaMetrics, Grafana Mimir, GitLab. |
+| Managed Kubernetes (EKS, GKE, AKS) | **Not yet validated.** The Kubernetes modes for CloudWatch Container Insights, Cloud Monitoring for GKE and Azure Monitor Container Insights are implemented and unit-tested, but have not run against a live managed cluster. Use the credentials each integration page describes: Google Cloud and Azure deliberately never use the host's own cloud identity (GKE Workload Identity, AKS managed identity), so one organisation on a shared instance cannot borrow it. |
+| Multi-node clusters | **Not yet validated.** All the Kubernetes testing above ran on one node. |
+| Datadog, AWS CloudWatch, Google Cloud, Azure Monitor | Implemented and unit-tested against mocked API responses; not yet run against a live account. |
+
+If you run SerOps on one of the unvalidated setups, an
+[issue](https://github.com/getserops/serops/issues) saying what worked and
+what did not is one of the most useful contributions right now.
+
 ## How Integrations Work
 
 SerOps uses a two-level integration model:
