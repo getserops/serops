@@ -115,9 +115,9 @@ const PROVIDERS = {
         name: "AWS CloudWatch", icon: SiAmazonwebservices, color: "#FF9900",
         capabilities: ["logs", "metrics"],
         fields: [
-            { name: "extra_config.region", label: "AWS Region", placeholder: "us-east-1", required: true },
-            { name: "extra_config.access_key_id", label: "Access Key ID", type: "password", required: true },
-            { name: "extra_config.secret_access_key", label: "Secret Access Key", type: "password", required: true },
+            { name: "extra_config.aws_region", label: "AWS Region", placeholder: "us-east-1", required: true },
+            { name: "username", label: "Access Key ID", required: true },
+            { name: "password", label: "Secret Access Key", type: "password", required: true },
         ],
     },
 };

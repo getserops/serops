@@ -17,37 +17,45 @@ AWS CloudWatch is a monitoring and observability service from Amazon Web Service
 
 ## Configuration
 
+In the UI: **Settings → Global Integrations → AWS CloudWatch**, then fill in
+the region, the access key ID and the secret access key. Through the API:
+
 ```json
 {
   "provider": "cloudwatch",
   "display_name": "AWS Production",
   "capabilities": ["logs", "metrics"],
-  "host": "https://logs.us-east-1.amazonaws.com",
+  "username": "AKIA...",
+  "password": "<secret access key>",
   "extra_config": {
     "aws_region": "us-east-1",
-    "aws_access_key_id": "AKIA...",
-    "aws_secret_access_key": "secret",
     "default_log_group": "/serops/production"
   }
 }
 ```
 
-## Authentication Options
+## Authentication
 
-CloudWatch uses AWS IAM credentials for authentication. All credentials are provided in `extra_config`:
+CloudWatch authenticates with an IAM user's access key, and both halves are
+required:
 
-- **Access Key ID** (`aws_access_key_id`): The AWS access key identifier.
-- **Secret Access Key** (`aws_secret_access_key`): The AWS secret access key.
-- **Session Token** (`aws_session_token`): Optional temporary session token for assumed roles or federated access.
+- **Access Key ID** goes in `username`.
+- **Secret Access Key** goes in `password`, which SerOps encrypts at rest.
+
+SerOps never falls back to the server's own AWS credentials (environment
+variables, an EC2 instance profile or an EKS pod role). On an instance shared by
+several organisations, that would let one of them read CloudWatch with the
+server's permissions. An integration without both halves of the key fails to
+load with an error saying so.
+
+Temporary credentials (session tokens) are not supported: they expire, and a
+stored integration needs credentials that keep working.
 
 ## Extra Configuration
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `aws_region` | string | AWS region for CloudWatch (e.g., `us-east-1`) |
-| `aws_access_key_id` | string | AWS access key ID |
-| `aws_secret_access_key` | string | AWS secret access key |
-| `aws_session_token` | string | Optional AWS session token for temporary credentials |
+| `aws_region` | string | AWS region for CloudWatch (e.g., `eu-west-1`). Defaults to `us-east-1`. |
 | `default_log_group` | string | Default CloudWatch log group to query (e.g., `/serops/production`) |
 
 ## Metric Mapping
@@ -149,8 +157,8 @@ Response:
 | Issue | Solution |
 |-------|----------|
 | "Connection refused" | Verify `host` URL is reachable from SerOps backend |
-| "InvalidAccessKeyId" | Check that `aws_access_key_id` is correct and the IAM user is active |
-| "SignatureDoesNotMatch" | Check that `aws_secret_access_key` is correct |
+| "InvalidAccessKeyId" | Check that the access key ID is correct and the IAM user is active |
+| "SignatureDoesNotMatch" | Check that the secret access key is correct |
 | "AccessDenied" | Verify the IAM user/role has the required CloudWatch permissions |
 | "No data returned" | Verify the time range has data; check `default_log_group` exists and `capabilities` includes the expected type |
 

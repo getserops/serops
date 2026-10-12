@@ -54,6 +54,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [apiKey, setApiKey] = useState('');
+    const [awsRegion, setAwsRegion] = useState('');
     const [loadingProviders, setLoadingProviders] = useState(true);
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
@@ -68,6 +69,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
         setUsername('');
         setPassword('');
         setApiKey('');
+        setAwsRegion('');
         setTestResult(null);
         setError(null);
     };
@@ -101,6 +103,9 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
     const availableCaps = selectedProvider?.capabilities || [];
     const supportsLogs = availableCaps.includes('logs');
     const supportsMetrics = availableCaps.includes('metrics');
+    // CloudWatch authenticates with the integration's own access key:
+    // key ID in username, secret in the encrypted password field.
+    const isAws = providerCode === 'cloudwatch';
 
     // On provider change, auto-fill display name + preselect
     // best-guess capabilities (logs preferred).
@@ -133,12 +138,14 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
         // cloudwatch/gcp/azure which authenticate via cloud SDK.
         const cloudProviders = new Set(['cloudwatch', 'gcp', 'azure']);
         if (!cloudProviders.has(selectedProvider.code) && !host.trim()) return false;
+        if (isAws && !(username.trim() && password)) return false;
         return true;
     };
 
     const buildPayload = () => {
         const extra = {};
-        if (apiKey) extra.api_key = apiKey;
+        if (apiKey && !isAws) extra.api_key = apiKey;
+        if (isAws && awsRegion.trim()) extra.aws_region = awsRegion.trim();
         const payload = {
             provider: selectedProvider.code,
             display_name: displayName,
@@ -319,13 +326,25 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                     value={host}
                                     onChange={(e) => setHost(e.target.value)}
                                     placeholder="https://es.example.com:9200"
-                                    helperText="Provider endpoint. Not needed for AWS/GCP/Azure — they use cloud SDK credentials."
+                                    helperText="Provider endpoint. Not needed for AWS, Google Cloud or Azure."
                                 />
+
+                                {isAws && (
+                                    <TextField
+                                        fullWidth
+                                        sx={{ mb: 2 }}
+                                        label="AWS Region"
+                                        value={awsRegion}
+                                        onChange={(e) => setAwsRegion(e.target.value)}
+                                        placeholder="us-east-1"
+                                    />
+                                )}
 
                                 <TextField
                                     fullWidth
                                     sx={{ mb: 2 }}
-                                    label="Username (optional)"
+                                    label={isAws ? 'Access Key ID' : 'Username (optional)'}
+                                    required={isAws}
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
                                     autoComplete="off"
@@ -335,14 +354,15 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                     fullWidth
                                     sx={{ mb: 2 }}
                                     type="password"
-                                    label="Password (optional)"
+                                    label={isAws ? 'Secret Access Key' : 'Password (optional)'}
+                                    required={isAws}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     autoComplete="new-password"
                                     spellCheck={false}
                                 />
 
-                                <TextField
+                                {!isAws && <TextField
                                     fullWidth
                                     sx={{ mb: 1 }}
                                     type="password"
@@ -352,7 +372,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                     autoComplete="new-password"
                                     spellCheck={false}
                                     helperText="Only some providers use API keys (Datadog, cloud services)."
-                                />
+                                />}
                             </>
                         )}
 

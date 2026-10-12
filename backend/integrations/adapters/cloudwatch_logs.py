@@ -16,7 +16,23 @@ logger = logging.getLogger(__name__)
 
 
 def _get_boto3_client(service: str, config: dict):
-    """Create a boto3 client with optional explicit credentials."""
+    """Create a boto3 client from the integration's own access key.
+
+    The access key ID is the integration's ``username`` and the secret
+    access key its ``password``, which is encrypted at rest. Both are
+    required. Without them boto3 would fall back to its default credential
+    chain — environment variables, the instance profile, an EKS pod role —
+    and a multi-tenant SerOps process must never lend one organisation the
+    host's own AWS identity. The GCP and Azure adapters refuse ambient
+    credentials for the same reason.
+    """
+    access_key = config.get("username")
+    secret_key = config.get("password")
+    if not (access_key and secret_key):
+        raise ValueError(
+            "AWS CloudWatch requires an access key ID and a secret access "
+            "key; SerOps never uses the server's own AWS credentials"
+        )
     try:
         import boto3
     except ImportError:
@@ -24,20 +40,12 @@ def _get_boto3_client(service: str, config: dict):
             "boto3 is required for CloudWatch integration. "
             "Install it with: pip install boto3"
         )
-    kwargs = {
-        "service_name": service,
-        "region_name": config.get("aws_region", "us-east-1"),
-    }
-    # Explicit credentials (if not using IAM role / instance profile)
-    access_key = config.get("aws_access_key_id")
-    secret_key = config.get("aws_secret_access_key")
-    if access_key and secret_key:
-        kwargs["aws_access_key_id"] = access_key
-        kwargs["aws_secret_access_key"] = secret_key
-    session_token = config.get("aws_session_token")
-    if session_token:
-        kwargs["aws_session_token"] = session_token
-    return boto3.client(**kwargs)
+    return boto3.client(
+        service_name=service,
+        region_name=config.get("aws_region") or "us-east-1",
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+    )
 
 
 class CloudWatchLogProvider(LogProvider):

@@ -1003,9 +1003,9 @@ class Command(BaseCommand):
                 'display_name': 'AWS CloudWatch · tertiary',
                 'capabilities': ['logs', 'metrics'],
                 'host': 'https://logs.us-east-1.amazonaws.com',
+                'username': 'demo-access-key-id',
                 'extra_config': {
                     'aws_region': 'us-east-1',
-                    'aws_access_key_id': SEED_DEMO_PLACEHOLDER,
                     'default_log_group': '/acme/production',
                 },
                 'cluster_key': None,

@@ -8,34 +8,11 @@ import logging
 from datetime import datetime
 from typing import List, Optional
 
+from integrations.adapters.cloudwatch_logs import _get_boto3_client
 from integrations.base import MetricProvider, MetricProviderCapabilities
 from integrations.schemas import TimeSeries, TimeSeriesPoint, HostInfo
 
 logger = logging.getLogger(__name__)
-
-
-def _get_boto3_client(service: str, config: dict):
-    """Create a boto3 client with optional explicit credentials."""
-    try:
-        import boto3
-    except ImportError:
-        raise ImportError(
-            "boto3 is required for CloudWatch integration. "
-            "Install it with: pip install boto3"
-        )
-    kwargs = {
-        "service_name": service,
-        "region_name": config.get("aws_region", "us-east-1"),
-    }
-    access_key = config.get("aws_access_key_id")
-    secret_key = config.get("aws_secret_access_key")
-    if access_key and secret_key:
-        kwargs["aws_access_key_id"] = access_key
-        kwargs["aws_secret_access_key"] = secret_key
-    session_token = config.get("aws_session_token")
-    if session_token:
-        kwargs["aws_session_token"] = session_token
-    return boto3.client(**kwargs)
 
 
 # Map our metric names → CloudWatch namespace + metric name + stat.

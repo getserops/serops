@@ -4,7 +4,7 @@ from datetime import datetime
 
 from django.test import SimpleTestCase
 
-from integrations.adapters.cloudwatch_logs import CloudWatchLogProvider
+from integrations.adapters.cloudwatch_logs import CloudWatchLogProvider, _get_boto3_client
 from integrations.adapters.cloudwatch_metrics import CloudWatchMetricProvider
 
 
@@ -16,6 +16,8 @@ class TestCloudWatchLogProvider(SimpleTestCase):
         mock_client_factory.return_value = self.mock_client
         self.provider = CloudWatchLogProvider(config={
             "aws_region": "us-east-1",
+            "username": "key-id",
+            "password": "secret",
         })
 
     def test_health_check_success(self):
@@ -101,6 +103,8 @@ class TestCloudWatchMetricProvider(SimpleTestCase):
         mock_client_factory.return_value = self.mock_client
         self.provider = CloudWatchMetricProvider(config={
             "aws_region": "us-east-1",
+            "username": "key-id",
+            "password": "secret",
         })
 
     def test_health_check_success(self):
@@ -157,3 +161,45 @@ class TestCloudWatchMetricProvider(SimpleTestCase):
         hosts = self.provider.discover_hosts(org="acme")
         self.assertEqual(len(hosts), 2)
         self.assertEqual(hosts[0].hostname, "i-abc")
+
+
+class TestCloudWatchCredentials(SimpleTestCase):
+    """The adapter only ever uses the integration's own access key."""
+
+    @patch("boto3.client")
+    def test_explicit_key_is_passed_to_boto3(self, mock_client):
+        _get_boto3_client("logs", {
+            "username": "key-id", "password": "secret", "aws_region": "eu-west-1",
+        })
+        mock_client.assert_called_once_with(
+            service_name="logs",
+            region_name="eu-west-1",
+            aws_access_key_id="key-id",
+            aws_secret_access_key="secret",
+        )
+
+    @patch("boto3.client")
+    def test_region_defaults_to_us_east_1(self, mock_client):
+        _get_boto3_client("logs", {"username": "key-id", "password": "secret"})
+        self.assertEqual(mock_client.call_args.kwargs["region_name"], "us-east-1")
+
+    @patch("boto3.client")
+    def test_missing_keys_never_fall_back_to_host_credentials(self, mock_client):
+        for config in (
+            {},
+            {"username": "key-id"},
+            {"password": "secret"},
+            {"username": "", "password": ""},
+        ):
+            with self.subTest(config=config):
+                with self.assertRaisesRegex(ValueError, "never uses the server"):
+                    _get_boto3_client("logs", config)
+        mock_client.assert_not_called()
+
+    @patch("boto3.client")
+    def test_both_providers_refuse_to_start_without_keys(self, mock_client):
+        for provider_class in (CloudWatchLogProvider, CloudWatchMetricProvider):
+            with self.subTest(provider=provider_class.__name__):
+                with self.assertRaises(ValueError):
+                    provider_class(config={"aws_region": "us-east-1"})
+        mock_client.assert_not_called()
