@@ -90,10 +90,9 @@ accept it to continue. `http://localhost` redirects there.
 
 !!! warning "Replace every `change-me-…` value"
     The `.env.example` file ships with placeholder text
-    (`change-me-…`). The compose file refuses to start if a required
-    password is missing, but it cannot tell a placeholder from a real
-    value — a stack started with the placeholders runs with publicly
-    known credentials.
+    (`change-me-…`). Compose refuses to start if a required password is
+    missing, and the backend refuses to start while any secret still
+    contains `change-me` — its log names the variables to fix.
 
     Use the hex commands above: the Redis password is embedded in a
     `redis://` URL, and a `/` (common in base64 output) breaks it.

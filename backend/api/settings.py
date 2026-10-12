@@ -50,6 +50,32 @@ if not os.getenv('DJANGO_SECRET_KEY') and not os.getenv('DEBUG', 'False') == 'Tr
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
+# The quick-start .env.example ships `change-me-...` values. Compose can
+# insist that a password is set but cannot tell a placeholder from a real
+# one, so an install started without editing .env would run with publicly
+# known credentials. Refuse instead — outside DEBUG, like the check above.
+_PLACEHOLDER_MARKER = 'change-me'
+_SECRET_ENV_VARS = (
+    'DJANGO_SECRET_KEY', 'DB_PASSWORD', 'DATABASE_URL', 'REDIS_PASSWORD',
+    'REDIS_URL', 'CELERY_BROKER_URL', 'CELERY_RESULT_BACKEND',
+)
+
+
+def _placeholder_secrets(env):
+    """Names of secret variables that still hold a template placeholder."""
+    return [
+        name for name in _SECRET_ENV_VARS
+        if _PLACEHOLDER_MARKER in (env.get(name) or '').lower()
+    ]
+
+
+if not DEBUG and (_placeholders := _placeholder_secrets(os.environ)):
+    raise ValueError(
+        'These variables still hold the change-me placeholder from '
+        '.env.example: ' + ', '.join(_placeholders) + '. Replace them before '
+        'starting SerOps — see the Quick Start, step 2.'
+    )
+
 # Whether anonymous users can create a new organisation via POST
 # /api/auth/register. Default True — self-hosters want the normal
 # "sign up + create your org" flow to work out of the box. Set to
