@@ -31,8 +31,9 @@ after signing in:
 - **2 GB RAM, 1 vCPU, 10 GB disk** for a single-project evaluation.
   Production sizing starts higher — see
   [System Requirements](../deployment/requirements.md)
-- An API key for one of: Anthropic, Google Gemini, OpenAI, or DeepSeek.
-  You will paste it into the SerOps UI after signup, **not** into a
+- An API key for one of: Anthropic, Google Gemini, OpenAI, or DeepSeek —
+  or [Ollama](../how-to/on-prem-ai-ollama.md) for fully on-prem inference
+  with no key. You add it in the SerOps UI after signing in, **not** in a
   config file
 - (Optional) A DNS name pointing at your host if you want automatic
   HTTPS
@@ -189,15 +190,18 @@ set the new version first:
 # 1. Back up the database — always, before any upgrade
 docker compose exec postgres pg_dump -U serops serops > backup-$(date +%F).sql
 
-# 2. Pick the release you want, then set it in .env
+# 2. Set the release you want in .env (see the releases page), e.g.
 #    SEROPS_VERSION=1.1.0
 
-# 3. Pull and restart
+# 3. Pull and restart — the backend applies migrations on start
 git pull
 docker compose pull
 docker compose up -d
-docker compose exec backend python manage.py migrate
 ```
+
+`SEROPS_VERSION` is the only knob for upgrades. The
+`SEROPS_BACKEND_IMAGE` / `SEROPS_FRONTEND_IMAGE` overrides in
+`.env.example` exist only for pulling from your own registry mirror.
 
 See [Upgrading](../deployment/upgrading.md) for the version
 compatibility matrix and the full backup checklist.

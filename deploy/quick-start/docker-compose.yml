@@ -5,16 +5,15 @@
 # and a Caddy reverse proxy — on a single Docker host.
 #
 # SerOps is the AI layer that sits ON TOP of the observability stack you
-# already run (Elasticsearch, Loki, Datadog, Prometheus, VictoriaMetrics,
-# Mimir, OpenSearch, CloudWatch). Those tools are NOT bundled here —
-# you connect SerOps to them from the Settings → Integrations page.
+# already run (see https://serops.ai/docs/integrations/overview/). Those
+# tools are NOT bundled here — you connect SerOps to them from the
+# Settings → Global Integrations page.
 #
 # Usage:
 #   cp .env.example .env
-#   # Edit .env — set POSTGRES_PASSWORD, REDIS_PASSWORD, DJANGO_SECRET_KEY,
-#   # at least one AI provider key
-#   docker compose up -d
-#   docker compose exec backend python manage.py migrate
+#   # Edit .env — set POSTGRES_PASSWORD, REDIS_PASSWORD, DJANGO_SECRET_KEY
+#   # (AI provider keys are added in the UI, not here)
+#   docker compose up -d          # the backend applies migrations on start
 #   docker compose exec backend python manage.py createsuperuser
 #   # or, for an org populated with example data to explore the product:
 #   docker compose exec backend python manage.py seed_demo_org

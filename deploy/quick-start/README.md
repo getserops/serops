@@ -19,7 +19,8 @@ Prometheus, VictoriaMetrics, Grafana Mimir.
 
 - Linux host with Docker 24+ and Docker Compose v2 or newer
 - ~2 GB RAM, 1 vCPU, 10 GB disk
-- One of: Anthropic, Google Gemini, OpenAI, or DeepSeek API key
+- One of: Anthropic, Google Gemini, OpenAI, or DeepSeek API key — or Ollama
+  (on-prem, no key needed)
 
 ---
 
@@ -64,17 +65,20 @@ on its own timer.
 docker compose up -d
 ```
 
-## 3. Initialise the database
+## 3. Create the first admin
+
+The backend applies migrations itself on every start. Once
+`docker compose ps` shows `serops-backend` as `healthy`:
 
 ```bash
-docker compose exec backend python manage.py migrate
 docker compose exec backend python manage.py createsuperuser
 ```
 
 ## 4. Log in
 
-Open `https://<SEROPS_DOMAIN>/login` (or `http://localhost`) and sign in
-with the superuser you just created.
+Open `https://<SEROPS_DOMAIN>/login` (`https://localhost/login` for a local
+install — accept the certificate warning once) and sign in with the
+superuser you just created.
 
 ---
 
@@ -82,10 +86,11 @@ with the superuser you just created.
 
 **Update to a new release**
 
+Set the new release in `.env` (`SEROPS_VERSION=…`), back up Postgres, then:
+
 ```bash
 docker compose pull
-docker compose up -d
-docker compose exec backend python manage.py migrate
+docker compose up -d          # migrations run on start
 ```
 
 **View logs**

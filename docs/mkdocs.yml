@@ -6,7 +6,7 @@ repo_name: getserops/serops
 docs_dir: src
 copyright: >
   Copyright &copy; 2026 SerOps contributors —
-  <a href="license/">AGPL-3.0</a>
+  <a href="/docs/license/">AGPL-3.0</a>
 
 theme:
   name: material
