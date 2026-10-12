@@ -469,7 +469,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                             const hasStoredValue = isSecret && isEdit && (
                                 field.name === "password"
                                     ? integration?.has_password
-                                    : !!getNestedValue(integration?.extra_config || {}, field.name.replace("extra_config.", ""))
+                                    : (integration?.secret_fields_set || []).includes(field.name.replace("extra_config.", ""))
                             );
                             const placeholder = hasStoredValue && !getNestedValue(form, field.name)
                                 ? "••••••••  (leave blank to keep)"

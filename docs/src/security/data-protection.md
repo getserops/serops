@@ -137,11 +137,16 @@ attacker gets from a database dump.
 | AI provider API keys | Fernet-encrypted in `OrganisationAPIKey`, key derived from `SECRET_KEY` | Only with the app's `SECRET_KEY` |
 | Alert-ingest secret | SHA-256 hash plus a short display prefix | **No** — plaintext is shown once at rotation and never stored |
 | Channel webhook URLs / API keys | Fernet-encrypted, write-only via the API | Only with `SECRET_KEY` |
+| Observability integration credentials (`password`, and `extra_config` secrets such as Datadog `api_key`/`app_key` and `bearer_token`) | Fernet-encrypted, write-only via the API | Only with `SECRET_KEY` |
 
 Write-only means what it says: once set, `webhook_url` and `api_key`
 are never returned by any endpoint. Responses expose the booleans
 `has_webhook_url` and `has_api_key` so the UI can show configured
-state without ever re-transmitting the value. Rotation is a write, not
+state without ever re-transmitting the value. Observability integrations
+work the same way: `password` and the secret `extra_config` keys are never
+returned, and responses carry `has_password` and `secret_fields_set` (the
+names of the secret keys that hold a value). Sending a secret back blank
+on an update keeps the stored one. Rotation is a write, not
 a read-modify-write.
 
 Because AI keys are held per organisation rather than in an

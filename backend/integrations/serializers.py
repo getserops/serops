@@ -9,8 +9,14 @@ from .models import (
     IntegrationScope,
     ObservabilityIntegration,
     ADAPTER_MAP,
+    SECRET_EXTRA_CONFIG_KEYS,
     _available_capabilities,
 )
+
+# Mirrors the constant in Data.management.commands.seed_demo_org — kept
+# duplicated to avoid a runtime dep on a management command. The views use
+# it to short-circuit health checks for demo integrations.
+_DEMO_PLACEHOLDER = 'SEED_DEMO_PLACEHOLDER_NOT_A_REAL_SECRET'
 
 
 class IntegrationScopeSerializer(serializers.ModelSerializer):
@@ -26,19 +32,11 @@ class IntegrationScopeSerializer(serializers.ModelSerializer):
         fields = ['environment', 'region', 'namespace']
 
 
-# Mirrors the constant in Data.management.commands.seed_demo_org — kept
-# duplicated to avoid a runtime dep on a management command from a
-# serializer. Any value that equals this literal is treated as a demo
-# placeholder and never rendered to the client.
-_DEMO_PLACEHOLDER = 'SEED_DEMO_PLACEHOLDER_NOT_A_REAL_SECRET'
-_DEMO_MASK = '•••• (demo)'
-
-
-def _scrub_extra_config(cfg):
-    """Replace any placeholder-valued key so the demo sentinel never leaks."""
+def _public_extra_config(cfg):
+    """``extra_config`` without its secret values, which never leave the server."""
     if not isinstance(cfg, dict):
         return cfg
-    return {k: (_DEMO_MASK if v == _DEMO_PLACEHOLDER else v) for k, v in cfg.items()}
+    return {k: v for k, v in cfg.items() if k not in SECRET_EXTRA_CONFIG_KEYS}
 
 
 class ObservabilityIntegrationSerializer(serializers.ModelSerializer):
@@ -49,6 +47,7 @@ class ObservabilityIntegrationSerializer(serializers.ModelSerializer):
     )
     available_capabilities = serializers.SerializerMethodField()
     has_password = serializers.SerializerMethodField()
+    secret_fields_set = serializers.SerializerMethodField()
     cluster_name = serializers.CharField(source='cluster.name', read_only=True, default=None)
     priority_tier_display = serializers.CharField(
         source='get_priority_tier_display', read_only=True,
@@ -78,6 +77,7 @@ class ObservabilityIntegrationSerializer(serializers.ModelSerializer):
             'username',
             'password',
             'has_password',
+            'secret_fields_set',
             'extra_config',
             'timeout_seconds',
             'max_retries',
@@ -105,6 +105,9 @@ class ObservabilityIntegrationSerializer(serializers.ModelSerializer):
 
     def get_has_password(self, obj):
         return bool(obj.password)
+
+    def get_secret_fields_set(self, obj):
+        return obj.secret_fields_set()
 
     def validate_provider(self, value):
         if value not in ADAPTER_MAP:
@@ -209,6 +212,15 @@ class ObservabilityIntegrationSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         raw_password = validated_data.pop('password', None)
         scope_data = validated_data.pop('scope', None)
+        if 'extra_config' in validated_data:
+            # The client never sees stored secrets, so an edit form sends
+            # them back blank or not at all. Keep the stored value then,
+            # the same way a blank ``password`` keeps the stored password.
+            incoming = dict(validated_data['extra_config'] or {})
+            for key in SECRET_EXTRA_CONFIG_KEYS & (instance.extra_config or {}).keys():
+                if not incoming.get(key):
+                    incoming[key] = instance.extra_config[key]
+            validated_data['extra_config'] = incoming
         instance = super().update(instance, validated_data)
         if raw_password:
             instance.set_password(raw_password)
@@ -232,7 +244,7 @@ class ObservabilityIntegrationSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data['extra_config'] = _scrub_extra_config(data.get('extra_config'))
+        data['extra_config'] = _public_extra_config(data.get('extra_config'))
         # Empty nested serializer default → surface a stable {} shape
         # instead of None so the frontend doesn't crash on `.environment`.
         if data.get('scope') is None:
@@ -247,6 +259,7 @@ class ObservabilityIntegrationListSerializer(serializers.ModelSerializer):
         source='get_provider_display', read_only=True
     )
     has_password = serializers.SerializerMethodField()
+    secret_fields_set = serializers.SerializerMethodField()
 
     class Meta:
         model = ObservabilityIntegration
@@ -262,6 +275,7 @@ class ObservabilityIntegrationListSerializer(serializers.ModelSerializer):
             'host',
             'username',
             'has_password',
+            'secret_fields_set',
             'extra_config',
             'last_health_check',
             'last_health_status',
@@ -270,9 +284,12 @@ class ObservabilityIntegrationListSerializer(serializers.ModelSerializer):
     def get_has_password(self, obj):
         return bool(obj.password)
 
+    def get_secret_fields_set(self, obj):
+        return obj.secret_fields_set()
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data['extra_config'] = _scrub_extra_config(data.get('extra_config'))
+        data['extra_config'] = _public_extra_config(data.get('extra_config'))
         return data
 
 

@@ -46,6 +46,13 @@ POST /api/integrations/observability/
 }
 ```
 
+**Credentials are write-only.** `password` and secret `extra_config` keys
+(`api_key`, `app_key`, `bearer_token`, `token`, `client_secret`,
+`credentials_json`) are encrypted at rest and never returned. Responses
+include `has_password` and `secret_fields_set`, for example
+`["api_key", "app_key"]`. On `PATCH`, a secret sent blank or left out keeps
+its stored value.
+
 **Scoping fields (multi-topology support):**
 
 | Field           | Type            | Purpose |

@@ -914,8 +914,8 @@ class Command(BaseCommand):
         Service Details panels (per-service repo/pipeline links). Both
         read as "the data is fake / the product is broken". These
         records ship with the sentinel placeholder credential
-        SEED_DEMO_PLACEHOLDER — serializers detect it and mask
-        everything the UI would otherwise show, and the health-check
+        SEED_DEMO_PLACEHOLDER — secrets are never returned by the API
+        anyway, and the health-check
         endpoint short-circuits to synthetic OK so nothing actually
         calls out to hosts that don't exist.
 

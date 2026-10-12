@@ -5,14 +5,54 @@ A single ObservabilityIntegration model supports both log and metric
 providers, optionally sharing credentials (e.g. Datadog for both).
 """
 
+import json
 import logging
 
+from cryptography.fernet import InvalidToken
 from django.db import models
 from django.db.models import Q
 from Organisations.models import Organisations as Organisation
-from providers.encryption import encrypt_value, decrypt_value
+from providers.encryption import decrypt_value, encrypt_value, get_fernet
 
 logger = logging.getLogger(__name__)
+
+
+# ``extra_config`` keys that hold credentials. Their values are stored
+# Fernet-encrypted, decrypted only in ``get_config()`` for the adapter, and
+# never returned by the API — the serializers report which ones are set.
+SECRET_EXTRA_CONFIG_KEYS = frozenset({
+    'api_key', 'app_key', 'bearer_token', 'token', 'client_secret',
+    'credentials_json',
+})
+
+
+def _is_encrypted(value: str) -> bool:
+    # Uses Fernet directly: ``decrypt_value`` logs an error on every miss,
+    # and a miss here is the normal case for a freshly entered secret.
+    try:
+        get_fernet().decrypt(value.encode('utf-8'))
+    except (InvalidToken, ValueError, TypeError):
+        return False
+    return True
+
+
+def encrypt_extra_config_secrets(extra_config: dict) -> dict:
+    """Return ``extra_config`` with every secret value encrypted.
+
+    Values that are already encrypted are left as they are, so saving a
+    loaded row twice does not double-encrypt it. A dict value (a GCP
+    service-account key pasted as JSON) is serialised first.
+    """
+    result = dict(extra_config or {})
+    for key in SECRET_EXTRA_CONFIG_KEYS & result.keys():
+        value = result[key]
+        if isinstance(value, dict):
+            value = json.dumps(value)
+        if not isinstance(value, str) or not value:
+            result.pop(key)
+            continue
+        result[key] = value if _is_encrypted(value) else encrypt_value(value)
+    return result
 
 
 # Maps provider code → which capabilities it can serve and their adapter classes.
@@ -329,7 +369,9 @@ class ObservabilityIntegration(models.Model):
             return ''
 
     def save(self, *args, **kwargs):
-        """Auto-populate adapter class paths from provider + capabilities."""
+        """Encrypt secret ``extra_config`` values and auto-populate adapter
+        class paths from provider + capabilities."""
+        self.extra_config = encrypt_extra_config_secrets(self.extra_config)
         adapters = ADAPTER_MAP.get(self.provider, {})
         if 'logs' in (self.capabilities or []):
             self.log_adapter_class = adapters.get('logs', '')
@@ -360,8 +402,22 @@ class ObservabilityIntegration(models.Model):
             'rate_limit_per_minute': self.rate_limit_per_minute,
             'topology_mode': self.topology_mode,
         }
-        config.update(self.extra_config or {})
+        for key, value in (self.extra_config or {}).items():
+            if key in SECRET_EXTRA_CONFIG_KEYS:
+                try:
+                    value = decrypt_value(value)
+                except Exception:
+                    logger.warning(
+                        'Failed to decrypt %s for integration %s — omitting it',
+                        key, self.pk,
+                    )
+                    continue
+            config[key] = value
         return config
+
+    def secret_fields_set(self) -> list:
+        """Names of the secret ``extra_config`` keys that hold a value."""
+        return sorted(SECRET_EXTRA_CONFIG_KEYS & (self.extra_config or {}).keys())
 
 
 class IntegrationScope(models.Model):
