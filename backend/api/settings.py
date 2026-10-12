@@ -77,13 +77,26 @@ if not DEBUG and (_placeholders := _placeholder_secrets(os.environ)):
     )
 
 # Whether anonymous users can create a new organisation via POST
-# /api/auth/register. Default True — self-hosters want the normal
-# "sign up + create your org" flow to work out of the box. Set to
-# False on the public demo instance (app.serops.ai) where the only
-# intended sign-in path is the one-click read-only demo user;
-# invited team members always work regardless (they go through
-# /api/auth/accept/invitation, not /register).
-REGISTRATION_ENABLED = os.getenv('REGISTRATION_ENABLED', 'True').lower() in ('true', '1', 'yes')
+# /api/auth/register. Every registration creates a NEW organisation —
+# teammates join an existing one through invitations, which this flag
+# never affects.
+#
+#   unset / "auto" -> None: open until the first real organisation
+#                     exists, then closed. A single-company install
+#                     closes itself once set up, without anyone having
+#                     to remember to flip a flag.
+#   true           -> always open (an instance hosting several teams).
+#   false          -> always closed (the public demo at app.serops.ai).
+#
+# Resolved per request by Users.views.registration_open().
+def _registration_flag(raw):
+    value = (raw or '').strip().lower()
+    if value in ('', 'auto'):
+        return None
+    return value in ('true', '1', 'yes')
+
+
+REGISTRATION_ENABLED = _registration_flag(os.getenv('REGISTRATION_ENABLED'))
 
 # Security: Only allow specific hosts (configure via environment)
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')

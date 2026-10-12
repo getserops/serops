@@ -59,6 +59,25 @@ login_response = openapi.Schema(
     }
 )
 
+
+def registration_open():
+    """Whether POST /api/auth/register may create a new organisation.
+
+    An explicit REGISTRATION_ENABLED wins. Unset means automatic: open
+    until a real (non-demo) user belongs to an organisation — the first
+    sign-up, or ``createsuperuser``, which provisions one — then closed.
+    Demo users and demo organisations are ignored, so seeding the example
+    org does not lock the owner out of creating theirs.
+    """
+    flag = getattr(settings, 'REGISTRATION_ENABLED', None)
+    if flag is not None:
+        return bool(flag)
+    return not User.objects.filter(
+        organisation__isnull=False,
+        organisation__is_demo=False,
+        is_demo=False,
+    ).exists()
+
 class RegisterView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
@@ -104,7 +123,7 @@ class RegisterView(APIView):
         # public demo host). Team members invited by an existing admin
         # still work — they go through /api/auth/accept/invitation, not
         # /register, so this check does not affect them.
-        if not getattr(settings, 'REGISTRATION_ENABLED', True):
+        if not registration_open():
             return Response(
                 {
                     'status': 'error',
@@ -1065,7 +1084,5 @@ class RegistrationStatusView(APIView):
 
     def get(self, request):
         return Response({
-            'registration_enabled': bool(
-                getattr(settings, 'REGISTRATION_ENABLED', True)
-            ),
+            'registration_enabled': registration_open(),
         })

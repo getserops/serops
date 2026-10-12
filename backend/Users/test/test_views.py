@@ -21,6 +21,10 @@ from Organisations.models import Organisations
 # RegisterView
 # =============================================================================
 
+# These exercise the registration flow itself, so they run on an instance
+# with registration explicitly open: in the default automatic mode, the
+# users some tests create would close it (see test_registration_gate).
+@override_settings(REGISTRATION_ENABLED=True)
 class TestRegisterView(APITestCase):
     """Tests for user registration endpoint."""
 

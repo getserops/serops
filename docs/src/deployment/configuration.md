@@ -25,7 +25,7 @@ Complete reference for all environment variables consumed by SerOps.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `REGISTRATION_ENABLED` | No | `True` | Whether anonymous visitors can create a new organisation via `POST /api/auth/register`. Leave as `True` for the normal sign-up flow. Set to `False` on a closed deployment — registrations return `403 registration_disabled`, existing users can still log in, and admins can still invite team members. |
+| `REGISTRATION_ENABLED` | No | unset (automatic) | Whether anonymous visitors can create a **new organisation** via `POST /api/auth/register`. **Unset:** open until the first real organisation exists (first sign-up or `createsuperuser`), then closed — a single-company install closes itself once set up. **`True`:** always open, for an instance hosting several teams. **`False`:** always closed. When closed, registrations return `403 registration_disabled`; existing users can still log in, and invitations to join an existing organisation always work. |
 | `BETA_INVITE_CODE` | No | -- | If set, register requests must include a matching invite code to succeed. Leave unset in normal deployments. |
 
 ---

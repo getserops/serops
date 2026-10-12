@@ -123,6 +123,12 @@ organisation:
 docker compose exec backend python manage.py createsuperuser
 ```
 
+Once this organisation exists, the public sign-up page closes
+automatically: invite teammates from **Settings → Team** instead (a
+sign-up would create a separate organisation). To let other teams create
+their own organisations on this instance, set `REGISTRATION_ENABLED=True`
+in `.env`.
+
 ## Step 5: Add an AI provider key
 
 Sign in with the superuser you just created. The

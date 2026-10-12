@@ -46,7 +46,7 @@ Public flag the login page reads at mount time to decide whether to render the "
 }
 ```
 
-Controlled by the `REGISTRATION_ENABLED` env var — see [Configuration Reference](../deployment/configuration.md#public-access-control).
+Controlled by the `REGISTRATION_ENABLED` env var. Left unset, it is `true` until the first organisation exists and `false` afterwards — see [Configuration Reference](../deployment/configuration.md#public-access-control).
 
 ## Register
 
@@ -77,7 +77,7 @@ Creates a new organisation with the caller as its first admin. Sends an activati
 
 **When registration is disabled:**
 
-If the deployment sets `REGISTRATION_ENABLED=False`, this endpoint returns `403 Forbidden`:
+If registration is closed — `REGISTRATION_ENABLED=False`, or left unset on an instance that already has an organisation — this endpoint returns `403 Forbidden`:
 
 ```json
 {
