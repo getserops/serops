@@ -1,9 +1,9 @@
 name: Trivy image scan
 
-# NOT the pipeline that runs today. SerOps is developed on GitLab, which does
-# not read .github/workflows — see .gitlab-ci.yml for the live equivalent. This
-# file is kept ready for a GitHub publish; the two are deliberate duplicates of
-# the same checks, so a change to one belongs in the other.
+# Runs on GitHub (github.com/getserops/serops), the public repository where
+# contributions arrive. The maintainers' GitLab mirror runs the same checks
+# from .gitlab-ci.yml; the two are deliberate duplicates, so a change to one
+# belongs in the other.
 #
 
 # Scans the images the Docker workflow actually pushed.

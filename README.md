@@ -62,10 +62,10 @@ Full guides in [docs/](docs/) or at https://serops.ai/docs.
 
 ## What works today
 
-- Multi-tenant SaaS with RBAC (admin / user / viewer) and audit logging
+- Multi-tenant (several organisations per instance) with RBAC (admin / user / viewer) and audit logging
 - Log, metric, trace, SCM, CI/CD and GitOps integrations (list above) plus OTLP trace ingestion
 - AI batch analysis with cost tracking and Sentinel gating
-- Email + Slack + Microsoft Teams notifications with escalation and digest
+- Email, Slack, Microsoft Teams, PagerDuty and OpsGenie notifications with routing rules, escalation and digest
 - OIDC single sign-on with HttpOnly cookie token handoff
 - Knox token auth, password change/reset with full token revocation
 - GDPR right-to-erasure (`DELETE /api/auth/account`)
@@ -76,7 +76,7 @@ Full guides in [docs/](docs/) or at https://serops.ai/docs.
 - SAML 2.0 SSO (OIDC only)
 - Two-factor authentication
 - Inbound Slack / Teams interactions (acknowledge from chat)
-- PagerDuty / OpsGenie / Discord channels
+- Discord channel
 - Encryption-key rotation tooling
 
 See the [docs](https://serops.ai/docs/) roadmap for the full picture.

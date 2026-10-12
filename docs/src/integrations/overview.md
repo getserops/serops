@@ -1,6 +1,6 @@
 # Integrations Overview
 
-SerOps integrates with **23 providers** — 14 observability, 4 SCM, and 5 CI/CD — covering approximately **90% of the enterprise market**. This page is the complete matrix.
+SerOps integrates with log, metric and trace backends, source-control and CI/CD providers. This page is the complete matrix.
 
 ## Provider Matrix
 

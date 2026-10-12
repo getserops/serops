@@ -63,16 +63,16 @@ signature on each pull request and blocks merge until it is present.
 5. CI must be green before review — see the PR template for the checklist.
 
 CI is path-scoped: a frontend-only change does not spend ten minutes booting
-Postgres. The live pipeline is [`.gitlab-ci.yml`](./.gitlab-ci.yml) — backend
-tests, frontend tests, a strict docs build and a Helm lint.
+Postgres. **GitHub Actions is the CI for contributions**: the workflows in
+[`.github/workflows/`](./.github/workflows) run on every pull request —
+backend tests, frontend tests, a strict docs build, a Helm lint, CodeQL and a
+dependency review — and publish the images and the Helm chart from `main` and
+release tags.
 
-[`.github/workflows/`](./.github/workflows) holds the same four checks plus
-image and chart publishing, ready for an eventual GitHub publish. GitLab does
-not read it, so nothing in there runs today. **Change both when you change
-either**, or delete one once the hosting question is settled. If workflows ever
-do run on GitHub, note they are only read from the repository root — one placed
-under `backend/.github/` would look live and run never, which is exactly what
-happened to ten of them before the monorepo cutover.
+The maintainers also run the same four test checks on an internal GitLab
+mirror from [`.gitlab-ci.yml`](./.gitlab-ci.yml). **Change both when you
+change either.** Workflows are only read from the repository root — one placed
+under `backend/.github/` would look live and never run.
 
 ## Reporting bugs and requesting features
 

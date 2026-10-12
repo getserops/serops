@@ -21,13 +21,16 @@ Line/Area chart showing memory usage over the batch time window.
 
 ### Threshold Indicators
 
-| Threshold | Color | Meaning |
-|-----------|-------|---------|
-| >90% | 🔴 Red | Critical |
-| >70% | 🟡 Yellow | Warning |
-| ≤70% | 🟢 Green | Healthy |
+The colours use the same thresholds the backend uses to flag anomalies
+for the AI, so a red value is one the analysis also treats as abnormal.
 
-Reference lines on the chart show these thresholds.
+| Level | Memory | CPU | Color |
+|-------|--------|-----|-------|
+| Over threshold | > 75% | > 80% | 🔴 Red |
+| Approaching | > 68% | > 72% | 🟡 Yellow |
+| Healthy | ≤ 68% | ≤ 72% | 🟢 Green |
+
+"Approaching" starts at 90% of the threshold. Reference lines on the chart show these thresholds.
 
 ### Average Usage
 Circular gauge showing average memory usage for the batch with color-coded status.

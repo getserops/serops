@@ -1,9 +1,9 @@
-# GitLab CI — the pipeline that actually runs today.
+# GitLab CI — the maintainers' internal mirror of the checks.
 #
-# .github/workflows/ exists for an eventual GitHub publish; GitLab does not read
-# it, so without this file none of those checks executed anywhere. The two are
-# deliberate duplicates of the same four checks. If you change one, change both
-# — or delete the other when the hosting question is settled.
+# The public repository is on GitHub, where .github/workflows/ runs the same
+# four checks (plus image and chart publishing) on every push and pull
+# request. GitLab does not read .github/workflows, hence this file. The two are
+# deliberate duplicates: if you change one, change both.
 #
 # Jobs are path-scoped: a docs typo does not boot Postgres.
 
