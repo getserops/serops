@@ -15,27 +15,22 @@ New organizations can sign up directly via the Registration page. The process is
 
 ## Single Sign-On (SSO)
 
-Enterprise plans include access to SSO, allowing you to manage user access via your central Identity Provider (IdP). SerOps supports both modern **OpenID Connect (OIDC)** and legacy **SAML 2.0** protocols.
+SerOps supports Single Sign-On through **OpenID Connect (OIDC)**, so you can manage user access from your central Identity Provider (IdP). It is part of every edition.
+
+!!! note "SAML 2.0 is not supported yet"
+    Use OIDC — every major IdP (Okta, Azure AD / Entra ID, Google Workspace, Keycloak, Auth0) offers it.
 
 ### Configuring SSO
 
 Navigate to **Settings > Security > Single Sign-On** to configure your provider.
 
-#### option 1: OpenID Connect (OIDC)
+#### OpenID Connect (OIDC)
 Ideal for modern providers like **Okta**, **Azure AD**, **Google Workspace**, or **Keycloak**.
 
 **Required Fields:**
 *   **Client ID**: From your IdP application.
 *   **Client Secret**: From your IdP application.
 *   **Discovery URL**: The `.well-known/openid-configuration` endpoint (e.g., `https://accounts.google.com/.well-known/openid-configuration`).
-
-#### Option 2: SAML 2.0
-Required for many legacy enterprise environments and government compliance.
-
-**Required Fields:**
-*   **Entity ID (Issuer URL)**: The unique identifier of your IdP.
-*   **Single Sign-On Service URL**: The URL where SerOps sends authentication requests.
-*   **X.509 Certificate**: The public certificate to verify SAML assertions.
 
 ### User Provisioning
 SerOps supports **Just-In-Time (JIT) Provisioning**. 

@@ -94,10 +94,10 @@ keeps analysis affordable and keeps your data out of a third party's hands:
 | **AI Chat** | Conversational AI for investigating issues with full context from logs, metrics, traces, and code |
 | **Model Comparison** | Re-analyse batches with different AI models and compare results side-by-side |
 | **PII Redaction** | Automatic scanning and masking of sensitive data before AI processing |
-| **Notifications** | Slack, Teams, and email alerts with quiet hours, digests, and 2-level escalation |
+| **Notifications** | Slack, Teams, PagerDuty, OpsGenie and email, with routing rules, quiet hours, digests and escalation |
 | **Issue Lifecycle** | Muting, auto-resolution, acknowledgement, and MTTR tracking |
-| **23 Integrations** | 4 SCM, 5 CI/CD, and 14 observability providers (~90% of the enterprise market) with encrypted credential storage |
-| **Team Management** | RBAC (admin/user/viewer), team invitations, SSO (OIDC/SAML) |
+| **Integrations** | Log, metric and trace backends, SCM and CI/CD providers, GitOps deployment sources — see [Integrations](integrations/overview.md). Credentials are encrypted at rest |
+| **Team Management** | RBAC (admin/user/viewer), team invitations, SSO via OpenID Connect |
 | **Audit & Compliance** | Full audit trail with export, data retention policies, and GDPR support |
 
 ## Quick Links

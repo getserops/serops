@@ -62,11 +62,6 @@ const SecuritySettings = () => {
                     sso_client_id: settings.sso.client_id,
                     sso_discovery_url: settings.sso.discovery_url,
                     sso_realm: settings.sso.realm,
-
-                    // SAML
-                    saml_entity_id: settings.sso.saml_entity_id,
-                    saml_sso_url: settings.sso.saml_sso_url,
-                    saml_x509_cert: settings.sso.saml_x509_cert
                 };
                 // Only include client_secret if user actually entered a new one
                 if (settings.sso.client_secret) {
@@ -171,19 +166,6 @@ const SecuritySettings = () => {
                             </div>
 
                             <div
-                                key="saml"
-                                className={`settings-selection-card ${settings?.sso?.provider === 'saml' ? 'active' : ''}`}
-                                onClick={() => setSettings(prev => ({
-                                    ...prev,
-                                    sso: { ...prev.sso, provider: 'saml', enabled: true }
-                                }))}
-                            >
-                                <div className="settings-selection-icon"><FaShieldAlt /></div>
-                                <span className="settings-selection-label">SAML 2.0</span>
-                                <span className="settings-selection-desc">Enterprise Identity Providers</span>
-                            </div>
-
-                            <div
                                 className={`settings-selection-card ${settings?.sso?.provider === 'none' ? 'active' : ''}`}
                                 onClick={() => setSettings(prev => ({
                                     ...prev,
@@ -263,54 +245,6 @@ const SecuritySettings = () => {
                         </div>
                     )}
 
-                    {/* SAML Configuration */}
-                    {settings?.sso?.provider === 'saml' && (
-                        <div className="settings-form-panel">
-                            <h5 className="mb-3">SAML 2.0 Configuration</h5>
-                            <div className="form-group mb-3">
-                                <label>Identity Provider Entity ID (Issuer URL)</label>
-                                <input
-                                    type="url"
-                                    className="form-control"
-                                    value={settings?.sso?.saml_entity_id || ''}
-                                    onChange={(e) => setSettings(prev => ({
-                                        ...prev,
-                                        sso: { ...(prev?.sso || {}), saml_entity_id: e.target.value }
-                                    }))}
-                                    placeholder="https://idp.example.com/saml/metadata"
-                                />
-                            </div>
-
-                            <div className="form-group mb-3">
-                                <label>Single Sign-On Service URL</label>
-                                <input
-                                    type="url"
-                                    className="form-control"
-                                    value={settings?.sso?.saml_sso_url || ''}
-                                    onChange={(e) => setSettings(prev => ({
-                                        ...prev,
-                                        sso: { ...(prev?.sso || {}), saml_sso_url: e.target.value }
-                                    }))}
-                                    placeholder="https://idp.example.com/saml/sso"
-                                />
-                            </div>
-
-                            <div className="form-group mb-3">
-                                <label>X.509 Certificate</label>
-                                <textarea
-                                    className="form-control font-monospace"
-                                    rows="5"
-                                    value={settings?.sso?.saml_x509_cert || ''}
-                                    onChange={(e) => setSettings(prev => ({
-                                        ...prev,
-                                        sso: { ...(prev?.sso || {}), saml_x509_cert: e.target.value }
-                                    }))}
-                                    placeholder="-----BEGIN CERTIFICATE----- ... -----END CERTIFICATE-----"
-                                    style={{ fontSize: '0.85rem' }}
-                                />
-                            </div>
-                        </div>
-                    )}
                 </div>
             </CollapsibleSection>
 
