@@ -49,13 +49,23 @@ would rather not sign, those are genuinely useful and we would rather have them
 than nothing.
 
 Read [CLA.md](./CLA.md) before opening a pull request, so the agreement is not a
-surprise after you have written the code. Signing is by email while the
-repository is private; once it is public a CLA assistant bot collects the
-signature on each pull request and blocks merge until it is present.
+surprise after you have written the code.
+
+### Code pull requests are on hold until the CLA is final
+
+The agreement is still a draft under legal review, so there is nothing valid to
+sign yet. Until it is final, **pull requests that change code stay open but are
+not merged**. Merging one without a signed agreement would permanently keep that
+code out of the commercially licensed edition. You are welcome to open one
+anyway: it will be reviewed and merged once the agreement is in place, and a CLA
+assistant bot will then ask you to sign on the pull request itself.
+
+Issues, bug reports and discussion are open now and need no agreement.
 
 ## Branch and PR workflow
 
-0. Sign the [CLA](./CLA.md) if you are contributing code — see above.
+0. Sign the [CLA](./CLA.md) if you are contributing code — see above (on hold
+   until the agreement is final).
 1. Fork the repository.
 2. Create a topic branch off `main`.
 3. Commit in small, reviewable chunks. Keep unrelated cleanup in separate PRs.
