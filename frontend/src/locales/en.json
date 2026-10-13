@@ -186,7 +186,10 @@
     "issueContext": "Issue Context",
     "untitledSession": "Untitled Session",
     "messages": "messages",
-    "deleteChat": "Delete chat"
+    "deleteChat": "Delete chat",
+    "demoReadOnly": "Chat is disabled in the read-only demo. Self-host SerOps to ask questions about your own data.",
+    "demoPlaceholder": "Chat is disabled in the live demo",
+    "demoSelfHost": "Self-hosting guide"
   },
   "projects": {
     "title": "Projects",
@@ -1049,7 +1052,7 @@
       },
       "markAllRead": "Mark all as read",
       "clearAll": "Clear all",
-      "demoReadOnly": "You're in the SerOps live demo — sign up to make changes.",
+      "demoReadOnly": "You're in the read-only SerOps demo. Self-host SerOps to make changes.",
       "actionFailed": "Couldn't complete that. Please try again.",
       "empty": {
         "title": "No notifications",

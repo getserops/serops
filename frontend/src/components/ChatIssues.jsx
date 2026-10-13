@@ -345,6 +345,7 @@ const ChatIssues = () => {
     selectedModel,
     isLoading,
     error,
+    isDemo,
     showHistory,
     chatHistory,
     messagesEndRef,
@@ -537,22 +538,35 @@ const ChatIssues = () => {
 
         {/* Input area */}
         <div className="chat-input-area">
-          {error && <div className="chat-error-alert">{error}</div>}
+          {isDemo ? (
+            <div className="chat-demo-notice" role="status">
+              {t('chat.demoReadOnly')}{' '}
+              <a
+                href="https://serops.ai/docs/getting-started/quick-start-self-hosted/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t('chat.demoSelfHost')} →
+              </a>
+            </div>
+          ) : (
+            error && <div className="chat-error-alert">{error}</div>
+          )}
 
           <div className="chat-input-wrapper">
             <textarea
-              placeholder={t('chat.placeholder')}
+              placeholder={isDemo ? t('chat.demoPlaceholder') : t('chat.placeholder')}
               className="chat-textarea"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              disabled={isLoading}
+              disabled={isLoading || isDemo}
               rows={1}
             />
             <button
               className="send-button"
               onClick={handleSend}
-              disabled={isLoading || !input.trim()}
+              disabled={isLoading || isDemo || !input.trim()}
             >
               <FaPaperPlane size={18} />
             </button>

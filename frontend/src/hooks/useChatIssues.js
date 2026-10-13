@@ -21,6 +21,7 @@ import {
 import SettingsService from "../services/settings.service";
 import { formatAnalysisResult } from "../services/data.service";
 import { scanMessageForSensitiveData } from "../services/redaction.service";
+import { isDemoUser } from '../utils/demo';
 
 /**
  * Parse root cause from various formats (JSON, Python dict, string)
@@ -212,6 +213,7 @@ export const useChatIssues = () => {
     const [selectedModel, setSelectedModel] = useState("gemini");
     const [availableModels, setAvailableModels] = useState([]); // Dynamic models
     const [isLoading, setIsLoading] = useState(false);
+    const isDemo = isDemoUser();
     const [error, setError] = useState(null);
     const [showHistory, setShowHistory] = useState(false);
     const [chatHistory, setChatHistory] = useState([]);
@@ -398,17 +400,11 @@ export const useChatIssues = () => {
             // never reached Gemini; the DemoUserMiddleware blocked it
             // upstream. Self-hosting is the only way to try chat, so
             // the copy points there rather than at a signup flow.
+            // The chat UI disables sending for demo users, so this is only
+            // a fallback (for instance a stale login payload). Shown once,
+            // in the banner: it is a deliberate block, not a model reply.
             if (error.code === 'demo_read_only') {
-                const copy = "This live demo is read-only. Self-host SerOps to try chat with your own data.";
-                setError(copy);
-                setMessages((prev) => [...prev, {
-                    id: Date.now() + 1,
-                    sender: "bot",
-                    text: copy,
-                    isError: true,
-                    model: selectedModel,
-                    timestamp: new Date().toISOString(),
-                }]);
+                setError("This live demo is read-only. Self-host SerOps to try chat with your own data.");
                 return;
             }
 
@@ -428,7 +424,7 @@ export const useChatIssues = () => {
 
     // Send message handler with sensitive data scan
     const handleSend = async () => {
-        if (input.trim() === "" || isLoading || isScanning) return;
+        if (isDemo || input.trim() === "" || isLoading || isScanning) return;
 
         setIsScanning(true);
 
@@ -615,6 +611,7 @@ export const useChatIssues = () => {
         availableModels, // Exported for UI
         isLoading,
         error,
+        isDemo,
         showHistory,
         chatHistory,
         messagesEndRef,

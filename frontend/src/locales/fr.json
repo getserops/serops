@@ -186,7 +186,10 @@
     "issueContext": "Contexte du Problème",
     "untitledSession": "Session Sans Titre",
     "messages": "messages",
-    "deleteChat": "Supprimer la conversation"
+    "deleteChat": "Supprimer la conversation",
+    "demoReadOnly": "Le chat est désactivé dans la démo en lecture seule. Hébergez SerOps pour poser des questions sur vos propres données.",
+    "demoPlaceholder": "Le chat est désactivé dans la démo",
+    "demoSelfHost": "Guide d'auto-hébergement"
   },
   "projects": {
     "title": "Projets",
@@ -963,7 +966,7 @@
       },
       "markAllRead": "Tout marquer comme lu",
       "clearAll": "Tout effacer",
-      "demoReadOnly": "Vous êtes dans la démo SerOps — inscrivez-vous pour apporter des modifications.",
+      "demoReadOnly": "Vous êtes dans la démo SerOps en lecture seule. Hébergez SerOps pour apporter des modifications.",
       "actionFailed": "Impossible de terminer l'action. Veuillez réessayer.",
       "empty": {
         "title": "Aucune notification",

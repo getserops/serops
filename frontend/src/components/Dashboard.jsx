@@ -22,6 +22,7 @@ import CorrelationInsightsCard from "./CorrelationInsightsCard";
 import AIAnalysisFeed from "./AIAnalysisFeed";
 import SentinelStatsCard from "./SentinelStatsCard";
 import { OnboardingWizard, OnboardingResumeChip } from "./onboarding";
+import { isDemoUser } from '../utils/demo';
 
 
 const ENV_OPTIONS = ['all', 'production', 'staging', 'dev'];
@@ -172,19 +173,14 @@ const Dashboard = () => {
   // intentionally trust localStorage here rather than fetching /me on
   // every render — Knox + RBAC will reject any write the banner says
   // is blocked, so the flag is presentational, not security-bearing.
-  let isDemoUser = false;
-  try {
-    isDemoUser = Boolean(JSON.parse(localStorage.getItem('user') || '{}').is_demo);
-  } catch {
-    isDemoUser = false;
-  }
+  const isDemo = isDemoUser();
 
   return (
     <div className="dashboard-layout">
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
       <div className={`dashboard-main ${isSidebarOpen ? 'expanded' : 'collapsed'}`}>
-        {isDemoUser && (
+        {isDemo && (
           <div
             className="demo-banner"
             role="status"
@@ -214,7 +210,7 @@ const Dashboard = () => {
                 fontWeight: 600,
               }}
             >
-              Self-host SerOps in 5 minutes →
+              Self-host SerOps →
             </a>
           </div>
         )}

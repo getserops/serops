@@ -243,6 +243,22 @@
     background: var(--bg-card);
 }
 
+.chat-demo-notice {
+    margin-bottom: var(--space-3);
+    padding: var(--space-3);
+    background: #fef3c7;
+    border: 1px solid #fde68a;
+    border-radius: var(--radius-md);
+    color: #92400e;
+    font-size: var(--text-sm);
+}
+
+.chat-demo-notice a {
+    color: #92400e;
+    font-weight: 600;
+    text-decoration: underline;
+}
+
 .chat-error-alert {
     margin-bottom: var(--space-3);
     padding: var(--space-3);
