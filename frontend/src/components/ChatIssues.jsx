@@ -378,6 +378,14 @@ const ChatIssues = () => {
     return model ? model.name : selectedModel;
   };
 
+  // Display name for a provider id ("gemini" -> "Google Gemini"). Messages
+  // carry the model that answered them; older ones fall back to the current
+  // selection. Unknown ids are shown as-is.
+  const modelName = (id) => {
+    const model = (availableModels || []).find(m => m.id === id);
+    return model ? model.name : id;
+  };
+
   return (
     <div className="chat-page-wrapper">
       <div className="chat-container-modern">
@@ -459,7 +467,7 @@ const ChatIssues = () => {
               >
                 <div className="message-sender">
                   {msg.sender === "bot" && !msg.isIssueContext
-                    ? selectedModel
+                    ? modelName(msg.model || selectedModel)
                     : msg.isIssueContext
                       ? t('chat.issueContext')
                       : t('chat.you')}
@@ -495,7 +503,7 @@ const ChatIssues = () => {
                 className={`message-bubble ${msg.sender === "bot" ? "bot" : "user"}`}
               >
                 <div className="message-sender">
-                  {msg.sender === "bot" ? selectedModel : t('chat.you')}
+                  {msg.sender === "bot" ? modelName(msg.model || selectedModel) : t('chat.you')}
                   {msg.isError && (
                     <span className="text-danger ms-2">({t('common.error')})</span>
                   )}
@@ -525,7 +533,7 @@ const ChatIssues = () => {
           {isLoading && (
             <div className="message-loading">
               <FaRobot />
-              <span>{t('chat.isThinking', { model: selectedModel })}</span>
+              <span>{t('chat.isThinking', { model: modelName(selectedModel) })}</span>
               <div className="typing-indicator">
                 <div className="typing-dot"></div>
                 <div className="typing-dot"></div>
