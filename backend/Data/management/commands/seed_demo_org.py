@@ -640,6 +640,30 @@ def _synthetic_correlations(scene: 'Scene') -> dict:
     }
 
 
+# CI each application service is bound to (see binding_specs). Pipelines
+# and commits use the same provider and repo, so the dashboard can match
+# them to the service.
+SERVICE_CI_PROVIDER = {
+    'backend-api': 'gitlab',
+    'payment-worker': 'jenkins',
+    'web-frontend': 'gitlab',
+}
+
+
+def _deploy_service(scene: 'Scene') -> str:
+    """The application service a scene's deploy shipped."""
+    component = scene.issue_component or 'backend-api'
+    return component if component in SERVICE_CI_PROVIDER else 'backend-api'
+
+
+def _deploy_repo(scene: 'Scene') -> str:
+    return f'acme-corp/{_deploy_service(scene)}'
+
+
+def _deploy_branch(scene: 'Scene') -> str:
+    return 'main' if scene.environment == 'production' else 'develop'
+
+
 def _analysis_text(scene: 'Scene') -> str:
     """What the AI wrote for this batch; empty when Sentinel skipped it."""
     if scene.quiet:
@@ -1660,26 +1684,25 @@ class Command(BaseCommand):
     def _make_pipeline(
         org: Organisations, project: Project, scene: Scene, scene_time: datetime,
     ) -> Pipeline:
-        """Lightweight Pipeline + a single passing build Job.
-
-        We use GitHub Actions as the synthetic CI provider so the demo
-        does not require a fake GitlabProject. ``external_project_id``
-        keeps Pipeline portable across providers.
-        """
+        """Lightweight Pipeline + a single passing build Job, run by the
+        CI the deploying service is bound to, on that service's repo."""
         pipeline = Pipeline.objects.create(
             organisation=org,
-            pipeline_id=f'gh-{scene.deploy_sha}-{scene.days_ago}',
-            cicd_provider='github_actions',
-            external_project_id=f'acme/{project.name}',
+            pipeline_id=f'{scene.deploy_sha}-{scene.days_ago}',
+            cicd_provider=SERVICE_CI_PROVIDER[_deploy_service(scene)],
+            external_project_id=_deploy_repo(scene),
             status='success',
-            branch='main',
+            branch=_deploy_branch(scene),
             environment=scene.environment,
             provider_metadata={
-                'workflow': 'deploy.yml',
                 'commit_sha': scene.deploy_sha,
                 'message': scene.deploy_message,
             },
         )
+        Pipeline.objects.filter(pk=pipeline.pk).update(
+            created_at=scene_time - timedelta(minutes=10),
+        )
+        pipeline.refresh_from_db()
         Job.objects.create(
             pipeline=pipeline,
             job_id=f'{scene.deploy_sha}-build',
@@ -1702,13 +1725,13 @@ class Command(BaseCommand):
         return CodeChange.objects.create(
             organisation=org,
             provider='github',
-            project_id=f'acme/{project.name}',
+            project_id=_deploy_repo(scene),
             commit_sha=scene.deploy_sha,
             commit_message=scene.deploy_message,
             author_name=author_name,
             author_email=author_email,
             timestamp=scene_time,
-            branch='main',
+            branch=_deploy_branch(scene),
             pipeline=pipeline,
             files_changed=2,
             additions=18,
@@ -1796,8 +1819,7 @@ class Command(BaseCommand):
                         'timestamp': (scene_time - timedelta(minutes=8)).isoformat(),
                         'author': code_change.author_name,
                         'message': scene.deploy_message or '',
-                        'branch': ('main' if scene.environment == 'production'
-                                   else 'develop'),
+                        'branch': _deploy_branch(scene),
                         'stats': {'files': 3, 'additions': 42, 'deletions': 8},
                         'files': [
                             {'path': 'api/payment_webhooks.py', 'diff': ''},
@@ -1965,7 +1987,17 @@ class Command(BaseCommand):
         # Hard-set created_at so the issue dates back to the scene time
         # rather than "now" — Django auto_now_add ignores explicit values
         # on create, so update separately.
-        Issue.objects.filter(pk=issue.pk).update(created_at=scene_time)
+        # save() derives the correlation fields from the issue text on
+        # create; the real pipeline then overwrites them from the engine
+        # (ai_model.tasks._populate_issue_correlations). Do the same here.
+        metric_type = {'MEMORY_HIGH': 'memory', 'CPU_HIGH': 'cpu'}.get(scene.issue_type, '')
+        Issue.objects.filter(pk=issue.pk).update(
+            created_at=scene_time,
+            has_commit_correlation=bool(linked_commits),
+            linked_commits=linked_commits,
+            has_metric_correlation=bool(metric_type),
+            metric_correlation_type=metric_type,
+        )
         # The batch's issue list reads through occurrences, not Issue.batch,
         # so without this row the batch page shows "0 issues detected".
         occurrence = IssueOccurrence.objects.create(

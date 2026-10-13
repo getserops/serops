@@ -13,6 +13,8 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import ClusterService from '../../services/cluster.service';
 import { DeploymentProvider, useDeployment, useCluster } from '../DeploymentContext';
 
 vi.mock('../../services/cluster.service', () => ({
@@ -38,12 +40,23 @@ Object.defineProperty(window, 'localStorage', {
     value: localStorageMock, writable: true,
 });
 
-const wrap = ({ children }) => <DeploymentProvider>{children}</DeploymentProvider>;
+const wrap = ({ children }) => (
+    <MemoryRouter><DeploymentProvider>{children}</DeploymentProvider></MemoryRouter>
+);
 
 describe('DeploymentContext', () => {
     beforeEach(() => {
         localStorageMock.clear();
+        localStorageMock.setItem('token', 'test-token');
         vi.clearAllMocks();
+    });
+
+    it('does not request clusters before login', async () => {
+        localStorageMock.removeItem('token');
+        const { result } = renderHook(() => useDeployment(), { wrapper: wrap });
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        expect(ClusterService.list).not.toHaveBeenCalled();
+        expect(result.current.clusters).toEqual([]);
     });
 
     it('defaults to an unfiltered shape', async () => {

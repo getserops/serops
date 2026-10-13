@@ -64,7 +64,7 @@ const TrendAnalysisChart = ({ data, loading }) => {
                             </linearGradient>
                         </defs>
                         <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                        <YAxis tick={{ fontSize: 12 }} />
+                        <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                         <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                         <Tooltip content={<CustomTooltip />} />
                         <Legend wrapperStyle={{ paddingTop: "10px" }} />

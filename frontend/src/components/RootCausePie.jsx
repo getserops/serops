@@ -116,6 +116,7 @@ const RootCausePie = ({ data, loading }) => {
                             outerRadius={120}
                             innerRadius={65}
                             dataKey="count"
+                            nameKey="category"
                             strokeWidth={0}
                         >
                             {chartData.map((entry, index) => (

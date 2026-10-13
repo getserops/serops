@@ -19,6 +19,7 @@
  */
 
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import ClusterService from '../services/cluster.service';
 
 const STORAGE_KEY = 'serops.deployment.filter';
@@ -91,10 +92,22 @@ export const DeploymentProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [filter, setFilterState] = useState(() => readInitial());
 
-    // Load clusters once so pickers can show names + the invalid-cluster
+    // The provider wraps the login page too, so a load at mount runs
+    // before there is a token and 401s. Re-read the token on every
+    // navigation and load the clusters whenever it changes.
+    useLocation();
+    let token = null;
+    try { token = localStorage.getItem('token'); } catch { /* storage blocked */ }
+
+    // Load clusters so pickers can show names + the invalid-cluster
     // guard below can prune a stale ID.
     useEffect(() => {
         let cancelled = false;
+        if (!token) {
+            setClusters([]);
+            setLoading(false);
+            return undefined;
+        }
         (async () => {
             try {
                 setLoading(true);
@@ -107,7 +120,7 @@ export const DeploymentProvider = ({ children }) => {
             }
         })();
         return () => { cancelled = true; };
-    }, []);
+    }, [token]);
 
     // If the persisted clusterId points at a cluster that no longer
     // exists (deleted elsewhere), fall back to "any". Otherwise the

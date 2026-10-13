@@ -510,12 +510,16 @@ class RecentDeploymentsView(OrgFilterMixin, APIView):
                 ).order_by('-created_at')[:3]
                 
                 if not pipelines.exists():
-                    # No pipelines yet, still show service
+                    # No pipelines yet, still show service — with the CI it
+                    # is bound to rather than assuming GitLab.
+                    binding = service.cicd_bindings.filter(
+                        is_active=True,
+                    ).select_related('integration').first()
                     deployments.append({
                         'service_id': service.id,
                         'service_name': service.name or repo_display or 'Unknown',
                         'project_name': service.project.name if service.project else 'Unknown',
-                        'provider': 'gitlab',
+                        'provider': binding.integration.provider_type if binding else 'unknown',
                         'latest_pipeline': None,
                         'recent_pipelines': [],
                         'success_rate': None
@@ -677,6 +681,12 @@ class RecentAnalysisFeedView(OrgFilterMixin, APIView):
         """
         import ast
         import json
+        import re
+
+        def first_sentence(value):
+            # A sentence ends at a period followed by whitespace, so
+            # "v2.3.4" or "payment_webhooks.py" are not cut in half.
+            return re.split(r'(?<=\.)\s+', value.strip(), maxsplit=1)[0].rstrip('.').strip()
 
         if not analysis_text:
             return ''
@@ -708,7 +718,7 @@ class RecentAnalysisFeedView(OrgFilterMixin, APIView):
                 desc = first.get('description', '')
                 if desc:
                     # Truncate to first sentence
-                    sentence = desc.split('.')[0].strip()
+                    sentence = first_sentence(desc)
                     parts.append(sentence)
 
             # Get top recommendation if no issue description
@@ -718,7 +728,7 @@ class RecentAnalysisFeedView(OrgFilterMixin, APIView):
                     first_rec = recs[0]
                     action = first_rec.get('action', '') if isinstance(first_rec, dict) else str(first_rec)
                     if action:
-                        sentence = action.split('.')[0].strip()
+                        sentence = first_sentence(action)
                         parts.append(sentence)
 
             result = '. '.join(parts)
@@ -727,7 +737,7 @@ class RecentAnalysisFeedView(OrgFilterMixin, APIView):
             return result[:200] if result else 'Analysis completed.'
 
         # Plain text: extract first sentence
-        sentence = text.split('.')[0].strip()
+        sentence = first_sentence(text)
         if len(sentence) > 200:
             sentence = sentence[:197] + '...'
         elif sentence and not sentence.endswith('.'):

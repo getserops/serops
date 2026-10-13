@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { Spinner } from 'react-bootstrap';
-import { FaRocket, FaCheckCircle, FaTimesCircle, FaSpinner, FaGitlab, FaGithub, FaExternalLinkAlt, FaMicrosoft } from 'react-icons/fa';
+import { FaRocket, FaCheckCircle, FaTimesCircle, FaSpinner, FaGitlab, FaGithub, FaMicrosoft, FaJenkins, FaBitbucket } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import './RecentDeploymentsCard.css';
 
@@ -62,7 +62,13 @@ const RecentDeploymentsCard = ({ data, loading }) => {
             case 'gitlab':
                 return <FaGitlab className="provider-icon gitlab" />;
             case 'github':
+            case 'github_actions':
                 return <FaGithub className="provider-icon github" />;
+            case 'jenkins':
+                return <FaJenkins className="provider-icon jenkins" />;
+            case 'bitbucket':
+            case 'bitbucket_pipelines':
+                return <FaBitbucket className="provider-icon bitbucket" />;
             case 'azure_devops':
                 return <FaMicrosoft className="provider-icon azure" />;
             default:

@@ -1988,16 +1988,18 @@ class TrendAnalysisView(OrgFilterMixin, APIView):
         try:
             from django.db.models.functions import TruncDate
 
+            # Today and the six days before it. The previous window ran
+            # from seven days ago to yesterday, so today never showed.
             end_date = timezone.now()
-            start_date = end_date - timedelta(days=7)
+            first_day = end_date.date() - timedelta(days=6)
 
             # Filter by user's organization
             base_issues = self.filter_by_org(request, Issue.objects.all(), 'issue')
 
             # Single query: group by date, aggregate critical + warning counts
             daily_data = base_issues.filter(
-                created_at__gte=start_date,
-                created_at__lt=end_date
+                created_at__date__gte=first_day,
+                created_at__lte=end_date
             ).annotate(
                 day=TruncDate('created_at')
             ).values('day').annotate(
@@ -2014,7 +2016,7 @@ class TrendAnalysisView(OrgFilterMixin, APIView):
             # Fill all 7 days (including days with zero issues)
             daily_stats = []
             for i in range(7):
-                day = (start_date + timedelta(days=i)).strftime("%Y-%m-%d")
+                day = (first_day + timedelta(days=i)).strftime("%Y-%m-%d")
                 entry = data_by_date.get(day)
                 daily_stats.append({
                     "date": day,
