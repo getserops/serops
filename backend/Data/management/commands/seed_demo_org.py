@@ -1988,7 +1988,9 @@ class Command(BaseCommand):
                 title=title,
                 batch_id=batch_id,
                 project_id=str(project_id) if project_id else None,
-                is_active=False,  # closed history rather than ongoing
+                # is_active=False is how a deleted session is stored; the
+                # history list hides those, so seeded sessions stay active.
+                is_active=True,
             )
             for question, answer in exchanges:
                 ChatMessage.objects.create(

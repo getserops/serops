@@ -128,6 +128,16 @@ class SeedDemoOrgContentShapeTest(TestCase):
                 ChatMessage.objects.filter(chat_session=session).count(), 1,
             )
 
+    def test_chat_sessions_appear_in_the_demo_users_history(self):
+        # Sessions stored inactive are treated as deleted and never listed,
+        # which left the demo's chat history empty for every visitor.
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(User.objects.get(organisation=self.org, is_demo=True))
+        response = client.get('/api/chat/chat-sessions/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['sessions']), 3)
+
     def test_ai_token_usage_recorded_with_real_cost(self):
         """Token usage must be present so the Sentinel cost-saved hero
         widget on the dashboard has real numbers to display."""
