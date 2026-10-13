@@ -39,7 +39,6 @@ class DemoLoginEndpointTest(APITestCase):
         self.assertEqual(response.data['user']['role'], 'viewer')
         self.assertTrue(response.data['user']['is_demo'])
         self.assertEqual(response.data['user']['organisation_id'], org.id)
-        self.assertIn('banner', response.data)
 
     def test_each_call_creates_a_fresh_token(self):
         """No token reuse — each visitor gets their own."""

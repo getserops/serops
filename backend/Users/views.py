@@ -423,13 +423,6 @@ class DemoLoginView(APIView):
                     if demo_user.organisation else None
                 ),
             },
-            # Copy the frontend renders verbatim on a persistent
-            # banner. Keeping it server-side lets ops tweak the message
-            # without a frontend redeploy.
-            'banner': (
-                "You're in the SerOps live demo — data resets nightly. "
-                "Sign up for your own org to make changes."
-            ),
         })
 
 

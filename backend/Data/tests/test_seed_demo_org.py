@@ -19,6 +19,7 @@ from Projects.models import Project, ProjectService
 from providers.models import Pipeline, CodeChange
 from Data.models import AIAnalyzedBatch, Issue
 from ai_model.models import ChatSession, ChatMessage, AITokenUsage
+from org_settings.models import SentinelConfig
 
 from Data.management.commands.seed_demo_org import (
     DEMO_ORG_SLUG,
@@ -85,6 +86,44 @@ class SeedDemoOrgContentShapeTest(TestCase):
         self.assertIn('alert', decisions)
         self.assertIn('quiet', decisions)
 
+    def test_sentinel_state_follows_the_real_trigger_rules(self):
+        # Data/sentinel.py: any trigger means alert and an AI run; no
+        # trigger means quiet, and in active mode the AI is skipped.
+        for batch in AIAnalyzedBatch.objects.filter(organisation=self.org):
+            with self.subTest(batch=batch.batch_id):
+                if batch.sentinel_triggers:
+                    self.assertEqual(batch.sentinel_decision, 'alert')
+                    self.assertFalse(batch.ai_skipped)
+                    self.assertTrue(batch.analyzed_at)
+                    self.assertTrue(AITokenUsage.objects.filter(batch=batch).exists())
+                else:
+                    self.assertEqual(batch.sentinel_decision, 'quiet')
+                    self.assertTrue(batch.ai_skipped)
+                    self.assertIsNone(batch.analyzed_at)
+                    self.assertEqual(batch.analysis_text, '')
+                    self.assertEqual(batch.token_count, 0)
+                    self.assertFalse(Issue.objects.filter(batch=batch).exists())
+        self.assertTrue(SentinelConfig.objects.get(organisation=self.org).active_mode)
+
+    def test_batches_are_dated_to_their_window(self):
+        for batch in AIAnalyzedBatch.objects.filter(organisation=self.org):
+            self.assertLess(abs((batch.created_at - batch.timestamp).total_seconds()), 600)
+
+    def test_every_trace_a_batch_links_to_exists(self):
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(User.objects.get(organisation=self.org, is_demo=True))
+        trace_ids = set()
+        for data in AIAnalyzedBatch.objects.filter(organisation=self.org).values_list('data', flat=True):
+            traces = data.get('traces') or {}
+            for span in traces.get('top_slow', []) + traces.get('top_errors', []):
+                trace_ids.add(span['trace_id'])
+        self.assertGreater(len(trace_ids), 0)
+        for trace_id in trace_ids:
+            response = client.get(f'/api/traces/traces/{trace_id}/')
+            self.assertEqual(response.status_code, 200, trace_id)
+            self.assertGreaterEqual(len(response.json()['spans']), 2)
+
     def test_at_least_one_critical_open_issue(self):
         critical_open = Issue.objects.filter(
             organisation=self.org, severity='CRITICAL', status='OPEN',
@@ -137,6 +176,23 @@ class SeedDemoOrgContentShapeTest(TestCase):
         response = client.get('/api/chat/chat-sessions/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()['sessions']), 3)
+
+    def test_every_batch_with_an_issue_lists_it_on_its_issues_page(self):
+        # The batch issues page reads through IssueOccurrence; seeding only
+        # Issue.batch made each batch say "1 issue" yet list none.
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(User.objects.get(organisation=self.org, is_demo=True))
+        batches = AIAnalyzedBatch.objects.filter(organisation=self.org, issues__isnull=False).distinct()
+        self.assertGreater(batches.count(), 0)
+        for batch in batches:
+            response = client.get(f'/api/data/issues/{batch.batch_id}/')
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                len(response.json()['results']),
+                Issue.objects.filter(batch=batch).count(),
+                batch.batch_id,
+            )
 
     def test_ai_token_usage_recorded_with_real_cost(self):
         """Token usage must be present so the Sentinel cost-saved hero
@@ -253,7 +309,8 @@ class SeedDemoOrgAIProviderTest(TestCase):
 
     def test_story_records_the_gemini_model(self):
         expected = self.gemini.default_model
-        batches = AIAnalyzedBatch.objects.filter(organisation=self.org)
+        # Skipped batches never reached a model, so they record none.
+        batches = AIAnalyzedBatch.objects.filter(organisation=self.org, ai_skipped=False)
         self.assertTrue(batches.exists())
         self.assertEqual(set(batches.values_list('model_name', flat=True)), {expected})
         usage = AITokenUsage.objects.filter(organisation=self.org)
@@ -296,6 +353,6 @@ class SeedDemoOrgAIProviderTest(TestCase):
         self.gemini.default_model = 'gemini-9-test'
         self.gemini.save()
         call_command('seed_demo_org', stdout=StringIO())
-        models = set(AIAnalyzedBatch.objects.filter(organisation=self.org)
+        models = set(AIAnalyzedBatch.objects.filter(organisation=self.org, ai_skipped=False)
                      .values_list('model_name', flat=True))
         self.assertEqual(models, {'gemini-9-test'})

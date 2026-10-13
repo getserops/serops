@@ -34,24 +34,6 @@ export const scanMessageForSensitiveData = async (message) => {
     }
 };
 
-/**
- * Get redaction report for a specific batch. Callers handle errors
- * — no fail-safe here because the caller usually wants to know if
- * the report is missing (report tabs render an error state).
- */
-export const getRedactionReport = async (batchId) => {
-    const { data } = await apiClient.get(`/data/batches/${batchId}/redaction/`);
-    return data;
-};
-
-/** Get organisation-wide redaction statistics. */
-export const getRedactionStats = async () => {
-    const { data } = await apiClient.get('/data/redaction/stats/');
-    return data;
-};
-
 export default {
     scanMessageForSensitiveData,
-    getRedactionReport,
-    getRedactionStats,
 };

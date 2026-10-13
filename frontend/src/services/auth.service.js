@@ -112,7 +112,7 @@ AuthService.ssoExchange = () => {
 
 /**
  * One-click bootstrap for the public read-only demo. Returns a Knox
- * token + the demo user payload + a banner string. Caller is expected
+ * token + the demo user payload. Caller is expected
  * to mirror the regular login flow (persist token + user, redirect to
  * /dash).
  */

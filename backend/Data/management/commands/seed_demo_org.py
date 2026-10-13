@@ -58,7 +58,7 @@ from Organisations.models import Organisations
 from Users.models import User
 from Projects.models import Project, ProjectService, SCMBinding, CICDBinding, ProjectDeployment
 from providers.models import Pipeline, Job, CodeChange, Deployment, ProviderIntegration
-from Data.models import AIAnalyzedBatch, Issue, AuditLog, AlertEvent
+from Data.models import AIAnalyzedBatch, Issue, IssueOccurrence, AuditLog, AlertEvent
 from ai_model.models import ChatSession, ChatMessage, AITokenUsage
 from integrations.models import ObservabilityIntegration, Cluster, IntegrationScope
 from notifications.models import (
@@ -66,8 +66,10 @@ from notifications.models import (
     IncidentNotificationChannel,
 )
 from org_settings.encryption import encrypt_api_key
-from org_settings.models import OrganisationAISettings, OrganisationAPIKey, AIModelProvider
-from traces.models import IngestKey
+from org_settings.models import (
+    OrganisationAISettings, OrganisationAPIKey, AIModelProvider, SentinelConfig,
+)
+from traces.models import IngestKey, Span, Trace
 
 
 # ---------------------------------------------------------------------------
@@ -154,10 +156,20 @@ class Scene:
     issue_recommendation: str = ''
     issue_reasoning: list | None = None
     issue_confidence: str = 'MEDIUM'
-    sentinel_decision: str = 'alert'
     is_centerpiece: bool = False
-    # Whether this is a "boring quiet day" with no issues
-    quiet: bool = False
+
+    @property
+    def sentinel_triggers(self) -> list[str]:
+        # Same rule as Data/sentinel.py: a new deploy or an error spike
+        # sends the batch to the AI; anything else is a quiet batch.
+        triggers = ['error_rate_spike'] if self.issue_type else []
+        if self.deploy_sha:
+            triggers.append('deployment_detected')
+        return triggers
+
+    @property
+    def quiet(self) -> bool:
+        return not self.sentinel_triggers
 
 
 STORY_ARC: list[Scene] = [
@@ -166,16 +178,12 @@ STORY_ARC: list[Scene] = [
         deploy_sha='f0aabb01',
         deploy_message='chore(deps): bump axios 1.7.2 → 1.7.3',
         environment='production',
-        sentinel_decision='quiet',
-        quiet=True,
     ),
     Scene(
         days_ago=6,
         deploy_sha=None,
         deploy_message=None,
         environment='production',
-        sentinel_decision='quiet',
-        quiet=True,
     ),
     Scene(
         days_ago=5,
@@ -203,15 +211,12 @@ STORY_ARC: list[Scene] = [
             'Confirmed leak hypothesis by replaying staging traffic locally',
         ],
         issue_confidence='HIGH',
-        sentinel_decision='alert',
     ),
     Scene(
         days_ago=4,
         deploy_sha='c1e9f7d2',
         deploy_message='fix(backend): cap webhook DataFrame at 10k rows (#1252)',
         environment='production',
-        sentinel_decision='quiet',
-        quiet=True,
     ),
     Scene(
         days_ago=3,
@@ -241,7 +246,6 @@ STORY_ARC: list[Scene] = [
         ],
         issue_confidence='HIGH',
         is_centerpiece=True,
-        sentinel_decision='alert',
     ),
     Scene(
         days_ago=2,
@@ -268,15 +272,12 @@ STORY_ARC: list[Scene] = [
             'Confirmed it is holding row locks long enough to back up checkout writes',
         ],
         issue_confidence='MEDIUM',
-        sentinel_decision='alert',
     ),
     Scene(
         days_ago=1,
         deploy_sha='9be4cc55',
         deploy_message='style(web): tighten button hierarchy on checkout',
         environment='production',
-        sentinel_decision='quiet',
-        quiet=True,
     ),
     Scene(
         days_ago=0,
@@ -299,7 +300,6 @@ STORY_ARC: list[Scene] = [
             'Table has 12M rows and no index on the column being scanned',
         ],
         issue_confidence='MEDIUM',
-        sentinel_decision='alert',
     ),
     # Staging signal — different env, milder issue, MUTED status
     Scene(
@@ -319,7 +319,6 @@ STORY_ARC: list[Scene] = [
             'No production impact — only staging fixture race',
         ],
         issue_confidence='LOW',
-        sentinel_decision='quiet',
     ),
     # Dev-environment signal — adds a third environment to the filter
     # dropdown and a benign chat-friendly issue on the frontend service.
@@ -337,8 +336,13 @@ STORY_ARC: list[Scene] = [
         issue_recommendation='Pin @vitejs/plugin-react to ^5 until it publishes v6.',
         issue_reasoning=['warning is dev-only, no runtime impact'],
         issue_confidence='LOW',
-        sentinel_decision='quiet',
     ),
+    # Quiet production windows: no deploy, no error spike, so Sentinel
+    # skips the AI call. These feed the "AI calls skipped" figures.
+    *[
+        Scene(days_ago=d, deploy_sha=None, deploy_message=None, environment='production')
+        for d in (5, 4, 1, 0)
+    ],
 ]
 
 
@@ -636,7 +640,24 @@ def _synthetic_correlations(scene: 'Scene') -> dict:
     }
 
 
-def _synthetic_traces(scene: 'Scene', scene_time: datetime) -> dict | None:
+def _analysis_text(scene: 'Scene') -> str:
+    """What the AI wrote for this batch; empty when Sentinel skipped it."""
+    if scene.quiet:
+        return ''
+    if scene.issue_root_cause:
+        return scene.issue_root_cause
+    return (
+        f'Deploy {scene.deploy_sha} checked: no new errors, latency or '
+        'resource shifts after the rollout.'
+    )
+
+
+def _demo_trace_id(scene_index: int, kind: str) -> str:
+    # Trace.trace_id is the table's primary key, so every batch needs its own.
+    return hashlib.sha256(f'demo-trace-{scene_index}-{kind}'.encode()).hexdigest()[:32]
+
+
+def _synthetic_traces(scene: 'Scene', scene_time: datetime, scene_index: int) -> dict | None:
     """OTLP trace summary the way ``ai_model.trace_context`` writes it.
 
     Shape matches ``batch.data.traces`` produced at ingest time (see
@@ -652,8 +673,8 @@ def _synthetic_traces(scene: 'Scene', scene_time: datetime) -> dict | None:
 
     # Two representative traces per batch — one slow, one erroring.
     # trace_id / span_id length matches OTLP hex spec (32 / 16 chars).
-    trace_slow = 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
-    trace_err = 'f0e1d2c3b4a5968778695a4b3c2d1e0f'
+    trace_slow = _demo_trace_id(scene_index, 'slow')
+    trace_err = _demo_trace_id(scene_index, 'err')
 
     # Component-aware content so different scenes tell different
     # trace stories rather than looking cloned.
@@ -786,6 +807,7 @@ class Command(BaseCommand):
             self._upsert_incident_channels(org)
             self._upsert_ai_budget(org)
             self._upsert_ai_key(org)
+            self._upsert_sentinel_config(org)
 
             # Wipe the mutable content. This is what makes nightly reset
             # safe — projects, services, and the user remain stable so
@@ -817,7 +839,7 @@ class Command(BaseCommand):
             slug=DEMO_ORG_SLUG,
             defaults={
                 'name': DEMO_ORG_NAME,
-                'website': 'https://demo.serops.ai',
+                'website': 'https://acme.example.com',
                 'language': 'en',
                 'is_demo': True,
             },
@@ -1412,6 +1434,16 @@ class Command(BaseCommand):
             },
         )
 
+    def _upsert_sentinel_config(self, org: Organisations) -> None:
+        """Active mode, so the skipped batches match Settings → Sentinel.
+
+        In shadow mode (the default) Sentinel never skips the AI, which
+        contradicted the "Skipped" batches the story arc shows.
+        """
+        SentinelConfig.objects.update_or_create(
+            organisation=org, defaults={'active_mode': True},
+        )
+
     def _upsert_ai_key(self, org: Organisations) -> None:
         """Give the demo org a Gemini key row so Gemini shows as available.
 
@@ -1537,6 +1569,7 @@ class Command(BaseCommand):
         ChatSession.objects.filter(user__organisation=org).delete()
         AITokenUsage.objects.filter(organisation=org).delete()
         AlertEvent.objects.filter(organisation=org).delete()
+        Trace.objects.filter(organisation=org).delete()
         Issue.objects.filter(organisation=org).delete()
         AIAnalyzedBatch.objects.filter(organisation=org).delete()
         # Deployments cascade from CodeChange, so kill them explicitly
@@ -1589,6 +1622,7 @@ class Command(BaseCommand):
                 code_change=code_change,
             )
             self._make_token_usage(org, batch, scene_time, scene)
+            self._make_traces(org, batch.data.get('traces'))
 
             if scene.issue_type:
                 issue = self._make_issue(
@@ -1705,11 +1739,6 @@ class Command(BaseCommand):
         pipeline: Pipeline | None = None,
         code_change: 'CodeChange | None' = None,
     ) -> AIAnalyzedBatch:
-        triggers = (
-            ['error_rate_spike'] if scene.issue_type and not scene.quiet else []
-        )
-        if scene.deploy_sha:
-            triggers.append('deployment_detected')
         # Rich per-batch data so Detail.jsx tabs (Logs, CI/CD Logs,
         # Metrics, Correlations) all have something to render. This is
         # what visitors drill into after seeing a batch on /dash/data.
@@ -1733,18 +1762,15 @@ class Command(BaseCommand):
             organisation=org,
             environment=scene.environment,
             deployment=deployment,
-            sentinel_decision=scene.sentinel_decision,
-            sentinel_triggers=triggers,
-            ai_skipped=(scene.sentinel_decision == 'quiet'),
+            sentinel_decision='quiet' if scene.quiet else 'alert',
+            sentinel_triggers=scene.sentinel_triggers,
+            ai_skipped=scene.quiet,
             issue_count=(1 if scene.issue_type else 0),
             logs_analyzed=len(logs) + len(cicd_logs),
             token_count=(0 if scene.quiet else 1850),
-            analysis_text=(
-                scene.issue_root_cause if scene.issue_root_cause
-                else 'No notable signal in this window.'
-            ),
-            analyzed_at=scene_time + timedelta(minutes=4),
-            model_name=_demo_ai_model(),
+            analysis_text=_analysis_text(scene),
+            analyzed_at=None if scene.quiet else scene_time + timedelta(minutes=4),
+            model_name=None if scene.quiet else _demo_ai_model(),
             data={
                 'environment': scene.environment,
                 'logs_count': len(logs),
@@ -1757,7 +1783,7 @@ class Command(BaseCommand):
                 # ai_model.trace_context.build_trace_context writes at
                 # ingest. Frontend BatchTraces reads this via
                 # batch.data.traces (Option A consolidation, Batch 38).
-                'traces': _synthetic_traces(scene, scene_time),
+                'traces': _synthetic_traces(scene, scene_time, scene_index),
                 # code_changes snapshot — same shape the production
                 # batch pipeline writes. Required for the timeline's
                 # unified event stream (deploy lane) + engine-backed
@@ -1780,7 +1806,84 @@ class Command(BaseCommand):
                 ),
             },
         )
+        # auto_now_add ignores the value on create; date the row to its window.
+        AIAnalyzedBatch.objects.filter(pk=batch.pk).update(
+            created_at=scene_time + timedelta(minutes=1),
+        )
+        batch.refresh_from_db()
         return batch
+
+    @staticmethod
+    def _make_traces(org: Organisations, snapshot: dict | None) -> None:
+        """Store the traces a batch snapshot links to.
+
+        BatchTraces, the issue badges and the timeline all link to
+        /dash/traces/<trace_id>; without these rows each link was a 404.
+        Each trace gets a web-frontend root span with the snapshot spans
+        as its children.
+        """
+        if not snapshot:
+            return
+        by_trace: dict[str, list[dict]] = {}
+        for span in snapshot['top_slow'] + snapshot['top_errors']:
+            by_trace.setdefault(span['trace_id'], []).append(span)
+
+        for trace_id, spans in by_trace.items():
+            is_error = any(sp.get('status_message') for sp in spans)
+            start = datetime.fromisoformat(spans[0]['start_time'])
+            root_id = hashlib.sha256(f'{trace_id}-root'.encode()).hexdigest()[:16]
+            cursor = start + timedelta(milliseconds=15)
+            children = []
+            for sp in spans:
+                duration = sp.get('duration_ms') or 180
+                failed = bool(sp.get('status_message'))
+                children.append(Span(
+                    span_id=sp['span_id'],
+                    parent_span_id=root_id,
+                    service_name=sp['service_name'],
+                    operation_name=sp['operation_name'],
+                    kind='CLIENT' if failed else 'SERVER',
+                    start_time=cursor,
+                    end_time=cursor + timedelta(milliseconds=duration),
+                    duration_ms=duration,
+                    status_code='ERROR' if failed else 'OK',
+                    status_message=sp.get('status_message', ''),
+                    events=[{
+                        'time': cursor.isoformat(),
+                        'name': 'exception',
+                        'attributes': {'exception.message': sp['status_message']},
+                    }] if failed else [],
+                ))
+                cursor += timedelta(milliseconds=duration)
+            end = cursor + timedelta(milliseconds=15)
+            total_ms = int((end - start).total_seconds() * 1000)
+            root = Span(
+                span_id=root_id,
+                service_name='web-frontend',
+                operation_name='POST /checkout' if is_error else 'GET /checkout',
+                kind='SERVER',
+                start_time=start,
+                end_time=end,
+                duration_ms=total_ms,
+                status_code='ERROR' if is_error else 'OK',
+                status_message='HTTP 500' if is_error else '',
+                attributes={'http.status_code': 500 if is_error else 200},
+            )
+            trace = Trace.objects.create(
+                trace_id=trace_id,
+                organisation=org,
+                root_service_name=root.service_name,
+                root_operation=root.operation_name,
+                start_time=start,
+                end_time=end,
+                duration_ms=total_ms,
+                span_count=len(children) + 1,
+                error_span_count=sum(1 for sp in [root, *children] if sp.status_code == 'ERROR'),
+                status_code='ERROR' if is_error else 'OK',
+            )
+            for sp in [root, *children]:
+                sp.trace = trace
+            Span.objects.bulk_create([root, *children])
 
     @staticmethod
     def _make_token_usage(
@@ -1863,6 +1966,12 @@ class Command(BaseCommand):
         # rather than "now" — Django auto_now_add ignores explicit values
         # on create, so update separately.
         Issue.objects.filter(pk=issue.pk).update(created_at=scene_time)
+        # The batch's issue list reads through occurrences, not Issue.batch,
+        # so without this row the batch page shows "0 issues detected".
+        occurrence = IssueOccurrence.objects.create(
+            issue=issue, batch=batch, severity=issue.severity,
+        )
+        IssueOccurrence.objects.filter(pk=occurrence.pk).update(seen_at=scene_time)
         issue.refresh_from_db()
         return issue
 
