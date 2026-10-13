@@ -36,6 +36,8 @@ jobs:
       contents: read
       # Required for GHCR push with the built-in GITHUB_TOKEN.
       packages: write
+      # Trivy results go to the repository's Security tab.
+      security-events: write
     strategy:
       fail-fast: false
       matrix:
@@ -94,3 +96,37 @@ jobs:
             VITE_BASE_URL=/api
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Security scan of the image this job just built. The amd64 variant is
+      # loaded into the runner's Docker daemon from the build cache, so the
+      # scan never pulls from ghcr.io. It used to run as a separate workflow
+      # that pulled :latest from GHCR, and every one of those pulls counted
+      # as a package download — most of the public download count was CI.
+      - name: Load image for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64
+          load: true
+          tags: serops-scan/${{ matrix.component }}:${{ github.sha }}
+          build-args: |
+            SEROPS_VERSION=${{ steps.meta.outputs.version }}
+            SEROPS_GIT_SHA=${{ github.sha }}
+            SEROPS_BUILT_AT=${{ steps.buildtime.outputs.iso }}
+            VITE_BASE_URL=/api
+          cache-from: type=gha
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
+        with:
+          image-ref: serops-scan/${{ matrix.component }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-${{ matrix.component }}.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'  # Report to the Security tab even when findings exist
+      - name: Upload SARIF to Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-${{ matrix.component }}.sarif'
+          # Distinct category per image, or the second upload overwrites the
+          # first and only one component's findings survive.
+          category: trivy-${{ matrix.component }}
