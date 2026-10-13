@@ -65,7 +65,8 @@ from notifications.models import (
     Notification, ProjectSubscription, EscalationRule,
     IncidentNotificationChannel,
 )
-from org_settings.models import OrganisationAISettings, AIModelProvider
+from org_settings.encryption import encrypt_api_key
+from org_settings.models import OrganisationAISettings, OrganisationAPIKey, AIModelProvider
 from traces.models import IngestKey
 
 
@@ -79,10 +80,9 @@ DEMO_ORG_SLUG = 'acme-cloud'
 DEMO_USER_EMAIL = 'demo@serops.ai'
 DEMO_USER_USERNAME = 'demo'
 
-# The demo org's AI provider. Gemini, because that is the provider the demo
-# host actually holds a key for — the story should show what a visitor's own
-# instance would plausibly run, not a provider nothing here is configured
-# with. The model name is read from the provider catalogue at seed time so it
+# The demo org's AI provider. Gemini, the provider the demo story is written
+# around; its key row holds the placeholder (see ``_upsert_ai_key``) because
+# the read-only demo never calls the provider. The model name is read from the provider catalogue at seed time so it
 # follows org_settings' default-model migrations instead of going stale; the
 # fallback only applies on an install whose catalogue has no gemini row.
 DEMO_AI_PROVIDER = 'gemini'
@@ -785,6 +785,7 @@ class Command(BaseCommand):
             self._upsert_ingest_key(org)
             self._upsert_incident_channels(org)
             self._upsert_ai_budget(org)
+            self._upsert_ai_key(org)
 
             # Wipe the mutable content. This is what makes nightly reset
             # safe — projects, services, and the user remain stable so
@@ -1408,6 +1409,33 @@ class Command(BaseCommand):
                 'monthly_budget_usd': Decimal('100.00'),
                 'budget_warn_pct': 80,
                 'use_custom_keys': False,
+            },
+        )
+
+    def _upsert_ai_key(self, org: Organisations) -> None:
+        """Give the demo org a Gemini key row so Gemini shows as available.
+
+        The chat model picker and Settings → AI list only providers the org
+        holds a decryptable key for. The demo used to rely on a real key
+        entered by hand, encrypted with the SECRET_KEY of the day; rotating
+        SECRET_KEY made it undecryptable and the picker showed "No AI
+        provider" from then on. The demo never calls the provider — the
+        middleware rejects every write a demo user makes, chat and
+        re-analysis included — so it needs no real key. Seeding the
+        placeholder here, encrypted with the current SECRET_KEY, re-heals
+        the row on every nightly reset.
+        """
+        provider = AIModelProvider.objects.filter(name=DEMO_AI_PROVIDER).first()
+        if provider is None:
+            return
+        OrganisationAPIKey.objects.update_or_create(
+            organisation=org,
+            provider=provider,
+            defaults={
+                'api_key': encrypt_api_key(SEED_DEMO_PLACEHOLDER),
+                'base_url': None,
+                'extra_config': {},
+                'is_active': True,
             },
         )
 

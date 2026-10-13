@@ -212,8 +212,8 @@ class SeedDemoOrgAIProviderTest(TestCase):
 
     The seed used to pin Claude as the demo's primary provider and stamp
     'claude-sonnet-4' on every batch, token-usage row and chat message, while
-    the only provider key the demo host holds is a Gemini one. A visitor
-    opening Settings → AI saw a primary provider nothing was configured for.
+    the demo's key row is a Gemini one. A visitor opening Settings → AI saw a
+    primary provider nothing was configured for.
     The nightly reset re-runs this command, so the seed is the only place the
     choice can live — a database edit would be undone at 02:00.
     """
@@ -253,6 +253,32 @@ class SeedDemoOrgAIProviderTest(TestCase):
         self.assertTrue(msgs.exists())
         for msg in msgs:
             self.assertEqual(msg.metadata.get('ai_model'), expected)
+
+    def test_gemini_key_row_is_decryptable_placeholder(self):
+        # The model picker lists providers whose key decrypts; a row
+        # encrypted under an older SECRET_KEY decrypts to '' and hid Gemini.
+        from ai_model.ai_service import get_api_key_for_org
+        from Data.management.commands.seed_demo_org import SEED_DEMO_PLACEHOLDER
+        api_key, _, _ = get_api_key_for_org(self.org, 'gemini')
+        self.assertEqual(api_key, SEED_DEMO_PLACEHOLDER)
+
+    def test_reseed_replaces_an_undecryptable_key(self):
+        from org_settings.models import OrganisationAPIKey
+        from ai_model.ai_service import get_api_key_for_org
+        OrganisationAPIKey.objects.filter(organisation=self.org, provider=self.gemini).update(
+            api_key='gAAAAAencrypted-under-a-rotated-secret-key',
+        )
+        self.assertFalse(get_api_key_for_org(self.org, 'gemini')[0])
+        call_command('seed_demo_org', stdout=StringIO())
+        self.assertTrue(get_api_key_for_org(self.org, 'gemini')[0])
+
+    def test_available_models_lists_gemini_for_the_demo_user(self):
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(User.objects.get(organisation=self.org, is_demo=True))
+        response = client.get('/api/settings/ai/available-models/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('gemini', [m['id'] for m in response.json()['models']])
 
     def test_model_follows_the_catalogue(self):
         # Read at seed time, so a default-model migration flows through
