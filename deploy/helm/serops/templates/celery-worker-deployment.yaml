@@ -1,0 +1,70 @@
+{{- $comp := "celery-worker" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "serops.fullname" . }}-celery-worker
+  labels:
+    {{- include "serops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ $comp }}
+spec:
+  replicas: {{ .Values.celeryWorker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "serops.selectorLabels" (dict "Chart" .Chart "Release" .Release "Values" .Values "component" $comp) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "serops.selectorLabels" (dict "Chart" .Chart "Release" .Release "Values" .Values "component" $comp) | nindent 8 }}
+    spec:
+      containers:
+        - name: worker
+          image: {{ include "serops.image" (dict "repository" .Values.celeryWorker.image.repository "tag" .Values.celeryWorker.image.tag "root" .) }}
+          imagePullPolicy: {{ .Values.celeryWorker.image.pullPolicy }}
+          command:
+            - celery
+            - -A
+            - api
+            - worker
+            - -Q
+            - {{ .Values.celeryWorker.queues | quote }}
+            - --concurrency={{ .Values.celeryWorker.concurrency }}
+            - --loglevel=INFO
+          envFrom:
+            - configMapRef:
+                name: {{ include "serops.fullname" . }}-config
+          env:
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.django.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
+                  key: django-secret-key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
+                  key: database-url
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.broker.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
+                  key: broker-url
+            {{- if or .Values.smtp.existingSecret .Values.smtp.password }}
+            - name: EMAIL_HOST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.smtp.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
+                  key: smtp-password
+                  optional: true
+            {{- end }}
+            {{- /* RCA provider keys are per-org in the DB, never env vars.
+                   This is the embeddings key only — see values.yaml. */}}
+            {{- if or .Values.ai.embeddings.existingSecret .Values.ai.embeddings.openaiApiKey }}
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ai.embeddings.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
+                  key: openai-api-key
+                  optional: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.celeryWorker.resources | nindent 12 }}

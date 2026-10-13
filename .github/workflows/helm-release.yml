@@ -1,0 +1,117 @@
+name: helm-release
+
+# Publish the SerOps Helm chart to GitHub Container Registry (OCI) on
+# every release tag, plus a classic HTTP repo backed by GitHub Pages.
+#
+# Users install via either:
+#
+#     helm install serops oci://ghcr.io/getserops/charts/serops \
+#         --version 1.0.1
+#
+# or the classic path:
+#
+#     helm repo add getserops https://getserops.github.io/serops
+#     helm install serops getserops/serops
+#
+# NOT running today. SerOps is developed on GitLab, which does not execute
+# GitHub Actions, so this is dormant until the repo is published to GitHub.
+# There is no GitLab equivalent: chart publishing to GHCR only makes sense from
+# GitHub, so .gitlab-ci.yml lints and templates the chart instead of releasing
+# it.
+#
+# CHART_DIR below already matches this repo's layout (deploy/helm/serops).
+# Skips PRs — no publish on unmerged code.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+    # Also lint on chart-only PRs so we catch template breaks early.
+  pull_request:
+    paths:
+      - 'deploy/helm/serops/**'
+
+# Least-privilege token: only the packages + contents scopes we need.
+permissions:
+  contents: read
+  packages: write
+
+env:
+  CHART_DIR: deploy/helm/serops
+  REGISTRY: ghcr.io/${{ github.repository_owner }}/charts
+
+jobs:
+  lint:
+    # Fast fail on any PR touching the chart. Doesn't need registry
+    # access.
+    name: helm lint + template
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+      - name: helm dependency update
+        run: helm dependency update ${{ env.CHART_DIR }}
+      - name: helm lint
+        run: helm lint ${{ env.CHART_DIR }}
+      - name: helm template (default values)
+        run: |
+          helm template test ${{ env.CHART_DIR }} \
+            --set django.secretKey=fake-for-template \
+            --set database.url=postgres://x/y \
+            --set broker.url=redis://x \
+            > /tmp/rendered.yaml
+          wc -l /tmp/rendered.yaml
+
+  release:
+    # Only on tag push. Publishes to OCI and optionally to a
+    # gh-pages branch for the classic Helm HTTP repo.
+    name: package + push
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            helm registry login ghcr.io \
+              --username ${{ github.actor }} \
+              --password-stdin
+
+      - name: helm dependency update
+        run: helm dependency update ${{ env.CHART_DIR }}
+
+      - name: Extract chart version from git tag
+        # Strip the leading 'v' from the tag so chart version matches SemVer.
+        run: |
+          TAG=${GITHUB_REF#refs/tags/v}
+          echo "CHART_VERSION=${TAG}" >> $GITHUB_ENV
+
+      - name: Package chart
+        run: |
+          helm package ${{ env.CHART_DIR }} \
+            --version "${CHART_VERSION}" \
+            --app-version "${CHART_VERSION}" \
+            --destination .
+
+      - name: Push chart to OCI
+        # Publishes to oci://ghcr.io/<owner>/charts/serops:<version>
+        run: |
+          helm push serops-${CHART_VERSION}.tgz oci://${{ env.REGISTRY }}
+
+      # Optional classic HTTP repo — comment out if you only want OCI.
+      - name: Update gh-pages Helm repo
+        uses: helm/chart-releaser-action@v1.6.0
+        with:
+          charts_dir: deploy/helm
+          # Uses GITHUB_TOKEN default; publishes index.yaml + tarballs
+          # to the gh-pages branch, which GitHub Pages serves at
+          # https://<owner>.github.io/<repo>/
+        env:
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}

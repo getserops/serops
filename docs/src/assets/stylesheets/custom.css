@@ -1,0 +1,63 @@
+/* SerOps Documentation Custom Styles */
+
+/* Screenshot styling */
+img.screenshot {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-width: 100%;
+  margin: 1rem 0;
+}
+
+/* Table improvements */
+.md-typeset table:not([class]) {
+  font-size: 0.82rem;
+  border-collapse: collapse;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--md-default-fg-color--lightest);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* API method badges */
+.md-typeset .api-method {
+  display: inline-block;
+  padding: 0.1em 0.5em;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: var(--md-code-font-family);
+  text-transform: uppercase;
+  margin-right: 0.5em;
+  vertical-align: middle;
+}
+
+.api-method--get { background: #61affe22; color: #61affe; border: 1px solid #61affe; }
+.api-method--post { background: #49cc9022; color: #49cc90; border: 1px solid #49cc90; }
+.api-method--put { background: #fca13022; color: #fca130; border: 1px solid #fca130; }
+.api-method--patch { background: #50e3c222; color: #50e3c2; border: 1px solid #50e3c2; }
+.api-method--delete { background: #f93e3e22; color: #f93e3e; border: 1px solid #f93e3e; }
+
+/* Mermaid diagram centering */
+.md-typeset .mermaid {
+  text-align: center;
+  margin: 1.5rem 0;
+}
+
+/* Provider capability badges */
+.capability-badge {
+  display: inline-block;
+  padding: 0.15em 0.5em;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin: 0 0.15em;
+}
+
+.capability-badge--logs { background: #e3f2fd; color: #1565c0; }
+.capability-badge--metrics { background: #f3e5f5; color: #7b1fa2; }
+
+[data-md-color-scheme="slate"] .capability-badge--logs { background: #1565c033; }
+[data-md-color-scheme="slate"] .capability-badge--metrics { background: #7b1fa233; }

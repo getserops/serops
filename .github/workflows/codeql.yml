@@ -1,0 +1,41 @@
+name: CodeQL
+
+# Runs on GitHub (github.com/getserops/serops), the public repository where
+# contributions arrive. The maintainers' GitLab mirror runs the same checks
+# from .gitlab-ci.yml; the two are deliberate duplicates, so a change to one
+# belongs in the other.
+#
+
+# One workflow covering both languages. The polyrepos each scanned their own
+# (python / javascript-typescript); in this repo both live side by side, so a
+# single matrix covers the whole tree.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'  # Mondays 06:00 UTC
+
+jobs:
+  analyze:
+    name: Analyze ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+      - uses: github/codeql-action/autobuild@v3
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

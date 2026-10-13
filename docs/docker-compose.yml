@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  serops_docs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: docker.io/serops/docs:latest
+    container_name: serops_docs
+    restart: unless-stopped
+    # No direct port exposure — Caddy is the only entry point
+    networks:
+      - serops
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: serops_docs_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # Stores Let's Encrypt certificates
+      - caddy_config:/config
+    networks:
+      - serops
+    depends_on:
+      - serops_docs
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  serops:
+    external: true

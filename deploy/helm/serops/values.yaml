@@ -1,0 +1,313 @@
+# SerOps Helm chart values — v1.0.1
+#
+# All defaults are safe for a small production deployment (~5 users,
+# 100 batches/day). Scale replicas + resources for larger tenants.
+#
+# Required overrides at minimum:
+#   - image.repository (once we publish to ghcr.io/getserops/*)
+#   - existingSecret with AI keys, or ai.provider.apiKey inline
+#   - ingress.hosts[0].host = your domain
+
+# ============================================================================
+# Global
+# ============================================================================
+global:
+  # Prefixed to all resource names when nameOverride is empty.
+  nameOverride: ""
+  fullnameOverride: ""
+
+# ============================================================================
+# Backend (Django + gunicorn)
+# ============================================================================
+backend:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/getserops/backend
+    tag: ""  # defaults to appVersion
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  # Environment variables — merged with configmap + secret below.
+  env: {}
+  # Add extra env vars from another ConfigMap / Secret (helm-common pattern).
+  envFrom: []
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  # Liveness / readiness — hits the /api/health/ endpoint that already exists.
+  probes:
+    liveness:
+      httpGet:
+        path: /api/health/
+        port: 8000
+      initialDelaySeconds: 30
+      periodSeconds: 15
+    readiness:
+      httpGet:
+        path: /api/health/
+        port: 8000
+      initialDelaySeconds: 10
+      periodSeconds: 10
+  # Pod-level extras.
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+# ============================================================================
+# Frontend (Vite build served by nginx)
+# ============================================================================
+frontend:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/getserops/frontend
+    tag: ""  # defaults to appVersion
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  # The API base URL is NOT configurable here — it is baked into the bundle
+  # when the image is built, because Vite inlines VITE_* variables at build
+  # time. This key used to exist and was wired to a runtime env var, which
+  # could not take effect; the comment claiming it was "rendered into a runtime
+  # config file at container start" described behaviour that did not exist.
+  #
+  # Build the image with the URL you need:
+  #   docker build --build-arg VITE_BASE_URL=https://your.host/api .
+  # Or keep the image default, the relative path `/api`, and route /api to the
+  # backend with the ingress below — then one image works for every host.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# ============================================================================
+# Celery worker — batch analysis, AI calls, webhooks
+# ============================================================================
+celeryWorker:
+  replicaCount: 2
+  image:
+    # Same image as backend; different command.
+    repository: ghcr.io/getserops/backend
+    tag: ""
+    pullPolicy: IfNotPresent
+  # Two-queue setup: high_priority (alert-triggered, priority=10) + default.
+  queues: "high_priority,celery"
+  concurrency: 4
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+# ============================================================================
+# Celery beat — scheduled batch trigger, retention cleanup
+# ============================================================================
+celeryBeat:
+  # Only ever ONE beat pod — beat is a scheduler; multiple copies would
+  # double-fire scheduled tasks.
+  replicaCount: 1
+  image:
+    repository: ghcr.io/getserops/backend
+    tag: ""
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 300m
+      memory: 512Mi
+
+# ============================================================================
+# Ingress
+# ============================================================================
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    # Uncomment for cert-manager auto TLS:
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 20m
+  hosts:
+    - host: serops.example.com
+      paths:
+        # Backend API paths.
+        - path: /api
+          pathType: Prefix
+          service: backend
+        # Prometheus self-metrics — same host + auth by env
+        # (SEROPS_METRICS_BASIC_AUTH). Consider IngressClass-level
+        # allowlist in production.
+        - path: /metrics
+          pathType: Prefix
+          service: backend
+        # Everything else → frontend (Vite SPA).
+        - path: /
+          pathType: Prefix
+          service: frontend
+  tls: []
+    # - hosts:
+    #     - serops.example.com
+    #   secretName: serops-tls
+
+# ============================================================================
+# Database — Postgres 16
+# ============================================================================
+# Production: bring your own Postgres (AWS RDS, GCP Cloud SQL, self-hosted)
+# and set database.url below. For a lab or demo install, switch on
+# devServices.postgresql further down.
+database:
+  # Used when devServices.postgresql.enabled=false. Format:
+  # postgres://user:pass@host:5432/serops
+  url: ""
+  existingSecret: ""   # secret key = database-url
+
+# ============================================================================
+# Redis / broker
+# ============================================================================
+broker:
+  url: ""   # external Redis URL: redis://:pass@host:6379/0
+  existingSecret: ""   # secret key = broker-url
+
+# ============================================================================
+# Database migrations
+# ============================================================================
+# Runs `manage.py migrate` as a Helm post-install/post-upgrade hook. Before
+# this existed the chart brought up a backend against an empty database and
+# every request failed on missing tables, with nothing saying a manual step
+# had been skipped.
+#
+# Disable only if you run migrations yourself (for example a separate
+# pipeline stage that gates on a review of the SQL).
+migrations:
+  enabled: true
+  backoffLimit: 2
+  # An init container polls the database until it accepts connections,
+  # so a cold Postgres does not burn a Job attempt on 'connection
+  # refused'. Raise for slow-starting managed databases.
+  waitForDatabaseSeconds: 120
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: 1000m, memory: 1Gi}
+
+# ============================================================================
+# Bundled dev services — lab / demo / evaluation ONLY
+# ============================================================================
+# Replaces the bitnami/postgresql + bitnami/redis subcharts this chart used
+# to depend on. Those pinned image tags no longer exist on Docker Hub
+# (Bitnami moved versioned tags behind bitnamisecure in 2025), so the
+# subcharts could not start at all, and following them forward would mean an
+# UNPINNED `latest` Postgres — where an unannounced major bump breaks data
+# compatibility on the next restart.
+#
+# These are plain pinned Deployments instead. Enabling either one also
+# rewrites the matching connection URL, so the app is actually wired to it.
+#
+# NOT FOR PRODUCTION: storage is emptyDir, so all data is lost when the pod
+# restarts, and the credentials below sit in values.
+devServices:
+  postgresql:
+    enabled: false
+    image: postgres:16-alpine
+    user: serops
+    password: serops-dev-password
+    database: serops
+    resources:
+      requests: {cpu: 100m, memory: 256Mi}
+      limits: {cpu: 1000m, memory: 1Gi}
+  redis:
+    enabled: false
+    image: redis:7-alpine
+    resources:
+      requests: {cpu: 50m, memory: 64Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+
+# ============================================================================
+# AI providers
+# ============================================================================
+# RCA provider keys (Anthropic / Google / DeepSeek / OpenAI) are NOT
+# configured here. SerOps reads them per-organisation from the database,
+# never from the environment — a shared cluster-wide key would pool quota
+# and billing across every org on the instance.
+#
+# Add them after install at:  Settings -> AI -> API Keys
+#
+# The one env-var key that IS read is below, and it is not an RCA key.
+ai:
+  # Optional. Enables semantic issue similarity ("issues like this one")
+  # by calling the OpenAI embeddings API. Consumed only by
+  # Data/embeddings.py. When unset, SerOps falls back to deterministic
+  # hash embeddings — similarity still works, just less accurately.
+  # This key is NOT used for root-cause analysis.
+  embeddings:
+    existingSecret: ""   # secret key: openai-api-key
+    openaiApiKey: ""     # inline value — DO NOT use in production
+
+# ============================================================================
+# SMTP (env-only — mirrors backend/api/settings.py policy)
+# ============================================================================
+smtp:
+  existingSecret: ""   # keys: smtp-user, smtp-password, smtp-host, smtp-port
+  host: ""
+  port: 587
+  user: ""
+  password: ""
+  fromEmail: "noreply@example.com"
+
+# ============================================================================
+# Alert webhook secrets (Item #13)
+# ============================================================================
+alertSecrets:
+  # Same env-only pattern. Empty = source rejects all webhooks.
+  existingSecret: ""   # keys: alertmanager, grafana, datadog
+  alertmanager: ""
+  grafana: ""
+  datadog: ""
+
+# ============================================================================
+# Self-metrics
+# ============================================================================
+selfMetrics:
+  # Optional basic-auth for the /metrics endpoint. Leave empty for open
+  # scrape (safe on private network). Format: "user:pass".
+  basicAuth: ""
+
+# ============================================================================
+# Django
+# ============================================================================
+django:
+  secretKey: ""            # REQUIRED — generate with `openssl rand -hex 64`
+  # Metric collection. The application default is FALSE (see METRICS_ENABLED
+  # in Data/tasks.py), which is wrong for a Kubernetes install: metrics are
+  # half of what the AI reasons over, and the chart never set this, so
+  # Helm-deployed instances silently ran log-only.
+  metricsEnabled: true
+  existingSecret: ""       # key = django-secret-key
+  debug: false
+  allowedHosts: "serops.example.com"
+  # Origins the browser loads the frontend from, comma-separated, scheme and
+  # port included (e.g. "https://serops.example.com" or
+  # "http://localhost:8080,http://localhost:3000"). Without this the API
+  # rejects the frontend's own requests and the login page reads as though the
+  # password were wrong.
+  corsAllowedOrigins: "https://serops.example.com"
+
+# ============================================================================
+# ServiceMonitor — for the Prometheus Operator
+# ============================================================================
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}

@@ -1,0 +1,46 @@
+/**
+ * BatchTimeline visualisation styles (Batch 40 upgrade).
+ */
+
+.batch-timeline-chart-wrap {
+    position: relative;
+    width: 100%;
+}
+
+.batch-timeline-tooltip {
+    background: #212529;
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    max-width: 260px;
+    z-index: 10;
+}
+
+.batch-timeline-tooltip .badge {
+    color: #fff !important;
+}
+
+.batch-timeline-tooltip .badge.bg-light {
+    color: #212529 !important;
+}
+
+.batch-timeline-tooltip .text-muted {
+    color: #adb5bd !important;
+}
+
+/* Dark theme parity — the chart <svg> background inherits from
+   Bootstrap CSS variables so it flips automatically. Only the tooltip
+   needs an explicit override (it already uses a dark background on
+   light theme; on dark theme we swap to a lighter panel for contrast). */
+[data-theme="dark"] .batch-timeline-tooltip {
+    background: #f8f9fa;
+    color: #212529;
+}
+[data-theme="dark"] .batch-timeline-tooltip .badge.bg-light {
+    background: #212529 !important;
+    color: #f8f9fa !important;
+}
+[data-theme="dark"] .batch-timeline-tooltip .text-muted {
+    color: #6c757d !important;
+}

@@ -1,0 +1,43 @@
+{{/*
+  Non-secret environment.
+
+  Every key here is spelled exactly as backend/api/settings.py reads it.
+  That was not previously true: the chart emitted DJANGO_DEBUG,
+  DJANGO_ALLOWED_HOSTS and SMTP_*, while settings.py reads DEBUG,
+  ALLOWED_HOSTS and EMAIL_*. Nothing errored — Django just used its
+  defaults, so ALLOWED_HOSTS stayed localhost,127.0.0.1 and every kubelet
+  probe (which connects by pod IP) got HTTP 400, leaving the backend
+  permanently un-Ready. Keep these names in sync with settings.py.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "serops.fullname" . }}-config
+  labels:
+    {{- include "serops.labels" . | nindent 4 }}
+data:
+  # settings.py compares this to the exact string 'True', so a lowercase
+  # "true" would silently leave DEBUG off.
+  DEBUG: {{ ternary "True" "False" .Values.django.debug | quote }}
+  ALLOWED_HOSTS: {{ .Values.django.allowedHosts | quote }}
+  # Data/tasks.py reads this with a 'false' default, so it must be set
+  # explicitly or the chart ships a log-only install.
+  METRICS_ENABLED: {{ .Values.django.metricsEnabled | quote }}
+  # Browsers block the frontend's own API calls without this. settings.py
+  # defaults CORS_ALLOWED_ORIGINS to 'http://localhost:3003' — a dev port — and
+  # the chart never set it, so a Helm install served a frontend that could not
+  # talk to its backend: the preflight came back 200 with no
+  # Access-Control-Allow-Origin, and the login page reported the failure as bad
+  # credentials. Must list the origin the BROWSER uses, scheme and port
+  # included.
+  CORS_ALLOWED_ORIGINS: {{ .Values.django.corsAllowedOrigins | quote }}
+  {{- with .Values.smtp.host }}
+  EMAIL_HOST: {{ . | quote }}
+  {{- end }}
+  EMAIL_PORT: {{ .Values.smtp.port | quote }}
+  {{- with .Values.smtp.user }}
+  EMAIL_HOST_USER: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.smtp.fromEmail }}
+  DEFAULT_FROM_EMAIL: {{ . | quote }}
+  {{- end }}

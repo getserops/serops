@@ -1,0 +1,446 @@
+/* Issues page styles */
+
+/* Override inherited text-align: center from .App */
+.issues-page-card {
+  text-align: left;
+}
+
+/* Breadcrumb */
+.issues-breadcrumb {
+  font-size: var(--text-sm, 0.875rem);
+  color: var(--text-secondary, #6c757d);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.issues-breadcrumb a {
+  color: var(--primary, #0d6efd);
+  text-decoration: none;
+}
+
+.issues-breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.issues-breadcrumb-sep {
+  color: var(--text-tertiary, #adb5bd);
+  font-size: 1rem;
+}
+
+/* Summary stat cards */
+.issue-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 640px) {
+  .issue-stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.issue-stat-card {
+  padding: 12px 16px;
+  border-radius: var(--radius-lg, 12px);
+  border-left: 3px solid var(--border-default, #dee2e6);
+  box-shadow: var(--shadow-xs, 0 1px 2px rgba(0, 0, 0, 0.05));
+  background: var(--bg-card, #fff);
+}
+
+.issue-stat-card.issue-stat-critical {
+  border-left-color: #e53935;
+}
+
+.issue-stat-card.issue-stat-warning {
+  border-left-color: #fb8c00;
+}
+
+.issue-stat-card.issue-stat-open {
+  border-left-color: #1565c0;
+}
+
+.issue-stat-card.issue-stat-resolved {
+  border-left-color: #28a745;
+}
+
+.issue-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-primary, #212529);
+}
+
+.issue-stat-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #6c757d);
+  text-transform: lowercase;
+}
+
+/* Filter toolbar */
+.issues-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-default, #dee2e6);
+  margin-bottom: 0;
+  flex-wrap: wrap;
+}
+
+/* Mobile: force wrapping and let filters take full width when needed. */
+@media (max-width: 640px) {
+  .issues-toolbar > * {
+    min-width: 0 !important;
+    max-width: 100%;
+  }
+  .issues-toolbar .form-select {
+    flex: 1 1 45%;
+    width: auto !important;
+  }
+}
+
+/* Same defensive clip as .data-page-container — keeps the outer
+   document at scrollWidth == viewportWidth if a wide component
+   sneaks through. Tables inside .table-responsive still scroll. */
+.issues-page-container,
+.issues-container {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Severity row tints */
+.issue-row-critical {
+  background-color: rgba(229, 57, 53, 0.04);
+}
+
+.issue-row-warning {
+  background-color: rgba(251, 140, 0, 0.04);
+}
+
+.issue-row-info {
+  background-color: rgba(66, 165, 245, 0.04);
+}
+
+/* Keyboard focus ring */
+.issue-row-focused {
+  outline: 2px solid var(--bs-primary, #0d6efd);
+  outline-offset: -2px;
+}
+
+/* Description line clamping — single line for scan */
+.issue-description-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+}
+
+/* Component chip — base */
+.issue-component-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background-color: #f0f0f0;
+  color: #555;
+  font-size: 0.8rem;
+  font-weight: 500;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Component chip — scope colors */
+.issue-component-chip.component-chip-service {
+  background-color: #e3f2fd;
+  color: #1565c0;
+}
+
+.issue-component-chip.component-chip-infra {
+  background-color: #f3e5f5;
+  color: #6a1b9a;
+}
+
+.issue-component-chip.component-chip-pipeline {
+  background-color: #f0f0f0;
+  color: #555;
+}
+
+/* Severity pill badges */
+.severity-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.severity-badge-critical {
+  background: #fde8e8;
+  color: #c62828;
+}
+
+.severity-badge-high {
+  background: #fce4ec;
+  color: #c62828;
+}
+
+.severity-badge-warning {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.severity-badge-medium {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.severity-badge-low {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.severity-badge-info {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.severity-badge-unknown {
+  background: #f5f5f5;
+  color: #757575;
+}
+
+/* Count heat indicators */
+.count-heat-normal {
+  color: #6c757d;
+}
+
+.count-heat-amber {
+  background-color: rgba(255, 179, 0, 0.15);
+  color: #e65100;
+  font-weight: 600;
+}
+
+.count-heat-red {
+  background-color: rgba(229, 57, 53, 0.15);
+  color: #b71c1c;
+  font-weight: 700;
+}
+
+/* Row hover transition */
+.table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.table tbody tr:hover {
+  background-color: var(--neutral-50, #f8f9fa);
+}
+
+/* Bulk action toolbar */
+.bulk-toolbar {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bs-white, #fff);
+  border-top: 1px solid #dee2e6;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+  z-index: 10;
+  border-radius: 0 0 16px 16px;
+}
+
+.bulk-toolbar .bulk-count {
+  font-weight: 600;
+  color: #333;
+}
+
+/* Shortcut help overlay */
+.shortcut-help-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+}
+
+.shortcut-help-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.shortcut-help-card h5 {
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+
+.shortcut-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.shortcut-key {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.85rem;
+  min-width: 24px;
+  text-align: center;
+}
+
+/* Empty state celebration */
+.empty-state-celebration {
+  text-align: center;
+  padding: 48px 16px;
+}
+
+.empty-state-celebration .checkmark-icon {
+  font-size: 3rem;
+  color: #28a745;
+  margin-bottom: 12px;
+}
+
+.empty-state-celebration h4 {
+  color: #28a745;
+  font-weight: 600;
+}
+
+.empty-state-celebration p {
+  color: #6c757d;
+}
+
+/* Actions dropdown */
+.issue-actions-dropdown .dropdown-toggle::after {
+  display: none;
+}
+
+.issue-actions-dropdown .dropdown-toggle {
+  padding: 4px 8px;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  color: #6c757d;
+}
+
+.issue-actions-dropdown .dropdown-toggle:hover {
+  color: #333;
+  background: #f0f0f0;
+  border-radius: 4px;
+}
+
+/* Select all checkbox alignment */
+.select-all-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.row-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* Auto-refresh indicator */
+.auto-refresh-indicator {
+  font-size: 0.75rem;
+  color: #999;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.auto-refresh-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #28a745;
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Pagination — matches Data page style */
+.pagination-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-default, #dee2e6);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--neutral-50, #f8f9fa);
+  border-radius: 0 0 16px 16px;
+}
+
+.pagination-info {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #6c757d);
+}
+
+.modern-pagination {
+  display: flex;
+  gap: 4px;
+}
+
+.page-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--border-default, #dee2e6);
+  background: white;
+  color: var(--text-secondary, #6c757d);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.page-btn:hover:not(:disabled) {
+  border-color: var(--primary, #0d6efd);
+  color: var(--primary, #0d6efd);
+}
+
+.page-btn.active {
+  background: var(--primary, #0d6efd);
+  color: white;
+  border-color: var(--primary, #0d6efd);
+}
+
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-btn.dots {
+  border: none;
+  background: transparent;
+}
