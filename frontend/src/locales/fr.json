@@ -428,7 +428,14 @@
     "ssoNotConfigured": "SSO non configuré correctement pour votre organisation",
     "ssoFailed": "Échec de l'initiation de la connexion SSO",
     "showPassword": "Afficher le mot de passe",
-    "hidePassword": "Masquer le mot de passe"
+    "hidePassword": "Masquer le mot de passe",
+    "demoOnlyTitle": "Découvrez la démo en direct",
+    "demoOnlyText": "Un espace SerOps en lecture seule avec de vrais incidents, causes racines et chronologies. Aucun compte requis.",
+    "tryDemo": "Essayer la démo",
+    "selfHost": "Héberger votre propre SerOps →",
+    "ssoSignInFailed": "Échec de la connexion SSO. Vérifiez avec votre administrateur que votre compte appartient à cette organisation.",
+    "demoNotConfigured": "Aucune démo n'est configurée sur ce déploiement.",
+    "demoFailed": "Impossible de démarrer la session de démo."
   },
   "profile": {
     "title": "Profil",
@@ -690,7 +697,9 @@
     "pasteClientSecret": "Coller le Secret Client",
     "discoveryUrl": "URL de Découverte OIDC",
     "discoveryUrlHint": "L'URL retournant les métadonnées OpenID Connect.",
-    "realmOptional": "Realm (Optionnel)"
+    "realmOptional": "Realm (Optionnel)",
+    "redirectUri": "URI de redirection",
+    "redirectUriHint": "Enregistrez exactement cette URL comme URI de redirection valide dans votre fournisseur d'identité."
   },
   "batchInterval": {
     "title": "Intervalle de Génération des Lots",

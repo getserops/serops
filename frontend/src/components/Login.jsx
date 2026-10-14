@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import AuthService from "../services/auth.service";
 import { FaEye, FaEyeSlash, FaEnvelope, FaLock, FaArrowRight, FaShieldAlt, FaCheckCircle } from "react-icons/fa";
@@ -23,8 +23,20 @@ const Login = () => {
   // backend — matches the self-hoster experience. Hidden demo hosts
   // like app.serops.ai return false and the prompt disappears.
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  // A seeded demo user exists: show "Try the live demo".
+  const [demoAvailable, setDemoAvailable] = useState(false);
+  // Public demo host: the demo is the only way in, so the form is hidden.
+  const [demoOnly, setDemoOnly] = useState(false);
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    // The SSO callback sends the browser back here when sign-in fails.
+    if (searchParams.get("sso") === "failed") {
+      setError(t('login.ssoSignInFailed'));
+    }
+  }, [searchParams, t]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -40,9 +52,12 @@ const Login = () => {
     let cancelled = false;
     AuthService.registrationStatus()
       .then((r) => {
-        if (!cancelled && typeof r?.data?.registration_enabled === "boolean") {
+        if (cancelled || !r?.data) return;
+        if (typeof r.data.registration_enabled === "boolean") {
           setRegistrationEnabled(r.data.registration_enabled);
         }
+        setDemoAvailable(r.data.demo_available === true);
+        setDemoOnly(r.data.demo_only === true);
       })
       .catch(() => {});
     return () => {
@@ -171,9 +186,9 @@ const Login = () => {
     } catch (err) {
       const code = err.response?.data?.error;
       if (code === 'demo_not_configured') {
-        setError("No live demo is configured on this deployment.");
+        setError(t('login.demoNotConfigured'));
       } else {
-        setError(err.response?.data?.message || "Could not start the demo session.");
+        setError(describeRequestError(err, t('login.demoFailed')));
       }
     } finally {
       setDemoLoading(false);
@@ -184,145 +199,33 @@ const Login = () => {
     <div className="login-page">
       <div className="login-form-panel">
         <div className="form-container">
-          <div className="form-header">
-            <img src="/assets/images/Serops-Logo.png" alt="SerOps" className="form-logo" />
-            <h2>{t('login.welcomeBack')}</h2>
-            <p>{t('login.enterCredentials')}</p>
-          </div>
-
-          <form onSubmit={submit} className="login-form">
-            <div className="form-group">
-              <label htmlFor="email">{t('login.emailAddress')}</label>
-              <div className="input-wrapper">
-                <FaEnvelope className="input-icon" />
-                <input
-                  type="email"
-                  id="email"
-                  placeholder={t('login.emailPlaceholder')}
-                  value={email}
-                  onChange={handleEmailChange}
-                  onKeyDown={handleKeyDown}
-                  className={emailError ? "error" : ""}
-                  autoComplete="email"
-                />
+          {demoOnly ? (
+            <div className="login-form">
+              <div className="form-header">
+                <img src="/assets/images/Serops-Logo.png" alt="SerOps" className="form-logo" />
+                <h2>{t('login.demoOnlyTitle')}</h2>
+                <p>{t('login.demoOnlyText')}</p>
               </div>
-              {emailError && <span className="error-text">{emailError}</span>}
-            </div>
-
-            <div className="form-group">
-              <div className="label-row">
-                <label htmlFor="password">{t('auth.password')}</label>
-                <button
-                  type="button"
-                  className="forgot-link"
-                  onClick={handleForgot}
-                >
-                  {t('auth.forgotPassword')}
-                </button>
-              </div>
-              <div className="input-wrapper">
-                <FaLock className="input-icon" />
-                <input
-                  type={hidePassword ? "password" : "text"}
-                  id="password"
-                  placeholder={t('login.passwordPlaceholder')}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  className="toggle-password"
-                  onClick={() => setHidePassword(!hidePassword)}
-                  aria-label={hidePassword ? t('login.showPassword') : t('login.hidePassword')}
-                >
-                  {hidePassword ? <FaEyeSlash /> : <FaEye />}
-                </button>
-              </div>
-            </div>
-
-            {resetSuccess && (
-              <div className="alert-success">
-                <FaCheckCircle />
-                <span>{t('login.resetSuccess')}</span>
-              </div>
-            )}
-
-            {error && (
-              <div className="alert-error">
-                <span>{error}</span>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              className="submit-btn"
-              disabled={!email || emailError || !password || loading}
-            >
-              {loading ? (
-                <span className="loading-spinner"></span>
-              ) : (
-                <>
-                  {t('login.signIn')}
-                  <FaArrowRight className="btn-icon" />
-                </>
-              )}
-            </button>
-
-            <div className="sso-divider">
-              <span>{t('login.or')}</span>
-            </div>
-
-            <button
-              type="button"
-              className="sso-btn"
-              onClick={handleSSOLogin}
-              disabled={!email || emailError || loading || ssoLoading}
-            >
-              {ssoLoading ? <span className="loading-spinner"></span> : <FaShieldAlt className="btn-icon-left" />}
-              {t('login.loginWithSSO')}
-            </button>
-
-            {/* One-click read-only demo. Works regardless of email
-                field state — visitors do not need to type anything. */}
-            <button
-              type="button"
-              className="sso-btn"
-              onClick={handleDemoLogin}
-              disabled={loading || ssoLoading || demoLoading}
-            >
-              {demoLoading
-                ? <span className="loading-spinner"></span>
-                : <FaArrowRight className="btn-icon-left" />}
-              Try the live demo
-            </button>
-
-            {registrationEnabled ? (
-              <div className="register-prompt">
-                <div className="register-prompt-row">
-                  <span className="register-prompt-label">{t('login.haveInviteCode')}</span>
-                  <button
-                    type="button"
-                    className="register-prompt-link"
-                    onClick={() => navigate('/register')}
-                  >
-                    {t('login.createAccount')}
-                  </button>
+              {error && (
+                <div className="alert-error">
+                  <span>{error}</span>
                 </div>
-                <a
-                  href="https://serops.ai"
-                  className="waitlist-link"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {t('login.joinWaitlist')}
-                </a>
-              </div>
-            ) : (
-              // Registration is closed on this deployment (e.g. the
-              // public demo host). Point visitors at the self-host
-              // docs so the outcome is not a dead end.
+              )}
+              <button
+                type="button"
+                className="submit-btn"
+                onClick={handleDemoLogin}
+                disabled={demoLoading}
+              >
+                {demoLoading ? (
+                  <span className="loading-spinner"></span>
+                ) : (
+                  <>
+                    {t('login.tryDemo')}
+                    <FaArrowRight className="btn-icon" />
+                  </>
+                )}
+              </button>
               <div className="register-prompt">
                 <a
                   href="https://serops.ai/docs/getting-started/quick-start-self-hosted/"
@@ -330,11 +233,165 @@ const Login = () => {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  Self-host your own SerOps →
+                  {t('login.selfHost')}
                 </a>
               </div>
-            )}
-          </form>
+            </div>
+          ) : (
+            <>
+              <div className="form-header">
+                <img src="/assets/images/Serops-Logo.png" alt="SerOps" className="form-logo" />
+                <h2>{t('login.welcomeBack')}</h2>
+                <p>{t('login.enterCredentials')}</p>
+              </div>
+            <form onSubmit={submit} className="login-form">
+              <div className="form-group">
+                <label htmlFor="email">{t('login.emailAddress')}</label>
+                <div className="input-wrapper">
+                  <FaEnvelope className="input-icon" />
+                  <input
+                    type="email"
+                    id="email"
+                    placeholder={t('login.emailPlaceholder')}
+                    value={email}
+                    onChange={handleEmailChange}
+                    onKeyDown={handleKeyDown}
+                    className={emailError ? "error" : ""}
+                    autoComplete="email"
+                  />
+                </div>
+                {emailError && <span className="error-text">{emailError}</span>}
+              </div>
+
+              <div className="form-group">
+                <div className="label-row">
+                  <label htmlFor="password">{t('auth.password')}</label>
+                  <button
+                    type="button"
+                    className="forgot-link"
+                    onClick={handleForgot}
+                  >
+                    {t('auth.forgotPassword')}
+                  </button>
+                </div>
+                <div className="input-wrapper">
+                  <FaLock className="input-icon" />
+                  <input
+                    type={hidePassword ? "password" : "text"}
+                    id="password"
+                    placeholder={t('login.passwordPlaceholder')}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    className="toggle-password"
+                    onClick={() => setHidePassword(!hidePassword)}
+                    aria-label={hidePassword ? t('login.showPassword') : t('login.hidePassword')}
+                  >
+                    {hidePassword ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                </div>
+              </div>
+
+              {resetSuccess && (
+                <div className="alert-success">
+                  <FaCheckCircle />
+                  <span>{t('login.resetSuccess')}</span>
+                </div>
+              )}
+
+              {error && (
+                <div className="alert-error">
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="submit-btn"
+                disabled={!email || emailError || !password || loading}
+              >
+                {loading ? (
+                  <span className="loading-spinner"></span>
+                ) : (
+                  <>
+                    {t('login.signIn')}
+                    <FaArrowRight className="btn-icon" />
+                  </>
+                )}
+              </button>
+
+              <div className="sso-divider">
+                <span>{t('login.or')}</span>
+              </div>
+
+              <button
+                type="button"
+                className="sso-btn"
+                onClick={handleSSOLogin}
+                disabled={!email || emailError || loading || ssoLoading}
+              >
+                {ssoLoading ? <span className="loading-spinner"></span> : <FaShieldAlt className="btn-icon-left" />}
+                {t('login.loginWithSSO')}
+              </button>
+
+              {/* One-click read-only demo, only where one is seeded. */}
+              {demoAvailable && (
+                <button
+                  type="button"
+                  className="sso-btn"
+                  onClick={handleDemoLogin}
+                  disabled={loading || ssoLoading || demoLoading}
+                >
+                  {demoLoading
+                    ? <span className="loading-spinner"></span>
+                    : <FaArrowRight className="btn-icon-left" />}
+                  {t('login.tryDemo')}
+                </button>
+              )}
+
+              {registrationEnabled ? (
+                <div className="register-prompt">
+                  <div className="register-prompt-row">
+                    <span className="register-prompt-label">{t('login.haveInviteCode')}</span>
+                    <button
+                      type="button"
+                      className="register-prompt-link"
+                      onClick={() => navigate('/register')}
+                    >
+                      {t('login.createAccount')}
+                    </button>
+                  </div>
+                  <a
+                    href="https://serops.ai"
+                    className="waitlist-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {t('login.joinWaitlist')}
+                  </a>
+                </div>
+              ) : (
+                // Registration is closed on this deployment (e.g. the
+                // public demo host). Point visitors at the self-host
+                // docs so the outcome is not a dead end.
+                <div className="register-prompt">
+                  <a
+                    href="https://serops.ai/docs/getting-started/quick-start-self-hosted/"
+                    className="register-prompt-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {t('login.selfHost')}
+                  </a>
+                </div>
+              )}
+            </form>
+            </>
+          )}
         </div>
 
         {/* Footer */}

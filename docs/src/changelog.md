@@ -10,7 +10,48 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ## [Unreleased]
 
-Nothing yet.
+### Security
+
+- **SSO could sign in as a member of another organisation.** The SSO
+  callback matched the email the identity provider returned against every
+  user, so an admin who pointed their organisation's SSO at a provider they
+  control could sign in as anyone. It now signs in only members of the
+  organisation that started the flow, refuses inactive users and emails the
+  provider marks unverified, and checks SSO is still switched on.
+- **The login and SSO endpoints revealed which emails have an account.**
+  Login answers an unknown email and a wrong password the same way, and SSO
+  sign-in gives one answer whenever SSO is not available.
+- **SSO sign-in showed internal errors.** An organisation without security
+  settings got `500 "SecuritySettings matching query does not exist."`.
+
+### Added
+
+- `DEMO_ONLY_LOGIN=true`, for a public demo host: the login page shows only
+  "Try the live demo", and password login, SSO and password reset are
+  refused server-side.
+- Settings → Security shows the redirect URI to register at the identity
+  provider.
+
+### Changed
+
+- "Try the live demo" appears only where a demo user is seeded.
+- A failed SSO sign-in returns to the login page with a message instead of
+  a JSON error.
+- SAML settings are removed (migration `Users.0011`). SAML sign-in never
+  worked; use OpenID Connect, which Okta, Entra ID, Google and Keycloak all
+  support. Organisations set to SAML have SSO switched off.
+- The unused SSO "Realm" field is removed; the discovery URL already names
+  the realm.
+- **Helm:** the chart now sets `API_URL` and `REACT_URL` from the ingress
+  host (or `django.publicUrl`). They were unset, so the SSO redirect URI
+  read `None/auth/sso/callback` and account activation emails failed.
+
+### Fixed
+
+- Settings → Security showed saved SSO settings as empty after a reload.
+- SSO sign-in could not complete on a plain-http install: the handoff
+  cookie was always `Secure`, so the browser dropped it. It is `Secure`
+  whenever the install is served over https.
 
 ---
 

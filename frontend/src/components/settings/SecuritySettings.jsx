@@ -29,7 +29,16 @@ const SecuritySettings = () => {
                 enterpriseSettingsService.getSSOConfig().catch(() => null) // Handle 404/Error gracefully
             ]);
 
-            setSettings({ ...securityData, sso: ssoData || securityData.sso || {} });
+            // /auth/sso/config speaks sso_* field names; the form uses short ones.
+            const sso = ssoData ? {
+                enabled: ssoData.sso_enabled,
+                provider: ssoData.sso_provider,
+                client_id: ssoData.sso_client_id,
+                discovery_url: ssoData.sso_discovery_url,
+                sso_client_secret_configured: ssoData.sso_client_secret_configured,
+                redirect_uri: ssoData.sso_redirect_uri,
+            } : (securityData.sso || {});
+            setSettings({ ...securityData, sso });
 
             // Load session timeout
             if (securityData && securityData.session) {
@@ -61,7 +70,6 @@ const SecuritySettings = () => {
                     // OIDC
                     sso_client_id: settings.sso.client_id,
                     sso_discovery_url: settings.sso.discovery_url,
-                    sso_realm: settings.sso.realm,
                 };
                 // Only include client_secret if user actually entered a new one
                 if (settings.sso.client_secret) {
@@ -182,6 +190,20 @@ const SecuritySettings = () => {
                     {settings?.sso?.provider === 'oidc' && (
                         <div className="settings-form-panel">
                             <h5 className="mb-3">OpenID Connect Configuration</h5>
+                            {settings?.sso?.redirect_uri && (
+                                <div className="form-group mb-3">
+                                    <label htmlFor="sso-redirect-uri">{t('security.redirectUri')}</label>
+                                    <input
+                                        id="sso-redirect-uri"
+                                        type="text"
+                                        className="form-control"
+                                        value={settings.sso.redirect_uri}
+                                        readOnly
+                                        onFocus={(e) => e.target.select()}
+                                    />
+                                    <small className="text-muted">{t('security.redirectUriHint')}</small>
+                                </div>
+                            )}
                             <div className="row">
                                 <div className="col-md-6">
                                     <div className="form-group mb-3">
@@ -226,20 +248,6 @@ const SecuritySettings = () => {
                                         sso: { ...(prev?.sso || {}), discovery_url: e.target.value }
                                     }))}
                                     placeholder="https://idp.example.com/.well-known/openid-configuration"
-                                />
-                            </div>
-
-                            <div className="form-group mb-3">
-                                <label>Realm (Optional)</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    value={settings?.sso?.realm || ''}
-                                    onChange={(e) => setSettings(prev => ({
-                                        ...prev,
-                                        sso: { ...(prev?.sso || {}), realm: e.target.value }
-                                    }))}
-                                    placeholder="myrealm"
                                 />
                             </div>
                         </div>

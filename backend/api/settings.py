@@ -98,6 +98,12 @@ def _registration_flag(raw):
 
 REGISTRATION_ENABLED = _registration_flag(os.getenv('REGISTRATION_ENABLED'))
 
+# DEMO_ONLY_LOGIN=true turns the login page into a single "Try the live
+# demo" button: password, SSO and password-reset requests are refused
+# server-side. For public demo hosts like app.serops.ai, where nobody but
+# the seeded demo user should ever sign in.
+DEMO_ONLY_LOGIN = os.getenv('DEMO_ONLY_LOGIN', 'false').strip().lower() in ('true', '1', 'yes')
+
 # Security: Only allow specific hosts (configure via environment)
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 # CORS Configuration - Restrict to known origins

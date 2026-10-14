@@ -34,6 +34,16 @@ data:
   # credentials. Must list the origin the BROWSER uses, scheme and port
   # included.
   CORS_ALLOWED_ORIGINS: {{ .Values.django.corsAllowedOrigins | quote }}
+  # Public URLs the backend writes into links: the SSO redirect URI, account
+  # activation and password-reset emails. The chart never set them, so the
+  # SSO redirect URI read "None/auth/sso/callback" and activation emails
+  # failed. Default: the first ingress host, https when ingress TLS is set.
+  {{- $publicUrl := .Values.django.publicUrl }}
+  {{- if not $publicUrl }}
+  {{- $publicUrl = printf "%s://%s" (ternary "https" "http" (gt (len .Values.ingress.tls) 0)) (index .Values.ingress.hosts 0).host }}
+  {{- end }}
+  API_URL: {{ printf "%s/api" (trimSuffix "/" $publicUrl) | quote }}
+  REACT_URL: {{ trimSuffix "/" $publicUrl | quote }}
   {{- with .Values.smtp.host }}
   EMAIL_HOST: {{ . | quote }}
   {{- end }}

@@ -183,7 +183,7 @@ class TestLoginView(APITestCase):
             'email': 'nonexistent@example.com',
             'password': 'TestPass123!',
         })
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     @patch('Users.views.log_login')
     def test_login_inactive_user(self, mock_log):

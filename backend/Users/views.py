@@ -60,6 +60,11 @@ login_response = openapi.Schema(
 )
 
 
+def demo_only_login():
+    """True on public demo hosts, where only the seeded demo user may sign in."""
+    return bool(getattr(settings, 'DEMO_ONLY_LOGIN', False))
+
+
 def registration_open():
     """Whether POST /api/auth/register may create a new organisation.
 
@@ -69,6 +74,8 @@ def registration_open():
     Demo users and demo organisations are ignored, so seeding the example
     org does not lock the owner out of creating theirs.
     """
+    if demo_only_login():
+        return False
     flag = getattr(settings, 'REGISTRATION_ENABLED', None)
     if flag is not None:
         return bool(flag)
@@ -77,6 +84,18 @@ def registration_open():
         organisation__is_demo=False,
         is_demo=False,
     ).exists()
+
+def demo_user_available():
+    return User.objects.filter(
+        is_demo=True, is_active=True, organisation__is_demo=True,
+    ).exists()
+
+
+DEMO_ONLY_RESPONSE = {
+    'error': 'demo_only',
+    'message': 'This is a read-only demo. Use "Try the live demo" to sign in.',
+}
+
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
@@ -254,14 +273,15 @@ class LoginView(APIView):
         responses={
             200: login_response,
             400: 'Bad Request',
-            401: 'Unauthorized',
-            403: 'Account not activated',
-            404: 'Not Found',
+            401: 'Invalid email or password',
+            403: 'Account not activated, or a demo-only deployment',
             500: 'Internal Server Error'
         }
     )
     def post(self, request):
         logger.debug("Received login request")
+        if demo_only_login():
+            return Response(DEMO_ONLY_RESPONSE, status=status.HTTP_403_FORBIDDEN)
         try:
             email = request.data.get('email')
             password = request.data.get('password')
@@ -274,22 +294,15 @@ class LoginView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            logger.debug(f"Attempting login for user: {email}")
             user = User.objects.filter(email=email).first()
 
-            if not user:
-                logger.error(f"Failed login attempt: no user found with email {email}")
-                log_login(request, user=None, success=False)
-                return Response(
-                    {'error': 'User not found with this email'}, 
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            if not user.check_password(password):
-                logger.error(f"Failed login attempt: incorrect password for user {email}")
+            # One answer for an unknown email and a wrong password, so the
+            # login form cannot be used to find out who has an account.
+            if not user or not user.check_password(password):
+                logger.warning("Failed login attempt")
                 log_login(request, user=user, success=False)
                 return Response(
-                    {'error': 'Invalid password'}, 
+                    {'error': 'Invalid email or password'},
                     status=status.HTTP_401_UNAUTHORIZED
                 )
 
@@ -378,7 +391,7 @@ class DemoLoginView(APIView):
             "token for the seeded read-only demo user. No request body."
         ),
         responses={
-            200: 'Returns {token, user, banner}',
+            200: 'Returns {token, user}',
             404: 'Demo org not configured on this deployment',
             429: 'Too many requests',
         },
@@ -723,6 +736,8 @@ class ForgetPasswordView(APIView):
         # unauthenticated callers enumerate the customer list. Rate-limit
         # slows enumeration but doesn't prevent it (BE-P1-03, audit
         # 2026-09-05).
+        if demo_only_login():
+            return Response(DEMO_ONLY_RESPONSE, status=status.HTTP_403_FORBIDDEN)
         generic_success = Response(
             {'message': 'If an account exists with that email, we have '
                         'sent a password reset link.'},
@@ -1063,11 +1078,10 @@ class DeleteAccountView(APIView):
 class RegistrationStatusView(APIView):
     """Public flag the frontend polls on the Login page.
 
-    Returns whether this SerOps instance accepts open registrations.
-    Instances (like the hosted demo) that only allow one-click demo
-    login or admin-invited users report ``registration_enabled=False``;
-    the frontend hides the "Create account" / "Have invite code"
-    prompts based on this value.
+    Returns whether this SerOps instance accepts open registrations,
+    whether a seeded demo user exists (``demo_available`` shows the
+    "Try the live demo" button), and whether the demo is the only way in
+    (``demo_only`` hides the password and SSO form).
 
     Kept as a dedicated read-only endpoint so it can be polled without
     authentication and cached at the CDN if needed.
@@ -1076,6 +1090,9 @@ class RegistrationStatusView(APIView):
     authentication_classes = []
 
     def get(self, request):
+        demo_only = demo_only_login()
         return Response({
             'registration_enabled': registration_open(),
+            'demo_available': demo_user_available(),
+            'demo_only': demo_only,
         })

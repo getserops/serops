@@ -38,6 +38,8 @@ class SSOCallbackHandoffTest(TestCase):
         )
         self.security = SecuritySettings.objects.create(
             organisation=self.org,
+            sso_enabled=True,
+            sso_provider='oidc',
             sso_client_id='client',
             sso_discovery_url='https://idp.example.com/.well-known/openid-configuration',
         )
@@ -75,6 +77,24 @@ class SSOCallbackHandoffTest(TestCase):
         self.assertTrue(cookie['httponly'])
         self.assertEqual(cookie['samesite'], 'Lax')
         self.assertEqual(cookie['path'], '/api/auth/sso/exchange')
+
+    def _cookie(self, MockSSO):
+        MockSSO.return_value.exchange_code_for_token.return_value = 'idp-token'
+        MockSSO.return_value.get_user_info.return_value = {'email': self.user.email}
+        response = self.client.get('/api/auth/sso/callback', {'code': 'c', 'state': self._make_state()})
+        return response.cookies[SSO_HANDOFF_COOKIE]
+
+    @override_settings(API_URL='https://serops.test.local/api')
+    @patch('Users.sso_views.SSOService')
+    def test_cookie_is_secure_on_https(self, MockSSO):
+        self.assertTrue(self._cookie(MockSSO)['secure'])
+
+    @override_settings(API_URL='http://serops.lab/api')
+    @patch('Users.sso_views.SSOService')
+    def test_cookie_works_on_a_plain_http_install(self, MockSSO):
+        # A Secure cookie is dropped by the browser over http, so the
+        # exchange step could never find it.
+        self.assertFalse(self._cookie(MockSSO)['secure'])
 
 
 class SSOExchangeTest(TestCase):

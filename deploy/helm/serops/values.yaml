@@ -310,6 +310,10 @@ django:
   # rejects the frontend's own requests and the login page reads as though the
   # password were wrong.
   corsAllowedOrigins: "https://serops.example.com"
+  # The URL users open SerOps at, e.g. "https://serops.example.com". Used for
+  # the SSO redirect URI and links in emails. Empty: the first ingress host,
+  # https when ingress.tls is set.
+  publicUrl: ""
 
 # ============================================================================
 # ServiceMonitor — for the Prometheus Operator

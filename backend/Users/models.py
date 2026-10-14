@@ -134,33 +134,19 @@ class SecuritySettings(models.Model):
         default=480  # 8 hours
     )
     
-    # SSO Configuration (future-ready)
-    # SSO Configuration
-    # SSO Configuration
+    # SSO: OpenID Connect only. Okta, Entra ID, Google and Keycloak all
+    # speak it; SAML is not supported.
     SSO_TYPES = [
         ('none', 'Disabled'),
         ('oidc', 'OpenID Connect (OIDC)'),
-        ('saml', 'SAML 2.0'),
     ]
     sso_enabled = models.BooleanField(default=False)
-    sso_provider = models.CharField(
-        max_length=50, 
-        choices=SSO_TYPES,
-        default='none',
-        help_text="Protocol type: oidc or saml"
-    )
-    
-    # OIDC Fields
+    sso_provider = models.CharField(max_length=50, choices=SSO_TYPES, default='none')
+
     sso_client_id = models.CharField(max_length=255, blank=True, null=True, help_text="OIDC Client ID")
     sso_client_secret_encrypted = models.TextField(blank=True, null=True)
     sso_discovery_url = models.URLField(blank=True, null=True, help_text="OIDC Discovery URL")
-    sso_realm = models.CharField(max_length=255, blank=True, null=True, help_text="Optional: Keycloak Realm")
 
-    # SAML 2.0 Fields
-    saml_entity_id = models.CharField(max_length=255, blank=True, null=True, help_text="IdP Entity ID / Issuer URL")
-    saml_sso_url = models.URLField(blank=True, null=True, help_text="IdP Single Sign-On Service URL")
-    saml_x509_cert = models.TextField(blank=True, null=True, help_text="IdP Public X.509 Certificate")
-    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

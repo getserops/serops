@@ -436,7 +436,14 @@
     "ssoNotConfigured": "SSO not configured correctly for your organization",
     "ssoFailed": "Failed to initiate SSO login",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "demoOnlyTitle": "Explore the live demo",
+    "demoOnlyText": "A read-only SerOps workspace with real incidents, root causes and timelines. No account needed.",
+    "tryDemo": "Try the live demo",
+    "selfHost": "Self-host your own SerOps →",
+    "ssoSignInFailed": "SSO sign-in failed. Check with your administrator that your account belongs to this organisation.",
+    "demoNotConfigured": "No live demo is configured on this deployment.",
+    "demoFailed": "Could not start the demo session."
   },
   "profile": {
     "title": "Profile",
@@ -776,7 +783,9 @@
     "pasteClientSecret": "Paste Client Secret",
     "discoveryUrl": "OIDC Discovery URL",
     "discoveryUrlHint": "The URL returning the OpenID Connect metadata.",
-    "realmOptional": "Realm (Optional)"
+    "realmOptional": "Realm (Optional)",
+    "redirectUri": "Redirect URI",
+    "redirectUriHint": "Register this exact URL as a valid redirect URI in your identity provider."
   },
   "batchInterval": {
     "title": "Batch Generation Interval",

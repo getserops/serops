@@ -147,6 +147,10 @@ django:
   # calls — which the login page reports as invalid credentials.
   allowedHosts: "serops.company.io"
   corsAllowedOrigins: "https://serops.company.io"
+  # Optional. The URL users open SerOps at, used for the SSO redirect URI and
+  # links in emails. Left empty, it is the first ingress host below, https
+  # when ingress TLS is set.
+  # publicUrl: "https://serops.company.io"
 
 ingress:
   hosts:

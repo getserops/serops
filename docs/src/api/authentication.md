@@ -30,21 +30,31 @@ POST /api/auth/login
 }
 ```
 
+An unknown email and a wrong password both return `401` with `{"error": "Invalid email or password"}`, so the endpoint does not reveal which emails have an account. On a host with `DEMO_ONLY_LOGIN=true` it returns `403` with `{"error": "demo_only"}`.
+
 ## Registration Status
 
 ```
 GET /api/auth/registration-status
 ```
 
-Public flag the login page reads at mount time to decide whether to render the "Create account" prompt. Safe to call anonymously.
+Public flags the login page reads at mount time. Safe to call anonymously.
 
 **Response:**
 
 ```json
 {
-  "registration_enabled": true
+  "registration_enabled": true,
+  "demo_available": false,
+  "demo_only": false
 }
 ```
+
+| Field | Meaning |
+|---|---|
+| `registration_enabled` | The "Create account" prompt is shown. |
+| `demo_available` | A seeded read-only demo user exists, so "Try the live demo" is shown. |
+| `demo_only` | `DEMO_ONLY_LOGIN=true`: the login page shows only the demo button. |
 
 Controlled by the `REGISTRATION_ENABLED` env var. Left unset, it is `true` until the first organisation exists and `false` afterwards — see [Configuration Reference](../deployment/configuration.md#public-access-control).
 
@@ -220,7 +230,7 @@ If the user is the sole admin of an organisation, the request is rejected — tr
 GET /api/auth/sso/config
 ```
 
-Returns the available SSO providers and their configuration for the organisation.
+Returns the organisation's OpenID Connect settings (`sso_enabled`, `sso_provider` — `oidc` or `none`, `sso_client_id`, `sso_discovery_url`, `sso_client_secret_configured`) and `sso_redirect_uri`, the URL to register at the identity provider. `PUT` (admin only) updates them; the client secret is write-only. SAML is not supported.
 
 ## SSO Login Init
 
@@ -232,19 +242,25 @@ POST /api/auth/sso/init
 
 ```json
 {
-  "provider": "keycloak"
+  "email": "user@example.com"
 }
 ```
 
-Initiates the SSO login flow and returns the redirect URL for the specified provider.
+Looks up the organisation that owns the email and returns `{"auth_url": "..."}`, the identity provider's sign-in page. Every case without an auth URL — unknown email, SSO switched off, inactive or demo account — returns the same `400 {"error": "SSO is not available for this account."}`, so the endpoint does not reveal who has an account. `502` means the identity provider's discovery URL could not be reached.
 
 ## SSO Callback
 
 ```
-POST /api/auth/sso/callback
+GET /api/auth/sso/callback
 ```
 
-Handles the callback from the SSO identity provider after successful authentication. Sets a short-lived HttpOnly handoff cookie and redirects the browser back to the frontend. The frontend then calls `sso/exchange` to swap the cookie for a Knox token.
+The identity provider redirects the browser here. SerOps exchanges the code, reads the user's email from the userinfo endpoint and signs them in:
+
+- An existing user signs in only if they belong to the organisation that started the flow and are active.
+- An unknown email becomes a new `viewer` in that organisation, with no password.
+- An email the provider marks `email_verified: false` is refused.
+
+On success it sets a short-lived HttpOnly handoff cookie and redirects to the frontend's `/auth/callback`, which calls `sso/exchange` to swap the cookie for a Knox token. On any failure it redirects to `/login?sso=failed`.
 
 ## SSO Token Exchange
 

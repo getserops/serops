@@ -13,9 +13,9 @@ from django.test import TestCase
 
 
 class TrailingSlashFallbackTest(TestCase):
-    """Asserts against a REAL login, because the endpoint answers 404 for an
-    unknown user — so a made-up address cannot tell "route missing" apart from
-    "user missing", which is the exact confusion under test."""
+    """Asserts against a REAL login: a made-up address fails either way, so
+    it cannot tell "route missing" apart from "bad credentials", which is the
+    exact confusion under test."""
 
     PASSWORD = 'tsfm-Test-Passw0rd'
 
