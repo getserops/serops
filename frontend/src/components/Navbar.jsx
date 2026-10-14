@@ -20,6 +20,8 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
   const [selectedItem, setSelectedItem] = useState(null);
   const [user, setUser] = useState(null);
   const [image, setImage] = useState('');
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => { setImageFailed(false); }, [image]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
@@ -177,6 +179,13 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
     return "";
   };
 
+  // Shown when the user has no avatar (or it fails to load).
+  const getInitials = () => {
+    if (!user) return "?";
+    const fromName = `${(user.first_name || "").trim()[0] || ""}${(user.last_name || "").trim()[0] || ""}`;
+    return (fromName || (user.username || user.email || "?")[0]).toUpperCase();
+  };
+
   const getCurrentTime = () => {
     try {
       return new Date().toLocaleTimeString(settings.language === 'fr' ? 'fr-FR' : 'en-US', {
@@ -267,13 +276,23 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
               <span className="d-none d-lg-inline account-user-name" style={{ color: '#334155', fontWeight: 500 }}>
                 {getFullName()}
               </span>
-              <img
-                className="img-profile rounded-circle"
-                src={image ? `${BACKEND_HOST}${image}` : "/assets/images/users/avatar-3.jpg"}
-                onError={(e) => { e.target.onerror = null; e.target.src = "/assets/images/users/avatar-3.jpg"; }}
-                alt="Profile"
-                style={{ width: "36px", height: "36px", objectFit: "cover", border: "2px solid #fff", boxShadow: "0 2px 5px rgba(0,0,0,0.05)" }}
-              />
+              {image && !imageFailed ? (
+                <img
+                  className="img-profile rounded-circle"
+                  src={`${BACKEND_HOST}${image}`}
+                  onError={() => setImageFailed(true)}
+                  alt="Profile"
+                  style={{ width: "36px", height: "36px", objectFit: "cover", border: "2px solid #fff", boxShadow: "0 2px 5px rgba(0,0,0,0.05)" }}
+                />
+              ) : (
+                <span
+                  className="img-profile rounded-circle"
+                  aria-label="Profile"
+                  style={{ width: "36px", height: "36px", display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--primary-600, #2563eb)", color: "#fff", fontWeight: 600, fontSize: "14px", border: "2px solid #fff", boxShadow: "0 2px 5px rgba(0,0,0,0.05)" }}
+                >
+                  {getInitials()}
+                </span>
+              )}
             </Dropdown.Toggle>
 
             <Dropdown.Menu align="end" style={{

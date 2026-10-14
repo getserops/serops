@@ -55,3 +55,6 @@ class DashboardWidgetsTest(TestCase):
         data = self.client.get('/api/data/analytics/correlations/').json()
         self.assertGreaterEqual(data['commit_correlations'], 1)
         self.assertGreaterEqual(data['metric_breakdown']['cpu'], 1)
+        # The staging test failure has no correlation, so the rate stays
+        # below 100 % even though one issue has both a deploy and a metric.
+        self.assertLess(data['correlation_rate'], 100)

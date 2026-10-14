@@ -612,6 +612,12 @@ class CorrelationInsightsView(OrgFilterMixin, APIView):
                 high_confidence=Count('id', filter=Q(correlation_confidence='HIGH')),
                 # v6 CI/CD correlations
                 cicd_corr=Count('id', filter=Q(has_cicd_correlation=True)),
+                # An issue linked to both a deploy and a metric counts once.
+                any_corr=Count('id', filter=(
+                    Q(has_commit_correlation=True)
+                    | Q(has_metric_correlation=True)
+                    | Q(has_cicd_correlation=True)
+                )),
             )
 
             total = stats['total'] or 0
@@ -642,7 +648,7 @@ class CorrelationInsightsView(OrgFilterMixin, APIView):
                 'high_confidence_count': stats['high_confidence'] or 0,
                 'cicd_correlations': stats['cicd_corr'] or 0,
                 'correlation_rate': round(
-                    ((with_commits + with_metrics) / max(total, 1)) * 100, 1
+                    ((stats['any_corr'] or 0) / max(total, 1)) * 100, 1
                 ),
                 'top_correlated_components': list(top_components),
                 'period_days': days,

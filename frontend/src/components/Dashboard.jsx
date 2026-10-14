@@ -261,7 +261,9 @@ const Dashboard = () => {
                     <span className="metric-value">{criticalCount}</span>
                     <span className="metric-label">{t('issues.critical')}</span>
                   </div>
-                  <div className="metric-trend negative">{t('dashboard.needsAttention')}</div>
+                  {criticalCount > 0
+                    ? <div className="metric-trend negative">{t('dashboard.needsAttention')}</div>
+                    : <div className="metric-trend positive">{t('dashboard.allClear')}</div>}
                 </div>
               )}
             </div>

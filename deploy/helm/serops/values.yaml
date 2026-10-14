@@ -40,17 +40,25 @@ backend:
       cpu: 1000m
       memory: 1Gi
   # Liveness / readiness — hits the /api/health/ endpoint that already exists.
+  # The kubelet connects by pod IP, which is never in ALLOWED_HOSTS, so the
+  # probes name localhost instead (the chart always allows it).
   probes:
     liveness:
       httpGet:
         path: /api/health/
         port: 8000
+        httpHeaders:
+          - name: Host
+            value: localhost
       initialDelaySeconds: 30
       periodSeconds: 15
     readiness:
       httpGet:
         path: /api/health/
         port: 8000
+        httpHeaders:
+          - name: Host
+            value: localhost
       initialDelaySeconds: 10
       periodSeconds: 10
   # Pod-level extras.

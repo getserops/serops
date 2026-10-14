@@ -22,25 +22,25 @@ class SSOConfigView(APIView):
         if not user.organisation:
             return Response({"error": "User does not belong to an organization"}, status=400)
             
-        try:
-            settings = SecuritySettings.objects.get(organisation=user.organisation)
-            return Response({
-                "sso_enabled": settings.sso_enabled,
-                "sso_provider": settings.sso_provider, # 'oidc' or 'saml' or 'none'
-                
-                # OIDC
-                "sso_client_id": settings.sso_client_id,
-                "sso_discovery_url": settings.sso_discovery_url,
-                "sso_realm": settings.sso_realm,
-                "sso_client_secret_configured": bool(settings.sso_client_secret_encrypted),
-                
-                # SAML
-                "saml_entity_id": settings.saml_entity_id,
-                "saml_sso_url": settings.saml_sso_url,
-                "saml_x509_cert": settings.saml_x509_cert,
-            })
-        except SecuritySettings.DoesNotExist:
-            return Response({"error": "Security settings not found"}, status=404)
+        # A new organisation has no row yet; the Security page loads this
+        # alongside /data/settings/security/, which creates it, so a plain
+        # get() 404'd on first visit.
+        settings, _ = SecuritySettings.objects.get_or_create(organisation=user.organisation)
+        return Response({
+            "sso_enabled": settings.sso_enabled,
+            "sso_provider": settings.sso_provider, # 'oidc' or 'saml' or 'none'
+            
+            # OIDC
+            "sso_client_id": settings.sso_client_id,
+            "sso_discovery_url": settings.sso_discovery_url,
+            "sso_realm": settings.sso_realm,
+            "sso_client_secret_configured": bool(settings.sso_client_secret_encrypted),
+            
+            # SAML
+            "saml_entity_id": settings.saml_entity_id,
+            "saml_sso_url": settings.saml_sso_url,
+            "saml_x509_cert": settings.saml_x509_cert,
+        })
 
     @require_role('admin')
     def put(self, request):

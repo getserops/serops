@@ -25,6 +25,7 @@
     "active": "Actif",
     "totalIssues": "Total des Problèmes",
     "needsAttention": "Nécessite attention",
+    "allClear": "Rien à signaler",
     "fromBatches": "Des lots",
     "severityDistribution": "Distribution de Sévérité",
     "criticalVsWarning": "Problèmes critiques vs avertissements",

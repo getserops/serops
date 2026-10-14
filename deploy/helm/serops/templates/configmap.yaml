@@ -19,7 +19,10 @@ data:
   # settings.py compares this to the exact string 'True', so a lowercase
   # "true" would silently leave DEBUG off.
   DEBUG: {{ ternary "True" "False" .Values.django.debug | quote }}
-  ALLOWED_HOSTS: {{ .Values.django.allowedHosts | quote }}
+  # localhost is always allowed: the kubelet probes connect by pod IP and
+  # send "Host: localhost" (backend.probes), so a host list holding only
+  # the public name left the backend permanently un-Ready.
+  ALLOWED_HOSTS: {{ printf "%s,localhost" .Values.django.allowedHosts | quote }}
   # Data/tasks.py reads this with a 'false' default, so it must be set
   # explicitly or the chart ships a log-only install.
   METRICS_ENABLED: {{ .Values.django.metricsEnabled | quote }}

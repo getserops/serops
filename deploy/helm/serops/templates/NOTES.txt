@@ -1,0 +1,28 @@
+SerOps {{ .Chart.AppVersion }} is installing in namespace {{ .Release.Namespace }}.
+
+1. Wait for the pods (migrations run first, as a hook Job):
+
+   kubectl get pods -n {{ .Release.Namespace }} -w
+
+2. Create the first admin:
+
+   kubectl exec -n {{ .Release.Namespace }} -it deploy/{{ include "serops.fullname" . }}-backend -- python manage.py createsuperuser
+
+3. Open SerOps:
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+
+   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+
+   The UI and the API share this host, so it must resolve to your ingress
+   controller and be listed in django.allowedHosts.
+{{- else }}
+
+   Ingress is disabled. The browser needs the frontend and /api on one host;
+   put your own proxy or ingress in front of both services.
+{{- end }}
+
+4. Add an AI provider key under Settings → AI Providers.
+
+Docs: https://serops.ai/docs/deployment/helm/

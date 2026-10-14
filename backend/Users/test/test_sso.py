@@ -66,6 +66,13 @@ class TestSSOConfigView(APITestCase):
         self.sec_settings.refresh_from_db()
         self.assertEqual(self.sec_settings.saml_entity_id, 'https://idp.example.com/entity')
 
+    def test_get_sso_config_for_a_new_organisation(self):
+        # A fresh install's first visit to Settings → Security used to 404.
+        self.sec_settings.delete()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['sso_enabled'])
+
     def test_sso_config_unauthenticated(self):
         self.client.force_authenticate(user=None)
         response = self.client.get(self.url)

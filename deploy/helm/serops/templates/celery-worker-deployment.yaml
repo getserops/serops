@@ -15,6 +15,11 @@ spec:
     metadata:
       labels:
         {{- include "serops.selectorLabels" (dict "Chart" .Chart "Release" .Release "Values" .Values "component" $comp) | nindent 8 }}
+      annotations:
+        # Roll the pods when the chart's env changes: they read it only at
+        # start, so a settings-only upgrade otherwise kept the old values.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
     spec:
       containers:
         - name: worker

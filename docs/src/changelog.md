@@ -10,7 +10,39 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **Helm: the backend never became ready.** The chart set `ALLOWED_HOSTS`
+  to the ingress host only, but the kubelet's health checks connect by pod
+  IP, so Django answered 400 and the backend restarted in a loop on every
+  install. The checks now send `Host: localhost`, which the chart always
+  allows.
+- **Helm: settings-only upgrades kept the old settings.** Backend and Celery
+  pods now restart when the chart's ConfigMap or Secret changes.
+- The 7-day trend on the dashboard now includes today.
+- The root cause legend shows category names instead of 0, 1, 2.
+- AI feed summaries no longer stop at a dot inside a word ("v2.3.4").
+- The correlation rate counts an issue linked to both a deploy and a metric
+  once.
+- Recent deployments names the CI a service is bound to when it has no runs
+  yet.
+- The cluster list loads after login; it was requested on the login page
+  and never retried.
+- Settings → Security no longer reports an error on a new organisation's
+  first visit.
+- The Critical card reads "All clear" when there are no critical issues.
+
+### Changed
+
+- The Helm chart prints next steps after `helm install`.
+- Users without an avatar get their initials instead of a stock photo; the
+  unused template images are removed.
+
+### Upgrade notes
+
+- Helm users on 1.0.1 must not upgrade with `--reuse-values` alone: it
+  keeps 1.0.1's health-check settings. Pass your values again, or use
+  `--reset-then-reuse-values` (Helm 3.14+).
 
 ---
 
