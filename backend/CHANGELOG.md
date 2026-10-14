@@ -7,6 +7,12 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-14
+
+Bug-fix release: the Helm chart's backend now starts, plus dashboard
+fixes. Full notes in the
+[project changelog](https://serops.ai/docs/changelog/).
+
 ## [1.0.1] - 2026-10-13
 
 Security and bug-fix release. Full notes in the
@@ -60,6 +66,7 @@ First public release.
 - 19 unused pip packages (previous 10 + Batch 36's 9-package
   aiohttp/threadpoolctl/watchdog transitive chain).
 
-[Unreleased]: https://github.com/getserops/serops/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/getserops/serops/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/getserops/serops/releases/tag/v1.0.2
 [1.0.1]: https://github.com/getserops/serops/releases/tag/v1.0.1
 [1.0.0]: https://github.com/getserops/serops/releases/tag/v1.0.0

@@ -6,7 +6,7 @@ name: helm-release
 # Users install via either:
 #
 #     helm install serops oci://ghcr.io/getserops/charts/serops \
-#         --version 1.0.1
+#         --version 1.0.2
 #
 # or the classic path:
 #

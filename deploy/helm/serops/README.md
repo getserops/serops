@@ -18,7 +18,7 @@ your own for production:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.0.1 \
+  --version 1.0.2 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set database.url="postgres://serops:PASSWORD@your-pg-host:5432/serops" \

@@ -10,6 +10,15 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ## [Unreleased]
 
+Nothing yet.
+
+---
+
+## [1.0.2] - 2026-10-14
+
+A bug-fix release. Upgrade by setting `SEROPS_VERSION=1.0.2` (Docker
+Compose) or `--version 1.0.2` (Helm). No migrations.
+
 ### Fixed
 
 - **Helm: the backend never became ready.** The chart set `ALLOWED_HOSTS`
