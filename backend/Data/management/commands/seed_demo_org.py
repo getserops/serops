@@ -459,7 +459,10 @@ def _synthetic_cicd_logs(scene: 'Scene', scene_time: datetime,
         return []
     job_name = 'build-and-test'
     branch = 'main' if scene.environment == 'production' else scene.environment
-    is_failed = scene.issue_severity == 'CRITICAL' and scene.issue_status == 'OPEN'
+    # The seeded Pipeline row is a success (it shipped the deploy), so the
+    # job log agrees: a failed job showed a red CI event on the timeline
+    # next to a deploy whose pipeline had passed.
+    is_failed = False
     # Deploy pipeline started ~10 min before the batch window end and
     # ran for ~2 min. Real timestamps let the CI/CD event plot on the
     # timeline chart at a plausible position relative to the deploy.
@@ -494,7 +497,10 @@ def _synthetic_metrics(scene: 'Scene', scene_time: datetime) -> dict:
     ``data.metrics.memory_usage_percent`` and ``cpu_usage_percent``,
     each a list of ``{time, value, source_table}`` dicts.
     """
-    base = scene_time.replace(microsecond=0)
+    # The hour that ends at the batch time, like real batch metrics. The
+    # series used to start at the batch time and run forward, so the
+    # batch's metrics chart (its window ends there) showed one point.
+    base = scene_time.replace(microsecond=0) - timedelta(minutes=55)
     # Baseline series
     mem_baseline = 55.0
     cpu_baseline = 30.0
@@ -740,7 +746,19 @@ def _synthetic_traces(scene: 'Scene', scene_time: datetime, scene_index: int) ->
             'err_msg': 'upstream timeout: backend-api',
         },
     }
-    t = component_traits.get(component, component_traits['backend-api'])
+    t = dict(component_traits.get(component, component_traits['backend-api']))
+    # Error text per incident type; the component default (MemoryError for
+    # backend-api) contradicted the database-lock incident.
+    t.update({
+        'DATABASE_ERROR': {
+            'err_op': 'UPDATE payment_events',
+            'err_msg': 'QueryCanceled: canceling statement due to statement timeout',
+        },
+        'TEST_FAILED': {
+            'err_op': 'POST /checkout/complete',
+            'err_msg': 'fixture teardown raced the request: connection closed',
+        },
+    }.get(scene.issue_type, {}))
 
     services_touched = sorted({t['service'], 'backend-api', 'web-frontend'})
 
