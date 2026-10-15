@@ -78,7 +78,7 @@ const HealthScoreCard = ({ score, status, loading }) => {
                 <div className="health-details">
                     <div className="health-status" style={{ color: TEXT[color] }}>
                         <Icon className="status-icon" />
-                        {t(`dashboard.statusLabels.${status?.toLowerCase()}`) || status}
+                        {t(`dashboard.statusLabels.${status?.toLowerCase()}`, { defaultValue: status })}
                     </div>
                     <div className="health-subtitle">{t('dashboard.basedOnLast24h')}</div>
                 </div>

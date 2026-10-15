@@ -78,7 +78,8 @@
       "healthy": "Sain",
       "warning": "Avertissement",
       "critical": "Critique",
-      "unknown": "Inconnu"
+      "unknown": "Inconnu",
+      "degraded": "Dégradé"
     },
     "items": "éléments",
     "errorLoadingStats": "Erreur lors du chargement des statistiques",
@@ -91,7 +92,12 @@
       "running": "En cours",
       "canceled": "Annulé",
       "skipped": "Passé",
-      "manual": "Manuel"
+      "manual": "Manuel",
+      "pending": "En attente",
+      "created": "Créé",
+      "passed": "Réussi",
+      "completed": "Terminé",
+      "error": "Erreur"
     },
     "timeAgo": {
       "days": "il y a {{count}}j",

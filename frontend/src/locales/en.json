@@ -78,7 +78,8 @@
       "healthy": "Healthy",
       "warning": "Warning",
       "critical": "Critical",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "degraded": "Degraded"
     },
     "items": "items",
     "errorLoadingStats": "Error loading statistics",
@@ -91,7 +92,12 @@
       "running": "Running",
       "canceled": "Canceled",
       "skipped": "Skipped",
-      "manual": "Manual"
+      "manual": "Manual",
+      "pending": "Pending",
+      "created": "Created",
+      "passed": "Passed",
+      "completed": "Completed",
+      "error": "Error"
     },
     "timeAgo": {
       "days": "{{count}}d ago",

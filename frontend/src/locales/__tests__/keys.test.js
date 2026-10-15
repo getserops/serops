@@ -39,8 +39,26 @@ function usedKeys() {
   return keys;
 }
 
+// Keys built at runtime (t(`prefix.${value}`)) are invisible to the scan
+// above, so each family lists the values the app or the API can produce.
+// Add a value here when the backend starts sending a new one.
+const DYNAMIC = {
+  'dashboard.statusLabels': ['healthy', 'degraded', 'critical', 'warning', 'unknown'],
+  'dashboard.statusValues': ['success', 'failed', 'running', 'canceled', 'skipped', 'manual', 'pending', 'created', 'passed', 'completed', 'error'],
+  'data': ['production', 'staging', 'development'],
+  'issues': ['error', 'warning'],
+  'metrics': ['levelOver', 'levelApproaching', 'levelHealthy', 'trendIncreasing', 'trendDecreasing', 'trendStable', 'trendUnknown'],
+  'investigate.status': ['queued', 'collecting', 'analyzing', 'done', 'no_data', 'failed'],
+  'investigate.steps': ['queued', 'collecting', 'analyzing', 'done'],
+  'investigate.counts': ['logs', 'metrics', 'traces', 'code_changes', 'cicd'],
+  'investigate.trigger': ['manual', 'alert'],
+  'investigate.window': ['invalid', 'future', 'tooShort', 'tooLong', 'tooOld'],
+  'investigate.window.presets': ['15m', '30m', '1h', '3h', 'deploy'],
+};
+
 describe('translations', () => {
   const used = usedKeys();
+  for (const [prefix, values] of Object.entries(DYNAMIC)) values.forEach((v) => used.set(`${prefix}.${v}`, `runtime key family ${prefix}`));
   for (const [lang, dict] of [['en', en], ['fr', fr]]) {
     it(`${lang}.json has every key the app uses`, () => {
       const have = flatten(dict);
