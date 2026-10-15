@@ -12,7 +12,7 @@ import dataclasses
 import logging
 import os
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone as dt_timezone
 
 from django.conf import settings
 from django.utils import timezone
@@ -362,7 +362,7 @@ def filter_unique_logs(hits, time_window, organisation=None):
     return sorted(unique_logs, key=get_sort_key, reverse=True)
 
 
-def filter_unique_logs_for_project(hits, time_window, project_name=None, organisation=None):
+def filter_unique_logs_for_project(hits, time_window, project_name=None, organisation=None, history=True):
     """
     Filter logs based on multiple criteria and timestamps for a specific project.
     Supports both LogEntry objects and legacy dictionaries.
@@ -372,28 +372,35 @@ def filter_unique_logs_for_project(hits, time_window, project_name=None, organis
         time_window: Only consider batches after this timestamp
         project_name: Filter batches by project name
         organisation: If provided, only deduplicate against this org's batches
+        history: Drop logs earlier batches already carried. An investigation
+            passes False: it reads the whole window it was asked about.
     """
     from django.db import connection
     from datetime import timedelta
 
-    hard_floor = timezone.now() - timedelta(days=_MAX_DEDUP_LOOKBACK_DAYS)
-    effective_window = _clamp_window(time_window, hard_floor)
+    seen_data = {'messages': set(), 'ids': set(), 'timestamps': set()}
+    if history:
+        hard_floor = timezone.now() - timedelta(days=_MAX_DEDUP_LOOKBACK_DAYS)
+        effective_window = _clamp_window(time_window, hard_floor)
 
-    filters = ["timestamp >= %s"]
-    params = [effective_window]
+        # Investigation batches never count as "seen": a log a user's
+        # investigation read must still reach the scheduled analysis, which
+        # is the one that notifies on-call.
+        filters = ["timestamp >= %s", "trigger <> %s"]
+        params = [effective_window, 'manual']
 
-    if organisation is not None:
-        filters.append("organisation_id = %s")
-        params.append(organisation.id)
+        if organisation is not None:
+            filters.append("organisation_id = %s")
+            params.append(organisation.id)
 
-    if project_name:
-        # Escape LIKE wildcards to prevent cross-project matching
-        project_pattern = _escape_like(project_name.lower().replace(' ', '-'))
-        filters.append("batch_id ILIKE %s")
-        params.append(f"%{project_pattern}%")
+        if project_name:
+            # Escape LIKE wildcards to prevent cross-project matching
+            project_pattern = _escape_like(project_name.lower().replace(' ', '-'))
+            filters.append("batch_id ILIKE %s")
+            params.append(f"%{project_pattern}%")
 
-    with connection.cursor() as cursor:
-        seen_data = _load_seen_data(cursor, filters, params)
+        with connection.cursor() as cursor:
+            seen_data = _load_seen_data(cursor, filters, params)
 
     logger.info(f"Found {len(seen_data['messages'])} previously seen messages for project {project_name}")
 
@@ -527,13 +534,33 @@ def get_last_processed_log_timestamp():
         return None
 
 
-def get_latest_batch_timestamp_for_project(project_name=None):
-    """Get the timestamp of the most recent batch for a specific project."""
-    query = _real_org_batches()
+def get_scheduled_window_start(project, environment=None, deployment=None):
+    """Where the next scheduled window starts: the end of the last scheduled
+    batch for this deployment (or environment, or project).
 
-    if project_name:
-        project_prefix = project_name.strip().replace(' ', '-').replace('_', '-').lower()
-        query = query.filter(batch_id__startswith=project_prefix)
+    Alert and investigation batches cover windows of their own and never move
+    the scheduler. They used to: the lookup took the newest batch of any kind
+    whose id started with the project name, so an alert batch at 12:07
+    (window 12:04-12:10) made the 12:15 run start at 12:07 and 12:00-12:04
+    was never analysed. Matching ids by name prefix also mixed up projects
+    of the same name in different organisations.
+    """
+    from Data.models import AIAnalyzedBatch
+    query = _real_org_batches().filter(project=project, trigger=AIAnalyzedBatch.TRIGGER_SCHEDULED)
+    if deployment is not None:
+        query = query.filter(deployment=deployment)
+    elif environment is not None:
+        query = query.filter(environment=environment.name)
 
-    latest_batch = query.order_by('-timestamp').first()
-    return latest_batch.timestamp if latest_batch else None
+    last = (query.order_by('-timestamp')
+            .values_list('timestamp', 'data__statistics__time_range__end').first())
+    if last is None:
+        return None
+    timestamp, window_end = last
+    if isinstance(window_end, str):
+        try:
+            parsed = datetime.fromisoformat(window_end.replace('Z', '+00:00'))
+            return parsed if parsed.tzinfo else timezone.make_aware(parsed, dt_timezone.utc)
+        except ValueError:
+            pass
+    return timestamp

@@ -270,3 +270,11 @@
         background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
     }
 }
+.deploy-investigate {
+    margin-left: auto;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--primary-600, #2f50e4);
+    text-decoration: none;
+}
+.deploy-investigate:hover { text-decoration: underline; }

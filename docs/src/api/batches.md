@@ -176,6 +176,59 @@ Return raw node memory and CPU series for the caller's organisation.
 
 ---
 
+## Investigations
+
+Run an analysis now for one scope and time window. See
+[Investigate](../user-guide/investigate.md).
+
+```
+POST /api/data/investigations/
+```
+
+Role `user` or `admin`. Returns `202` with the run, or `200` with the
+existing run when the same request was made in the last 2 minutes.
+
+```json
+{
+  "project_id": 7,
+  "environment_id": 3,
+  "deployment_id": null,
+  "services": ["checkout"],
+  "window_start": "2026-10-14T10:00:00Z",
+  "window_end": "2026-10-14T10:30:00Z",
+  "hint": "Checkout is slow for customers in Europe",
+  "notify_routing": false
+}
+```
+
+| Field | Rules |
+|---|---|
+| `project_id` | A project of your organisation. Required. |
+| `environment_id`, `deployment_id` | Optional; must belong to the project. A deployment implies its environment. |
+| `services` | Optional list of up to 20 service names of the project. Empty means all. |
+| `window_start`, `window_end` | ISO-8601 with a time zone. 5 minutes to 6 hours, ending no later than now, starting within the last 30 days. |
+| `hint` | Optional, up to 500 characters. Passed to the AI as a reported symptom. |
+| `notify_routing` | Optional, default `false`. `true` sends new issues through routing rules like a scheduled batch. |
+
+Errors return `{"error": "<code>", "message": "..."}`: `400` for
+`invalid_project`, `invalid_environment`, `invalid_deployment`,
+`invalid_services`, `invalid_window`, `invalid_hint`; `403` for viewers and
+the demo; `409 over_budget`; `429 too_many_running` (two at a time) or
+`rate_limited` (ten an hour).
+
+```
+GET /api/data/investigations/?project_id=&limit=20&offset=0
+GET /api/data/investigations/<id>/
+GET /api/data/investigations/options/
+```
+
+A run has `status` (`queued`, `collecting`, `analyzing`, `done`, `no_data`,
+`failed`), `counts` per source, `error_code` and `error` when it failed, and
+`batch_id` and `issue_count` once it is done. `options` lists the projects
+with their environments, deployments, services and last deploy time.
+
+Batches carry `trigger`: `scheduled`, `alert` or `manual` (an investigation).
+
 ## Related
 
 - [Issues](issues.md) -- Issues detected within batches

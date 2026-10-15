@@ -170,6 +170,14 @@ app.conf.beat_schedule = {
     },
 }
 
+# A periodic tick still queued when the next one is due is stale: the next
+# tick does the same job. Expiring it keeps a worker outage (or, before the
+# Helm chart consumed every queue, a queue nobody read) from replaying hours
+# of ticks at once when consumption resumes.
+for _entry in app.conf.beat_schedule.values():
+    if isinstance(_entry['schedule'], timedelta):
+        _entry.setdefault('options', {}).setdefault('expires', _entry['schedule'].total_seconds())
+
 @app.task(bind=True)
 def debug_task(self):
     logger.debug(f'Request: {self.request!r}')

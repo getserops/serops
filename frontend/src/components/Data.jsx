@@ -164,6 +164,7 @@ const Data = () => {
           sentinel_decision: item.sentinel_decision || "shadow",
           sentinel_triggers: item.sentinel_triggers || [],
           ai_skipped: item.ai_skipped || false,
+          trigger: item.trigger || "scheduled",
         };
       });
 
@@ -722,6 +723,12 @@ const Data = () => {
                             <span style={{ textTransform: 'capitalize' }}>
                               {item.environment || 'production'}
                             </span>
+                            {(item.trigger === 'manual' || item.trigger === 'alert') && (
+                              <span className={`ds-chip ${item.trigger === 'alert' ? 'ds-chip-err' : 'ds-chip-brand'}`}
+                                    style={{ marginLeft: 6 }}>
+                                {t(`investigate.trigger.${item.trigger}`)}
+                              </span>
+                            )}
                           </td>
                           <td>
                             {(() => {

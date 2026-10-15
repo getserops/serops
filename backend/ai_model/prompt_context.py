@@ -61,6 +61,8 @@ class DataSourceContext:
     project_context: dict[str, Any] | None = None
     sentinel_context: dict[str, Any] | None = None
     past_memories: str | None = None
+    # What the engineer who requested an investigation reported seeing.
+    operator_context: str | None = None
 
     # ----- capability gating (#29) -----
     # None = legacy/all-on behaviour; empty list = no data sources

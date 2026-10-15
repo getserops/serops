@@ -76,3 +76,18 @@ app.kubernetes.io/component: {{ .component }}
 {{- $tag := default .root.Chart.AppVersion .tag -}}
 {{ printf "%s:%s" $repo $tag }}
 {{- end -}}
+
+{{/*
+Queues the single worker Deployment consumes: whatever celeryWorker.queues
+lists, plus every queue the backend routes tasks to (api/celery.py). The
+chart used to default to "high_priority,celery" while analyze_batch goes to
+"background" and the scheduler fan-out to "normal", so on a Helm install no
+batch was ever scheduled or analysed. Merging here also heals releases
+upgraded with --reuse-values, which keep the old value.
+*/}}
+{{- define "serops.workerQueues" -}}
+{{- $required := list "celery" "high_priority" "normal" "background" -}}
+{{- $configured := splitList "," (.Values.celeryWorker.queues | default "" | nospace) | compact -}}
+{{- concat $configured $required | uniq | join "," -}}
+{{- end -}}
+

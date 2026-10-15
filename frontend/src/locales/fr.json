@@ -11,7 +11,8 @@
     "logout": "Déconnexion",
     "notifications": "Notifications",
     "noNotifications": "Aucune notification",
-    "markAllRead": "Marquer tout comme lu"
+    "markAllRead": "Marquer tout comme lu",
+    "investigate": "Investiguer"
   },
   "dashboard": {
     "title": "Tableau de Bord",
@@ -999,7 +1000,8 @@
         "batch_created": "Batch Créé",
         "critical_issue": "Problème Critique",
         "analysis_failed": "Analyse Échouée",
-        "default": "Notification"
+        "default": "Notification",
+        "investigation_done": "Investigation terminée"
       }
     }
   },
@@ -1161,5 +1163,99 @@
     "thresholdHint": "Le seuil au-dessus duquel SerOps signale une anomalie — celui utilisé par l'analyse.",
     "peakAcrossOne": "Valeur maximale à chaque instant, pour {{services}}.",
     "peakAcrossMany": "Valeur maximale sur {{count}} services à chaque instant : {{services}}. Survolez un point pour voir le service concerné."
+  },
+  "investigate": {
+    "title": "Investiguer",
+    "subtitle": "Analysez une période maintenant, sans attendre la planification ni une alerte.",
+    "chatDifference": "Le chat IA répond sur les analyses déjà faites ; une investigation collecte des données fraîches.",
+    "loadFailed": "Impossible de charger vos projets.",
+    "startFailed": "Impossible de lancer l'investigation.",
+    "demoNotice": "Les investigations sont désactivées dans la démo en lecture seule. Hébergez SerOps pour investiguer vos propres systèmes.",
+    "viewerNotice": "Les lecteurs peuvent suivre les investigations. Demandez le rôle Utilisateur à un admin pour en lancer une.",
+    "noProjects": "Créez d'abord un projet : une investigation a besoin de services à analyser.",
+    "createProject": "Aller aux projets →",
+    "project": "Projet",
+    "environment": "Environnement",
+    "anyEnvironment": "Tous les environnements",
+    "deployment": "Déploiement",
+    "allDeployments": "Tous les déploiements",
+    "services": "Services",
+    "servicesAll": "Tous les services du projet.",
+    "servicesSome_one": "{{count}} service sélectionné.",
+    "servicesSome_other": "{{count}} services sélectionnés.",
+    "window": {
+      "label": "Période",
+      "from": "Du",
+      "to": "Au",
+      "presets": {
+        "15m": "15 dernières min",
+        "30m": "30 dernières min",
+        "1h": "Dernière heure",
+        "3h": "3 dernières heures",
+        "deploy": "Depuis le dernier déploiement"
+      },
+      "noDeploy": "Aucun déploiement enregistré pour ce projet.",
+      "help": "Entre {{minMinutes}} minutes et {{maxHours}} heures, dans les {{maxLookbackDays}} derniers jours.",
+      "invalid": "Indiquez un début et une fin.",
+      "future": "La période ne peut pas finir dans le futur.",
+      "tooShort": "La période doit durer au moins {{minMinutes}} minutes.",
+      "tooLong": "La période peut durer au plus {{maxHours}} heures.",
+      "tooOld": "La période doit commencer dans les {{maxLookbackDays}} derniers jours."
+    },
+    "hint": {
+      "label": "Que constatez-vous ? (facultatif)",
+      "placeholder": "ex. Le paiement est lent pour les clients en Europe depuis 10 h",
+      "help": "Transmis à l'IA comme un symptôme à confirmer ou écarter. {{count}} caractères restants."
+    },
+    "notifyRouting": "Prévenir aussi l'astreinte via les règles de routage si des problèmes sont trouvés. Désactivé : seul vous êtes prévenu, dans l'application.",
+    "run": "Lancer l'investigation",
+    "status": {
+      "queued": "En attente",
+      "collecting": "Collecte des données",
+      "analyzing": "Analyse",
+      "done": "Terminée",
+      "no_data": "Aucune donnée",
+      "failed": "Échec"
+    },
+    "steps": {
+      "queued": "En attente",
+      "collecting": "Collecte des logs, métriques, traces et déploiements",
+      "analyzing": "Analyse IA",
+      "done": "Terminée"
+    },
+    "counts": {
+      "logs": "{{count}} logs",
+      "metrics": "{{count}} points de métrique",
+      "traces": "{{count}} spans",
+      "code_changes": "{{count}} changements de code",
+      "cicd": "{{count}} exécutions CI/CD"
+    },
+    "result": {
+      "issues_one": "{{count}} problème trouvé",
+      "issues_other": "{{count}} problèmes trouvés",
+      "noIssues": "Aucun problème trouvé sur cette période.",
+      "open": "Ouvrir l'analyse",
+      "noData": "Rien n'a été enregistré sur cette période pour ce périmètre. Élargissez la période ou vérifiez les intégrations.",
+      "failed": "L'investigation a échoué."
+    },
+    "history": {
+      "title": "Investigations récentes",
+      "empty": "Aucune investigation pour l'instant.",
+      "started": "Lancée",
+      "scope": "Périmètre",
+      "window": "Période",
+      "by": "Par",
+      "status": "Statut",
+      "follow": "Suivre"
+    },
+    "rerun": "Relancer l'analyse",
+    "rerunTitle": "Collecter des données fraîches sur la période de ce lot et l'analyser à nouveau",
+    "analyzeDeploy": "Investiguer",
+    "analyzeDeployTitle": "Investiguer de 5 minutes avant ce déploiement à 30 minutes après",
+    "chatSuggestion": "Besoin de données fraîches ? Lancez une investigation →",
+    "trigger": {
+      "manual": "INVESTIGATION",
+      "alert": "ALERTE"
+    }
   }
 }

@@ -27,7 +27,7 @@ from integrations.ingestion import (  # noqa: F401
     create_elasticsearch_query,
     get_latest_batch_timestamp,
     get_last_processed_log_timestamp,
-    get_latest_batch_timestamp_for_project,
+    get_scheduled_window_start,
 )
 
 # ── Phase 4: Re-exported from integrations/metrics_processing.py ──
@@ -377,7 +377,7 @@ def create_log_batch(self):
     priority=8,  # Phase 2: High priority (scale 0-10)
     queue='high_priority'
 )
-def create_log_batch_with_project_name(self, index_name=None, project_name=None, project=None, environment=None, deployment=None, interval_minutes=None, window_start_iso=None, window_end_iso=None):
+def create_log_batch_with_project_name(self, index_name=None, project_name=None, project=None, environment=None, deployment=None, interval_minutes=None, window_start_iso=None, window_end_iso=None, trigger=AIAnalyzedBatch.TRIGGER_SCHEDULED, batch_id=None, investigation_id=None):
     """
     Create a log batch scoped to a specific project + environment (+ deployment).
 
@@ -401,7 +401,13 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             (Celery has to serialise the args; datetimes travel poorly
             across the broker on some brokers). When either is None the
             scheduled-batch default kicks in: pick up from the last
-            batch's end, or fall back to ``current_time - interval``.
+            scheduled batch's end, or fall back to ``current_time - interval``.
+        trigger: what asked for this batch (scheduled, alert, manual).
+        batch_id: use this id instead of generating one, so the caller can
+            find exactly the batch it created.
+        investigation_id: run an Investigation. Scope and window come from
+            it; the run skips Sentinel and dedup history, uses its own lock,
+            never retries, and records its outcome on the investigation.
     """
     from Projects.models import Project, ProjectEnvironment, ProjectDeployment
 
@@ -432,6 +438,32 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             )
             deployment = None
 
+    investigation = None
+    if investigation_id is not None:
+        from Data.models import Investigation
+        investigation = (Investigation.objects
+                         .select_related('project__organisation', 'environment', 'deployment')
+                         .filter(pk=investigation_id).first())
+        if investigation is None:
+            logger.error(f"Investigation {investigation_id} not found")
+            return {'status': 'error', 'reason': 'investigation_not_found'}
+        trigger = AIAnalyzedBatch.TRIGGER_MANUAL
+        project = investigation.project
+        project_name = project.name
+        environment = investigation.environment
+        deployment = investigation.deployment
+        window_start_iso = investigation.window_start.isoformat()
+        window_end_iso = investigation.window_end.isoformat()
+    manual = trigger == AIAnalyzedBatch.TRIGGER_MANUAL
+
+    # The batch belongs to the project the caller passed. It used to be
+    # looked up again by name across every organisation, and project names
+    # are only unique within one, so two organisations with an "api"
+    # project could each receive the other's batches.
+    if project is None:
+        logger.error(f"create_log_batch_with_project_name called without a project ({project_name!r})")
+        return "Error: a project is required"
+
     effective_interval = interval_minutes or Metrics_interval
 
     logger.info(
@@ -448,12 +480,20 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
     dep_suffix = f":d{deployment.id}" if deployment else ""
     project_id = project.id if hasattr(project, 'id') else project
     lock_key = f"task_lock:batch_project:{project_id}{env_suffix}{dep_suffix}"
+    if investigation is not None:
+        # Its own lock: sharing the scheduler's would silently drop the run
+        # whenever a scheduled batch for the same scope was in flight.
+        lock_key = f"task_lock:investigation:{investigation.pk}"
     if not _acquire_task_lock(lock_key, interval_minutes=effective_interval):
         logger.info(f"Batch task for project {project_name} already running, skipping")
         return f"Skipped: another instance for project {project_name} is running"
     try:
         current_time = timezone.now()
-        
+        if investigation is not None:
+            investigation.status = investigation.STATUS_COLLECTING
+            investigation.started_at = current_time
+            investigation.save(update_fields=['status', 'started_at'])
+
         # Use the provided project name or extract from index
         if not project_name and index_name:
             if "ci_cd-logs-project-" in index_name:
@@ -464,7 +504,9 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                 project_name = index_name
         
         # Generate batch ID with project name
-        if project_name:
+        if batch_id:
+            pass
+        elif project_name:
             project_prefix = project_name.strip().replace(' ', '-').replace('_', '-').lower()
             import uuid
             unique_suffix = str(uuid.uuid4())[:4]
@@ -512,7 +554,7 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
 
         if not override_active:
             # Get the last batch timestamp FOR THIS SPECIFIC PROJECT
-            last_batch_time = get_latest_batch_timestamp_for_project(project_name)
+            last_batch_time = get_scheduled_window_start(project, environment, deployment)
             logger.info(f"Last batch time for project {project_name}: {last_batch_time.isoformat() if last_batch_time else 'None'}")
 
             # Determine batch start time
@@ -580,7 +622,9 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         # Filter unique logs with timestamps FOR THIS PROJECT
         # Pass organisation to ensure multi-tenant isolation in dedup queries
         org = project.organisation if project else None
-        unique_hits = filter_unique_logs_for_project(logs, time_window, project_name, organisation=org)
+        unique_hits = filter_unique_logs_for_project(
+            logs, time_window, project_name, organisation=org, history=not manual,
+        )
         logger.info(f"After filtering unique logs for project {project_name}: {len(unique_hits)} logs")
 
         # Debug the in_batch_window function
@@ -686,6 +730,10 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                 pre_filter_count = len(filtered_hits)
                 filtered_hits = [log for log in filtered_hits if is_from_registered_service(log)]
                 logger.info(f"Service filter: {pre_filter_count} → {len(filtered_hits)} logs (kept only registered services)")
+                if investigation is not None and investigation.services:
+                    registered_service_names &= {name.lower() for name in investigation.services}
+                    filtered_hits = [log for log in filtered_hits if is_from_registered_service(log)]
+                    logger.info(f"Investigation service scope {sorted(registered_service_names)}: {len(filtered_hits)} logs")
             else:
                 # STRICT MODE: No services = no logs
                 logger.warning(f"Project '{project_name}' has no registered services. No logs will be included (strict mode).")
@@ -891,7 +939,9 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             from ai_model.trace_context import count_spans_in_window
             trace_span_count = count_spans_in_window(project, batch_start_time, batch_end_time)
 
-        if not filtered_hits and metrics_count == 0 and trace_span_count == 0:
+        # An investigation goes on to count code changes and CI/CD runs too:
+        # "analyze this deploy" may have nothing else to show.
+        if not filtered_hits and metrics_count == 0 and trace_span_count == 0 and not manual:
             logger.info(f"No new unique logs, metrics or traces found for project {project_name}. Batch will not be created.")
             return f"No new logs or metrics found to create batch for project {project_name}"
         if trace_span_count:
@@ -1043,8 +1093,16 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         # logs-and-metrics-empty path that reaches this branch.
         total_data_points = (len(filtered_hits) + metrics_count + len(code_changes_data)
                              + len(cicd_logs_data) + trace_span_count)
+        if investigation is not None:
+            investigation.counts = {
+                'logs': len(filtered_hits), 'metrics': metrics_count, 'traces': trace_span_count,
+                'code_changes': len(code_changes_data), 'cicd': len(cicd_logs_data),
+            }
+            investigation.save(update_fields=['counts'])
         if total_data_points == 0:
             logger.info(f"⏭️ Skipping batch for {batch_environment}: no data (0 logs, 0 metrics, 0 traces, 0 code changes, 0 CI/CD logs)")
+            if investigation is not None:
+                investigation.finish(investigation.STATUS_NO_DATA)
             try:
                 from Data.self_metrics import BATCH_CREATED
                 BATCH_CREATED.labels(outcome='skipped').inc()
@@ -1085,21 +1143,13 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             # readers that looked there returned empty for every batch. The
             # analysis lands on data['analysis_result'] via save_analysis.
         }
+        if investigation is not None and investigation.hint:
+            # What the engineer saw; the prompt quotes it as a report.
+            batch_data['operator_context'] = investigation.hint
         cleaned_data = clean_json(batch_data)
 
-        # Create the batch with custom batch_id and link to project
-        # Try to find the Project by name for direct FK linkage
-        project_instance = None
-        if project_name:
-            try:
-                project_instance = Project.objects.filter(name__iexact=project_name).first()
-                if not project_instance:
-                    # Try to find by partial match (project name might be in batch format)
-                    clean_name = project_name.replace('-', ' ').replace('_', ' ').strip()
-                    project_instance = Project.objects.filter(name__icontains=clean_name).first()
-            except Exception as e:
-                logger.warning(f"Could not find Project for name '{project_name}': {e}")
-        
+        project_instance = project
+
         # === PRE-CREATION SENTINEL GATE (Batch 50) ===
         # Drop noise batches BEFORE the DB row is written. Prevents
         # multi-region × multi-env × N projects from writing hundreds
@@ -1114,7 +1164,9 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         # preventing double-counting.
         sentinel_result = None  # (decision, triggers) if pre-eval ran
         try:
-            if project_instance and environment:
+            # Never for an investigation: a user asked for it, and its window
+            # must not feed Sentinel's rolling baseline either.
+            if project_instance and environment and not manual:
                 from Data.sentinel import should_skip_batch_pre_creation
 
                 should_skip, decision, triggers = should_skip_batch_pre_creation(
@@ -1162,6 +1214,8 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             organisation=project_instance.organisation if project_instance else None,
             environment=batch_environment,
             deployment=deployment,  # Batch 49 — deployment-aware routing
+            trigger=trigger,
+            investigation=investigation,
         )
 
         # Calculate and update token count
@@ -1208,7 +1262,10 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         # persisted batch here.
         skip_ai = False
         try:
-            if project_instance and environment:
+            if manual:
+                batch.sentinel_decision = 'manual'
+                batch.save(update_fields=['sentinel_decision'])
+            elif project_instance and environment:
                 from Data.sentinel import evaluate_batch as sentinel_evaluate, _get_sentinel_config
 
                 if sentinel_result is not None:
@@ -1254,9 +1311,20 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                 logger.error(f"Failed to queue analysis: {str(e)}")
 
         logger.info(f"Successfully created batch {batch.batch_id} for project {project_name} with {len(filtered_hits)} new logs and {batch.token_count} tokens")
+        if investigation is not None:
+            investigation.status = investigation.STATUS_ANALYZING
+            investigation.save(update_fields=['status'])
+            return {'status': 'created', 'batch_id': batch.batch_id}
         return f"Successfully created batch {batch.batch_id} for project {project_name}"
-        
+
     except Exception as e:
+        if investigation is not None:
+            # No retry: the user is watching the run, and a retry minutes
+            # later would answer a question about a window that has moved on.
+            logger.error(f"Investigation {investigation.pk} failed collecting data: {e}", exc_info=True)
+            investigation.finish(investigation.STATUS_FAILED, 'collection_failed',
+                                 'Collecting data failed. Check the integration settings, then try again.')
+            return {'status': 'error', 'reason': 'collection_failed'}
         logger.error(f"Error creating log batch with project name {project_name} (attempt {self.request.retries + 1}/3): {str(e)}", exc_info=True)
         # Retry with exponential backoff (10s, 20s, 40s)
         raise self.retry(exc=e, countdown=10 * (2 ** self.request.retries))
@@ -1967,15 +2035,24 @@ def analyze_alert_ondemand(self, alert_event_id):
     _win_start, _win_end = _alert_window(event)
 
     # Invoke the standard batch pipeline synchronously — we want the
-    # AlertEvent → batch linkage before the task returns.
+    # AlertEvent → batch linkage before the task returns. The batch id is
+    # chosen here so the link is exact. The environment must be the
+    # project's ProjectEnvironment: passing the alert's label as a string
+    # crashed the pipeline on its first use, so alert analyses never ran.
+    import uuid
+    alert_batch_id = f"{project.name.strip().replace(' ', '-').replace('_', '-').lower()}-alert-" \
+                     f"{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4]}"
     try:
         result = create_log_batch_with_project_name(
             index_name=project.es_index_name,
             project_name=project.name,
             project=project,
-            environment=event.environment or 'production',
+            environment=project.environments.filter(
+                name__iexact=event.environment or 'production').first(),
             window_start_iso=_win_start,
             window_end_iso=_win_end,
+            trigger=AIAnalyzedBatch.TRIGGER_ALERT,
+            batch_id=alert_batch_id,
         )
     except Exception as exc:
         logger.error(
@@ -1986,15 +2063,8 @@ def analyze_alert_ondemand(self, alert_event_id):
         event.save(update_fields=['processed_at'])
         return {'status': 'error', 'error': str(exc)}
 
-    # Link the alert to whichever batch this run created (most recent
-    # for the project in the last minute).
-    from datetime import timedelta as _td
-    from Data.models import AIAnalyzedBatch
-    just_now = timezone.now() - _td(minutes=2)
-    batch = (
-        AIAnalyzedBatch.objects.filter(project=project, timestamp__gte=just_now)
-        .order_by('-timestamp').first()
-    )
+    # Link the alert to the batch this run created, if it created one.
+    batch = AIAnalyzedBatch.objects.filter(batch_id=alert_batch_id).first()
     if batch is not None:
         event.triggered_batch = batch
     event.processed_at = timezone.now()
@@ -2019,3 +2089,13 @@ def analyze_alert_ondemand(self, alert_event_id):
         'batch_id': batch.batch_id if batch else None,
         'result': result if isinstance(result, dict) else str(result),
     }
+
+
+@shared_task(bind=True, max_retries=0, priority=9, queue='high_priority')
+def run_investigation(self, investigation_id):
+    """Collect and analyse one Investigation's scope and window.
+
+    A thin wrapper: the batch pipeline does the work and records progress
+    and the outcome on the Investigation itself.
+    """
+    return create_log_batch_with_project_name(investigation_id=investigation_id)

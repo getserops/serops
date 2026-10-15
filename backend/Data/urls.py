@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import BatchAnalysisHistoryView, BatchIssuesView, BatchPostmortemView, BatchPromoteAnalysisView, BatchReanalyzeView, BatchTimelineView, DeleteOldBatchesView, FluentdLogView, HostDiscoveryView, MetricCorrelationView, IssueListView, IssueActionsView, IssueBulkActionsView, LogBatchView, NodeMemoryRawView, BatchDetailView ,RecommendationStatsView,IssueStatsView, NodeCPURawView, SimilarIssuesView, SystemHealthView, ServiceReliabilityView, TrendAnalysisView
+from .investigation_views import InvestigationDetailView, InvestigationListView, InvestigationOptionsView
 from .dashboard_views import MTTRView, ServiceHealthView as ServiceHealthMapView, RootCauseStatsView, RecentDeploymentsView, CorrelationInsightsView, RecentAnalysisFeedView, SentinelStatsView
 from .settings_views import SecuritySettingsView, AuditLogView, AuditLogExportView, DataUsageView, RetentionPolicyView  # Enterprise features
 
@@ -11,6 +12,9 @@ urlpatterns = [
     path('metrics', NodeMemoryRawView.as_view(), name='node-memory-swap'),
     # IMPORTANT: Specific routes must come BEFORE the catch-all <str:batch_id> route
     path('batches/reanalyze/', BatchReanalyzeView.as_view(), name='batch-reanalyze'),
+    path('investigations/', InvestigationListView.as_view(), name='investigations'),
+    path('investigations/options/', InvestigationOptionsView.as_view(), name='investigation-options'),
+    path('investigations/<int:pk>/', InvestigationDetailView.as_view(), name='investigation-detail'),
     path('batches/<str:batch_id>/history/', BatchAnalysisHistoryView.as_view(), name='batch-analysis-history'),
     path('batches/<str:batch_id>/promote-analysis/', BatchPromoteAnalysisView.as_view(), name='batch-promote-analysis'),
     path('batches/<str:batch_id>/timeline/', BatchTimelineView.as_view(), name='batch-timeline'),

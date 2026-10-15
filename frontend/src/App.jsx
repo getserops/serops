@@ -28,6 +28,7 @@ const CodeChanges = lazy(() => import("./components/CodeChanges"));
 // Errors page removed — was a non-functional mock with hardcoded data
 const Issues = lazy(() => import("./components/Issues"));
 const ChatIssues = lazy(() => import("./components/ChatIssues"));
+const Investigate = lazy(() => import("./components/investigate/Investigate"));
 const Traces = lazy(() => import("./components/Traces"));
 const TraceDetail = lazy(() => import("./components/TraceDetail"));
 const BatchTraces = lazy(() => import("./components/BatchTraces"));
@@ -137,6 +138,7 @@ function App() {
               <Route path="errors" element={<Navigate to="/dash/issues" replace />} />
               <Route path="issues" element={<Issues />} />
               <Route path="issues/:batchId" element={<Issues />} />
+              <Route path="investigate" element={<Investigate />} />
               <Route path="chat" element={<ChatIssues />} />
               <Route path="traces" element={<Traces />} />
               <Route path="traces/batch/:batchId" element={<BatchTraces />} />

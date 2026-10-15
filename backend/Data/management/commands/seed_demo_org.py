@@ -53,12 +53,13 @@ from typing import List
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from Organisations.models import Organisations
 from Users.models import User
 from Projects.models import Project, ProjectService, SCMBinding, CICDBinding, ProjectDeployment
 from providers.models import Pipeline, Job, CodeChange, Deployment, ProviderIntegration
-from Data.models import AIAnalyzedBatch, Issue, IssueOccurrence, AuditLog, AlertEvent
+from Data.models import AIAnalyzedBatch, Issue, IssueOccurrence, AuditLog, AlertEvent, Investigation
 from ai_model.models import ChatSession, ChatMessage, AITokenUsage
 from integrations.models import ObservabilityIntegration, Cluster, IntegrationScope
 from notifications.models import (
@@ -1587,6 +1588,8 @@ class Command(BaseCommand):
                 triggered_batch=batch,
                 processed_at=now - timedelta(hours=spec['received_offset_hours']),
             )
+            if batch is not None:
+                AIAnalyzedBatch.objects.filter(pk=batch.pk).update(trigger=AIAnalyzedBatch.TRIGGER_ALERT)
 
     # ── Wipe / rebuild ─────────────────────────────────────────────────
 
@@ -1611,6 +1614,7 @@ class Command(BaseCommand):
         ChatSession.objects.filter(user__organisation=org).delete()
         AITokenUsage.objects.filter(organisation=org).delete()
         AlertEvent.objects.filter(organisation=org).delete()
+        Investigation.objects.filter(organisation=org).delete()
         Trace.objects.filter(organisation=org).delete()
         Issue.objects.filter(organisation=org).delete()
         AIAnalyzedBatch.objects.filter(organisation=org).delete()
@@ -1631,6 +1635,7 @@ class Command(BaseCommand):
         # Track the last batch per component so alert events can point
         # at the right ``triggered_batch`` in the wiring below.
         batches_by_component: dict[str, AIAnalyzedBatch] = {}
+        batches_by_scene: dict[int, AIAnalyzedBatch] = {}
         critical_issues: list[Issue] = []
 
         for scene_index, scene in enumerate(STORY_ARC):
@@ -1663,6 +1668,7 @@ class Command(BaseCommand):
                 pipeline=pipeline,
                 code_change=code_change,
             )
+            batches_by_scene[scene_index] = batch
             self._make_token_usage(org, batch, scene_time, scene)
             self._make_traces(org, batch.data.get('traces'))
 
@@ -1695,6 +1701,60 @@ class Command(BaseCommand):
         # batches so the alert list + batch-detail "triggered by" panel
         # both look wired up.
         self._seed_alert_events(org, batches_by_component)
+
+        # Past investigations, so the Investigate page shows what a run
+        # looks like (the demo itself cannot start one: it is read-only).
+        self._seed_investigations(org, projects, batches_by_scene)
+
+    def _seed_investigations(
+        self,
+        org: Organisations,
+        projects: dict[str, Project],
+        batches_by_scene: dict[int, AIAnalyzedBatch],
+    ) -> None:
+        user = User.objects.filter(organisation=org, is_demo=True).first()
+        specs = [
+            # (scene, hint) — scenes no alert event points at.
+            (9, 'Frontend build warnings since the dependency bump. Anything that will break in prod?'),
+            (6, 'Sanity check after the afternoon deploy, before the traffic peak.'),
+        ]
+        for scene_index, hint in specs:
+            batch = batches_by_scene.get(scene_index)
+            if batch is None or batch.project is None:
+                continue
+            window = (batch.data.get('statistics') or {}).get('time_range') or {}
+            start = parse_datetime(window['start']) if window.get('start') else batch.timestamp - timedelta(minutes=30)
+            end = parse_datetime(window['end']) if window.get('end') else batch.timestamp
+            stats = batch.data.get('statistics') or {}
+            inv = Investigation.objects.create(
+                organisation=org, requested_by=user, project=batch.project,
+                environment=batch.project.environments.filter(name=batch.environment).first(),
+                window_start=start, window_end=end, hint=hint, status=Investigation.STATUS_DONE,
+                counts={
+                    'logs': stats.get('total_logs', batch.logs_analyzed), 'metrics': stats.get('total_metrics', 0),
+                    'traces': (batch.data.get('traces') or {}).get('span_count', 0),
+                    'code_changes': stats.get('total_code_changes', 0), 'cicd': stats.get('total_cicd_logs', 0),
+                },
+                started_at=end + timedelta(minutes=1), finished_at=end + timedelta(minutes=2),
+            )
+            Investigation.objects.filter(pk=inv.pk).update(created_at=end + timedelta(minutes=1))
+            AIAnalyzedBatch.objects.filter(pk=batch.pk).update(
+                trigger=AIAnalyzedBatch.TRIGGER_MANUAL, investigation=inv,
+                sentinel_decision='manual', sentinel_triggers=[])
+
+        # One that found nothing: the window had no data for that scope.
+        checkout = projects.get(PROJECT_CHECKOUT)
+        if checkout is not None:
+            end = timezone.now() - timedelta(hours=9)
+            inv = Investigation.objects.create(
+                organisation=org, requested_by=user, project=checkout,
+                environment=checkout.environments.filter(name='staging').first(),
+                window_start=end - timedelta(hours=1), window_end=end,
+                hint='Did the 02:00 batch job touch staging?', status=Investigation.STATUS_NO_DATA,
+                counts={'logs': 0, 'metrics': 0, 'traces': 0, 'code_changes': 0, 'cicd': 0},
+                started_at=end + timedelta(minutes=3), finished_at=end + timedelta(minutes=3),
+            )
+            Investigation.objects.filter(pk=inv.pk).update(created_at=end + timedelta(minutes=3))
 
     # ── Builders ───────────────────────────────────────────────────────
 

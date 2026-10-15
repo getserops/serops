@@ -119,6 +119,7 @@ nav:
     - Metrics: user-guide/metrics.md
     - Code Changes: user-guide/code-changes.md
     - Issues: user-guide/issues.md
+    - Investigate: user-guide/investigate.md
     - AI Chat: user-guide/ai-chat.md
     - Projects & Services: user-guide/projects.md
     - Environments: user-guide/environments.md

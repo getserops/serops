@@ -199,6 +199,9 @@ const NotificationPanel = ({ onClose, unreadCount, setUnreadCount }) => {
           navigate(`/dash/issues/${notification.batch_id}`);
         }
         break;
+      case 'investigation_done':
+        navigate(notification.batch_id ? `/dash/data/details/${notification.batch_id}` : '/dash/investigate');
+        break;
       default:
         break;
     }

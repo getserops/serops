@@ -7,7 +7,23 @@ import React from 'react';
 import { Spinner } from 'react-bootstrap';
 import { FaRocket, FaCheckCircle, FaTimesCircle, FaSpinner, FaGitlab, FaGithub, FaMicrosoft, FaJenkins, FaBitbucket } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
+import { isDemoUser } from '../utils/demo';
+import { deployWindow } from './investigate/window';
 import './RecentDeploymentsCard.css';
+
+// Investigate from five minutes before the deploy to thirty after.
+const investigateLink = (service) => {
+    const w = deployWindow(service.latest_pipeline.created_at);
+    const q = new URLSearchParams({
+        project_id: service.project_id,
+        services: service.service_name,
+        start: w.start.toISOString(),
+        end: w.end.toISOString(),
+    });
+    if (service.latest_pipeline.environment) q.set('environment', service.latest_pipeline.environment);
+    return `/dash/investigate?${q.toString()}`;
+};
 
 const RecentDeploymentsCard = ({ data, loading }) => {
     const { t } = useTranslation();
@@ -139,6 +155,12 @@ const RecentDeploymentsCard = ({ data, loading }) => {
                                         <span className="deploy-time">
                                             {formatTimeAgo(service.latest_pipeline.created_at)}
                                         </span>
+                                        {service.project_id && service.latest_pipeline.created_at && !isDemoUser() && (
+                                            <Link className="deploy-investigate" to={investigateLink(service)}
+                                                  title={t('investigate.analyzeDeployTitle')}>
+                                                {t('investigate.analyzeDeploy')}
+                                            </Link>
+                                        )}
                                     </div>
                                     {service.success_rate !== null && (
                                         <div className={`success-rate ${getSuccessRateClass(service.success_rate)}`}>

@@ -31,7 +31,7 @@ spec:
             - api
             - worker
             - -Q
-            - {{ .Values.celeryWorker.queues | quote }}
+            - {{ include "serops.workerQueues" . | quote }}
             - --concurrency={{ .Values.celeryWorker.concurrency }}
             - --loglevel=INFO
           envFrom:

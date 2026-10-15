@@ -6,6 +6,20 @@ import { useTranslation } from "react-i18next";
 import DataService from "../services/data.service";
 import useCapabilities from "../hooks/useCapabilities";
 import { PostOnboardingUpsells } from "./onboarding";
+import { isDemoUser } from "../utils/demo";
+
+// Investigate prefilled with this batch's scope and window.
+const rerunLink = (batch) => {
+  const q = new URLSearchParams();
+  if (batch.project) q.set("project_id", batch.project);
+  if (batch.deployment) q.set("deployment_id", batch.deployment);
+  const env = batch.data?.environment || batch.data?.statistics?.environment;
+  if (env) q.set("environment", env);
+  const range = batch.data?.statistics?.time_range || {};
+  if (range.start) q.set("start", range.start);
+  if (range.end) q.set("end", range.end);
+  return `/dash/investigate?${q.toString()}`;
+};
 
 // Small helpers used by the RCA hero
 const relTime = (isoLike) => {
@@ -407,7 +421,13 @@ const Detail = () => {
                 marginBottom: 6,
               }}>
                 <span>AI hypothesis</span>
-                <span className={`ds-chip ${sentinel.klass}`}>{sentinel.label}</span>
+                {batchMeta.trigger === 'manual' || batchMeta.trigger === 'alert' ? (
+                  <span className={`ds-chip ${batchMeta.trigger === 'alert' ? 'ds-chip-err' : 'ds-chip-brand'}`}>
+                    {t(`investigate.trigger.${batchMeta.trigger}`)}
+                  </span>
+                ) : (
+                  <span className={`ds-chip ${sentinel.klass}`}>{sentinel.label}</span>
+                )}
                 {batchMeta.model_name && <span className="ds-mono" style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--text-secondary)' }}>{batchMeta.model_name}</span>}
                 {batchMeta.analyzed_at && <span style={{ textTransform: 'none', letterSpacing: 0, marginLeft: 'auto' }}>{relTime(batchMeta.analyzed_at)}</span>}
               </div>
@@ -440,6 +460,12 @@ const Detail = () => {
                 {(batchMeta.sentinel_triggers || []).slice(0, 3).map((tr) => (
                   <span key={tr} className="ds-chip ds-chip-warn">{tr}</span>
                 ))}
+                {batchMeta.project && !isDemoUser() && (
+                  <Link to={rerunLink(batchMeta)} className="ds-btn ds-btn-secondary ds-btn-sm"
+                        style={{ marginLeft: 'auto' }} title={t('investigate.rerunTitle')}>
+                    {t('investigate.rerun')}
+                  </Link>
+                )}
               </div>
             </div>
           </div>

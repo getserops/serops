@@ -17,7 +17,7 @@ from Organisations.models import Organisations
 from Users.models import User
 from Projects.models import Project, ProjectService
 from providers.models import Pipeline, CodeChange
-from Data.models import AIAnalyzedBatch, Issue
+from Data.models import AIAnalyzedBatch, AlertEvent, Issue
 from ai_model.models import ChatSession, ChatMessage, AITokenUsage
 from org_settings.models import SentinelConfig
 
@@ -89,9 +89,14 @@ class SeedDemoOrgContentShapeTest(TestCase):
     def test_sentinel_state_follows_the_real_trigger_rules(self):
         # Data/sentinel.py: any trigger means alert and an AI run; no
         # trigger means quiet, and in active mode the AI is skipped.
+        # Investigation batches skip Sentinel, exactly as the pipeline does.
         for batch in AIAnalyzedBatch.objects.filter(organisation=self.org):
             with self.subTest(batch=batch.batch_id):
-                if batch.sentinel_triggers:
+                if batch.trigger == 'manual':
+                    self.assertEqual((batch.sentinel_decision, batch.sentinel_triggers), ('manual', []))
+                    self.assertIsNotNone(batch.investigation)
+                    self.assertTrue(batch.analyzed_at)
+                elif batch.sentinel_triggers:
                     self.assertEqual(batch.sentinel_decision, 'alert')
                     self.assertFalse(batch.ai_skipped)
                     self.assertTrue(batch.analyzed_at)
@@ -356,3 +361,28 @@ class SeedDemoOrgAIProviderTest(TestCase):
         models = set(AIAnalyzedBatch.objects.filter(organisation=self.org, ai_skipped=False)
                      .values_list('model_name', flat=True))
         self.assertEqual(models, {'gemini-9-test'})
+
+
+class SeedDemoInvestigationsTest(TestCase):
+    """The Investigate page on the read-only demo shows past runs."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_demo_org', stdout=StringIO())
+        cls.org = Organisations.objects.get(is_demo=True)
+
+    def test_past_runs_of_each_kind(self):
+        from Data.models import Investigation
+        runs = Investigation.objects.filter(organisation=self.org)
+        self.assertEqual(sorted(runs.values_list('status', flat=True)), ['done', 'done', 'no_data'])
+        for run in runs.filter(status='done'):
+            self.assertEqual(run.batch.trigger, 'manual')
+            self.assertTrue(run.hint)
+            self.assertLess(run.window_start, run.window_end)
+
+    def test_alert_linked_batches_are_tagged(self):
+        linked = AlertEvent.objects.filter(organisation=self.org).exclude(triggered_batch=None)
+        self.assertTrue(linked.exists())
+        for event in linked:
+            self.assertEqual(event.triggered_batch.trigger, 'alert')
+

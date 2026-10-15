@@ -20,6 +20,7 @@ import {
   FaEnvelope,
   FaKey,
   FaServer,
+  FaSearch,
 } from "react-icons/fa";
 import { RiDashboardHorizontalFill } from "react-icons/ri";
 import { NavLink, useLocation } from "react-router-dom";
@@ -103,6 +104,11 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       path: "/dash/issues",
       name: t('nav.issues'),
       icon: <FaExclamationCircle />,
+    },
+    {
+      path: "/dash/investigate",
+      name: t('nav.investigate'),
+      icon: <FaSearch />,
     },
     {
       path: "/dash/chat",

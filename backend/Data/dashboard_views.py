@@ -518,6 +518,7 @@ class RecentDeploymentsView(OrgFilterMixin, APIView):
                     deployments.append({
                         'service_id': service.id,
                         'service_name': service.name or repo_display or 'Unknown',
+                        'project_id': service.project_id,
                         'project_name': service.project.name if service.project else 'Unknown',
                         'provider': binding.integration.provider_type if binding else 'unknown',
                         'latest_pipeline': None,
@@ -552,6 +553,7 @@ class RecentDeploymentsView(OrgFilterMixin, APIView):
                 deployments.append({
                     'service_id': service.id,
                     'service_name': service.name or repo_display or 'Unknown',
+                    'project_id': service.project_id,
                     'project_name': service.project.name if service.project else 'Unknown',
                     'provider': pipelines[0].cicd_provider if pipelines else 'unknown',
                     'latest_pipeline': recent_list[0] if recent_list else None,

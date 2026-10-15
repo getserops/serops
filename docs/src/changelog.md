@@ -26,6 +26,15 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ### Added
 
+- **Investigate.** Analyse a time window now, from the sidebar, a
+  deployment on the dashboard ("Investigate") or a batch ("Re-run
+  analysis"). Same pipeline as scheduled analysis; Sentinel never skips
+  it, it reads the whole window, and it notifies only the requester unless
+  routing is opted in. Limited to two running and ten an hour per
+  organisation. See [Investigate](user-guide/investigate.md) and the
+  `/api/data/investigations/` API. Migration `Data.0048`.
+- Batches carry `trigger` (`scheduled`, `alert`, `manual`), shown as a
+  badge on alert and investigation batches.
 - `DEMO_ONLY_LOGIN=true`, for a public demo host: the login page shows only
   "Try the live demo", and password login, SSO and password reset are
   refused server-side.
@@ -48,6 +57,24 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ### Fixed
 
+- **Helm: no batch was ever scheduled or analysed.** The worker consumed
+  only the `high_priority` and `celery` queues, while the scheduler runs on
+  `normal` and AI analysis on `background`, so those tasks waited forever.
+  The worker now always consumes all four queues, including on releases
+  upgraded with `--reuse-values`. Periodic tasks now expire after one
+  interval, so a backlog is not replayed. After upgrading an existing Helm
+  install, drop the stale scheduler backlog once:
+  `kubectl exec deploy/<release>-celery-worker -- celery -A api purge -Q normal -f`.
+- **Batches could be linked to another organisation's project.** The
+  pipeline looked the project up again by name, and names are only unique
+  within an organisation. It now uses the project it was given.
+- **Alert-triggered analysis never ran.** The alert's environment reached
+  the pipeline as text and crashed it. Alert batches are now created,
+  tagged `alert` and linked to their alert exactly.
+- **The scheduler skipped data after an alert batch.** The next scheduled
+  window started at the alert batch's creation time; minutes before the
+  alert window were never analysed. Scheduled windows now continue from
+  the previous scheduled batch's end, per deployment.
 - Settings → Security showed saved SSO settings as empty after a reload.
 - SSO sign-in could not complete on a plain-http install: the handoff
   cookie was always `Secure`, so the browser dropped it. It is `Secure`

@@ -17,7 +17,7 @@ from Data.models import AIAnalyzedBatch
 from Data.tasks import reset_demo_org
 from integrations.ingestion import (
     get_latest_batch_timestamp,
-    get_latest_batch_timestamp_for_project,
+    get_scheduled_window_start,
     get_last_processed_log_timestamp,
 )
 
@@ -64,13 +64,13 @@ class LatestBatchTimestampExcludesDemoTest(TestCase):
         self.assertGreater(age_hours, 4)
         self.assertLess(age_hours, 6)
 
-    def test_latest_for_project_ignores_demo_batch_with_same_prefix(self):
+    def test_window_start_ignores_demo_batch_with_same_prefix(self):
         # Real project produces "real-proj-1".
         self._make_batch(self.real_project, self.real_org, 4, 'real-proj-1')
         # Demo accidentally uses the same prefix and is newer.
         self._make_batch(self.demo_project, self.demo_org, 1, 'real-proj-2')
 
-        latest = get_latest_batch_timestamp_for_project('real-proj')
+        latest = get_scheduled_window_start(self.real_project)
         age_hours = (timezone.now() - latest).total_seconds() / 3600
         self.assertGreater(age_hours, 3)
 

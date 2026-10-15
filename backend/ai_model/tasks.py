@@ -402,6 +402,24 @@ def _drop_hollow_issues(parsed_result):
     return len(issues) - len(kept)
 
 
+def _notify_investigation_requester(investigation, batch, issue_count):
+    """Tell whoever asked for the investigation that it finished."""
+    if investigation.requested_by_id is None:
+        return
+    try:
+        from notifications.models import Notification
+        found = f"{issue_count} issue(s) found" if issue_count else "no issues found"
+        Notification.objects.create(
+            user_id=investigation.requested_by_id,
+            subject=f"Investigation finished: {investigation.project.name}",
+            message=f"Your investigation of {investigation.project.name} is done: {found}.",
+            notification_type='investigation_done',
+            batch_id=batch.batch_id,
+        )
+    except Exception as e:
+        logger.warning(f"Could not notify the requester of investigation {investigation.pk}: {e}")
+
+
 @shared_task(bind=True, max_retries=3, default_retry_delay=10)
 def analyze_batch(self, batch_id, preprocessed_logs=None):
     """Analyze a batch using Gemini AI and save results"""
@@ -1013,6 +1031,7 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
             correlations=correlations_data,
             project_context=project_context,
             sentinel_context=sentinel_context,
+            operator_context=batch.data.get('operator_context') if isinstance(batch.data, dict) else None,
             cicd_summary=cicd_summary,
             past_memories=past_memories_text,
             traces_summary=traces_summary,
@@ -1135,7 +1154,8 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                     tokens_input=tokens_input,
                     tokens_output=tokens_output,
                     model_name=model_name,
-                    usage_type='batch_analysis'
+                    usage_type=('manual_analysis' if batch.trigger == AIAnalyzedBatch.TRIGGER_MANUAL
+                                else 'batch_analysis')
                 )
                 if usage:
                     logger.info(
@@ -1336,8 +1356,10 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                 logger.info(f"Successfully analyzed batch {batch_id} with {issue_count} issues using model {model_name} (analyzed {analyzed_msg})")
 
                 # === SENTINEL: Record successful AI analysis ===
+                # Not for investigations: they must not reset the counter that
+                # forces a periodic analysis of quiet environments.
                 try:
-                    if batch.project and batch.environment:
+                    if batch.project and batch.environment and batch.trigger != AIAnalyzedBatch.TRIGGER_MANUAL:
                         from Data.sentinel import record_ai_analysis
                         from Projects.models import ProjectEnvironment
                         env_obj = ProjectEnvironment.objects.filter(
@@ -1349,6 +1371,13 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                 except Exception as e:
                     logger.warning(f"Failed to record AI analysis for sentinel: {e}")
                 # === END SENTINEL ===
+
+                # Investigations page nobody unless the requester opted in;
+                # the requester always hears back in the app.
+                investigation = batch.investigation if batch.trigger == AIAnalyzedBatch.TRIGGER_MANUAL else None
+                route = investigation is None or investigation.notify_routing
+                if investigation is not None:
+                    _notify_investigation_requester(investigation, batch, issue_count)
 
                 # === DISPATCH NOTIFICATIONS VIA NEW SYSTEM ===
                 # Uses NotificationDispatcher with:
@@ -1363,7 +1392,7 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                     # Get the actual Issue objects that were created/updated for this batch
                     batch_issues = Issue.objects.filter(occurrences__batch=batch).distinct()
                     
-                    if batch_issues.exists():
+                    if route and batch_issues.exists():
                         dispatch_results = dispatch_for_batch_issues(batch, list(batch_issues))
                         logger.info(f"Notification dispatch complete for batch {batch_id}: {len(dispatch_results)} notifications processed")
                     else:
@@ -1381,9 +1410,10 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                 # Data.tasks.analyze_alert_ondemand.
                 try:
                     from notifications.incident_dispatcher import dispatch as _incident_dispatch
-                    _incident_dispatch(batch, event='batch_analyzed')
+                    if route:
+                        _incident_dispatch(batch, event='batch_analyzed')
                     # Only surface `critical_issue` event when there IS one.
-                    if any(
+                    if route and any(
                         (getattr(i, 'severity', '') or '').upper() == 'CRITICAL'
                         for i in Issue.objects.filter(occurrences__batch=batch).distinct()
                     ):
@@ -1424,7 +1454,8 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                     tokens_input=tokens_input,
                     tokens_output=tokens_output,
                     model_name=model_name or "unknown",
-                    usage_type='batch_analysis'
+                    usage_type=('manual_analysis' if batch.trigger == AIAnalyzedBatch.TRIGGER_MANUAL
+                                else 'batch_analysis')
                 )
                 if usage:
                     logger.info(

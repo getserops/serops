@@ -107,8 +107,9 @@ celeryWorker:
     repository: ghcr.io/getserops/backend
     tag: ""
     pullPolicy: IfNotPresent
-  # Two-queue setup: high_priority (alert-triggered, priority=10) + default.
-  queues: "high_priority,celery"
+  # Queues this worker consumes. The chart always adds the four the backend
+  # routes to (celery, high_priority, normal, background); list extra ones here.
+  queues: "celery,high_priority,normal,background"
   concurrency: 4
   resources:
     requests:

@@ -50,6 +50,7 @@ class AIAnalyzedBatch(models.Model):
         ('quiet', 'Quiet — nothing new'),
         ('first', 'First batch for this project+env'),
         ('shadow', 'Shadow mode (always run AI)'),
+        ('manual', 'Manual — a user asked for this analysis'),
     ]
     sentinel_decision = models.CharField(
         max_length=20,
@@ -132,6 +133,27 @@ class AIAnalyzedBatch(models.Model):
         null=True, blank=True,
         related_name='batches',
         help_text='Deployment (env × cluster × region × namespace) this batch analyses.',
+    )
+
+    # What created the batch. Only scheduled batches move the scheduler's
+    # window and only manual ones skip log dedup history; see
+    # get_scheduled_window_start and filter_unique_logs_for_project.
+    TRIGGER_SCHEDULED = 'scheduled'
+    TRIGGER_ALERT = 'alert'
+    TRIGGER_MANUAL = 'manual'
+    TRIGGER_CHOICES = [
+        (TRIGGER_SCHEDULED, 'Scheduled'),
+        (TRIGGER_ALERT, 'Alert'),
+        (TRIGGER_MANUAL, 'Investigation'),
+    ]
+    trigger = models.CharField(
+        max_length=16, choices=TRIGGER_CHOICES, default=TRIGGER_SCHEDULED, db_index=True,
+    )
+    investigation = models.OneToOneField(
+        'Data.Investigation',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='batch',
     )
 
 
@@ -1425,6 +1447,7 @@ class AuditLog(models.Model):
         ('EXPORT_DATA', 'Data Exported'),
         ('ACCOUNT_DELETE', 'User Account Deleted (GDPR)'),
         ('ORG_DELETE', 'Organisation Deleted (GDPR)'),
+        ('INVESTIGATION_RUN', 'Investigation Started'),
     ]
     
     organisation = models.ForeignKey(
@@ -1728,3 +1751,109 @@ class AlertEvent(models.Model):
 
     def __str__(self):
         return f'{self.source}:{self.alertname} ({self.state})'
+
+
+class Investigation(models.Model):
+    """An analysis a user asked for: one scope, one time window, now.
+
+    Runs the same batch pipeline as the scheduler, with three differences:
+    Sentinel never skips it, it reads every log in the window (no dedup
+    against earlier batches), and it does not page anyone through routing
+    rules unless ``notify_routing`` is set.
+    """
+    STATUS_QUEUED = 'queued'
+    STATUS_COLLECTING = 'collecting'
+    STATUS_ANALYZING = 'analyzing'
+    STATUS_DONE = 'done'
+    STATUS_NO_DATA = 'no_data'
+    STATUS_FAILED = 'failed'
+    STATUS_CHOICES = [
+        (STATUS_QUEUED, 'Queued'),
+        (STATUS_COLLECTING, 'Collecting data'),
+        (STATUS_ANALYZING, 'Analyzing'),
+        (STATUS_DONE, 'Done'),
+        (STATUS_NO_DATA, 'No data in the window'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+    ACTIVE_STATUSES = (STATUS_QUEUED, STATUS_COLLECTING, STATUS_ANALYZING)
+
+    MIN_WINDOW_MINUTES = 5
+    MAX_WINDOW_HOURS = 6
+    HINT_MAX_LENGTH = 500
+    # An analysis that has not finished by then crashed without saying so.
+    ANALYSIS_TIMEOUT_MINUTES = 15
+
+    organisation = models.ForeignKey(
+        'Organisations.Organisations', on_delete=models.CASCADE, related_name='investigations',
+    )
+    requested_by = models.ForeignKey(
+        'Users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='investigations',
+    )
+    project = models.ForeignKey('Projects.Project', on_delete=models.CASCADE, related_name='investigations')
+    environment = models.ForeignKey(
+        'Projects.ProjectEnvironment', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    deployment = models.ForeignKey(
+        'Projects.ProjectDeployment', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    # Service names to keep; empty means every registered service.
+    services = models.JSONField(default=list, blank=True)
+    window_start = models.DateTimeField()
+    window_end = models.DateTimeField()
+    hint = models.TextField(blank=True, default='')
+    notify_routing = models.BooleanField(default=False)
+
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_QUEUED, db_index=True)
+    # Data points found per source: logs, metrics, traces, code_changes, cicd.
+    counts = models.JSONField(default=dict, blank=True)
+    error_code = models.CharField(max_length=40, blank=True, default='')
+    error = models.TextField(blank=True, default='')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['organisation', '-created_at'])]
+
+    def __str__(self):
+        return f"Investigation {self.pk} ({self.project_id}, {self.status})"
+
+    def finish(self, status, error_code='', error=''):
+        self.status = status
+        self.error_code = error_code
+        self.error = error
+        self.finished_at = timezone.now()
+        self.save(update_fields=['status', 'error_code', 'error', 'finished_at'])
+
+    def settle(self):
+        """Bring an active run's status up to date before it is shown.
+
+        The AI step runs in analyze_batch, which has many exits; reading the
+        outcome off the batch keeps that task free of investigation logic.
+        A run that stays active past the timeout crashed without saying so.
+        """
+        if self.status not in self.ACTIVE_STATUSES:
+            return
+        if self.status == self.STATUS_ANALYZING:
+            batch = (AIAnalyzedBatch.objects.filter(investigation=self)
+                     .only('analyzed_at', 'data', 'model_name').first())
+            if batch is not None and batch.analyzed_at is not None:
+                err = (batch.data or {}).get('error') or {}
+                if err:
+                    code = err.get('error_code') or 'AI_FAILED'
+                    self.finish(self.STATUS_FAILED,
+                                'over_budget' if code == 'AI_BUDGET_EXCEEDED' else code.lower(),
+                                err.get('error_message') or 'The AI analysis failed.')
+                elif (batch.model_name or '').upper().startswith('SKIPPED'):
+                    self.finish(self.STATUS_NO_DATA)
+                elif (batch.model_name or '').upper().startswith('FAILED'):
+                    self.finish(self.STATUS_FAILED, 'ai_failed', 'The AI analysis did not complete.')
+                else:
+                    self.finish(self.STATUS_DONE)
+                return
+        since = self.started_at or self.created_at
+        if since and timezone.now() - since > timezone.timedelta(minutes=self.ANALYSIS_TIMEOUT_MINUTES):
+            self.finish(self.STATUS_FAILED, 'timeout',
+                        'The investigation did not finish. Try again, or check the worker logs.')

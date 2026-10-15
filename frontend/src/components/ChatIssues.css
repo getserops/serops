@@ -748,3 +748,12 @@
     border: none;
     box-shadow: none;
 }
+.chat-investigate-link {
+  display: inline-block;
+  margin-bottom: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary-600, #2f50e4);
+  text-decoration: none;
+}
+.chat-investigate-link:hover { text-decoration: underline; }

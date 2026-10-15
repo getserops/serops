@@ -200,6 +200,10 @@ class AIAnalyzedBatchSerializer(serializers.ModelSerializer):
             'logs_after_severity_filter',
             'logs_unique_patterns',
             'logs_sent_to_ai',
+            'trigger',
+            'investigation',
+            'project',
+            'deployment',
             'issues'  # Include nested issues
         ]
         read_only_fields = [
@@ -214,6 +218,10 @@ class AIAnalyzedBatchSerializer(serializers.ModelSerializer):
             'logs_after_severity_filter',
             'logs_unique_patterns',
             'logs_sent_to_ai',
+            'trigger',
+            'investigation',
+            'project',
+            'deployment',
         ]
 
 class AIAnalyzedBatchListSerializer(serializers.ModelSerializer):
@@ -244,6 +252,7 @@ class AIAnalyzedBatchListSerializer(serializers.ModelSerializer):
             'logs_after_severity_filter',
             'logs_unique_patterns',
             'logs_sent_to_ai',
+            'trigger',
         ]
 
     def get_analysis(self, obj):

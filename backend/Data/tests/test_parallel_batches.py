@@ -186,7 +186,7 @@ class TestParallelBatchProcessing(TestCase):
 
         # Mock dependencies
         with patch('Data.tasks.IntegrationRegistry') as mock_registry, \
-             patch('Data.tasks.get_latest_batch_timestamp_for_project') as mock_timestamp, \
+             patch('Data.tasks.get_scheduled_window_start') as mock_timestamp, \
              patch('Data.tasks.filter_unique_logs_for_project') as mock_filter:
 
             mock_provider = Mock()

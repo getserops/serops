@@ -26,6 +26,7 @@ class Notification(models.Model):
         ('analysis_failed', 'Analysis Failed'),
         ('escalation', 'Escalation Alert'),
         ('digest', 'Digest Summary'),
+        ('investigation_done', 'Investigation Finished'),
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')

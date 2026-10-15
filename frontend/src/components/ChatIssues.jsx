@@ -558,7 +558,10 @@ const ChatIssues = () => {
               </a>
             </div>
           ) : (
-            error && <div className="chat-error-alert">{error}</div>
+            <>
+              {error && <div className="chat-error-alert">{error}</div>}
+              <Link to="/dash/investigate" className="chat-investigate-link">{t('investigate.chatSuggestion')}</Link>
+            </>
           )}
 
           <div className="chat-input-wrapper">

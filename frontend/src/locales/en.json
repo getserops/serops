@@ -11,7 +11,8 @@
     "logout": "Logout",
     "notifications": "Notifications",
     "noNotifications": "No notifications",
-    "markAllRead": "Mark all as read"
+    "markAllRead": "Mark all as read",
+    "investigate": "Investigate"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -1085,7 +1086,8 @@
         "batch_created": "Batch Created",
         "critical_issue": "Critical Issue",
         "analysis_failed": "Analysis Failed",
-        "default": "Notification"
+        "default": "Notification",
+        "investigation_done": "Investigation finished"
       }
     }
   },
@@ -1173,5 +1175,99 @@
     "thresholdHint": "The line SerOps flags an anomaly above — the same threshold the analysis used.",
     "peakAcrossOne": "Peak reading at each moment, from {{services}}.",
     "peakAcrossMany": "Peak reading across {{count}} services at each moment: {{services}}. Hover a point for the service it belongs to."
+  },
+  "investigate": {
+    "title": "Investigate",
+    "subtitle": "Analyse a time window now, without waiting for the schedule or an alert.",
+    "chatDifference": "AI Chat answers questions about analyses already done; an investigation collects fresh data.",
+    "loadFailed": "Could not load your projects.",
+    "startFailed": "Could not start the investigation.",
+    "demoNotice": "Investigations are disabled in the read-only demo. Self-host SerOps to investigate your own systems.",
+    "viewerNotice": "Viewers can follow investigations. Ask an admin for the User role to start one.",
+    "noProjects": "Create a project first: an investigation needs services to analyse.",
+    "createProject": "Go to Projects →",
+    "project": "Project",
+    "environment": "Environment",
+    "anyEnvironment": "Any environment",
+    "deployment": "Deployment",
+    "allDeployments": "All deployments",
+    "services": "Services",
+    "servicesAll": "All services of the project.",
+    "servicesSome_one": "{{count}} service selected.",
+    "servicesSome_other": "{{count}} services selected.",
+    "window": {
+      "label": "Time window",
+      "from": "From",
+      "to": "To",
+      "presets": {
+        "15m": "Last 15 min",
+        "30m": "Last 30 min",
+        "1h": "Last hour",
+        "3h": "Last 3 hours",
+        "deploy": "Since the last deploy"
+      },
+      "noDeploy": "No deploy recorded for this project yet.",
+      "help": "Between {{minMinutes}} minutes and {{maxHours}} hours, within the last {{maxLookbackDays}} days.",
+      "invalid": "Enter a start and an end.",
+      "future": "The window cannot end in the future.",
+      "tooShort": "The window must be at least {{minMinutes}} minutes long.",
+      "tooLong": "The window can be at most {{maxHours}} hours long.",
+      "tooOld": "The window must start within the last {{maxLookbackDays}} days."
+    },
+    "hint": {
+      "label": "What are you seeing? (optional)",
+      "placeholder": "e.g. Checkout is slow for customers in Europe since 10:00",
+      "help": "Given to the AI as a symptom to confirm or rule out. {{count}} characters left."
+    },
+    "notifyRouting": "Also notify on-call through routing rules if issues are found. Off: only you are notified, in the app.",
+    "run": "Run investigation",
+    "status": {
+      "queued": "Queued",
+      "collecting": "Collecting data",
+      "analyzing": "Analyzing",
+      "done": "Done",
+      "no_data": "No data",
+      "failed": "Failed"
+    },
+    "steps": {
+      "queued": "Queued",
+      "collecting": "Collecting logs, metrics, traces and deploys",
+      "analyzing": "AI analysis",
+      "done": "Done"
+    },
+    "counts": {
+      "logs": "{{count}} logs",
+      "metrics": "{{count}} metric points",
+      "traces": "{{count}} spans",
+      "code_changes": "{{count}} code changes",
+      "cicd": "{{count}} CI/CD runs"
+    },
+    "result": {
+      "issues_one": "{{count}} issue found",
+      "issues_other": "{{count}} issues found",
+      "noIssues": "No issues found in this window.",
+      "open": "Open analysis",
+      "noData": "Nothing was recorded in this window for this scope. Widen the window or check the integrations.",
+      "failed": "The investigation failed."
+    },
+    "history": {
+      "title": "Recent investigations",
+      "empty": "No investigations yet.",
+      "started": "Started",
+      "scope": "Scope",
+      "window": "Window",
+      "by": "By",
+      "status": "Status",
+      "follow": "Follow"
+    },
+    "rerun": "Re-run analysis",
+    "rerunTitle": "Collect fresh data for this batch's window and analyse it again",
+    "analyzeDeploy": "Investigate",
+    "analyzeDeployTitle": "Investigate from 5 minutes before this deploy to 30 minutes after",
+    "chatSuggestion": "Need fresh data? Start an investigation →",
+    "trigger": {
+      "manual": "INVESTIGATION",
+      "alert": "ALERT"
+    }
   }
 }
