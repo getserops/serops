@@ -1067,7 +1067,7 @@ class IssueListView(OrgFilterMixin, APIView):
             )
             summary['filter_applied'] = severity_filter
 
-            queryset = base_queryset.select_related('batch').defer(
+            queryset = base_queryset.select_related('batch', 'project').defer(
                 'batch__data',
                 'batch__analysis_text',
                 'batch__analysis_history',
@@ -1114,6 +1114,22 @@ class IssueListView(OrgFilterMixin, APIView):
             namespace = request.query_params.get('namespace', '').strip()
             if namespace:
                 queryset = queryset.filter(batch__deployment__namespace=namespace)
+                has_filters = True
+
+            # Project / environment / service filters (Issues page toolbar).
+            project_id = request.query_params.get('project', '').strip()
+            if project_id:
+                if not project_id.isdigit():
+                    return Response({'error': 'project must be a number'}, status=status.HTTP_400_BAD_REQUEST)
+                queryset = queryset.filter(project_id=int(project_id))
+                has_filters = True
+            environment = request.query_params.get('environment', '').strip()
+            if environment:
+                queryset = queryset.filter(environment__iexact=environment)
+                has_filters = True
+            component = request.query_params.get('component', '').strip()
+            if component:
+                queryset = queryset.filter(component__iexact=component)
                 has_filters = True
 
             # Apply Text Search

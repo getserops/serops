@@ -54,6 +54,8 @@ const DYNAMIC = {
   'investigate.trigger': ['manual', 'alert'],
   'investigate.window': ['invalid', 'future', 'tooShort', 'tooLong', 'tooOld'],
   'investigate.window.presets': ['15m', '30m', '1h', '3h', 'deploy'],
+  'issues.statusLabel': ['open', 'muted', 'resolved', 'unknown'],
+  'issues.tiles': ['critical', 'warning', 'open', 'resolved'],
 };
 
 describe('translations', () => {

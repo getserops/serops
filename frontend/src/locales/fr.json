@@ -175,7 +175,57 @@
     "systemIssues": "Problèmes Système",
     "batchIssues": "Problèmes du Lot {{batchId}}",
     "trackAnomalies": "Suivre et gérer les anomalies système identifiées",
-    "batchId": "ID du Lot"
+    "batchId": "ID du Lot",
+    "statusLabel": {
+      "open": "Ouvert",
+      "muted": "En sourdine",
+      "resolved": "Résolu",
+      "unknown": "Inconnu"
+    },
+    "panel": {
+      "acknowledged": "Pris en compte",
+      "firstSeen": "Vu la première fois",
+      "lastSeen": "Vu la dernière fois",
+      "occurrences": "Occurrences",
+      "confidence": "Confiance",
+      "rootCause": "Cause racine",
+      "noRootCause": "Aucune cause racine enregistrée pour ce problème.",
+      "recommendation": "Action recommandée",
+      "reasoning": "Raisonnement de l'IA",
+      "correlations": "Corrélations",
+      "metricAnomaly": "Anomalie de métrique : {{type}}",
+      "openAnalysis": "Ouvrir l'analyse",
+      "investigate": "Investiguer cette période",
+      "askAI": "Demander à l'IA",
+      "copyLink": "Copier le lien",
+      "resolve": "Résoudre",
+      "mute": "Mettre en sourdine",
+      "acknowledge": "Prendre en compte",
+      "reopen": "Rouvrir",
+      "acknowledgedToast": "Problème pris en compte : escalade arrêtée.",
+      "acknowledgeFailed": "Impossible de prendre en compte le problème."
+    },
+    "tiles": {
+      "critical": "Critiques",
+      "warning": "Avertissements",
+      "open": "Ouverts",
+      "resolved": "Résolus"
+    },
+    "filters": {
+      "project": "Filtrer par projet",
+      "environment": "Filtrer par environnement",
+      "service": "Filtrer par service",
+      "allProjects": "Tous les projets",
+      "allEnvironments": "Tous les environnements",
+      "allServices": "Tous les services"
+    },
+    "menu": {
+      "viewDetails": "Voir le détail"
+    },
+    "resultCount_one": "{{count}} problème",
+    "resultCount_other": "{{count}} problèmes",
+    "searchPlaceholder": "Rechercher des problèmes…",
+    "openIssue": "Problème {{id}} : {{description}}. Entrée pour le détail."
   },
   "addService": {
     "title": "Ajouter un Nouveau Service",

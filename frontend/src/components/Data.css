@@ -120,7 +120,9 @@
 
 /* ============ TABLE ============ */
 
-.table-responsive {
+/* Scoped to the Data page: a bare .table-responsive rule leaked this
+   padding onto every table in the app once this file had loaded. */
+.data-table-wrap {
     padding: 0 var(--space-6);
     margin-bottom: var(--space-6);
 }
@@ -384,7 +386,7 @@
     }
 
     /* Table gets its own scroll rather than pushing the page wider. */
-    .table-responsive {
+    .data-table-wrap {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }

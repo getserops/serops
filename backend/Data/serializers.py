@@ -8,6 +8,7 @@ class IssueSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     error_class_display = serializers.CharField(source='get_error_class_display', read_only=True)
     confidence_display = serializers.CharField(source='get_confidence_display', read_only=True)
+    project_name = serializers.CharField(source='project.name', read_only=True, default=None)
 
     # Correlation summary (computed from pre-computed model fields)
     correlation_summary = serializers.SerializerMethodField()
@@ -35,6 +36,7 @@ class IssueSerializer(serializers.ModelSerializer):
             # v2 deduplication fields
             'issue_type', 'issue_type_display', 'scope', 'component', 'environment',
             'status', 'status_display', 'occurrence_count', 'muted_until', 'last_seen_at',
+            'acknowledged_at', 'project', 'project_name',
             # v3 AI classification fields
             'error_class', 'error_class_display', 'error_target',
             # v4 Pre-computed correlation fields (from model)

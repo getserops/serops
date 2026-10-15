@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Table, Form, OverlayTrigger, Tooltip, Modal, Button, Badge, Dropdown, InputGroup } from "react-bootstrap";
-import { FaExclamationCircle, FaEye, FaCheck, FaVolumeMute, FaRedo, FaLink, FaChartLine, FaColumns, FaEllipsisV, FaCircle, FaSearch, FaSortUp, FaSortDown, FaSort, FaCheckCircle, FaKeyboard, FaCog, FaProjectDiagram } from "react-icons/fa";
+import { FaExclamationCircle, FaEye, FaCheck, FaVolumeMute, FaRedo, FaLink, FaChartLine, FaColumns, FaEllipsisV, FaSearch, FaSortUp, FaSortDown, FaSort, FaCheckCircle, FaKeyboard, FaCog, FaProjectDiagram } from "react-icons/fa";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
 import { formatDistanceToNow } from "date-fns";
 import dataService from "../services/data.service";
+import notificationService from "../services/notification.service";
+import InvestigationService from "../services/investigation.service";
+import IssuePanel, { StatusChip } from "./issues/IssuePanel";
 import { useCluster } from "../context/ClusterContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import "./Issues.css";
@@ -36,8 +39,9 @@ export const abbreviateComponent = (name) => {
   };
   const upper = name.toUpperCase();
   if (map[upper]) return map[upper];
-  if (name.length > 14) return toTitleCase(name.substring(0, 12)) + "\u2026";
-  return toTitleCase(name);
+  // Scope words arrive upper-case (e.g. NETWORK); service names are shown
+  // exactly as they are named ("backend-api"), and CSS truncates long ones.
+  return name === upper ? toTitleCase(name) : name;
 };
 
 export const getCountHeatLevel = (count) => {
@@ -117,11 +121,15 @@ const Issues = () => {
     searchParams.get("search") || ""
   );
   const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
+  const [projectFilter, setProjectFilter] = useState(searchParams.get("project") || "");
+  const [environmentFilter, setEnvironmentFilter] = useState(searchParams.get("environment") || "");
+  const [componentFilter, setComponentFilter] = useState(searchParams.get("component") || "");
+  const [scopeOptions, setScopeOptions] = useState({ projects: [] });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Deep linking
-  const highlightedIssueId = searchParams.get("id") ? parseInt(searchParams.get("id")) : null;
+  // Deep linking: ?id=17 opens that issue's panel.
+  const [panelIssueId, setPanelIssueId] = useState(searchParams.get("id") ? parseInt(searchParams.get("id")) : null);
 
   // Mute modal state
   const [showMuteModal, setShowMuteModal] = useState(false);
@@ -141,7 +149,7 @@ const Issues = () => {
   // Column visibility state — merge saved with defaults so new columns get their default value
   const [visibleColumns, setVisibleColumns] = useState(() => {
     const defaults = {
-      id: true,
+      id: false,
       type: false,
       component: true,
       description: true,
@@ -186,7 +194,7 @@ const Issues = () => {
   };
 
   const toggleColumn = (column) => {
-    if (column === 'id' || column === 'actions') return;
+    if (column === 'actions') return;
     setVisibleColumns(prev => {
       const updated = { ...prev, [column]: !prev[column] };
       localStorage.setItem('issueColumnVisibility', JSON.stringify(updated));
@@ -213,11 +221,14 @@ const Issues = () => {
     if (severityFilter !== "All") params.severity = severityFilter.toUpperCase();
     if (statusFilter !== "All") params.status = statusFilter.toUpperCase();
     if (debouncedSearch) params.search = debouncedSearch;
+    if (projectFilter) params.project = projectFilter;
+    if (environmentFilter) params.environment = environmentFilter;
+    if (componentFilter) params.component = componentFilter;
     // Cluster picker (Item #19) — only applied when set + not viewing a
     // single batch's issues (that batch already implies its cluster).
     if (clusterId != null && !batchId) params.cluster = clusterId;
     return params;
-  }, [currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, clusterId, batchId]);
+  }, [currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, projectFilter, environmentFilter, componentFilter, clusterId, batchId]);
 
   // Fetch issues with auto-refresh (30s)
   const {
@@ -226,7 +237,7 @@ const Issues = () => {
     error: queryError,
     isPlaceholderData,
   } = useQuery({
-    queryKey: ["issues", batchId, currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, clusterId],
+    queryKey: ["issues", batchId, currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, projectFilter, environmentFilter, componentFilter, clusterId],
     queryFn: async () => {
       const params = buildQueryParams();
       if (batchId) {
@@ -255,14 +266,22 @@ const Issues = () => {
     if (sortBy !== "severity") params.sort_by = sortBy;
     if (sortDir !== "desc") params.sort_dir = sortDir;
     if (debouncedSearch) params.search = debouncedSearch;
-    if (highlightedIssueId) params.id = highlightedIssueId;
+    if (projectFilter) params.project = projectFilter;
+    if (environmentFilter) params.environment = environmentFilter;
+    if (componentFilter) params.component = componentFilter;
+    if (panelIssueId) params.id = panelIssueId;
     setSearchParams(params);
-  }, [currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, highlightedIssueId, setSearchParams]);
+  }, [currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, projectFilter, environmentFilter, componentFilter, panelIssueId, setSearchParams]);
+
+  // Project / environment / service choices for the filters.
+  useEffect(() => {
+    InvestigationService.options().then(setScopeOptions).catch(() => {});
+  }, []);
 
   // Clear selection when data changes
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch]);
+  }, [currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, projectFilter, environmentFilter, componentFilter]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -289,10 +308,11 @@ const Issues = () => {
           setFocusedIndex(prev => Math.max(prev - 1, 0));
           break;
         }
-        case 'v': {
-          if (focusedIndex >= 0 && focusedIndex < len) {
+        case 'v':
+        case 'Enter': {
+          if (focusedIndex >= 0 && focusedIndex < len && !e.target.closest?.('button, a, .dropdown')) {
             e.preventDefault();
-            handleSolutionClick(issuesData[focusedIndex]);
+            setPanelIssueId(issuesData[focusedIndex].id);
           }
           break;
         }
@@ -356,28 +376,9 @@ const Issues = () => {
     }
   };
 
-  const getStatusBadge = (issueStatus) => {
-    const getStatusInfo = () => {
-      switch (issueStatus?.toUpperCase()) {
-        case "OPEN":
-          return { color: '#dc3545', label: 'Open' };
-        case "MUTED":
-          return { color: '#ffc107', label: 'Muted' };
-        case "RESOLVED":
-          return { color: '#28a745', label: 'Resolved' };
-        default:
-          return { color: '#6c757d', label: issueStatus || 'Unknown' };
-      }
-    };
-    const info = getStatusInfo();
-    return (
-      <OverlayTrigger overlay={<Tooltip>{info.label}</Tooltip>}>
-        <span>
-          <FaCircle style={{ color: info.color, fontSize: '10px' }} />
-        </span>
-      </OverlayTrigger>
-    );
-  };
+  // Status as a label: a coloured dot alone failed WCAG 1.4.1 and left
+  // open / muted / resolved to guesswork.
+  const getStatusBadge = (issueStatus) => <StatusChip status={issueStatus} t={t} />;
 
   // Correlation badges
   const renderCorrelationBadges = (issue) => {
@@ -599,6 +600,32 @@ const Issues = () => {
     }
   };
 
+  const handleAcknowledge = async (issue) => {
+    try {
+      await notificationService.acknowledgeIssue(issue.id);
+      toast.success(t('issues.panel.acknowledgedToast'));
+      queryClient.invalidateQueries({ queryKey: ["issues"] });
+    } catch {
+      toast.error(t('issues.panel.acknowledgeFailed'));
+    }
+  };
+
+  // Count tiles double as filters; clicking the active one clears it.
+  const toggleTileFilter = (kind, value) => {
+    if (kind === 'severity') setSeverityFilter(severityFilter === value ? 'All' : value);
+    else setStatusFilter(statusFilter === value ? 'All' : value);
+    setCurrentPage(1);
+  };
+  const scopeProject = scopeOptions.projects.find((p) => String(p.id) === String(projectFilter));
+  const environmentChoices = [...new Set((scopeProject ? [scopeProject] : scopeOptions.projects)
+    .flatMap((p) => p.environments.map((e) => e.name)))].sort();
+  const serviceChoices = [...new Set((scopeProject ? [scopeProject] : scopeOptions.projects)
+    .flatMap((p) => p.services))].sort();
+  const selectedIssues = issuesData.filter((i) => selectedIds.has(i.id));
+  const canResolveSelection = selectedIssues.some((i) => i.status === 'OPEN');
+  const canReopenSelection = selectedIssues.some((i) => i.status !== 'OPEN');
+  const panelIssue = issuesData.find((i) => i.id === panelIssueId) || null;
+
   // Bulk action handlers
   const handleBulkResolve = async () => {
     try {
@@ -658,6 +685,16 @@ const Issues = () => {
 
   return (
     <div className="fade-in">
+      <IssuePanel
+        issue={panelIssue}
+        onClose={() => setPanelIssueId(null)}
+        onResolve={handleResolve}
+        onMute={handleMuteClick}
+        onReopen={handleReopen}
+        onAcknowledge={handleAcknowledge}
+        onAskAI={handleSolutionClick}
+        onCopyLink={(issue) => handleCopyId(issue.id)}
+      />
       <div className="bg-white p-4 rounded-4 shadow-sm issues-page-card">
         {/* Breadcrumb (batch view) */}
         {batchId && (
@@ -691,34 +728,39 @@ const Issues = () => {
         {/* Summary stat cards */}
         {summaryStats && (
           <div className="issue-stat-grid">
-            <div className="issue-stat-card issue-stat-critical">
-              <div className="issue-stat-value">{summaryStats.critical}</div>
-              <div className="issue-stat-label">Critical</div>
-            </div>
-            <div className="issue-stat-card issue-stat-warning">
-              <div className="issue-stat-value">{summaryStats.warning}</div>
-              <div className="issue-stat-label">Warning</div>
-            </div>
-            <div className="issue-stat-card issue-stat-open">
-              <div className="issue-stat-value">{summaryStats.open}</div>
-              <div className="issue-stat-label">Open</div>
-            </div>
-            <div className="issue-stat-card issue-stat-resolved">
-              <div className="issue-stat-value">{summaryStats.resolved}</div>
-              <div className="issue-stat-label">Resolved</div>
-            </div>
+            {[
+              ['critical', 'severity', 'Critical', summaryStats.critical],
+              ['warning', 'severity', 'Warning', summaryStats.warning],
+              ['open', 'status', 'OPEN', summaryStats.open],
+              ['resolved', 'status', 'RESOLVED', summaryStats.resolved],
+            ].map(([key, kind, value, count]) => {
+              const active = (kind === 'severity' ? severityFilter : statusFilter) === value;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={`issue-stat-card issue-stat-${key}${active ? ' is-active' : ''}`}
+                  aria-pressed={active}
+                  onClick={() => toggleTileFilter(kind, value)}
+                >
+                  <span className="issue-stat-value">{count}</span>
+                  <span className="issue-stat-label">{t(`issues.tiles.${key}`)}</span>
+                </button>
+              );
+            })}
           </div>
         )}
 
         {/* Filter toolbar */}
         <div className="issues-toolbar">
-          <InputGroup style={{ maxWidth: "320px", flex: 1 }}>
+          <InputGroup className="issues-search">
             <InputGroup.Text className="bg-light border-0">
               <FaSearch size={12} className="text-muted" />
             </InputGroup.Text>
             <Form.Control
               type="text"
-              placeholder="Search issues..."
+              placeholder={t('issues.searchPlaceholder')}
+              aria-label={t('issues.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="bg-light border-0"
@@ -753,6 +795,29 @@ const Issues = () => {
             <option value="RESOLVED">Resolved</option>
           </Form.Select>
 
+          {!batchId && scopeOptions.projects.length > 0 && (
+            <>
+              <Form.Select value={projectFilter} size="sm" className="bg-light border-0 issues-scope-select"
+                           aria-label={t('issues.filters.project')}
+                           onChange={(e) => { setProjectFilter(e.target.value); setEnvironmentFilter(''); setComponentFilter(''); setCurrentPage(1); }}>
+                <option value="">{t('issues.filters.allProjects')}</option>
+                {scopeOptions.projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </Form.Select>
+              <Form.Select value={environmentFilter} size="sm" className="bg-light border-0 issues-scope-select"
+                           aria-label={t('issues.filters.environment')}
+                           onChange={(e) => { setEnvironmentFilter(e.target.value); setCurrentPage(1); }}>
+                <option value="">{t('issues.filters.allEnvironments')}</option>
+                {environmentChoices.map((n) => <option key={n} value={n}>{n}</option>)}
+              </Form.Select>
+              <Form.Select value={componentFilter} size="sm" className="bg-light border-0 issues-scope-select"
+                           aria-label={t('issues.filters.service')}
+                           onChange={(e) => { setComponentFilter(e.target.value); setCurrentPage(1); }}>
+                <option value="">{t('issues.filters.allServices')}</option>
+                {serviceChoices.map((n) => <option key={n} value={n}>{n}</option>)}
+              </Form.Select>
+            </>
+          )}
+
           <Dropdown>
             <Dropdown.Toggle variant="outline-secondary" size="sm" id="columns-dropdown">
               <FaColumns className="me-1" /> Columns
@@ -781,6 +846,12 @@ const Issues = () => {
               <FaKeyboard size={16} aria-hidden="true" />
             </button>
           </OverlayTrigger>
+
+          {pagination && (
+            <span className="issues-result-count" aria-live="polite">
+              {t('issues.resultCount', { count: pagination.total_issues ?? issuesData.length })}
+            </span>
+          )}
         </div>
 
         {/* Empty state */}
@@ -803,7 +874,7 @@ const Issues = () => {
             </div>
           )
         ) : (
-          <div className="table-responsive" ref={tableRef}>
+          <div className="table-responsive issues-table-wrap" ref={tableRef}>
             <Table hover className="align-middle mb-0" style={{ tableLayout: 'fixed', width: '100%' }}>
               <thead className="bg-light">
                 <tr>
@@ -817,8 +888,7 @@ const Issues = () => {
                       onChange={toggleSelectAll}
                     />
                   </th>
-                  {/* ID */}
-                  <th className="py-3 border-bottom" style={{ width: '50px' }}>ID</th>
+                  {visibleColumns.id && <th className="py-3 border-bottom" style={{ width: '56px' }}>ID</th>}
                   {visibleColumns.type && (
                     <th className="py-3 border-bottom" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('type')}>
                       Type{renderSortIcon('type')}
@@ -851,7 +921,7 @@ const Issues = () => {
                     </th>
                   )}
                   {visibleColumns.status && (
-                    <th className="py-3 border-bottom text-center" style={{ width: '70px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('status')}>
+                    <th className="py-3 border-bottom text-center" style={{ width: '104px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('status')}>
                       Status{renderSortIcon('status')}
                     </th>
                   )}
@@ -864,11 +934,16 @@ const Issues = () => {
                   return (
                     <tr
                       key={issue.id}
-                      className={`${getSeverityRowClass(issue.severity)} ${highlightedIssueId === issue.id ? 'table-warning' : ''} ${focusedIndex === index ? 'issue-row-focused' : ''}`}
-                      style={{
-                        borderLeft: `4px solid ${getSeverityColor(issue.severity)}`,
-                        ...(highlightedIssueId === issue.id ? { animation: 'highlight-pulse 2s ease-in-out' } : {})
-                      }}
+                      className={`issue-row ${getSeverityRowClass(issue.severity)} ${panelIssueId === issue.id ? 'issue-row-open' : ''} ${focusedIndex === index ? 'issue-row-focused' : ''}`}
+                      // The severity stripe is an inset shadow on the first cell: a
+                      // border on the <tr> widened rows past the header and shifted
+                      // every column out of line.
+                      style={{ '--severity-color': getSeverityColor(issue.severity) }}
+                      tabIndex={0}
+                      aria-label={t('issues.openIssue', { id: issue.id, description: issue.description })}
+                      onClick={(e) => { if (!e.target.closest('input, button, a, .dropdown')) setPanelIssueId(issue.id); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setPanelIssueId(issue.id); }}
+                      onFocus={() => setFocusedIndex(index)}
                     >
                       {/* Checkbox */}
                       <td className="ps-3 py-3">
@@ -880,21 +955,14 @@ const Issues = () => {
                           onChange={() => toggleSelection(issue.id)}
                         />
                       </td>
-                      {/* ID */}
-                      <td className="py-3">
-                        <OverlayTrigger overlay={<Tooltip>Copy link to issue</Tooltip>}>
-                          <span className="text-muted small" style={{ cursor: 'pointer' }} onClick={() => handleCopyId(issue.id)}>
-                            #{issue.id}
-                          </span>
-                        </OverlayTrigger>
-                      </td>
+                      {visibleColumns.id && <td className="py-3 text-muted small issue-cell-meta">#{issue.id}</td>}
                       {visibleColumns.type && (
-                        <td className="py-3">
+                        <td className="py-3 issue-cell-meta">
                           <code className="bg-light px-2 py-1 rounded small">{issue.issue_type || 'OTHER'}</code>
                         </td>
                       )}
                       {visibleColumns.component && (
-                        <td className="py-3" style={{ maxWidth: '130px' }}>
+                        <td className="py-3 issue-cell-meta issue-cell-first-meta" style={{ maxWidth: '130px' }}>
                           <span
                             className={`issue-component-chip ${getComponentChipClass(issue.scope)}`}
                             title={issue.component || 'INFRASTRUCTURE'}
@@ -904,46 +972,48 @@ const Issues = () => {
                         </td>
                       )}
                       {visibleColumns.description && (
-                        <td className="py-3">
+                        <td className="py-3 issue-cell-description">
                           <div className="d-flex align-items-start">
                             <FaExclamationCircle
                               className="me-2 mt-1 flex-shrink-0"
                               style={{ color: getSeverityColor(issue.severity), fontSize: "1rem" }}
                             />
-                            <span
-                              className="text-dark issue-description-clamp"
-                              title={issue.description}
-                            >
-                              {issue.description}
+                            <span className="issue-description-cell">
+                              <span className="text-dark issue-description-clamp" title={issue.description}>
+                                {issue.description}
+                              </span>
+                              {issue.root_cause && (
+                                <span className="issue-root-cause-line" title={issue.root_cause}>{issue.root_cause}</span>
+                              )}
                             </span>
                           </div>
                         </td>
                       )}
                       {visibleColumns.age && (
-                        <td className="py-3">
+                        <td className="py-3 issue-cell-meta">
                           <OverlayTrigger overlay={<Tooltip>{issue.created_at ? new Date(issue.created_at).toLocaleString() : 'Unknown'}</Tooltip>}>
                             <span className="text-muted small">{formatAge(issue.created_at)}</span>
                           </OverlayTrigger>
                         </td>
                       )}
                       {visibleColumns.correlations && (
-                        <td className="py-3">{renderCorrelationBadges(issue)}</td>
+                        <td className="py-3 issue-cell-meta">{renderCorrelationBadges(issue)}</td>
                       )}
                       {visibleColumns.count && (
-                        <td className="text-center">
+                        <td className="text-center issue-cell-meta">
                           <span className={`px-2 py-1 rounded count-heat-${heatLevel}`}>
                             {issue.occurrence_count}&times;
                           </span>
                         </td>
                       )}
                       {visibleColumns.severity && (
-                        <td>
+                        <td className="issue-cell-meta">
                           <span className={`severity-badge severity-badge-${(issue.severity || 'unknown').toLowerCase()}`}>
                             {(issue.severity || 'N/A').toUpperCase()}
                           </span>
                         </td>
                       )}
-                      {visibleColumns.status && <td className="text-center">{getStatusBadge(issue.status)}</td>}
+                      {visibleColumns.status && <td className="text-center issue-cell-meta">{getStatusBadge(issue.status)}</td>}
                       {/* Actions — ... menu */}
                       <td className="text-end pe-3">
                         <Dropdown className="issue-actions-dropdown" align="end">
@@ -954,8 +1024,19 @@ const Issues = () => {
                             <FaEllipsisV size={14} aria-hidden="true" />
                           </Dropdown.Toggle>
                           <Dropdown.Menu>
+                            <Dropdown.Item onClick={() => setPanelIssueId(issue.id)}>
+                              <FaEye className="me-2" size={12} />{t('issues.menu.viewDetails')}
+                            </Dropdown.Item>
+                            {issue.batch_id_str && (
+                              <Dropdown.Item as={Link} to={`/dash/data/details/${issue.batch_id_str}`}>
+                                <FaChartLine className="me-2" size={12} />{t('issues.panel.openAnalysis')}
+                              </Dropdown.Item>
+                            )}
                             <Dropdown.Item onClick={() => handleSolutionClick(issue)}>
-                              <FaEye className="me-2" size={12} />View details
+                              <FaCog className="me-2" size={12} />{t('issues.panel.askAI')}
+                            </Dropdown.Item>
+                            <Dropdown.Item onClick={() => handleCopyId(issue.id)}>
+                              <FaLink className="me-2" size={12} />{t('issues.panel.copyLink')}
                             </Dropdown.Item>
                             {issue.status === 'OPEN' && (
                               <>
@@ -987,15 +1068,21 @@ const Issues = () => {
         {selectedIds.size > 0 && (
           <div className="bulk-toolbar">
             <span className="bulk-count">{selectedIds.size} selected</span>
-            <Button size="sm" variant="success" onClick={handleBulkResolve}>
-              <FaCheck className="me-1" size={12} />Resolve {selectedIds.size}
-            </Button>
-            <Button size="sm" variant="secondary" onClick={handleBulkMuteClick}>
-              <FaVolumeMute className="me-1" size={12} />Mute {selectedIds.size}
-            </Button>
-            <Button size="sm" variant="outline-warning" onClick={handleBulkReopen}>
-              <FaRedo className="me-1" size={12} />Reopen {selectedIds.size}
-            </Button>
+            {canResolveSelection && (
+              <>
+                <Button size="sm" variant="success" onClick={handleBulkResolve}>
+                  <FaCheck className="me-1" size={12} />Resolve {selectedIds.size}
+                </Button>
+                <Button size="sm" variant="secondary" onClick={handleBulkMuteClick}>
+                  <FaVolumeMute className="me-1" size={12} />Mute {selectedIds.size}
+                </Button>
+              </>
+            )}
+            {canReopenSelection && (
+              <Button size="sm" variant="outline-warning" onClick={handleBulkReopen}>
+                <FaRedo className="me-1" size={12} />Reopen {selectedIds.size}
+              </Button>
+            )}
             <Button size="sm" variant="outline-secondary" onClick={() => setSelectedIds(new Set())}>
               Clear
             </Button>

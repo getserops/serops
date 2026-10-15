@@ -10,6 +10,17 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ## [Unreleased]
 
+### Added
+
+- **Issues side panel:** click any issue (or press Enter) to read its root
+  cause, recommendation and correlations without leaving the list, then
+  resolve, mute, acknowledge, open the analysis, investigate that time window,
+  ask the AI or copy a link (`/dash/issues?id=…`).
+- **Issues filters:** filter by project, environment and service; the severity
+  and status tiles are now clickable filters; a result count shows what
+  matches. The API's issue list accepts `project`, `environment` and
+  `component` (the service).
+
 ### Fixed
 
 - **Read-only demo:** every refused change now shows one friendly notice
@@ -27,6 +38,11 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
   role reads "Read-only demo".
 - Settings → General showed the same heading twice; Investigate now defaults
   to the production environment.
+- Issues: rows show readable status labels, the root cause under the title
+  and full service names; bulk actions only offer what applies to the
+  selection; phones get one card per issue instead of a cut-off table.
+- Tables on the batch page and in Settings → Audit log were narrower than
+  the search bar above them (a Data-page style leaked onto every table).
 
 ### Accessibility
 

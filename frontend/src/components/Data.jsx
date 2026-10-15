@@ -635,7 +635,7 @@ const Data = () => {
               </Dropdown>
             </div>
 
-            <div className="table-responsive">
+            <div className="table-responsive data-table-wrap">
               <table className="modern-table">
                 <thead>
                   <tr>

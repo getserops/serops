@@ -307,14 +307,16 @@ const getIssues = async (params = {}) => {
     const issues = response.data.results || [];
 
     // Map the new API response structure to the format expected by the app
+    // Every API field passes through: the issue panel reads project,
+    // batch_id_str, recommendation, reasoning and confidence, which the old
+    // field list dropped. No placeholder root cause either: a missing one
+    // stays empty instead of reading "Empty root cause".
     const mappedIssues = issues.map((issue) => ({
-      id: issue.id,
-      severity: issue.severity,
-      description: issue.description,
+      ...issue,
       message: `[${issue.severity}] ${issue.description}`, // Keeping for compatibility but deprecated
       batch: issue.batch_id_str || issue.batch_id,
-      solution: issue.recommendation || issue.solution || "No action specified",
-      root_cause: issue.root_cause || "Empty root cause",
+      solution: issue.recommendation || issue.solution || "",
+      root_cause: issue.root_cause || "",
       timestamp: issue.timestamp,
       created_at: issue.created_at,
       count: issue.count,
@@ -367,13 +369,11 @@ const getIssuesByBatch = async (batchId, params = {}) => {
     }
 
     const mappedIssues = issues.map((issue) => ({
-      id: issue.id,
-      severity: issue.severity,
-      description: issue.description,
+      ...issue,
       message: `[${issue.severity}] ${issue.description}`, // Keeping for compatibility
       batch: issue.batch_id_str || issue.batch_id,
-      solution: issue.recommendation || issue.solution || "No action specified",
-      root_cause: issue.root_cause || "No specific root cause identified",
+      solution: issue.recommendation || issue.solution || "",
+      root_cause: issue.root_cause || "",
       timestamp: issue.timestamp,
       created_at: issue.created_at,
       count: issue.count,

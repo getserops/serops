@@ -93,6 +93,13 @@
     margin-bottom: 1.5rem;
 }
 
+/* Table cards: the table runs edge to edge so it lines up with the cards
+   above it instead of sitting 24px inside its own border. */
+.settings-card-flush {
+    padding: 0;
+    overflow: hidden;
+}
+
 .settings-card-title {
     color: #4361ee;
     font-size: 1.1rem;

@@ -56,19 +56,13 @@ describe('abbreviateComponent', () => {
     expect(abbreviateComponent('AUTHENTICATION')).toBe('Auth');
   });
 
-  it('truncates long names with title case', () => {
-    const long = 'very-long-component-name';
-    const result = abbreviateComponent(long);
-    expect(result.length).toBeLessThanOrEqual(14);
-    expect(result).toContain('\u2026');
-    // Should start with uppercase
-    expect(result[0]).toBe(result[0].toUpperCase());
+  it('keeps service names exactly as named (CSS truncates long ones)', () => {
+    expect(abbreviateComponent('backend-api')).toBe('backend-api');
+    expect(abbreviateComponent('very-long-component-name')).toBe('very-long-component-name');
   });
 
-  it('title-cases short names', () => {
-    expect(abbreviateComponent('redis')).toBe('Redis');
-    expect(abbreviateComponent('nginx')).toBe('Nginx');
-    expect(abbreviateComponent('backend')).toBe('Backend');
+  it('title-cases upper-case scope words it does not abbreviate', () => {
+    expect(abbreviateComponent('NETWORK')).toBe('Network');
   });
 });
 
@@ -125,6 +119,8 @@ describe('getSeverityRowClass', () => {
 
 // Mock dependencies for full component tests
 vi.mock('react-router-dom', () => ({
+  // eslint-disable-next-line react/prop-types
+  Link: ({ to, children, ...rest }) => <a href={to} {...rest}>{children}</a>,
   useNavigate: () => vi.fn(),
   useParams: () => ({}),
   useSearchParams: () => [new URLSearchParams(), vi.fn()],
@@ -146,6 +142,14 @@ vi.mock('react-i18next', () => ({
       return translations[key] || key;
     },
   }),
+}));
+
+vi.mock('../../services/investigation.service', () => ({
+  default: { options: vi.fn(() => Promise.resolve({ projects: [] })) },
+}));
+
+vi.mock('../../services/notification.service', () => ({
+  default: { acknowledgeIssue: vi.fn(() => Promise.resolve({})) },
 }));
 
 vi.mock('react-toastify', () => ({
@@ -174,6 +178,11 @@ vi.mock('@tanstack/react-query', () => ({
           issue_type: 'MEMORY_HIGH',
           component: 'payment-service',
           status: 'OPEN',
+          root_cause: 'Connection pool exhausted after the 2.3.4 deploy.',
+          recommendation: 'Raise the pool size.',
+          batch_id_str: 'shop-batch-1',
+          project: 7,
+          environment: 'production',
           occurrence_count: 15,
           created_at: new Date(Date.now() - 3600000).toISOString(),
           linked_commits: [],
@@ -222,17 +231,41 @@ describe('Issues component', () => {
     expect(screen.getByText('Actions')).toBeTruthy();
   });
 
-  it('renders issue rows', () => {
+  it('renders issue rows with the root cause under the description', () => {
     render(<Issues />);
-    expect(screen.getByText('#1')).toBeTruthy();
-    expect(screen.getByText('#2')).toBeTruthy();
+    expect(screen.getByText('Test critical issue description')).toBeTruthy();
+    expect(screen.getByText('Connection pool exhausted after the 2.3.4 deploy.')).toBeTruthy();
+    // The ID column is off by default (it is in the panel instead).
+    expect(screen.queryByText('#1')).toBeNull();
   });
 
-  it('renders component chips with abbreviation', () => {
+  it('shows service names as named', () => {
     render(<Issues />);
-    // "payment-service" (15 chars) truncated to 12 + ellipsis, title-cased
-    expect(screen.getByText('Payment-serv\u2026')).toBeTruthy();
+    expect(screen.getByText('payment-service')).toBeTruthy();
     expect(screen.getByText('Infra')).toBeTruthy();
+  });
+
+  it('shows status as a label, not a bare dot', () => {
+    render(<Issues />);
+    expect(screen.getByText('issues.statusLabel.open')).toBeTruthy();
+    expect(screen.getByText('issues.statusLabel.muted')).toBeTruthy();
+  });
+
+  it('opens the issue panel when a row is clicked', () => {
+    render(<Issues />);
+    fireEvent.click(screen.getByText('Test critical issue description'));
+    const panel = screen.getByRole('dialog');
+    expect(panel.textContent).toContain('Raise the pool size.');
+    expect(screen.getByRole('link', { name: /issues.panel.openAnalysis/ }).getAttribute('href')).toBe('/dash/data/details/shop-batch-1');
+    expect(screen.getByRole('button', { name: /issues.panel.resolve/ })).toBeTruthy();
+  });
+
+  it('count tiles toggle a filter', () => {
+    render(<Issues />);
+    const tile = screen.getByRole('button', { name: /issues.tiles.critical/ });
+    expect(tile.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(tile);
+    expect(screen.getByRole('button', { name: /issues.tiles.critical/ }).getAttribute('aria-pressed')).toBe('true');
   });
 
   it('renders severity as an uppercase badge', () => {
@@ -272,14 +305,18 @@ describe('Issues component', () => {
     expect(checkboxes.length).toBe(3);
   });
 
-  it('shows bulk toolbar when items are selected', () => {
+  it('bulk toolbar offers only the actions that apply', () => {
     render(<Issues />);
     const checkboxes = screen.getAllByRole('checkbox');
-    // Click first row checkbox
-    fireEvent.click(checkboxes[1]);
+    fireEvent.click(checkboxes[1]); // an OPEN issue
     expect(screen.getByText('1 selected')).toBeTruthy();
     expect(screen.getByText(/Resolve 1/)).toBeTruthy();
     expect(screen.getByText(/Mute 1/)).toBeTruthy();
+    expect(screen.queryByText(/Reopen 1/)).toBeNull();
+    fireEvent.click(checkboxes[1]);
+    fireEvent.click(checkboxes[2]); // a MUTED issue
+    expect(screen.getByText(/Reopen 1/)).toBeTruthy();
+    expect(screen.queryByText(/Resolve 1/)).toBeNull();
   });
 
   it('renders age column with relative time', () => {
@@ -294,3 +331,20 @@ describe('Issues component', () => {
     expect(screen.getByText('auto-refresh')).toBeTruthy();
   });
 });
+
+describe('investigateLink', () => {
+  it('covers 30 minutes before first seen to 15 after last seen, scoped to the issue', async () => {
+    const { investigateLink } = await import('../issues/IssuePanel');
+    const url = new URL('http://x' + investigateLink({
+      created_at: '2026-10-10T10:00:00Z', last_seen_at: '2026-10-10T11:00:00Z',
+      project: 7, environment: 'production', component: 'checkout', description: 'boom',
+    }));
+    expect(url.pathname).toBe('/dash/investigate');
+    expect(url.searchParams.get('start')).toBe('2026-10-10T09:30:00.000Z');
+    expect(url.searchParams.get('end')).toBe('2026-10-10T11:15:00.000Z');
+    expect(url.searchParams.get('project_id')).toBe('7');
+    expect(url.searchParams.get('services')).toBe('checkout');
+    expect(url.searchParams.get('hint')).toBe('boom');
+  });
+});
+

@@ -175,7 +175,57 @@
     "systemIssues": "System Issues",
     "batchIssues": "Batch {{batchId}} Issues",
     "trackAnomalies": "Track and manage identified system anomalies",
-    "batchId": "Batch ID"
+    "batchId": "Batch ID",
+    "statusLabel": {
+      "open": "Open",
+      "muted": "Muted",
+      "resolved": "Resolved",
+      "unknown": "Unknown"
+    },
+    "panel": {
+      "acknowledged": "Acknowledged",
+      "firstSeen": "First seen",
+      "lastSeen": "Last seen",
+      "occurrences": "Occurrences",
+      "confidence": "Confidence",
+      "rootCause": "Root cause",
+      "noRootCause": "No root cause recorded for this issue.",
+      "recommendation": "Recommended action",
+      "reasoning": "Why the AI thinks so",
+      "correlations": "Correlations",
+      "metricAnomaly": "Metric anomaly: {{type}}",
+      "openAnalysis": "Open analysis",
+      "investigate": "Investigate this window",
+      "askAI": "Ask AI",
+      "copyLink": "Copy link",
+      "resolve": "Resolve",
+      "mute": "Mute",
+      "acknowledge": "Acknowledge",
+      "reopen": "Reopen",
+      "acknowledgedToast": "Issue acknowledged: escalation stopped.",
+      "acknowledgeFailed": "Could not acknowledge the issue."
+    },
+    "tiles": {
+      "critical": "Critical",
+      "warning": "Warning",
+      "open": "Open",
+      "resolved": "Resolved"
+    },
+    "filters": {
+      "project": "Filter by project",
+      "environment": "Filter by environment",
+      "service": "Filter by service",
+      "allProjects": "All projects",
+      "allEnvironments": "All environments",
+      "allServices": "All services"
+    },
+    "menu": {
+      "viewDetails": "View details"
+    },
+    "resultCount_one": "{{count}} issue",
+    "resultCount_other": "{{count}} issues",
+    "searchPlaceholder": "Search issues…",
+    "openIssue": "Issue {{id}}: {{description}}. Press Enter for details."
   },
   "addService": {
     "title": "Add New Service",

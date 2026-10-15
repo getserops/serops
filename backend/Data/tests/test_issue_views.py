@@ -302,3 +302,50 @@ class TestIssueListSorting(IssueViewTestBase):
         results = resp.data['results']
         self.assertEqual(results[0]['severity'], 'CRITICAL')
         self.assertEqual(results[1]['severity'], 'WARNING')
+
+
+class TestIssueListFilters(IssueViewTestBase):
+    """Project / environment / service filters and the fields the issue panel reads."""
+
+    url = '/api/data/issues/'
+
+    def setUp(self):
+        super().setUp()
+        from Projects.models import Project
+        self.project_a2 = Project.objects.create(name="project-a2", organisation=self.org_a)
+        self.batch_a2 = AIAnalyzedBatch.objects.create(
+            batch_id='filters-a2', project=self.project_a2, organisation=self.org_a, data={})
+        self.i1 = self._create_issue(self.batch_a, self.org_a, description='checkout down')
+        self.i1.component, self.i1.environment = 'checkout', 'production'
+        self.i1.save(update_fields=['component', 'environment'])
+        self.i2 = self._create_issue(self.batch_a2, self.org_a, description='cache cold')
+        self.i2.component, self.i2.environment = 'redis', 'staging'
+        self.i2.save(update_fields=['component', 'environment'])
+        self.client.force_authenticate(user=self.user_a)
+
+    def ids(self, **params):
+        resp = self.client.get(self.url, params)
+        self.assertEqual(resp.status_code, 200, resp.data)
+        return [r['id'] for r in resp.data['results']]
+
+    def test_filter_by_project(self):
+        self.assertEqual(self.ids(project=self.project_a2.id), [self.i2.id])
+
+    def test_filter_by_environment_and_service(self):
+        self.assertEqual(self.ids(environment='Production'), [self.i1.id])
+        self.assertEqual(self.ids(component='REDIS'), [self.i2.id])
+
+    def test_total_reflects_filters(self):
+        resp = self.client.get(self.url, {'project': self.project_a.id})
+        self.assertEqual(resp.data['pagination']['total_issues'], 1)
+
+    def test_project_must_be_a_number(self):
+        self.assertEqual(self.client.get(self.url, {'project': 'x'}).status_code, 400)
+
+    def test_another_organisations_project_returns_nothing(self):
+        self.assertEqual(self.ids(project=self.project_b.id), [])
+
+    def test_panel_fields(self):
+        row = next(r for r in self.client.get(self.url).data['results'] if r['id'] == self.i1.id)
+        self.assertEqual((row['project'], row['project_name']), (self.project_a.id, 'project-a'))
+        self.assertIn('acknowledged_at', row)

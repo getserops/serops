@@ -293,7 +293,7 @@ const AuditLogSettings = () => {
             </div>
 
             {/* Logs Table Card */}
-            <div className="settings-card">
+            <div className="settings-card settings-card-flush">
                 <div className="settings-card-body p-0 overflow-hidden">
                     {loading ? (
                         <div className="text-center py-5">

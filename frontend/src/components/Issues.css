@@ -220,7 +220,7 @@
 
 /* Count heat indicators */
 .count-heat-normal {
-  color: #6c757d;
+  color: #5f666d;
 }
 
 .count-heat-amber {
@@ -443,4 +443,94 @@
 .page-btn.dots {
   border: none;
   background: transparent;
+}
+
+/* ---- Count tiles are filter buttons ---- */
+button.issue-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  border-top: 1px solid transparent;
+  border-right: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+button.issue-stat-card:hover { box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.1)); }
+button.issue-stat-card.is-active { background: hsl(230, 100%, 97%); border-color: hsl(230, 80%, 80%); }
+button.issue-stat-card:focus-visible { outline: 2px solid var(--primary-600, #2f50e4); outline-offset: 2px; }
+
+/* ---- Toolbar ----
+   The search keeps a usable width; the filters wrap onto a second line
+   rather than squeezing it to nothing. */
+.issues-search { flex: 1 1 260px; min-width: 220px; max-width: 360px; }
+.issues-scope-select { width: 150px !important; flex: 0 0 auto; }
+.issues-result-count { margin-left: auto; font-size: 0.8125rem; color: var(--text-secondary); white-space: nowrap; }
+
+/* ---- Rows ----
+   The severity stripe used to be a border on the <tr>, which made rows 4px
+   wider than the header and pushed every column out of line with it. It is
+   now an inset shadow on the first cell, which takes no space. */
+.issue-row > td:first-child { box-shadow: inset 4px 0 0 var(--severity-color, transparent); }
+.issue-row { cursor: pointer; }
+.issue-row:focus-visible { outline: 2px solid var(--primary-600, #2f50e4); outline-offset: -2px; }
+.issue-row-open > td { background-color: hsl(230, 100%, 97%) !important; }
+.issue-description-cell { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.issue-root-cause-line {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.issue-component-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle; }
+
+/* ---- Issue panel ---- */
+.issue-panel.offcanvas-end { width: min(560px, 100vw); }
+.issue-panel .offcanvas-header { align-items: flex-start; border-bottom: 1px solid var(--border-default, #e5e7eb); }
+.issue-panel-head { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.issue-panel-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.issue-panel-id { color: var(--text-tertiary); font-size: 0.8125rem; }
+.issue-panel-title { font-size: 1.05rem; font-weight: 600; line-height: 1.4; margin: 0; color: var(--text-primary); }
+.issue-panel-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.8125rem; color: var(--text-secondary); }
+.issue-panel-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0 0 20px; }
+.issue-panel-facts dt { font-size: 0.75rem; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.04em; }
+.issue-panel-facts dd { margin: 2px 0 0; font-size: 0.875rem; color: var(--text-primary); }
+.issue-panel-section { margin-bottom: 20px; }
+.issue-panel-section h3 { font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+.issue-panel-section p, .issue-panel-section li { font-size: 0.9rem; line-height: 1.55; color: var(--text-primary); }
+.issue-panel-section ul { padding-left: 18px; margin: 0; }
+.issue-panel-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.issue-panel-footer { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border-default, #e5e7eb); background: var(--bg-card, #fff); }
+
+/* ---- Phones: one card per issue instead of a cut-off table ----
+   Checkbox, description and the actions menu on the first line; service,
+   age, occurrences, severity and status wrap below it. */
+@media (max-width: 767px) {
+  .issues-toolbar .input-group { max-width: 100% !important; flex: 1 1 100% !important; }
+  .issues-scope-select { flex: 1 1 45% !important; width: auto !important; }
+  .issues-result-count { margin-left: 0; flex: 1 1 100%; }
+  .issues-table-wrap table, .issues-table-wrap tbody { display: block; width: 100% !important; }
+  .issues-table-wrap thead { display: none; }
+  .issues-table-wrap tbody tr.issue-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    padding: 12px 8px 12px 14px;
+    border-bottom: 1px solid var(--border-default, #e5e7eb);
+    box-shadow: inset 4px 0 0 var(--severity-color, transparent);
+  }
+  .issues-table-wrap tbody tr.issue-row > td { display: block; padding: 0 !important; border: 0; box-shadow: none !important; width: auto !important; max-width: none !important; }
+  .issues-table-wrap tbody tr.issue-row > td:first-child { order: 0; flex: 0 0 22px; }
+  .issues-table-wrap tbody tr.issue-row > td.issue-cell-description { order: 1; flex: 1 1 calc(100% - 80px); min-width: 0; }
+  .issues-table-wrap tbody tr.issue-row > td:last-child { order: 2; flex: 0 0 auto; }
+  .issues-table-wrap tbody tr.issue-row > td.issue-cell-meta { order: 3; flex: 0 0 auto; text-align: left !important; font-size: 0.8125rem; }
+  .issues-table-wrap tbody tr.issue-row > td.issue-cell-meta:first-of-type,
+  .issues-table-wrap tbody tr.issue-row > td.issue-cell-meta.issue-cell-first-meta { margin-left: 32px; }
+  .issue-description-clamp { white-space: normal; -webkit-line-clamp: 2; }
+  .issues-table-wrap tbody tr.issue-row > td { background: transparent !important; }
 }
