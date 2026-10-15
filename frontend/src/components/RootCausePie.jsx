@@ -105,6 +105,11 @@ const RootCausePie = ({ data, loading }) => {
                 <span className="chart-subtitle">{t('dashboard.issuesAnalyzed', { count: total_issues })}</span>
             </div>
             <div className="chart-container">
+                {/* Screen readers get the numbers as a list; the drawing is decorative. */}
+                <ul className="ds-visually-hidden">
+                    {chartData.map((entry) => <li key={entry.category}>{entry.category}: {entry.count}</li>)}
+                </ul>
+                <div aria-hidden="true" inert>
                 <ResponsiveContainer width="100%" height={320}>
                     <PieChart>
                         <Pie
@@ -137,6 +142,7 @@ const RootCausePie = ({ data, loading }) => {
                         />
                     </PieChart>
                 </ResponsiveContainer>
+                </div>
             </div>
         </div>
     );

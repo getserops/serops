@@ -20,6 +20,7 @@ import { Icon } from "@iconify/react";
 import { useMediaQuery } from '@mui/material';
 import { Space, Alert } from 'antd';
 import { getRoleDisplayName, getRoleColor } from '../utils/permissions';
+import { isDemoUser } from '../utils/demo';
 
 function Profile() {
   const { t } = useTranslation();
@@ -311,11 +312,12 @@ function Profile() {
 
                   {/* Role Display (Read-only) */}
                   <div className="mb-4">
-                    <label className="form-label">{t('profile.role')}</label>
+                    <label className="form-label" htmlFor="profile-role">{t('profile.role')}</label>
                     <Input
+                      id="profile-role"
                       className="form-control"
                       type="text"
-                      value={getRoleDisplayName(formData.role)}
+                      value={isDemoUser() ? t('profile.demoRole') : getRoleDisplayName(formData.role)}
                       disabled={true}
                     />
                   </div>

@@ -361,16 +361,24 @@ const BatchTimelineChart = ({
                                 key={k}
                                 type="button"
                                 onClick={() => toggleLane(k)}
-                                className={`btn btn-sm ${on ? 'btn-outline-secondary active' : 'btn-outline-secondary text-muted'}`}
+                                className="btn btn-sm d-inline-flex align-items-center gap-1"
                                 style={{
+                                    // Dark text on a light tint of the lane colour: the old
+                                    // .active outline button painted the label in the lane
+                                    // colour on a grey fill, which was unreadable.
+                                    background: on ? `${LANE_META[k]?.colour || '#6c757d'}1f` : 'transparent',
                                     borderColor: on ? LANE_META[k]?.colour : '#dee2e6',
-                                    color: on ? LANE_META[k]?.colour : '#adb5bd',
+                                    color: on ? '#1f2937' : '#6b7280',
                                     fontWeight: on ? 600 : 400,
                                     padding: '2px 10px',
                                 }}
                                 aria-pressed={on}
                                 aria-label={`${on ? 'Hide' : 'Show'} ${LANE_META[k]?.label || k} lane`}
                             >
+                                <span aria-hidden="true" style={{
+                                    width: 8, height: 8, borderRadius: '50%',
+                                    background: on ? LANE_META[k]?.colour : '#ced4da',
+                                }} />
                                 {LANE_META[k]?.label || k}
                             </button>
                         );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { FaBell, FaBullhorn, FaEye, FaEyeSlash, FaTimes, FaExclamationTriangle, FaTrash } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -6,7 +6,12 @@ import { useTranslation } from 'react-i18next';
 import NotificationService from "../services/notification.service";
 import './NotificationPanel.css';
 
-const NotificationPanel = ({ onClose, unreadCount, setUnreadCount }) => {
+const noop = () => {};
+
+// variant="popover" is the bell dropdown; variant="page" is /dash/notifications
+// (linked from the digest email), where there is nothing to close and no badge
+// to keep in sync.
+const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop, variant = 'popover' }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
@@ -14,6 +19,10 @@ const NotificationPanel = ({ onClose, unreadCount, setUnreadCount }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionNotice, setActionNotice] = useState(null);
+  // The page variant has no parent badge, so the panel keeps its own count.
+  const [ownUnread, setOwnUnread] = useState(unreadCount ?? 0);
+  const updateUnread = useCallback((n) => { setOwnUnread(n); setUnreadCount(n); }, [setUnreadCount]);
+  const shownUnread = unreadCount ?? ownUnread;
 
   // Surface backend refusal (403 demo_read_only) as a friendly banner
   // rather than a silent no-op. Any other axios error is logged and
@@ -52,7 +61,7 @@ const NotificationPanel = ({ onClose, unreadCount, setUnreadCount }) => {
 
         // Update unread count
         const unreadResponse = await NotificationService.getUnreadCount();
-        setUnreadCount(unreadResponse.data.unread_count);
+        updateUnread(unreadResponse.data.unread_count);
       } catch (err) {
         setError(err.message);
         setLoading(false);
@@ -60,7 +69,7 @@ const NotificationPanel = ({ onClose, unreadCount, setUnreadCount }) => {
     };
 
     fetchNotifications();
-  }, [filter, setUnreadCount]);
+  }, [filter, updateUnread]);
 
   const markAsRead = async (id) => {
     try {
@@ -71,7 +80,7 @@ const NotificationPanel = ({ onClose, unreadCount, setUnreadCount }) => {
 
       // Update unread count
       const response = await NotificationService.getUnreadCount();
-      setUnreadCount(response.data.unread_count);
+      updateUnread(response.data.unread_count);
     } catch (err) {
       handleActionError(err, 'Error marking as read:');
     }
@@ -86,7 +95,7 @@ const NotificationPanel = ({ onClose, unreadCount, setUnreadCount }) => {
 
       // Update unread count
       const response = await NotificationService.getUnreadCount();
-      setUnreadCount(response.data.unread_count);
+      updateUnread(response.data.unread_count);
     } catch (err) {
       handleActionError(err, 'Error marking as unread:');
     }
@@ -99,7 +108,7 @@ const NotificationPanel = ({ onClose, unreadCount, setUnreadCount }) => {
 
       // Update unread count if needed
       const response = await NotificationService.getUnreadCount();
-      setUnreadCount(response.data.unread_count);
+      updateUnread(response.data.unread_count);
     } catch (err) {
       handleActionError(err, 'Error deleting notification:');
     }
@@ -113,7 +122,7 @@ const NotificationPanel = ({ onClose, unreadCount, setUnreadCount }) => {
     try {
       await NotificationService.deleteAllNotifications();
       setNotifications([]);
-      setUnreadCount(0);
+      updateUnread(0);
     } catch (err) {
       handleActionError(err, 'Error deleting all notifications:');
     }
@@ -123,7 +132,7 @@ const NotificationPanel = ({ onClose, unreadCount, setUnreadCount }) => {
     try {
       await NotificationService.markAllAsRead();
       setNotifications(notifications.map(note => ({ ...note, is_read: true })));
-      setUnreadCount(0);
+      updateUnread(0);
     } catch (err) {
       handleActionError(err, 'Error marking all as read:');
     }
@@ -214,7 +223,7 @@ const NotificationPanel = ({ onClose, unreadCount, setUnreadCount }) => {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
-        className="notification-panel-overlay"
+        className={`notification-panel-overlay${variant === 'page' ? ' is-page' : ''}`}
       >
         <div style={{ padding: '2rem', textAlign: 'center' }}>
           {t('notifications.panel.loading')}
@@ -230,7 +239,7 @@ const NotificationPanel = ({ onClose, unreadCount, setUnreadCount }) => {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
-        className="notification-panel-overlay"
+        className={`notification-panel-overlay${variant === 'page' ? ' is-page' : ''}`}
       >
         <div style={{ padding: '2rem', textAlign: 'center', color: '#ff4d4f' }}>
           {t('notifications.panel.error', { message: error })}
@@ -245,7 +254,7 @@ const NotificationPanel = ({ onClose, unreadCount, setUnreadCount }) => {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
-      className="notification-panel-overlay"
+      className={`notification-panel-overlay${variant === 'page' ? ' is-page' : ''}`}
     >
       {/* Header */}
       <div className="notification-header">
@@ -257,16 +266,19 @@ const NotificationPanel = ({ onClose, unreadCount, setUnreadCount }) => {
             <h3 className="notification-title">{t('notifications.panel.title')}</h3>
             <p className="notification-subtitle">
               <span className="notification-dot"></span>
-              {t('notifications.panel.unread', { total: unreadCount })}
+              {t('notifications.panel.unread', { total: shownUnread })}
             </p>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="notification-close-btn"
-        >
-          <FaTimes />
-        </button>
+        {variant !== 'page' && (
+          <button
+            onClick={onClose}
+            className="notification-close-btn"
+            aria-label={t('common.close')}
+          >
+            <FaTimes />
+          </button>
+        )}
       </div>
 
       {/* Action notice — surfaces backend refusal (demo read-only) or

@@ -780,7 +780,8 @@ const Data = () => {
                             </div>
                           </td>
                           <td>
-                            <Link to={`/dash/data/details/${item.id}`} className="view-btn">
+                            <Link to={`/dash/data/details/${item.id}`} className="view-btn"
+                                  aria-label={t('data.openBatch', { id: item.id })} title={t('data.openBatch', { id: item.id })}>
                               <FaEye size={18} />
                             </Link>
                           </td>

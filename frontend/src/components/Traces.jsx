@@ -120,8 +120,8 @@ const Traces = () => {
             <Form onSubmit={applyFilters} className="mb-3">
                 <div className="row g-2 align-items-end">
                     <div className="col-md-3">
-                        <Form.Label className="mb-1 small">{t('traces.dashboard.service')}</Form.Label>
-                        <Form.Select
+                        <Form.Label className="mb-1 small" htmlFor="traces-service">{t('traces.dashboard.service')}</Form.Label>
+                        <Form.Select id="traces-service"
                             value={filters.service}
                             onChange={(e) => setFilters({ ...filters, service: e.target.value, page: 1 })}
                         >
@@ -130,8 +130,8 @@ const Traces = () => {
                         </Form.Select>
                     </div>
                     <div className="col-md-2">
-                        <Form.Label className="mb-1 small">{t('traces.dashboard.status')}</Form.Label>
-                        <Form.Select
+                        <Form.Label className="mb-1 small" htmlFor="traces-status">{t('traces.dashboard.status')}</Form.Label>
+                        <Form.Select id="traces-status"
                             value={filters.status}
                             onChange={(e) => setFilters({ ...filters, status: e.target.value, page: 1 })}
                         >
@@ -142,8 +142,9 @@ const Traces = () => {
                         </Form.Select>
                     </div>
                     <div className="col-md-2">
-                        <Form.Label className="mb-1 small">{t('traces.dashboard.minDuration')}</Form.Label>
+                        <Form.Label className="mb-1 small" htmlFor="traces-min-duration">{t('traces.dashboard.minDuration')}</Form.Label>
                         <Form.Control
+                            id="traces-min-duration"
                             type="number"
                             min="0"
                             value={filters.min_duration_ms}
@@ -152,23 +153,26 @@ const Traces = () => {
                         />
                     </div>
                     <div className="col-md-2">
-                        <Form.Label className="mb-1 small">{t('traces.dashboard.since')}</Form.Label>
+                        <Form.Label className="mb-1 small" htmlFor="traces-since">{t('traces.dashboard.since')}</Form.Label>
                         <Form.Control
+                            id="traces-since"
                             type="datetime-local"
                             value={filters.since}
                             onChange={(e) => setFilters({ ...filters, since: e.target.value, page: 1 })}
                         />
                     </div>
                     <div className="col-md-2">
-                        <Form.Label className="mb-1 small">{t('traces.dashboard.until')}</Form.Label>
+                        <Form.Label className="mb-1 small" htmlFor="traces-until">{t('traces.dashboard.until')}</Form.Label>
                         <Form.Control
+                            id="traces-until"
                             type="datetime-local"
                             value={filters.until}
                             onChange={(e) => setFilters({ ...filters, until: e.target.value, page: 1 })}
                         />
                     </div>
                     <div className="col-md-1 d-grid">
-                        <Button variant="outline-secondary" type="button" onClick={resetFilters}>
+                        <Button variant="outline-secondary" type="button" onClick={resetFilters}
+                                aria-label={t('traces.dashboard.resetFilters')} title={t('traces.dashboard.resetFilters')}>
                             <FaFilter />
                         </Button>
                     </div>

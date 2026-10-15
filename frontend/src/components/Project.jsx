@@ -361,7 +361,7 @@ const Project = () => {
                           <Button
                             variant="light"
                             size="sm"
-                            className="rounded-pill px-3 me-2 text-info fw-medium"
+                            className="rounded-pill px-3 me-2 text-primary fw-medium"
                             as={Link}
                             to={`/dash/data?project=${project.name}`}
                           >

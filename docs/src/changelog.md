@@ -10,7 +10,30 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **Read-only demo:** every refused change now shows one friendly notice
+  instead of a different error per page ("Error", "Rotation failed", a raw
+  `demo_read_only` code), and Settings says up front that it is read-only.
+- `/notifications` crashed; it is now a full page at `/dash/notifications`
+  (the digest email links there).
+- 89 English and 101 French interface texts were missing, so some labels
+  showed raw keys (`common.active`) and French users saw English. A test now
+  fails if a key is missing from either language.
+- The timeline's lane toggles were unreadable (coloured text on grey).
+- Browser tabs are titled per page ("Issues · SerOps") instead of all reading
+  "SerOps".
+- Profile and registration labels fell back to a serif font; the demo user's
+  role reads "Read-only demo".
+- Settings → General showed the same heading twice; Investigate now defaults
+  to the production environment.
+
+### Accessibility
+
+- The main pages pass an automated WCAG 2 AA check (axe) with no violations,
+  down from 214: secondary text, badges, links and health tiles meet 4.5:1
+  contrast; icon buttons, links and form fields have accessible names; the
+  user menu's list structure and decorative charts are fixed.
 
 ---
 

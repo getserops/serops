@@ -733,7 +733,7 @@
 }
 
 .service-healthy {
-    background-color: #06d6a0 !important;
+    background-color: #047a5c !important;
     color: #fff !important;
 }
 
@@ -743,7 +743,7 @@
 }
 
 .service-critical {
-    background-color: #ef476f !important;
+    background-color: #d4123f !important;
     color: #fff !important;
 }
 

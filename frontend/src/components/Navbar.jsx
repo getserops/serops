@@ -267,7 +267,7 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
           <div style={{ height: "24px", width: "1px", backgroundColor: "#e2e8f0" }}></div>
 
           {/* User Profile Dropdown */}
-          <Dropdown show={dropdownOpen} onToggle={toggleDropdown} as="li" style={{ listStyle: 'none' }}>
+          <Dropdown show={dropdownOpen} onToggle={toggleDropdown}>
             <Dropdown.Toggle as="div" id="userDropdown" className="nav-link"
                              data-testid="user-menu-trigger"
                              aria-label="Open user menu"

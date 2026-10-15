@@ -133,8 +133,8 @@ const GeneralSettings = () => {
                     <FaBuilding />
                 </div>
                 <div>
-                    <h2>{t('settings.general.organisation.title')}</h2>
-                    <p>{t('settings.general.organisation.subtitle')}</p>
+                    <h2>{t('settings.general.title')}</h2>
+                    <p>{t('settings.general.subtitle')}</p>
                 </div>
             </div>
 

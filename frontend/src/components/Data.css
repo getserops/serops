@@ -182,7 +182,7 @@
 
 .status-badge.analyzed {
     background: var(--success-100);
-    color: var(--success-600);
+    color: #157a3f;
 }
 
 .status-badge.pending {
@@ -197,7 +197,7 @@
 
 .status-badge.skipped {
     background: var(--neutral-100);
-    color: var(--neutral-500);
+    color: var(--neutral-600);
 }
 
 /* Sentinel Badges */

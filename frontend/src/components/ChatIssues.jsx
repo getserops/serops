@@ -576,6 +576,7 @@ const ChatIssues = () => {
             />
             <button
               className="send-button"
+              aria-label={t('chat.send')}
               onClick={handleSend}
               disabled={isLoading || isDemo || !input.trim()}
             >

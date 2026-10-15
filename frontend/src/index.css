@@ -69,7 +69,9 @@
   /* Text Colors */
   --text-primary: var(--neutral-900);
   --text-secondary: var(--neutral-600);
-  --text-tertiary: var(--neutral-400);
+  /* Secondary text must stay readable (WCAG AA 4.5:1 on the page grey);
+     neutral-400 measured 2.5:1. */
+  --text-tertiary: #646a80;
   --text-inverse: #ffffff;
   --text-link: var(--primary-500);
   --text-link-hover: var(--primary-600);

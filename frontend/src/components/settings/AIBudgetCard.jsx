@@ -19,7 +19,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Button, ProgressBar, Alert, Badge, Spinner } from 'react-bootstrap';
+import { Card, Form, Button, Alert, Badge, Spinner } from 'react-bootstrap';
 import { FaDollarSign, FaExclamationTriangle, FaCheckCircle, FaInfoCircle } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
@@ -145,12 +145,19 @@ const AIBudgetCard = () => {
                                         </Badge>
                                     </span>
                                 </div>
-                                <ProgressBar
-                                    now={Math.min(100, pct)}
-                                    variant={barVariant}
-                                    style={{ height: 8 }}
-                                    aria-label={`${pct.toFixed(1)}% of monthly budget used`}
-                                />
+                                {/* Own markup: react-bootstrap puts aria-label on the
+                                    wrapper, leaving the progressbar itself unnamed. */}
+                                <div className="progress" style={{ height: 8 }}>
+                                    <div
+                                        role="progressbar"
+                                        className={`progress-bar bg-${barVariant}`}
+                                        style={{ width: `${Math.min(100, pct)}%` }}
+                                        aria-valuenow={Math.min(100, pct)}
+                                        aria-valuemin={0}
+                                        aria-valuemax={100}
+                                        aria-label={`${pct.toFixed(1)}% of monthly budget used`}
+                                    />
+                                </div>
                                 <div className="mt-2">
                                     {status?.is_exceeded ? (
                                         <Alert variant="danger" className="d-flex align-items-start mb-0 py-2 small">

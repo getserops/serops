@@ -9,6 +9,7 @@ import {
 } from "react-router-dom";
 import { ClusterProvider } from "./context/ClusterContext";
 import ErrorBoundary from "./components/ErrorBoundary";
+import PageTitle from "./components/PageTitle";
 
 // Lazy loading components
 // Public registration now ENABLED for SaaS
@@ -110,6 +111,7 @@ function App() {
       <Router>
         <ClusterProvider>
         <ErrorBoundary>
+        <PageTitle />
         <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Authentication routes */}
@@ -125,7 +127,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/auth/callback" element={<SSOCallback />} />
             <Route path="/dash" element={<Dashboard />} />
-            <Route path="/notifications" element={<NotificationPanel />} />
+            <Route path="/notifications" element={<Navigate to="/dash/notifications" replace />} />
 
             {/* Dashboard routes */}
             <Route path="/dash/*" element={<Dashboard />}>
@@ -139,6 +141,7 @@ function App() {
               <Route path="issues" element={<Issues />} />
               <Route path="issues/:batchId" element={<Issues />} />
               <Route path="investigate" element={<Investigate />} />
+              <Route path="notifications" element={<NotificationPanel variant="page" />} />
               <Route path="chat" element={<ChatIssues />} />
               <Route path="traces" element={<Traces />} />
               <Route path="traces/batch/:batchId" element={<BatchTraces />} />

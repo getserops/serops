@@ -1509,3 +1509,12 @@
     border-top-color: #334155;
     background-color: #1a2436;
 }
+
+.settings-readonly-notice {
+    margin-bottom: 16px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    background: hsl(40, 80%, 94%);
+    color: hsl(40, 90%, 24%);
+    font-size: 0.875rem;
+}

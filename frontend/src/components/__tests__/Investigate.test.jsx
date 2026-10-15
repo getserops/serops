@@ -10,7 +10,7 @@ vi.mock('react-i18next', () => ({
 const svc = vi.hoisted(() => ({ options: vi.fn(), list: vi.fn(), get: vi.fn(), create: vi.fn() }));
 vi.mock('../../services/investigation.service', () => ({ default: svc }));
 
-import Investigate from '../investigate/Investigate';
+import Investigate, { defaultEnvironment } from '../investigate/Investigate';
 
 const NOW = new Date('2026-10-14T12:00:00Z');
 const OPTIONS = {
@@ -48,6 +48,15 @@ describe('window rules', () => {
     expect(validateWindow(new Date(NOW - 7 * 60 * MINUTE), NOW, {}, NOW)).toBe('tooLong');
     expect(validateWindow(NOW, new Date(NOW.getTime() + 10 * MINUTE), {}, NOW)).toBe('future');
     expect(validateWindow(null, NOW, {}, NOW)).toBe('invalid');
+  });
+});
+
+describe('default environment', () => {
+  it('prefers production over the first environment', () => {
+    const project = { environments: [{ id: 1, name: 'development' }, { id: 2, name: 'Production' }] };
+    expect(defaultEnvironment(project).id).toBe(2);
+    expect(defaultEnvironment({ environments: [{ id: 5, name: 'staging' }] }).id).toBe(5);
+    expect(defaultEnvironment({ environments: [] })).toBeNull();
   });
 });
 

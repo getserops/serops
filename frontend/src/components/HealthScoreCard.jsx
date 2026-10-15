@@ -3,6 +3,9 @@ import { FaHeartbeat, FaCheckCircle, FaExclamationTriangle, FaTimesCircle } from
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import { useTranslation } from "react-i18next";
 
+// Text on white needs darker shades of the gauge colours (WCAG AA).
+const TEXT = { '#06d6a0': '#047857', '#ef476f': '#c4123c', '#ffd166': '#8a6100' };
+
 const HealthScoreCard = ({ score, status, loading }) => {
     const { t } = useTranslation();
     // Determine color based on score
@@ -44,6 +47,8 @@ const HealthScoreCard = ({ score, status, loading }) => {
 
             <div className="health-content">
                 <div className="health-chart">
+                    {/* Decorative gauge: the score is written out beside it. */}
+                    <div aria-hidden="true" inert>
                     <ResponsiveContainer width={120} height={80}>
                         <PieChart>
                             <Pie
@@ -64,13 +69,14 @@ const HealthScoreCard = ({ score, status, loading }) => {
                             </Pie>
                         </PieChart>
                     </ResponsiveContainer>
+                    </div>
                     <div className="health-score-overlay">
-                        <span className="score-value" style={{ color: color }}>{score}%</span>
+                        <span className="score-value" style={{ color: TEXT[color] }}>{score}%</span>
                     </div>
                 </div>
 
                 <div className="health-details">
-                    <div className="health-status" style={{ color: color }}>
+                    <div className="health-status" style={{ color: TEXT[color] }}>
                         <Icon className="status-icon" />
                         {t(`dashboard.statusLabels.${status?.toLowerCase()}`) || status}
                     </div>

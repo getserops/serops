@@ -195,12 +195,12 @@
 
 .severity-badge-warning {
   background: #fff3e0;
-  color: #e65100;
+  color: #b84100;
 }
 
 .severity-badge-medium {
   background: #fff3e0;
-  color: #e65100;
+  color: #b84100;
 }
 
 .severity-badge-low {
@@ -369,7 +369,7 @@
 /* Auto-refresh indicator */
 .auto-refresh-indicator {
   font-size: 0.75rem;
-  color: #999;
+  color: #6b6b6b;
   display: flex;
   align-items: center;
   gap: 4px;

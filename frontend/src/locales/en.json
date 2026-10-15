@@ -12,7 +12,11 @@
     "notifications": "Notifications",
     "noNotifications": "No notifications",
     "markAllRead": "Mark all as read",
-    "investigate": "Investigate"
+    "investigate": "Investigate",
+    "primary": "Primary navigation",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
+    "closeSidebar": "Close sidebar"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -93,7 +97,26 @@
       "days": "{{count}}d ago",
       "hours": "{{count}}h ago",
       "minutes": "{{count}}m ago"
-    }
+    },
+    "aiAnalysisFeed": "Recent AI Analyses",
+    "latestFindings": "Latest findings from AI analysis",
+    "noAnalysisData": "No AI analyses available yet. Analyses run automatically on log batches.",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago",
+    "totalAnalyses": "{{count}} total analyses",
+    "noSummary": "Analysis completed",
+    "byIssueCount": "By issue count",
+    "envAll": "All",
+    "correlationInsights": "AI Correlation Insights",
+    "correlationSubtitle": "Issues linked to deployments & metric spikes",
+    "noCorrelationData": "No correlation data available yet",
+    "issuesCorrelated": "of issues correlated",
+    "deploymentLinks": "Deployment Links",
+    "memorySpikes": "Memory Spikes",
+    "cpuSpikes": "CPU Spikes",
+    "pipelineFailures": "Pipeline Failures",
+    "topAffected": "Top Affected"
   },
   "data": {
     "title": "Data",
@@ -118,7 +141,8 @@
     "actions": "Actions",
     "viewDetails": "View Details",
     "viewLogs": "View Logs",
-    "viewMetrics": "View Metrics"
+    "viewMetrics": "View Metrics",
+    "openBatch": "Open batch {{id}}"
   },
   "issues": {
     "title": "Issues",
@@ -191,7 +215,9 @@
     "deleteChat": "Delete chat",
     "demoReadOnly": "Chat is disabled in the read-only demo. Self-host SerOps to ask questions about your own data.",
     "demoPlaceholder": "Chat is disabled in the live demo",
-    "demoSelfHost": "Self-hosting guide"
+    "demoSelfHost": "Self-hosting guide",
+    "noModelConfigured": "No AI provider",
+    "configureAIInSettings": "No AI provider configured — set one up in Settings → AI"
   },
   "projects": {
     "title": "Projects",
@@ -270,17 +296,25 @@
     "traces": "Traces",
     "timeline": "Timeline",
     "logsDetails": "Logs Details",
-    "backToData": "Back to Data"
+    "backToData": "Back to Data",
+    "logSource": "Source",
+    "level": "Level",
+    "colTimestamp": "Timestamp",
+    "colLevel": "Level",
+    "colService": "Service",
+    "colMessage": "Message"
   },
   "timeline": {
     "title": "Batch Timeline",
     "batch": "Batch",
     "eventCount": "{{count}} event(s)",
     "empty": "No events recorded for this batch's time window.",
-    "loadFailed": "Could not load timeline."
+    "loadFailed": "Could not load timeline.",
+    "eventList": "Event list"
   },
   "clusterPicker": {
-    "all": "All clusters"
+    "all": "All clusters",
+    "cluster": "Cluster"
   },
   "workloadsByCluster": {
     "title": "Workloads by Cluster"
@@ -460,14 +494,15 @@
     "passwordUpdated": "Password successfully updated.",
     "passwordUpdateFailed": "Failed to update password. Please try again.",
     "invalidEmail": "Invalid email format",
-    "phoneDigits": "Phone must contain exactly 8 digits"
+    "phoneDigits": "Phone must contain exactly 8 digits",
+    "demoRole": "Read-only demo"
   },
   "settings": {
     "title": "Settings",
     "general": {
       "menuLabel": "General",
       "title": "General Settings",
-      "subtitle": "Manage display preferences and organization info",
+      "subtitle": "Your organisation's name, logo and website.",
       "organisation": {
         "title": "Organisation Information",
         "subtitle": "Your team's public profile details",
@@ -554,6 +589,12 @@
     "team": {
       "title": "Team",
       "subtitle": "Manage team members and roles"
+    },
+    "delivery": {
+      "title": "Delivery Channels"
+    },
+    "routing": {
+      "title": "Routing Rules"
     }
   },
   "team": {
@@ -603,7 +644,8 @@
     "admin": "Admin",
     "adminDesc": "Full access to all settings and team management",
     "sendInvitation": "Send Invitation",
-    "saveChanges": "Save Changes"
+    "saveChanges": "Save Changes",
+    "suspended": "Suspended"
   },
   "ai": {
     "title": "AI Settings",
@@ -663,7 +705,9 @@
     "deleteApiKey": "Delete API Key",
     "deleteConfirm": "Are you sure you want to delete the API key for {{provider}}?",
     "deleteWarning": "This action cannot be undone. The provider will no longer work until a new key is added.",
-    "deleteKey": "Delete Key"
+    "deleteKey": "Delete Key",
+    "hideKey": "Hide key",
+    "showKey": "Show key"
   },
   "preferences": {
     "title": "My Notification Preferences",
@@ -737,6 +781,15 @@
       "days": "{{count}} days",
       "saved": "Issue settings saved",
       "saveFailed": "Failed to save issue settings"
+    },
+    "memory": {
+      "title": "Recent Resolutions Context",
+      "subtitle": "Inject root causes from recently resolved issues into AI analysis as diagnostic context for this project.",
+      "enable": "Enable recent resolutions context",
+      "enableHint": "When on, recently resolved issues for this project are passed to the AI as diagnostic context for new batches and chat questions.",
+      "window": "How far back to look",
+      "maxItems": "Max resolutions per analysis",
+      "maxItemsHint": "Higher values give the AI more context but use more tokens. 3 is a good default."
     }
   },
   "security": {
@@ -890,7 +943,11 @@
     "project": "Project",
     "azurePatHelp": "PAT with Build/Release read access",
     "jenkinsUrl": "Jenkins URL",
-    "apiToken": "API Token"
+    "apiToken": "API Token",
+    "verifySuccess": "Connection verified!",
+    "verifyFailed": "Verification failed",
+    "getStarted": "Connect your first provider to get started",
+    "selectProvider": "Select Provider"
   },
   "auditLog": {
     "title": "Audit Log",
@@ -977,7 +1034,8 @@
       "loadFailed": "Could not load traces.",
       "total": "{{count}} total",
       "prev": "Previous",
-      "next": "Next"
+      "next": "Next",
+      "resetFilters": "Reset filters"
     },
     "detail": {
       "back": "Back to traces",
@@ -1027,7 +1085,11 @@
     "required": "Required",
     "showing": "Showing",
     "of": "of",
-    "saveChanges": "Save Changes"
+    "saveChanges": "Save Changes",
+    "actions": "Actions",
+    "optional": "(optional)",
+    "active": "Active",
+    "inactive": "Inactive"
   },
   "languages": {
     "en": "English",
@@ -1269,5 +1331,51 @@
       "manual": "INVESTIGATION",
       "alert": "ALERT"
     }
+  },
+  "deploymentFilter": {
+    "env": "Environment",
+    "region": "Region",
+    "namespace": "Namespace",
+    "nsNeedsCluster": "select a cluster first",
+    "clearAll": "Clear all filters"
+  },
+  "deployments": {
+    "title": "Deployments",
+    "loadFailed": "Failed to load deployments.",
+    "updated": "Deployment updated.",
+    "created": "Deployment created.",
+    "saveFailed": "Failed to save deployment.",
+    "deleted": "Deployment deleted.",
+    "deleteFailed": "Failed to delete deployment.",
+    "subtitle": "One row per (env × cluster × region × namespace). Each deployment is analysed independently.",
+    "new": "New deployment",
+    "empty": "No deployments yet.",
+    "emptyHint": "A default one gets auto-created per active environment. Add more here to model multi-cluster or multi-region deployments.",
+    "name": "Name",
+    "scope": "Scope",
+    "status": "Status",
+    "active": "Active",
+    "inactive": "Inactive",
+    "editTitle": "Edit deployment",
+    "newTitle": "New deployment",
+    "envLabel": "Environment",
+    "envUnbound": "— none (legacy 0-env)",
+    "clusterLabel": "Cluster",
+    "clusterUnbound": "— none (VM / bare-metal)",
+    "regionLabel": "Region",
+    "regionPlaceholder": "us-east-1, eu-west-1, dc1…",
+    "regionHelp": "Free-text. Used to distinguish multi-region deployments of the same project.",
+    "namespaceLabel": "Namespace",
+    "nsDisabled": "requires cluster",
+    "nsHelp": "K8s namespace. Only available when a cluster is selected.",
+    "nameLabel": "Display name",
+    "nameAutoHint": "Auto-suggested from cluster / env / region on save",
+    "activeLabel": "Active — batch pipeline runs for this deployment",
+    "deleteConfirm": "Delete deployment?",
+    "deleteBody": "This stops the batch pipeline for this deployment. Existing batches keep their history but no new ones will be created."
+  },
+  "demo": {
+    "readOnlyNotice": "This is the read-only live demo, so changes aren't saved. Self-host SerOps to use your own data.",
+    "settingsReadOnly": "Settings are read-only in the live demo: you can look around, but changes aren't saved."
   }
 }

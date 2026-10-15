@@ -23,7 +23,7 @@ const ServiceHealthHeatmap = ({ data, loading }) => {
                 return {
                     icon: <FaCheckCircle />,
                     className: 'service-healthy',
-                    bgColor: '#06d6a0',
+                    bgColor: '#047a5c',
                     textColor: '#fff'
                 };
             case 'degraded':
@@ -37,7 +37,7 @@ const ServiceHealthHeatmap = ({ data, loading }) => {
                 return {
                     icon: <FaTimesCircle />,
                     className: 'service-critical',
-                    bgColor: '#ef476f',
+                    bgColor: '#d4123f',
                     textColor: '#fff'
                 };
             default:

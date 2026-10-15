@@ -393,13 +393,15 @@ const AISettings = () => {
                                                         value={inputValue}
                                                         onChange={(e) => handleKeyInputChange(provider.name, e.target.value)}
                                                     />
-                                                    <Button variant="outline-secondary" onClick={() => toggleShowKey(provider.name)}>
+                                                    <Button variant="outline-secondary" onClick={() => toggleShowKey(provider.name)}
+                                                            aria-label={isKeyVisible ? t('ai.hideKey') : t('ai.showKey')}>
                                                         {isKeyVisible ? <FaEyeSlash /> : <FaEye />}
                                                     </Button>
                                                     <Button
                                                         variant="primary"
                                                         onClick={() => handleSaveApiKey(provider)}
                                                         disabled={isSavingKey || (!inputValue && !urlInputs[provider.name])}
+                                                        aria-label={t('ai.saveKey')}
                                                     >
                                                         {isSavingKey ? <Spinner size="sm" animation="border" /> : <FaCheck />}
                                                     </Button>

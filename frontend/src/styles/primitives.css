@@ -128,8 +128,8 @@
 }
 .ds-chip-neutral { background: var(--neutral-100); color: var(--neutral-700); }
 .ds-chip-brand   { background: hsl(230, 100%, 96%); color: var(--primary-700); }
-.ds-chip-ok      { background: hsl(145, 60%, 92%); color: hsl(145, 70%, 30%); }
-.ds-chip-warn    { background: hsl(40, 80%, 92%);  color: hsl(40, 90%, 32%); }
+.ds-chip-ok      { background: hsl(145, 60%, 92%); color: hsl(145, 70%, 25%); }
+.ds-chip-warn    { background: hsl(40, 80%, 92%);  color: hsl(40, 90%, 26%); }
 .ds-chip-err     { background: hsl(0, 70%, 94%);   color: hsl(0, 75%, 40%); }
 .ds-chip-info    { background: hsl(210, 65%, 93%); color: hsl(210, 75%, 32%); }
 
@@ -554,3 +554,20 @@
   --bg-page: hsl(220, 15%, 96.5%);
 }
 [data-theme="dark"] :root { --bg-page: hsl(230, 25%, 8%); }
+
+/* WCAG AA contrast for Bootstrap utilities used across the app. Lives here,
+   not in index.css, because this file loads after Bootstrap. The stock
+   values measured 4.3:1 (muted, links on grey) and under 2:1 (info). */
+:root {
+  --bs-code-color: #b8226c;
+  --bs-link-color: #0258d6;
+  --bs-link-color-rgb: 2, 88, 214;
+}
+.text-muted { color: #5f666d !important; }
+.text-info { color: #087990 !important; }
+.text-primary { color: #0258d6 !important; }
+.badge.bg-info { background-color: #087990 !important; }
+.btn-outline-secondary { --bs-btn-color: #5c636a; }
+code { color: var(--bs-code-color); }
+a code { color: inherit; }
+.settings-selection-card.active .settings-selection-desc { color: var(--text-secondary); }

@@ -12,7 +12,11 @@
     "notifications": "Notifications",
     "noNotifications": "Aucune notification",
     "markAllRead": "Marquer tout comme lu",
-    "investigate": "Investiguer"
+    "investigate": "Investiguer",
+    "primary": "Navigation principale",
+    "collapseSidebar": "Réduire le menu",
+    "expandSidebar": "Développer le menu",
+    "closeSidebar": "Fermer le menu"
   },
   "dashboard": {
     "title": "Tableau de Bord",
@@ -93,7 +97,26 @@
       "days": "il y a {{count}}j",
       "hours": "il y a {{count}}h",
       "minutes": "il y a {{count}} min"
-    }
+    },
+    "aiAnalysisFeed": "Analyses IA récentes",
+    "latestFindings": "Derniers résultats de l'analyse IA",
+    "noAnalysisData": "Aucune analyse IA pour l'instant. Les analyses s'exécutent automatiquement sur les lots de logs.",
+    "minutesAgo": "il y a {{count}} min",
+    "hoursAgo": "il y a {{count}} h",
+    "daysAgo": "il y a {{count}} j",
+    "totalAnalyses": "{{count}} analyses au total",
+    "noSummary": "Analyse terminée",
+    "byIssueCount": "Par nombre de problèmes",
+    "envAll": "Tous",
+    "correlationInsights": "Corrélations IA",
+    "correlationSubtitle": "Problèmes liés aux déploiements et aux pics de métriques",
+    "noCorrelationData": "Aucune donnée de corrélation pour le moment",
+    "issuesCorrelated": "des problèmes corrélés",
+    "deploymentLinks": "Liens avec un déploiement",
+    "memorySpikes": "Pics mémoire",
+    "cpuSpikes": "Pics CPU",
+    "pipelineFailures": "Échecs de pipeline",
+    "topAffected": "Les plus touchés"
   },
   "data": {
     "title": "Données",
@@ -118,7 +141,8 @@
     "actions": "Actions",
     "viewDetails": "Voir Détails",
     "viewLogs": "Voir les Journaux",
-    "viewMetrics": "Voir les Métriques"
+    "viewMetrics": "Voir les Métriques",
+    "openBatch": "Ouvrir le lot {{id}}"
   },
   "issues": {
     "title": "Problèmes",
@@ -191,7 +215,9 @@
     "deleteChat": "Supprimer la conversation",
     "demoReadOnly": "Le chat est désactivé dans la démo en lecture seule. Hébergez SerOps pour poser des questions sur vos propres données.",
     "demoPlaceholder": "Le chat est désactivé dans la démo",
-    "demoSelfHost": "Guide d'auto-hébergement"
+    "demoSelfHost": "Guide d'auto-hébergement",
+    "noModelConfigured": "Aucun fournisseur d'IA",
+    "configureAIInSettings": "Aucun fournisseur d'IA configuré — configurez-en un dans Paramètres → IA"
   },
   "projects": {
     "title": "Projets",
@@ -219,7 +245,14 @@
     "addEnvironment": "Ajouter un Environnement",
     "customEnvName": "Entrez le nom de l'environnement (ex: qa, uat) :",
     "envExists": "L'environnement existe déjà",
-    "patternHelp": "Patterns séparés par des virgules (ex: main, master, release/*)"
+    "patternHelp": "Patterns séparés par des virgules (ex: main, master, release/*)",
+    "deleteError": "Échec de la suppression du projet",
+    "updateError": "Erreur lors de la mise à jour du projet",
+    "editProject": "Modifier le projet",
+    "updateSuccess": "Projet mis à jour !",
+    "updating": "Mise à jour…",
+    "updateProject": "Mettre à jour le projet",
+    "deleteWarning": "Le projet et tous ses lots seront supprimés définitivement. Cette action est irréversible."
   },
   "services": {
     "title": "Services",
@@ -248,7 +281,8 @@
     "webhookNotConfigured": "Le webhook n'est pas configuré - certaines fonctionnalités peuvent être limitées",
     "configureWebhook": "Configurer le Webhook",
     "limitedInfo": "Informations limitées disponibles pour ce projet GitLab. Certains détails n'ont pas pu être chargés.",
-    "noServiceSelected": "Aucun service sélectionné."
+    "noServiceSelected": "Aucun service sélectionné.",
+    "subtitle": "Gérez les services et intégrations connectés"
   },
   "detail": {
     "searchLogs": "Rechercher dans les journaux...",
@@ -262,17 +296,25 @@
     "traces": "Traces",
     "timeline": "Chronologie",
     "logsDetails": "Détails des Journaux",
-    "backToData": "Retour aux Données"
+    "backToData": "Retour aux Données",
+    "logSource": "Source",
+    "level": "Niveau",
+    "colTimestamp": "Horodatage",
+    "colLevel": "Niveau",
+    "colService": "Service",
+    "colMessage": "Message"
   },
   "timeline": {
     "title": "Chronologie du batch",
     "batch": "Batch",
     "eventCount": "{{count}} événement(s)",
     "empty": "Aucun événement enregistré pour la fenêtre temporelle de ce batch.",
-    "loadFailed": "Impossible de charger la chronologie."
+    "loadFailed": "Impossible de charger la chronologie.",
+    "eventList": "Liste des événements"
   },
   "clusterPicker": {
-    "all": "Tous les clusters"
+    "all": "Tous les clusters",
+    "cluster": "Cluster"
   },
   "workloadsByCluster": {
     "title": "Workloads par cluster"
@@ -452,14 +494,15 @@
     "passwordUpdated": "Mot de passe mis à jour avec succès.",
     "passwordUpdateFailed": "Échec de la mise à jour du mot de passe. Veuillez réessayer.",
     "invalidEmail": "Format d'email invalide",
-    "phoneDigits": "Le téléphone doit contenir exactement 8 chiffres"
+    "phoneDigits": "Le téléphone doit contenir exactement 8 chiffres",
+    "demoRole": "Démo en lecture seule"
   },
   "settings": {
     "title": "Paramètres",
     "general": {
       "menuLabel": "Général",
       "title": "Paramètres Généraux",
-      "subtitle": "Gérer les préférences d'affichage et les informations de l'organisation",
+      "subtitle": "Le nom, le logo et le site web de votre organisation.",
       "organisation": {
         "title": "Informations de l'Organisation",
         "subtitle": "Détails du profil public de votre équipe",
@@ -546,6 +589,12 @@
     "team": {
       "title": "Équipe",
       "subtitle": "Gérer les membres de l'équipe et les rôles"
+    },
+    "delivery": {
+      "title": "Canaux de diffusion"
+    },
+    "routing": {
+      "title": "Règles de routage"
     }
   },
   "team": {
@@ -595,7 +644,8 @@
     "admin": "Admin",
     "adminDesc": "Accès complet à tous les paramètres et à la gestion de l'équipe",
     "sendInvitation": "Envoyer l'Invitation",
-    "saveChanges": "Enregistrer les Modifications"
+    "saveChanges": "Enregistrer les Modifications",
+    "suspended": "Suspendu"
   },
   "ai": {
     "title": "Paramètres IA",
@@ -652,7 +702,12 @@
     "deleteApiKey": "Supprimer la Clé API",
     "deleteConfirm": "Êtes-vous sûr de vouloir supprimer la clé API pour {{provider}} ?",
     "deleteWarning": "Cette action ne peut pas être annulée. Le fournisseur ne fonctionnera plus jusqu'à ce qu'une nouvelle clé soit ajoutée.",
-    "deleteKey": "Supprimer la Clé"
+    "deleteKey": "Supprimer la Clé",
+    "manageProviders": "Gérer les fournisseurs",
+    "manageProvidersDesc": "Configurez tous les fournisseurs d'IA (Gemini, DeepSeek, etc.) et ajoutez des points de terminaison personnalisés.",
+    "addProvider": "Ajouter un fournisseur",
+    "hideKey": "Masquer la clé",
+    "showKey": "Afficher la clé"
   },
   "security": {
     "title": "Paramètres de Sécurité",
@@ -700,7 +755,8 @@
     "discoveryUrlHint": "L'URL retournant les métadonnées OpenID Connect.",
     "realmOptional": "Realm (Optionnel)",
     "redirectUri": "URI de redirection",
-    "redirectUriHint": "Enregistrez exactement cette URL comme URI de redirection valide dans votre fournisseur d'identité."
+    "redirectUriHint": "Enregistrez exactement cette URL comme URI de redirection valide dans votre fournisseur d'identité.",
+    "authenticationProtocol": "Protocole d'authentification"
   },
   "batchInterval": {
     "title": "Intervalle de Génération des Lots",
@@ -804,7 +860,11 @@
     "project": "Projet",
     "azurePatHelp": "PAT avec accès lecture Build/Release",
     "jenkinsUrl": "URL Jenkins",
-    "apiToken": "Token API"
+    "apiToken": "Token API",
+    "verifySuccess": "Connexion vérifiée !",
+    "verifyFailed": "Échec de la vérification",
+    "getStarted": "Connectez votre premier fournisseur pour commencer",
+    "selectProvider": "Choisir un fournisseur"
   },
   "auditLog": {
     "title": "Journal d'Audit",
@@ -891,7 +951,8 @@
       "loadFailed": "Impossible de charger les traces.",
       "total": "{{count}} au total",
       "prev": "Précédent",
-      "next": "Suivant"
+      "next": "Suivant",
+      "resetFilters": "Réinitialiser les filtres"
     },
     "detail": {
       "back": "Retour aux traces",
@@ -941,7 +1002,11 @@
     "required": "Requis",
     "showing": "Affichage",
     "of": "sur",
-    "saveChanges": "Enregistrer les Modifications"
+    "saveChanges": "Enregistrer les Modifications",
+    "actions": "Actions",
+    "optional": "(facultatif)",
+    "active": "Actif",
+    "inactive": "Inactif"
   },
   "languages": {
     "en": "English",
@@ -1077,6 +1142,15 @@
       "days": "{{count}} jours",
       "saved": "Paramètres des problèmes enregistrés",
       "saveFailed": "Échec de l'enregistrement des paramètres des problèmes"
+    },
+    "memory": {
+      "title": "Contexte des résolutions récentes",
+      "subtitle": "Injecte les causes racines des problèmes récemment résolus dans l'analyse IA, comme contexte de diagnostic pour ce projet.",
+      "enable": "Activer le contexte des résolutions récentes",
+      "enableHint": "Activé, les problèmes récemment résolus du projet sont transmis à l'IA comme contexte de diagnostic pour les nouveaux lots et les questions du chat.",
+      "window": "Période prise en compte",
+      "maxItems": "Résolutions maximum par analyse",
+      "maxItemsHint": "Plus de résolutions donnent plus de contexte à l'IA mais consomment plus de tokens. 3 est un bon choix par défaut."
     }
   },
   "sentinel": {
@@ -1257,5 +1331,51 @@
       "manual": "INVESTIGATION",
       "alert": "ALERTE"
     }
+  },
+  "deploymentFilter": {
+    "env": "Environnement",
+    "region": "Région",
+    "namespace": "Namespace",
+    "nsNeedsCluster": "sélectionnez d'abord un cluster",
+    "clearAll": "Effacer tous les filtres"
+  },
+  "deployments": {
+    "title": "Déploiements",
+    "loadFailed": "Échec du chargement des déploiements.",
+    "updated": "Déploiement mis à jour.",
+    "created": "Déploiement créé.",
+    "saveFailed": "Échec de l'enregistrement du déploiement.",
+    "deleted": "Déploiement supprimé.",
+    "deleteFailed": "Échec de la suppression du déploiement.",
+    "subtitle": "Une ligne par (environnement × cluster × région × namespace). Chaque déploiement est analysé séparément.",
+    "new": "Nouveau déploiement",
+    "empty": "Aucun déploiement pour le moment.",
+    "emptyHint": "Un déploiement par défaut est créé pour chaque environnement actif. Ajoutez-en ici pour modéliser plusieurs clusters ou régions.",
+    "name": "Nom",
+    "scope": "Périmètre",
+    "status": "Statut",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "editTitle": "Modifier le déploiement",
+    "newTitle": "Nouveau déploiement",
+    "envLabel": "Environnement",
+    "envUnbound": "— aucun (ancien, sans environnement)",
+    "clusterLabel": "Cluster",
+    "clusterUnbound": "— aucun (VM / bare-metal)",
+    "regionLabel": "Région",
+    "regionPlaceholder": "us-east-1, eu-west-1, dc1…",
+    "regionHelp": "Texte libre. Sert à distinguer les déploiements multi-régions d'un même projet.",
+    "namespaceLabel": "Namespace",
+    "nsDisabled": "nécessite un cluster",
+    "nsHelp": "Namespace Kubernetes. Disponible uniquement quand un cluster est sélectionné.",
+    "nameLabel": "Nom d'affichage",
+    "nameAutoHint": "Proposé à partir du cluster, de l'environnement et de la région à l'enregistrement",
+    "activeLabel": "Actif — le pipeline d'analyse tourne pour ce déploiement",
+    "deleteConfirm": "Supprimer le déploiement ?",
+    "deleteBody": "Le pipeline d'analyse s'arrête pour ce déploiement. Les lots existants gardent leur historique, mais aucun nouveau n'est créé."
+  },
+  "demo": {
+    "readOnlyNotice": "Ceci est la démo en lecture seule : les modifications ne sont pas enregistrées. Hébergez SerOps pour utiliser vos propres données.",
+    "settingsReadOnly": "Les paramètres sont en lecture seule dans la démo : vous pouvez tout consulter, mais rien n'est enregistré."
   }
 }

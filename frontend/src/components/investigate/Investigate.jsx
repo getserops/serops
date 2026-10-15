@@ -21,6 +21,12 @@ const STATUS_CHIP = {
   failed: "ds-chip-err",
 };
 
+// Production first: an investigation is most often about production.
+export function defaultEnvironment(project) {
+  const envs = project?.environments || [];
+  return envs.find((e) => /^prod(uction)?$/i.test(e.name)) || envs[0] || null;
+}
+
 function currentUserRole() {
   try {
     return JSON.parse(localStorage.getItem("user") || "{}").role || "viewer";
@@ -164,7 +170,7 @@ const Investigate = () => {
         setProjectId(String(proj.id));
         const envByName = proj.environments.find((e) => e.name === params.get("environment"));
         const dep = proj.deployments.find((d) => String(d.id) === params.get("deployment_id"));
-        const envId = params.get("environment_id") || envByName?.id || dep?.environment_id || proj.environments[0]?.id || "";
+        const envId = params.get("environment_id") || envByName?.id || dep?.environment_id || defaultEnvironment(proj)?.id || "";
         setEnvironmentId(envId ? String(envId) : "");
         setDeploymentId(dep ? String(dep.id) : "");
         const wanted = (params.get("services") || "").split(",").filter((s) => proj.services.includes(s));
@@ -208,7 +214,8 @@ const Investigate = () => {
   const onProjectChange = (id) => {
     setProjectId(id);
     const proj = options.projects.find((p) => String(p.id) === id);
-    setEnvironmentId(proj?.environments[0] ? String(proj.environments[0].id) : "");
+    const env = defaultEnvironment(proj);
+    setEnvironmentId(env ? String(env.id) : "");
     setDeploymentId("");
     setServices([]);
     if (preset === "deploy") applyPreset("30m", proj);

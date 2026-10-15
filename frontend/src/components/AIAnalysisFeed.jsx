@@ -4,6 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { FaRobot, FaExclamationCircle, FaExclamationTriangle } from 'react-icons/fa';
 import './AIAnalysisFeed.css';
 
+// Badge text: darker shades of the environment colours, readable on their
+// own 12% tint (the base colours measured under 3:1).
+const ENV_TEXT = { production: '#c4123c', staging: '#8a6100', dev: '#047857', development: '#047857' };
+
 const AIAnalysisFeed = ({ data, loading }) => {
     const { t } = useTranslation();
     const navigate = useNavigate();
@@ -92,7 +96,7 @@ const AIAnalysisFeed = ({ data, loading }) => {
                             <div className="feed-item-header">
                                 <span
                                     className="feed-env-badge"
-                                    style={{ backgroundColor: `${envColor}20`, color: envColor, borderColor: envColor }}
+                                    style={{ backgroundColor: `${envColor}20`, color: ENV_TEXT[envKey] || '#4b5163', borderColor: envColor }}
                                 >
                                     {item.environment || 'unknown'}
                                 </span>

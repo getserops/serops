@@ -32,7 +32,7 @@
 
 /* Form label style */
 .card-profil .form-label {
-  font-family: 'Euclid Circular A';
+  font-family: var(--font-sans);
   font-style: normal;
   font-weight: 500;
   font-size: 14px;

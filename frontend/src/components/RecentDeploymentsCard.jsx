@@ -122,7 +122,7 @@ const RecentDeploymentsCard = ({ data, loading }) => {
                 <span className="chart-subtitle">{t('dashboard.servicesWithCicd', { count: services.length })}</span>
             </div>
 
-            <div className="deployments-list">
+            <div className="deployments-list" tabIndex={0} role="region" aria-label={t('dashboard.recentDeployments')}>
                 {services.map((service, index) => (
                     <div key={service.service_id || index} className="deployment-item">
                         <div className="deployment-main">

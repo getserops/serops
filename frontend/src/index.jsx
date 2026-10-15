@@ -9,6 +9,9 @@ import 'react-toastify/dist/ReactToastify.css';
 
 // Initialize internationalization
 import './i18n';
+import { installReadOnlyDemoHandling } from './utils/readOnlyDemo';
+
+installReadOnlyDemoHandling();
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 

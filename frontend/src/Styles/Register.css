@@ -33,7 +33,7 @@
   
   .text-wrapper-2 {
       color: #2B47D6;
-      font-family: "Euclid Circular A-Regular", Helvetica;
+      font-family: var(--font-sans);
       font-size: 3vw;
       font-weight: 400;
       height: 4vh;
@@ -45,7 +45,7 @@
     
     .frame .p {
       color: #8C8C8C;
-      font-family: "Euclid Circular A-Regular", Helvetica;
+      font-family: var(--font-sans);
       font-size: 0.8vw;
       font-weight: 400;
       letter-spacing: 1.09px;
@@ -154,7 +154,7 @@
   /* blue title , welcome , step1 , step2*/
   .frame h2 {
       
-      font-family: 'Euclid Circular A';
+      font-family: var(--font-sans);
       font-style: normal;
       font-weight: 400;
       font-size: 3em;	
@@ -166,7 +166,7 @@
   .frame p {
       
       color: #8C8C8C;
-      font-family: 'Euclid Circular A';
+      font-family: var(--font-sans);
       font-style: normal;
       font-weight: 400;
       font-size: 16px;
@@ -176,7 +176,7 @@
   
   .frame .paraghraph-login{
       
-      font-family: 'Euclid Circular A';
+      font-family: var(--font-sans);
       font-style: normal;
       font-weight: 400;
       font-size: 16px;
@@ -227,7 +227,7 @@
   
   .frame .signup-google-text {
       color: rgba(22, 22, 22, 1);
-      font-family: "EuclidCircular A-Medium";
+      font-family: var(--font-sans);
       font-size: 18px;
       font-style: normal;
       font-weight: 500;
@@ -238,7 +238,7 @@
   
   .frame .signin-text {
       color:  rgba(255, 255, 255, 1);
-      font-family: "EuclidCircular A-Medium";
+      font-family: var(--font-sans);
       font-size: 18px;
       font-style: normal;
       font-weight: 500;
@@ -310,7 +310,7 @@
     
     .welcome-back .text-wrapper {
       color: #2B47D6;
-      font-family: "Euclid Circular A-Regular", Helvetica;
+      font-family: var(--font-sans);
       font-size: 38px; /* Decrease font size for smaller screens */
       font-weight: 400;
       letter-spacing: 0.5px; /* Decrease letter spacing for smaller screens */
@@ -322,7 +322,7 @@
     
     .welcome-back .div {
       color: #8C8C8C;
-      font-family: "Euclid Circular A-Regular", Helvetica;
+      font-family: var(--font-sans);
       font-size: 14px; /* Decrease font size for smaller screens */
       font-weight: 400;
       letter-spacing: 0.5px; /* Decrease letter spacing for smaller screens */

@@ -247,3 +247,12 @@
 .notification-action-notice__close:hover {
     opacity: 1;
 }
+
+/* /dash/notifications: the same panel, in the page flow. */
+.notification-panel-overlay.is-page {
+    position: static;
+    width: 100%;
+    max-width: 960px;
+    max-height: none;
+    box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.08));
+}
