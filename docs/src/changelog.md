@@ -10,6 +10,28 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ## [Unreleased]
 
+Nothing yet.
+
+---
+
+## [1.0.3] - 2026-10-15
+
+A security and feature release: SSO tenant isolation, **Investigate**
+(on-demand analysis), and fixes that make scheduled and alert-triggered
+analysis work on Kubernetes. Upgrade by setting `SEROPS_VERSION=1.0.3`
+(Docker Compose) or `--version 1.0.3` (Helm).
+
+**Upgrade notes**
+
+- Migrations run automatically: `Users.0011` (drops the unused SAML and
+  realm fields), `Data.0048` (investigations, batch `trigger`; existing
+  alert batches are tagged), `notifications.0007`.
+- **Helm installs:** scheduling and AI analysis never ran before this
+  release (see Fixed). After upgrading, drop the stale scheduler backlog
+  once: `kubectl exec deploy/<release>-celery-worker -- celery -A api purge -Q normal -f`.
+- A Helm install with `django.publicUrl` unset now derives `API_URL` from
+  the first ingress host (https when TLS is configured).
+
 ### Security
 
 - **SSO could sign in as a member of another organisation.** The SSO

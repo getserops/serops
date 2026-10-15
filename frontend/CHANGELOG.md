@@ -10,6 +10,12 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-10-15
+
+Security and feature release: SSO tenant isolation, Investigate
+(on-demand analysis), and scheduled/alert analysis fixed on Kubernetes.
+Full notes in the [project changelog](https://serops.ai/docs/changelog/).
+
 ## [1.0.2] - 2026-10-14
 
 Bug-fix release: the Helm chart's backend now starts, plus dashboard
