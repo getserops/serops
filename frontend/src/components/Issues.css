@@ -369,7 +369,7 @@
 /* Auto-refresh indicator */
 .auto-refresh-indicator {
   font-size: 0.75rem;
-  color: #6b6b6b;
+  color: var(--text-tertiary);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -505,6 +505,12 @@ button.issue-stat-card:focus-visible { outline: 2px solid var(--primary-600, #2f
 .issue-panel-section ul { padding-left: 18px; margin: 0; }
 .issue-panel-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .issue-panel-footer { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border-default, #e5e7eb); background: var(--bg-card, #fff); }
+
+/* Fixed-layout table, so it never needs to scroll sideways on desktop;
+   letting it overflow keeps the last rows' action menus from being clipped. */
+@media (min-width: 768px) {
+  .issues-table-wrap.table-responsive { overflow: visible; }
+}
 
 /* ---- Phones: one card per issue instead of a cut-off table ----
    Checkbox, description and the actions menu on the first line; service,

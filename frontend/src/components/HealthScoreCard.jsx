@@ -4,7 +4,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import { useTranslation } from "react-i18next";
 
 // Text on white needs darker shades of the gauge colours (WCAG AA).
-const TEXT = { '#06d6a0': '#047857', '#ef476f': '#c4123c', '#ffd166': '#8a6100' };
+const TEXT = { '#06d6a0': 'var(--tone-green-text)', '#ef476f': 'var(--tone-red-text)', '#ffd166': 'var(--tone-amber-text)' };
 
 const HealthScoreCard = ({ score, status, loading }) => {
     const { t } = useTranslation();

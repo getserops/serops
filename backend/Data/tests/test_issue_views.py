@@ -349,3 +349,14 @@ class TestIssueListFilters(IssueViewTestBase):
         row = next(r for r in self.client.get(self.url).data['results'] if r['id'] == self.i1.id)
         self.assertEqual((row['project'], row['project_name']), (self.project_a.id, 'project-a'))
         self.assertIn('acknowledged_at', row)
+
+    def test_since_hours_filters_on_last_seen(self):
+        old = timezone.now() - timedelta(days=10)
+        Issue.objects.filter(id=self.i1.id).update(created_at=old, last_seen_at=timezone.now() - timedelta(hours=2))
+        Issue.objects.filter(id=self.i2.id).update(created_at=old, last_seen_at=old)
+        self.assertEqual(self.ids(since_hours=24), [self.i1.id])
+        self.assertEqual(sorted(self.ids(since_hours=24 * 30)), sorted([self.i1.id, self.i2.id]))
+
+    def test_since_hours_is_validated(self):
+        for bad in ('0', 'x', '9000'):
+            self.assertEqual(self.client.get(self.url, {'since_hours': bad}).status_code, 400)

@@ -337,9 +337,10 @@ const Metrics = () => {
                               tickFormatter={(timestamp) =>
                                 formatTimestamp(timestamp, true)
                               }
-                              interval={Math.floor(
-                                sortedMemoryMetricsForChart.length / 8
-                              )}
+                              // Recharts drops labels that would collide, so
+                              // the axis stays readable at any width.
+                              interval="preserveStartEnd"
+                              minTickGap={16}
                               tick={{ fontSize: 12, fill: '#858796' }}
                               axisLine={false}
                               tickLine={false}
@@ -491,9 +492,10 @@ const Metrics = () => {
                               tickFormatter={(timestamp) =>
                                 formatTimestamp(timestamp, true)
                               }
-                              interval={Math.floor(
-                                sortedCpuMetricsForChart.length / 3
-                              )}
+                              // Recharts drops labels that would collide, so
+                              // the axis stays readable at any width.
+                              interval="preserveStartEnd"
+                              minTickGap={16}
                               tick={{ fontSize: 12, fill: '#858796' }}
                               axisLine={false}
                               tickLine={false}

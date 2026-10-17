@@ -124,6 +124,7 @@ const Issues = () => {
   const [projectFilter, setProjectFilter] = useState(searchParams.get("project") || "");
   const [environmentFilter, setEnvironmentFilter] = useState(searchParams.get("environment") || "");
   const [componentFilter, setComponentFilter] = useState(searchParams.get("component") || "");
+  const [sinceFilter, setSinceFilter] = useState(searchParams.get("since") || "");
   const [scopeOptions, setScopeOptions] = useState({ projects: [] });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -154,6 +155,7 @@ const Issues = () => {
       component: true,
       description: true,
       age: true,
+      lastSeen: true,
       correlations: false,
       count: true,
       severity: true,
@@ -173,6 +175,7 @@ const Issues = () => {
     component: 'Component',
     description: 'Description',
     age: 'Age',
+    lastSeen: 'Last seen',
     correlations: 'Correlations',
     count: 'Occurrences',
     severity: 'Severity',
@@ -186,6 +189,7 @@ const Issues = () => {
     component: 'component',
     description: 'description',
     age: 'created_at',
+    lastSeen: 'last_seen_at',
     correlations: null,
     count: 'count',
     severity: 'severity',
@@ -224,11 +228,12 @@ const Issues = () => {
     if (projectFilter) params.project = projectFilter;
     if (environmentFilter) params.environment = environmentFilter;
     if (componentFilter) params.component = componentFilter;
+    if (sinceFilter) params.since_hours = sinceFilter;
     // Cluster picker (Item #19) — only applied when set + not viewing a
     // single batch's issues (that batch already implies its cluster).
     if (clusterId != null && !batchId) params.cluster = clusterId;
     return params;
-  }, [currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, projectFilter, environmentFilter, componentFilter, clusterId, batchId]);
+  }, [currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, projectFilter, environmentFilter, componentFilter, sinceFilter, clusterId, batchId]);
 
   // Fetch issues with auto-refresh (30s)
   const {
@@ -236,8 +241,9 @@ const Issues = () => {
     isLoading: loading,
     error: queryError,
     isPlaceholderData,
+    dataUpdatedAt,
   } = useQuery({
-    queryKey: ["issues", batchId, currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, projectFilter, environmentFilter, componentFilter, clusterId],
+    queryKey: ["issues", batchId, currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, projectFilter, environmentFilter, componentFilter, sinceFilter, clusterId],
     queryFn: async () => {
       const params = buildQueryParams();
       if (batchId) {
@@ -269,9 +275,10 @@ const Issues = () => {
     if (projectFilter) params.project = projectFilter;
     if (environmentFilter) params.environment = environmentFilter;
     if (componentFilter) params.component = componentFilter;
+    if (sinceFilter) params.since = sinceFilter;
     if (panelIssueId) params.id = panelIssueId;
     setSearchParams(params);
-  }, [currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, projectFilter, environmentFilter, componentFilter, panelIssueId, setSearchParams]);
+  }, [currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, projectFilter, environmentFilter, componentFilter, sinceFilter, panelIssueId, setSearchParams]);
 
   // Project / environment / service choices for the filters.
   useEffect(() => {
@@ -281,11 +288,13 @@ const Issues = () => {
   // Clear selection when data changes
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, projectFilter, environmentFilter, componentFilter]);
+  }, [currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, projectFilter, environmentFilter, componentFilter, sinceFilter]);
 
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Leave modified keys (⌘K / Ctrl+K opens the command palette) alone.
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       // Don't intercept if user is typing in an input
       if (
         e.target.tagName === 'INPUT' ||
@@ -713,9 +722,11 @@ const Issues = () => {
                 ? `${pagination?.total_issues ?? issuesData.length} Issues Detected`
                 : t('issues.systemIssues')}
             </h4>
-            <span className="auto-refresh-indicator">
+            <span className="auto-refresh-indicator" title={t('issues.autoRefresh')}>
               <span className="auto-refresh-dot" />
-              auto-refresh
+              {dataUpdatedAt
+                ? t('issues.updatedAt', { time: new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) })
+                : t('issues.autoRefresh')}
             </span>
           </div>
           <p className="text-muted mb-0 small">
@@ -794,6 +805,17 @@ const Issues = () => {
             <option value="MUTED">Muted</option>
             <option value="RESOLVED">Resolved</option>
           </Form.Select>
+
+          {!batchId && (
+            <Form.Select value={sinceFilter} size="sm" className="bg-light border-0 issues-scope-select"
+                         aria-label={t('issues.filters.timeRange')}
+                         onChange={(e) => { setSinceFilter(e.target.value); setCurrentPage(1); }}>
+              <option value="">{t('issues.filters.anyTime')}</option>
+              <option value="24">{t('issues.filters.last24h')}</option>
+              <option value="168">{t('issues.filters.last7d')}</option>
+              <option value="720">{t('issues.filters.last30d')}</option>
+            </Form.Select>
+          )}
 
           {!batchId && scopeOptions.projects.length > 0 && (
             <>
@@ -909,6 +931,11 @@ const Issues = () => {
                       Age{renderSortIcon('age')}
                     </th>
                   )}
+                  {visibleColumns.lastSeen && (
+                    <th className="py-3 border-bottom" style={{ width: '100px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('lastSeen')}>
+                      Last seen{renderSortIcon('lastSeen')}
+                    </th>
+                  )}
                   {visibleColumns.correlations && <th className="py-3 border-bottom">Correlations</th>}
                   {visibleColumns.count && (
                     <th className="py-3 border-bottom text-center" style={{ width: '100px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('count')}>
@@ -993,6 +1020,13 @@ const Issues = () => {
                         <td className="py-3 issue-cell-meta">
                           <OverlayTrigger overlay={<Tooltip>{issue.created_at ? new Date(issue.created_at).toLocaleString() : 'Unknown'}</Tooltip>}>
                             <span className="text-muted small">{formatAge(issue.created_at)}</span>
+                          </OverlayTrigger>
+                        </td>
+                      )}
+                      {visibleColumns.lastSeen && (
+                        <td className="py-3 issue-cell-meta">
+                          <OverlayTrigger overlay={<Tooltip>{issue.last_seen_at ? new Date(issue.last_seen_at).toLocaleString() : 'Unknown'}</Tooltip>}>
+                            <span className="text-muted small">{formatAge(issue.last_seen_at || issue.created_at)}</span>
                           </OverlayTrigger>
                         </td>
                       )}

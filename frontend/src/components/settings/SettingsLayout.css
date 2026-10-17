@@ -84,6 +84,14 @@
     min-height: calc(100vh - 12vh);
 }
 
+/* Disabled controls look disabled even when a page styles its own
+   buttons (the live demo disables every write control). */
+.settings-content button:disabled,
+.settings-content .btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 /* Settings Card */
 .settings-card {
     background-color: #fff;

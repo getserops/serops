@@ -168,7 +168,7 @@ const RoutingRulesSettings = () => {
                     Delivery Channels.
                 </div>
             ) : (
-                <Table hover responsive size="sm">
+                <Table hover responsive size="sm" className="table-stack">
                     <thead>
                         <tr>
                             <th>Name</th>

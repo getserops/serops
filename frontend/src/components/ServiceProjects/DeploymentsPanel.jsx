@@ -214,7 +214,7 @@ const DeploymentsPanel = ({ projectId, environments = [] }) => {
                 </div>
             ) : (
                 <div className="table-responsive">
-                    <Table hover className="align-middle mb-0">
+                    <Table hover className="align-middle mb-0 table-stack">
                         <thead className="bg-light">
                             <tr>
                                 <th className="ps-3 py-2 border-bottom">{t('deployments.name', 'Name')}</th>

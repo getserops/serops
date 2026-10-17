@@ -186,7 +186,7 @@
 .status-text.success,
 .status-text.passed,
 .status-text.completed {
-    color: #15803d;
+    color: var(--tone-green-text);
 }
 
 .status-text.failed,

@@ -3,15 +3,17 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from 'react-i18next';
 import { IoIosNotifications } from "react-icons/io";
 import ClusterPicker from "./ClusterPicker";
+import { OPEN_EVENT as OPEN_PALETTE } from "./CommandPalette";
 import { MdPerson } from "react-icons/md";
 import { RiLogoutBoxLine } from "react-icons/ri";
-import { FaBell, FaBars } from 'react-icons/fa';
+import { FaBell, FaBars, FaSearch } from 'react-icons/fa';
 import { AnimatePresence } from 'framer-motion';
 import AuthService from "../services/auth.service";
 import { Dropdown, Nav } from "react-bootstrap";
 import ProfileService from "../services/profile.service";
 import NotificationService from "../services/notification.service";
 import NotificationPanel from "./NotificationPanel";
+import { applyTheme, applyDensity } from "../utils/theme";
 
 function Navbar({ isOpen, avatar, toggleSidebar }) {
   const { t } = useTranslation();
@@ -51,6 +53,7 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
       ...prev,
       language: localStorage.getItem('seropsLanguage') || saved.language || 'en',
       theme: saved.theme || 'system',
+      density: saved.density || 'comfortable',
       timezone: saved.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       dateFormat: saved.dateFormat || 'iso'
     }));
@@ -126,14 +129,14 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
     setSettings(newSettings);
     saveSettings(newSettings);
 
-    // Apply theme immediately
-    const root = document.documentElement;
-    if (theme === 'system') {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      root.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-    } else {
-      root.setAttribute('data-theme', theme);
-    }
+    applyTheme(theme);
+  };
+
+  const handleDensityChange = (density) => {
+    const newSettings = { ...settings, density };
+    setSettings(newSettings);
+    saveSettings(newSettings);
+    applyDensity(density);
   };
 
   const handleTimezoneChange = (timezone) => {
@@ -228,6 +231,12 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
           gap: "24px",
           marginLeft: "auto"
         }}>
+          <button type="button" className="command-palette-trigger me-2" aria-label={t('palette.title')}
+                  onClick={() => window.dispatchEvent(new Event(OPEN_PALETTE))}>
+            <FaSearch size={12} aria-hidden="true" />
+            <span className="command-palette-trigger-label">{t('palette.trigger')}</span>
+            <kbd className="command-palette-kbd">{/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
+          </button>
           {/* Cluster picker (Item #19) — visible only for multi-cluster orgs. */}
           <ClusterPicker />
           {/* Notification Icon */}
@@ -235,11 +244,11 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
             <IoIosNotifications
               style={{
                 fontSize: "24px",
-                color: "#64748b",
+                color: "var(--text-secondary)",
                 transition: "color 0.2s"
               }}
               onMouseEnter={(e) => e.currentTarget.style.color = "#2B47D6"}
-              onMouseLeave={(e) => e.currentTarget.style.color = "#64748b"}
+              onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}
             />
             {unreadCount > 0 && (
               <span style={{
@@ -264,7 +273,7 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
             )}
           </div>
 
-          <div style={{ height: "24px", width: "1px", backgroundColor: "#e2e8f0" }}></div>
+          <div style={{ height: "24px", width: "1px", backgroundColor: "var(--border-default)" }}></div>
 
           {/* User Profile Dropdown */}
           <Dropdown show={dropdownOpen} onToggle={toggleDropdown}>
@@ -273,7 +282,7 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
                              aria-label="Open user menu"
                              role="button"
                              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span className="d-none d-lg-inline account-user-name" style={{ color: '#334155', fontWeight: 500 }}>
+              <span className="d-none d-lg-inline account-user-name" style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
                 {getFullName()}
               </span>
               {image && !imageFailed ? (
@@ -288,7 +297,7 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
                 <span
                   className="img-profile rounded-circle"
                   aria-label="Profile"
-                  style={{ width: "36px", height: "36px", display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--primary-600, #2563eb)", color: "#fff", fontWeight: 600, fontSize: "14px", border: "2px solid #fff", boxShadow: "0 2px 5px rgba(0,0,0,0.05)" }}
+                  style={{ width: "36px", height: "36px", display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--brand-fill, #2563eb)", color: "#fff", fontWeight: 600, fontSize: "14px", border: "2px solid #fff", boxShadow: "0 2px 5px rgba(0,0,0,0.05)" }}
                 >
                   {getInitials()}
                 </span>
@@ -303,20 +312,20 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
               minWidth: '280px'
             }}>
               {/* Profile - at top like Jira */}
-              <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
+              <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-default)' }}>
                 <Dropdown.Item onClick={() => navigate("/dash/Profile")} style={{ borderRadius: '8px', padding: '10px 12px', margin: '-4px -12px' }}>
-                  <MdPerson style={{ marginRight: '10px', color: '#64748b', fontSize: '18px' }} />
+                  <MdPerson style={{ marginRight: '10px', color: 'var(--text-secondary)', fontSize: '18px' }} />
                   {t('nav.profile')}
                 </Dropdown.Item>
                 <Dropdown.Item onClick={() => navigate("/dash/settings/preferences")} style={{ borderRadius: '8px', padding: '10px 12px', margin: '-4px -12px' }}>
-                  <FaBell style={{ marginRight: '10px', color: '#64748b', fontSize: '18px' }} />
+                  <FaBell style={{ marginRight: '10px', color: 'var(--text-secondary)', fontSize: '18px' }} />
                   {t('preferences.title')}
                 </Dropdown.Item>
               </div>
 
               {/* Language */}
-              <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase' }}>
+              <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-default)' }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase' }}>
                   {t('settings.general.language.title')}
                 </div>
                 <select
@@ -325,11 +334,11 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
                   style={{
                     width: '100%',
                     padding: '8px 12px',
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid var(--border-default)',
                     borderRadius: '6px',
                     fontSize: '13px',
                     cursor: 'pointer',
-                    background: 'white'
+                    background: 'var(--bg-card)', color: 'var(--text-primary)'
                   }}
                 >
                   <option value="en">{settings.language === 'en' ? '✓ ' : ''}{t('languages.en')}</option>
@@ -338,8 +347,8 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
               </div>
 
               {/* Appearance */}
-              <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase' }}>
+              <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-default)' }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase' }}>
                   {t('settings.general.appearance.title')}
                 </div>
                 <select
@@ -348,24 +357,42 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
                   style={{
                     width: '100%',
                     padding: '8px 12px',
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid var(--border-default)',
                     borderRadius: '6px',
                     fontSize: '13px',
                     cursor: 'pointer',
-                    background: 'white'
+                    background: 'var(--bg-card)', color: 'var(--text-primary)'
                   }}
                 >
                   <option value="light">{settings.theme === 'light' ? '✓ ' : ''}{t('settings.general.appearance.light')}</option>
                   <option value="dark">{settings.theme === 'dark' ? '✓ ' : ''}{t('settings.general.appearance.dark')}</option>
                   <option value="system">{settings.theme === 'system' ? '✓ ' : ''}{t('settings.general.appearance.system')}</option>
                 </select>
+                <select
+                  value={settings.density || 'comfortable'}
+                  onChange={(e) => handleDensityChange(e.target.value)}
+                  aria-label={t('density.label')}
+                  className="mt-2"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    background: 'var(--bg-card)', color: 'var(--text-primary)'
+                  }}
+                >
+                  <option value="comfortable">{t('density.comfortable')}</option>
+                  <option value="compact">{t('density.compact')}</option>
+                </select>
               </div>
 
               {/* Timezone */}
-              <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-default)' }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
                   <span>{t('settings.general.timezone.title')}</span>
-                  <span style={{ color: '#2B47D6' }}>{getCurrentTime()}</span>
+                  <span style={{ color: 'var(--text-link)' }}>{getCurrentTime()}</span>
                 </div>
                 <select
                   value={settings.timezone}
@@ -373,11 +400,11 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
                   style={{
                     width: '100%',
                     padding: '8px 12px',
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid var(--border-default)',
                     borderRadius: '6px',
                     fontSize: '13px',
                     cursor: 'pointer',
-                    background: 'white'
+                    background: 'var(--bg-card)', color: 'var(--text-primary)'
                   }}
                 >
                   {TIMEZONES.map(tz => (
@@ -391,7 +418,7 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
                 <Dropdown.Item onClick={handleLogout}
                                data-testid="user-menu-logout"
                                aria-label="Log out"
-                               style={{ borderRadius: '8px', padding: '10px 12px', color: '#ef476f' }}>
+                               style={{ borderRadius: '8px', padding: '10px 12px', color: 'var(--tone-red-text)' }}>
                   <RiLogoutBoxLine style={{ marginRight: '10px', fontSize: '18px' }} />
                   {t('nav.logout')}
                 </Dropdown.Item>

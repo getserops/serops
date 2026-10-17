@@ -30,11 +30,11 @@ const MTTRCard = ({ data, loading }) => {
     const getTrendInfo = () => {
         switch (trend) {
             case 'IMPROVING':
-                return { icon: <FaArrowTrendDown />, color: '#06d6a0', text: t('dashboard.trend.improving') };
+                return { icon: <FaArrowTrendDown />, color: 'var(--tone-green-text)', text: t('dashboard.trend.improving') };
             case 'DEGRADING':
-                return { icon: <FaArrowTrendUp />, color: '#ef476f', text: t('dashboard.trend.degrading') };
+                return { icon: <FaArrowTrendUp />, color: 'var(--tone-red-text)', text: t('dashboard.trend.degrading') };
             default:
-                return { icon: <FaMinus />, color: '#ffd166', text: t('dashboard.trend.stable') };
+                return { icon: <FaMinus />, color: 'var(--tone-amber-text)', text: t('dashboard.trend.stable') };
         }
     };
 
@@ -55,13 +55,13 @@ const MTTRCard = ({ data, loading }) => {
                 <div className="mttr-breakdown">
                     {by_severity.CRITICAL && (
                         <div className="mttr-severity">
-                            <span className="severity-label" style={{ color: '#ef476f' }}>{t('issues.critical')}:</span>
+                            <span className="severity-label" style={{ color: 'var(--tone-red-text)' }}>{t('issues.critical')}:</span>
                             <span className="severity-value">{formatTime(by_severity.CRITICAL.avg_hours)}</span>
                         </div>
                     )}
                     {by_severity.WARNING && (
                         <div className="mttr-severity">
-                            <span className="severity-label" style={{ color: '#ffd166' }}>{t('issues.warning')}:</span>
+                            <span className="severity-label" style={{ color: 'var(--tone-amber-text)' }}>{t('issues.warning')}:</span>
                             <span className="severity-value">{formatTime(by_severity.WARNING.avg_hours)}</span>
                         </div>
                     )}

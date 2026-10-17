@@ -132,7 +132,7 @@ const TracesSettings = () => {
                     <p>{t('traces.settings.noKeys')}</p>
                 </div>
             ) : (
-                <Table hover responsive>
+                <Table hover responsive className="table-stack">
                     <thead>
                         <tr>
                             <th>{t('traces.settings.name')}</th>

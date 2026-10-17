@@ -385,7 +385,7 @@ const Investigate = () => {
           <div className="ds-empty-state"><p className="ds-empty-state-body">{t("investigate.history.empty")}</p></div>
         ) : (
           <div className="investigate-table-wrap">
-            <table className="investigate-table">
+            <table className="investigate-table table-stack">
               <thead>
                 <tr>
                   <th>{t("investigate.history.started")}</th>

@@ -230,7 +230,7 @@ const Data = () => {
   const highlightSearchTerm = (text) => {
     if (!searchTerm) return text;
 
-    const parts = text.split(new RegExp(`(${searchTerm})`, "gi"));
+    const parts = text.split(new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, "gi"));
     return parts.map((part, i) =>
       part.toLowerCase() === searchTerm.toLowerCase() ? (
         <strong key={i} style={{ backgroundColor: "var(--highlight-bg, #fff3cd)" }}>
@@ -636,7 +636,7 @@ const Data = () => {
             </div>
 
             <div className="table-responsive data-table-wrap">
-              <table className="modern-table">
+              <table className="modern-table table-stack">
                 <thead>
                   <tr>
                     <th style={{ width: "60px" }}></th>
@@ -644,7 +644,7 @@ const Data = () => {
                     <th>Batch ID</th>
                     <th>{t('projects.title')}</th>
                     <th>{t('data.environment')}</th>
-                    <th>Sentinel</th>
+                    <th>{t('data.trigger')}</th>
                     <th>{t('issues.title')}</th>
                     <th>{t('data.status')}</th>
                     <th style={{ width: "80px" }}>{t('data.actions')}</th>
@@ -712,26 +712,26 @@ const Data = () => {
                               onChange={() => handleSelectBatch(item.id)}
                             />
                           </td>
-                          <td>{highlightSearchTerm(item.timestamp)}</td>
-                          <td className="ds-mono" style={{ whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.batch}>
+                          <td data-label={t('data.timestamp')}>{highlightSearchTerm(item.timestamp)}</td>
+                          <td data-label="Batch ID" className="ds-mono" style={{ whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.batch}>
                             {highlightSearchTerm(item.batch)}
                           </td>
-                          <td style={{ fontWeight: "500" }}>
+                          <td data-label={t('projects.title')} style={{ fontWeight: "500" }}>
                             {highlightSearchTerm(item.project_name)}
                           </td>
-                          <td>
+                          <td data-label={t('data.environment')}>
                             <span style={{ textTransform: 'capitalize' }}>
                               {item.environment || 'production'}
                             </span>
-                            {(item.trigger === 'manual' || item.trigger === 'alert') && (
-                              <span className={`ds-chip ${item.trigger === 'alert' ? 'ds-chip-err' : 'ds-chip-brand'}`}
-                                    style={{ marginLeft: 6 }}>
+                          </td>
+                          <td data-label={t('data.trigger')}>
+                            {/* Why this batch was analysed: an investigation or an
+                                alert webhook, otherwise Sentinel's decision. */}
+                            {(item.trigger === 'manual' || item.trigger === 'alert') ? (
+                              <span className={`ds-chip ${item.trigger === 'alert' ? 'ds-chip-err' : 'ds-chip-brand'}`}>
                                 {t(`investigate.trigger.${item.trigger}`)}
                               </span>
-                            )}
-                          </td>
-                          <td>
-                            {(() => {
+                            ) : (() => {
                               const isRoutine = item.sentinel_decision === 'alert'
                                 && item.sentinel_triggers?.length === 1
                                 && item.sentinel_triggers[0] === 'forced_periodic';
@@ -758,7 +758,7 @@ const Data = () => {
                               );
                             })()}
                           </td>
-                          <td>
+                          <td data-label={t('issues.title')}>
                             {item.issue_count > 0 ? (
                               <span
                                 className="fw-bold text-danger clickable-issue"
@@ -771,7 +771,7 @@ const Data = () => {
                               <span className="text-secondary">None</span>
                             )}
                           </td>
-                          <td>
+                          <td data-label={t('data.status')}>
                             <div className="d-flex align-items-center gap-2">
                               {getStatusBadge()}
                               {item.model && item.model !== "Not found" && (

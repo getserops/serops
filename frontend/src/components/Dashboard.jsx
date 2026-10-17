@@ -21,6 +21,8 @@ import WorkloadsByCluster from "./WorkloadsByCluster";
 import CorrelationInsightsCard from "./CorrelationInsightsCard";
 import AIAnalysisFeed from "./AIAnalysisFeed";
 import SentinelStatsCard from "./SentinelStatsCard";
+import NeedsAttention from "./NeedsAttention";
+import CommandPalette from "./CommandPalette";
 import { OnboardingWizard, OnboardingResumeChip } from "./onboarding";
 import { isDemoUser } from '../utils/demo';
 
@@ -216,6 +218,7 @@ const Dashboard = () => {
         )}
 
         <Navbar toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+        <CommandPalette />
 
         {isRootDashboard && (
           <div className="dashboard-content">
@@ -237,6 +240,9 @@ const Dashboard = () => {
                 ))}
               </div>
             </div>
+
+            {/* What is broken now, why, and what to do — before the numbers. */}
+            <NeedsAttention environment={environment} clusterId={clusterId} />
 
             {/* Row 1: Health & Metrics — 4 cards, each handles its own loading */}
             <div className="metrics-grid">

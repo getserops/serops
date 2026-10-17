@@ -241,6 +241,13 @@
     gap: var(--space-6);
 }
 
+/* Grid items default to min-width: auto, so a chart's intrinsic width
+   pushed its card past the screen edge on phones. */
+.charts-grid > *,
+.metrics-grid > * {
+    min-width: 0;
+}
+
 .chart-card {
     background: var(--bg-card);
     border-radius: var(--radius-xl);
@@ -384,11 +391,12 @@
 
 .correlation-stats {
     display: flex;
+    flex-wrap: wrap;
     gap: 12px;
 }
 
 .corr-stat {
-    flex: 1;
+    flex: 1 1 140px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -497,7 +505,7 @@
 }
 
 .env-filter-btn.active {
-    background: white;
+    background: var(--bg-card, white);
     color: var(--primary, #2B47D6);
     font-weight: 600;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
@@ -559,8 +567,32 @@
         padding: var(--space-4);
     }
 
+    /* Two tiles per row instead of one tile per screen. */
     .metrics-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--space-3);
+        margin-bottom: var(--space-4);
+    }
+
+    .metrics-grid > :first-child {
+        grid-column: 1 / -1;
+    }
+
+    .metric-card {
+        padding: var(--space-4);
+        gap: var(--space-2);
+    }
+
+    .metric-icon {
+        display: none;
+    }
+
+    .charts-grid {
+        gap: var(--space-4);
+    }
+
+    .chart-card {
+        padding: var(--space-4);
     }
 
     .header-text h1 {

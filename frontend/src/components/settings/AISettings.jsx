@@ -335,7 +335,7 @@ const AISettings = () => {
                 </div>
 
                 <div className="table-responsive">
-                    <table className="table settings-table">
+                    <table className="table settings-table table-stack">
                         <thead>
                             <tr>
                                 <th style={{ width: '25%' }}>Provider</th>
@@ -410,7 +410,7 @@ const AISettings = () => {
                                                 {keyStatus.hasKey && (
                                                     <div className="d-flex justify-content-between align-items-center small mt-1">
                                                         <span className="text-muted text-truncate" style={{ maxWidth: '200px' }}>
-                                                            Key: <code>{keyStatus.maskedKey}</code>
+                                                            Key: <code style={{ wordBreak: "break-all" }}>{keyStatus.maskedKey}</code>
                                                         </span>
                                                         <div className="d-flex gap-2">
                                                             <span

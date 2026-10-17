@@ -179,7 +179,8 @@ const AuditLogSettings = () => {
     };
 
     return (
-        <div className="settings-section">
+        // Read-only page: filters, export and paging stay usable in the demo.
+        <div className="settings-section" data-demo-allowed>
             <div className="settings-header">
                 <div className="settings-icon-wrapper audit">
                     <FaHistory />
@@ -199,8 +200,9 @@ const AuditLogSettings = () => {
                         <div className="col-md-2">
                             <label className="settings-form-label">{t('auditLog.actionType')}</label>
                             <div className="input-group">
-                                <span className="input-group-text bg-white border-end-0"><FaFilter className="text-muted" /></span>
+                                <span className="input-group-text bg-body border-end-0"><FaFilter className="text-muted" /></span>
                                 <select
+                                    aria-label={t('auditLog.actionType')}
                                     className="form-select border-start-0 ps-0"
                                     value={filters.action}
                                     onChange={(e) => setFilters({ ...filters, action: e.target.value, page: 1 })}
@@ -216,8 +218,9 @@ const AuditLogSettings = () => {
                         <div className="col-md-2">
                             <label className="settings-form-label">{t('auditLog.userFilter')}</label>
                             <div className="input-group">
-                                <span className="input-group-text bg-white border-end-0"><FaUser className="text-muted" /></span>
+                                <span className="input-group-text bg-body border-end-0"><FaUser className="text-muted" /></span>
                                 <select
+                                    aria-label={t('auditLog.userFilter')}
                                     className="form-select border-start-0 ps-0"
                                     value={filters.user_id}
                                     onChange={(e) => setFilters({ ...filters, user_id: e.target.value, page: 1 })}
@@ -235,9 +238,10 @@ const AuditLogSettings = () => {
                         <div className="col-md-3">
                             <label className="settings-form-label">{t('auditLog.dateRange')}</label>
                             <div className="input-group">
-                                <span className="input-group-text bg-white border-end-0"><FaCalendar className="text-muted" /></span>
+                                <span className="input-group-text bg-body border-end-0"><FaCalendar className="text-muted" /></span>
                                 <input
                                     type="date"
+                                    aria-label={t('auditLog.dateFrom')}
                                     className="form-control border-start-0 ps-0"
                                     value={filters.date_from}
                                     onChange={(e) => setFilters({ ...filters, date_from: e.target.value })}
@@ -245,6 +249,7 @@ const AuditLogSettings = () => {
                                 <span className="input-group-text border-start-0 border-end-0 bg-white text-muted">{t('auditLog.to')}</span>
                                 <input
                                     type="date"
+                                    aria-label={t('auditLog.dateTo')}
                                     className="form-control border-start-0 ps-0"
                                     value={filters.date_to}
                                     onChange={(e) => setFilters({ ...filters, date_to: e.target.value })}
@@ -255,7 +260,7 @@ const AuditLogSettings = () => {
                         <div className="col-md-2">
                             <label className="settings-form-label">{t('auditLog.search')}</label>
                             <div className="input-group">
-                                <span className="input-group-text bg-white border-end-0"><FaSearch className="text-muted" /></span>
+                                <span className="input-group-text bg-body border-end-0"><FaSearch className="text-muted" /></span>
                                 <input
                                     type="text"
                                     className="form-control border-start-0 ps-0"
@@ -307,7 +312,7 @@ const AuditLogSettings = () => {
                             <p>{t('auditLog.adjustFilters')}</p>
                         </div>
                     ) : (
-                        <table className="table table-hover mb-0 align-middle">
+                        <table className="table table-hover mb-0 align-middle table-stack">
                             <thead className="bg-light">
                                 <tr>
                                     <th className="ps-4 py-3 border-0 text-uppercase small fw-bold text-muted">{t('auditLog.timestamp')}</th>
@@ -331,7 +336,7 @@ const AuditLogSettings = () => {
                                                     {formatDate(log.created_at)}
                                                 </td>
                                                 <td>
-                                                    <span className={`badge bg-${colorClass}-subtle text-${colorClass} border border-${colorClass}-subtle rounded-pill px-3 py-2 d-inline-flex align-items-center gap-2`}>
+                                                    <span className={`badge bg-${colorClass}-subtle text-${colorClass}-emphasis border border-${colorClass}-subtle rounded-pill px-3 py-2 d-inline-flex align-items-center gap-2`}>
                                                         <ActionIcon />
                                                         {log.action_display}
                                                     </span>

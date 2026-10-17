@@ -166,7 +166,7 @@ const TeamManagement = ({ embedded = false }) => {
                             </Button>
                         </div>
                     ) : (
-                        <Table hover responsive className="mb-0 align-middle">
+                        <Table hover responsive className="mb-0 align-middle table-stack">
                             <thead className="bg-light">
                                 <tr>
                                     <th className="ps-4 py-3 border-0 text-uppercase small fw-bold text-muted">{t('team.userColumn')}</th>
@@ -213,8 +213,8 @@ const TeamManagement = ({ embedded = false }) => {
                                         <td>
                                             <span className={`badge rounded-pill ${
                                                 (member.status || (member.is_active && member.last_login ? 'active' : 'pending')) === 'active'
-                                                    ? 'bg-success-subtle text-success'
-                                                    : (member.status === 'suspended' ? 'bg-secondary-subtle text-secondary' : 'bg-warning-subtle text-warning')
+                                                    ? 'bg-success-subtle text-success-emphasis'
+                                                    : (member.status === 'suspended' ? 'bg-secondary-subtle text-secondary-emphasis' : 'bg-warning-subtle text-warning-emphasis')
                                             } px-3 py-2`}>
                                                 {(member.status || (member.is_active && member.last_login ? 'active' : 'pending')) === 'active'
                                                     ? t('team.active')

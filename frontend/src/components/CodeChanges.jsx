@@ -87,8 +87,8 @@ const CodeChanges = () => {
         <div className="data-page-container">
             <div className="data-card">
                 {/* Header with filters */}
-                <div className="data-toolbar justify-content-between">
-                    <div className="d-flex align-items-center gap-3">
+                <div className="data-toolbar justify-content-between flex-wrap gap-2">
+                    <div className="d-flex align-items-center gap-3 flex-wrap">
                         <button
                             onClick={() => navigate(-1)}
                             className="btn btn-outline-secondary d-flex align-items-center gap-2"
@@ -102,7 +102,7 @@ const CodeChanges = () => {
                         </Badge>
                     </div>
 
-                    <div className="d-flex gap-3">
+                    <div className="d-flex gap-2 flex-wrap">
                         <Dropdown onSelect={(value) => handleFilterChange("branch", value)} className="filter-dropdown">
                             <Dropdown.Toggle variant="light" className="d-flex align-items-center justify-content-between gap-2">
                                 {t('codeChanges.branch')}: {filters.branch === "All Branches" ? t('codeChanges.allBranches') : filters.branch}
@@ -149,29 +149,29 @@ const CodeChanges = () => {
                             <Row className="g-4 mb-4">
                                 <Col md={3}>
                                     <div className="p-3 text-center rounded-3 bg-light border-0 h-100">
-                                        <FiGitCommit size={24} className="mx-auto mb-2" style={{ color: "#4e73df" }} />
-                                        <h3 className="fw-bold" style={{ color: "#4e73df" }}>{totalCommits}</h3>
+                                        <FiGitCommit size={24} className="mx-auto mb-2" style={{ color: "var(--text-link)" }} />
+                                        <h3 className="fw-bold" style={{ color: "var(--text-link)" }}>{totalCommits}</h3>
                                         <small className="text-muted text-uppercase fw-bold" style={{ fontSize: '0.75rem' }}>{t('codeChanges.totalCommits')}</small>
                                     </div>
                                 </Col>
                                 <Col md={3}>
                                     <div className="p-3 text-center rounded-3 bg-light border-0 h-100">
-                                        <FiFile size={24} className="mx-auto mb-2" style={{ color: "#858796" }} />
-                                        <h3 className="fw-bold" style={{ color: "#858796" }}>{totalFilesChanged}</h3>
+                                        <FiFile size={24} className="mx-auto mb-2" style={{ color: "var(--text-secondary)" }} />
+                                        <h3 className="fw-bold" style={{ color: "var(--text-secondary)" }}>{totalFilesChanged}</h3>
                                         <small className="text-muted text-uppercase fw-bold" style={{ fontSize: '0.75rem' }}>{t('codeChanges.filesChanged')}</small>
                                     </div>
                                 </Col>
                                 <Col md={3}>
                                     <div className="p-3 text-center rounded-3 border-0 h-100" style={{ backgroundColor: "rgba(28, 200, 138, 0.1)" }}>
-                                        <FaPlus size={24} className="mx-auto mb-2" style={{ color: "#1cc88a" }} />
-                                        <h3 className="fw-bold" style={{ color: "#1cc88a" }}>+{totalAdditions}</h3>
+                                        <FaPlus size={24} className="mx-auto mb-2" style={{ color: "var(--tone-green-text)" }} />
+                                        <h3 className="fw-bold" style={{ color: "var(--tone-green-text)" }}>+{totalAdditions}</h3>
                                         <small className="text-muted text-uppercase fw-bold" style={{ fontSize: '0.75rem' }}>{t('codeChanges.additions')}</small>
                                     </div>
                                 </Col>
                                 <Col md={3}>
                                     <div className="p-3 text-center rounded-3 border-0 h-100" style={{ backgroundColor: "rgba(231, 74, 59, 0.1)" }}>
-                                        <FaMinus size={24} className="mx-auto mb-2" style={{ color: "#e74a3b" }} />
-                                        <h3 className="fw-bold" style={{ color: "#e74a3b" }}>-{totalDeletions}</h3>
+                                        <FaMinus size={24} className="mx-auto mb-2" style={{ color: "var(--tone-red-text)" }} />
+                                        <h3 className="fw-bold" style={{ color: "var(--tone-red-text)" }}>-{totalDeletions}</h3>
                                         <small className="text-muted text-uppercase fw-bold" style={{ fontSize: '0.75rem' }}>{t('codeChanges.deletions')}</small>
                                     </div>
                                 </Col>
@@ -184,16 +184,16 @@ const CodeChanges = () => {
                                     <div
                                         key={change.id || index}
                                         className={`p-3 ${index !== filteredChanges.length - 1 ? 'border-bottom' : ''}`}
-                                        style={{ backgroundColor: index % 2 === 0 ? '#fff' : '#f8f9fc' }}
+                                        style={{ backgroundColor: index % 2 === 0 ? 'var(--bg-card)' : 'var(--bg-sunken)' }}
                                     >
-                                        <div className="d-flex justify-content-between align-items-start">
+                                        <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
                                             {/* Left side - Commit info */}
-                                            <div className="flex-grow-1">
+                                            <div className="flex-grow-1" style={{ minWidth: 0 }}>
                                                 <div className="d-flex align-items-center mb-2">
                                                     <code
                                                         className="px-2 py-1 rounded me-2"
                                                         style={{
-                                                            backgroundColor: '#4e73df',
+                                                            backgroundColor: 'var(--brand-fill)',
                                                             color: '#fff',
                                                             fontSize: '12px',
                                                             fontFamily: 'monospace'
@@ -210,7 +210,7 @@ const CodeChanges = () => {
                                                         </Badge>
                                                     )}
                                                 </div>
-                                                <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '6px', color: '#2c3e50' }}>
+                                                <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '6px', color: 'var(--text-primary)' }}>
                                                     {change.message?.split('\n')[0] || t('codeChanges.noMessage')}
                                                 </div>
                                                 <div className="text-muted d-flex align-items-center" style={{ fontSize: '13px' }}>
@@ -223,7 +223,7 @@ const CodeChanges = () => {
                                             </div>
 
                                             {/* Right side - Stats */}
-                                            <div className="text-end" style={{ minWidth: '120px' }}>
+                                            <div className="text-end ms-auto" style={{ minWidth: '120px' }}>
                                                 <div className="mb-1" style={{ fontSize: '13px' }}>
                                                     <FiFile className="me-1 text-muted" />
                                                     <span className="fw-medium">{change.stats?.files || 0} {t('codeChanges.files')}</span>

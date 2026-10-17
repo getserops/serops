@@ -1131,6 +1131,14 @@ class IssueListView(OrgFilterMixin, APIView):
             if component:
                 queryset = queryset.filter(component__iexact=component)
                 has_filters = True
+            # Time range: issues seen in the last N hours.
+            since_hours = request.query_params.get('since_hours', '').strip()
+            if since_hours:
+                if not since_hours.isdigit() or not 1 <= int(since_hours) <= 8760:
+                    return Response({'error': 'since_hours must be between 1 and 8760'}, status=status.HTTP_400_BAD_REQUEST)
+                cutoff = timezone.now() - timedelta(hours=int(since_hours))
+                queryset = queryset.filter(last_seen_at__gte=cutoff)
+                has_filters = True
 
             # Apply Text Search
             queryset = _apply_issue_search(queryset, search)

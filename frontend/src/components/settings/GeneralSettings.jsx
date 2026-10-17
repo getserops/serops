@@ -7,7 +7,7 @@
  * - Website
  * 
  * User preferences (language, theme, timezone, date format) 
- * have been moved to the UserMenu in the sidebar.
+ * have been moved to the profile menu in the top bar.
  */
 
 import React, { useState, useEffect, useRef } from 'react';

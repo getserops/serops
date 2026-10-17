@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { Table, Pagination, Form, Button, Dropdown } from "react-bootstrap";
-import { FaExclamationCircle, FaClock, FaBrain, FaBug, FaChartLine, FaCode, FaArrowRight } from "react-icons/fa";
+import { FaExclamationCircle, FaClock, FaBrain, FaBug, FaChartLine, FaCode, FaArrowRight, FaBell, FaLink, FaFileAlt } from "react-icons/fa";
+import { toast } from "react-toastify";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import DataService from "../services/data.service";
 import useCapabilities from "../hooks/useCapabilities";
 import { PostOnboardingUpsells } from "./onboarding";
 import { isDemoUser } from "../utils/demo";
+import notificationService from "../services/notification.service";
+import PostmortemModal from "./PostmortemModal";
+import "./Detail.css";
 
 // Investigate prefilled with this batch's scope and window.
 const rerunLink = (batch) => {
@@ -72,6 +76,8 @@ const Detail = () => {
   // PR-D: also carry the batch header (analysis / issues / metadata)
   // so this page renders the RCA hero, not just a log dump.
   const [batchMeta, setBatchMeta] = useState(null);
+  const [acking, setAcking] = useState(false);
+  const [showPostmortem, setShowPostmortem] = useState(false);
 
   // RCA audit finding #11 (2026-09-20): render the Compare panel when
   // the URL says ?compare=true, or when the batch has more than one
@@ -199,7 +205,7 @@ const Detail = () => {
 
   const highlightSearchTerm = (text) => {
     if (!searchTerm) return text;
-    const parts = text.split(new RegExp(`(${searchTerm})`, "gi"));
+    const parts = text.split(new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, "gi"));
     return parts.map((part, i) =>
       part.toLowerCase() === searchTerm.toLowerCase() ? (
         <strong key={i} style={{ backgroundColor: "var(--highlight-bg, #fff3cd)" }}>
@@ -337,6 +343,32 @@ const Detail = () => {
 
   const sentinel = sentinelChip(batchMeta?.sentinel_decision);
   const issues = Array.isArray(batchMeta?.issues) ? batchMeta.issues : [];
+  // Incident actions: acknowledge stops escalation for every open issue
+  // this batch found; the link and post-mortem make it shareable.
+  const unacknowledged = issues.filter((i) => i.id && (i.status || 'OPEN') === 'OPEN' && !i.acknowledged_at);
+  const handleAcknowledgeAll = async () => {
+    setAcking(true);
+    try {
+      await Promise.all(unacknowledged.map((i) => notificationService.acknowledgeIssue(i.id)));
+      setBatchMeta((m) => m && {
+        ...m,
+        issues: m.issues.map((i) => (unacknowledged.some((u) => u.id === i.id) ? { ...i, acknowledged_at: new Date().toISOString() } : i)),
+      });
+      toast.success(t('detail.incident.acknowledged', { count: unacknowledged.length }));
+    } catch {
+      toast.error(t('issues.panel.acknowledgeFailed'));
+    } finally {
+      setAcking(false);
+    }
+  };
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success(t('detail.incident.linkCopied'));
+    } catch {
+      toast.error(t('detail.incident.copyFailed'));
+    }
+  };
   const previewIssues = issues.slice(0, 3);
   // Prefer the first issue's ``root_cause`` — that's a proper
   // human-readable narrative. Fall back to ``analysis_text`` only when
@@ -366,7 +398,7 @@ const Detail = () => {
   );
 
   return (
-    <div className="p-3" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
+    <div className="p-3 detail-page" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
       {/* PR-D3 (2026-09-20): breadcrumb replaces the bottom-of-page
           "Back to Data" button. Standard nav pattern; keeps the
           bottom of the page for real content. */}
@@ -403,8 +435,8 @@ const Detail = () => {
           decision, etc). */}
       {batchMeta && (
         <div className="ds-card ds-card-elevated" style={{ marginBottom: '1rem' }}>
-          <div className="ds-card-body" style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
-            <div style={{
+          <div className="ds-card-body detail-hero" style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
+            <div className="detail-hero-icon" style={{
               width: 44, height: 44, borderRadius: 8,
               background: 'hsl(230, 100%, 96%)',
               color: 'var(--primary-600)',
@@ -415,7 +447,7 @@ const Detail = () => {
             </div>
             <div style={{ flexGrow: 1, minWidth: 0 }}>
               <div style={{
-                display: 'flex', alignItems: 'center', gap: 10,
+                display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
                 fontSize: 11, textTransform: 'uppercase',
                 letterSpacing: '0.12em', color: 'var(--text-tertiary)',
                 marginBottom: 6,
@@ -431,16 +463,17 @@ const Detail = () => {
                 {batchMeta.model_name && <span className="ds-mono" style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--text-secondary)' }}>{batchMeta.model_name}</span>}
                 {batchMeta.analyzed_at && <span style={{ textTransform: 'none', letterSpacing: 0, marginLeft: 'auto' }}>{relTime(batchMeta.analyzed_at)}</span>}
               </div>
-              <div style={{
-                fontSize: 16, lineHeight: 1.55,
+              {/* The incident is titled by the AI's hypothesis. */}
+              <h1 className="detail-hypothesis" style={{
+                fontSize: 18, fontWeight: 500, lineHeight: 1.5,
                 color: 'var(--text-primary)', marginBottom: 12,
               }}>
                 {analysisText || (
-                  <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
+                  <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic', fontSize: 16 }}>
                     Sentinel skipped AI analysis for this batch — signal was quiet.
                   </span>
                 )}
-              </div>
+              </h1>
               <div style={{
                 display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center',
                 fontSize: 12, color: 'var(--text-tertiary)',
@@ -460,9 +493,24 @@ const Detail = () => {
                 {(batchMeta.sentinel_triggers || []).slice(0, 3).map((tr) => (
                   <span key={tr} className="ds-chip ds-chip-warn">{tr}</span>
                 ))}
+              </div>
+              <div className="detail-incident-actions">
+                {unacknowledged.length > 0 && !isDemoUser() && (
+                  <button type="button" className="ds-btn ds-btn-primary ds-btn-sm" onClick={handleAcknowledgeAll} disabled={acking}
+                          title={t('detail.incident.acknowledgeTitle')}>
+                    <FaBell size={11} aria-hidden="true" /> {t('detail.incident.acknowledge', { count: unacknowledged.length })}
+                  </button>
+                )}
+                <button type="button" className="ds-btn ds-btn-secondary ds-btn-sm" onClick={handleCopyLink}>
+                  <FaLink size={11} aria-hidden="true" /> {t('detail.incident.copyLink')}
+                </button>
+                {analysisText && !isDemoUser() && (
+                  <button type="button" className="ds-btn ds-btn-secondary ds-btn-sm" onClick={() => setShowPostmortem(true)}>
+                    <FaFileAlt size={11} aria-hidden="true" /> {t('detail.incident.postmortem')}
+                  </button>
+                )}
                 {batchMeta.project && !isDemoUser() && (
-                  <Link to={rerunLink(batchMeta)} className="ds-btn ds-btn-secondary ds-btn-sm"
-                        style={{ marginLeft: 'auto' }} title={t('investigate.rerunTitle')}>
+                  <Link to={rerunLink(batchMeta)} className="ds-btn ds-btn-secondary ds-btn-sm" title={t('investigate.rerunTitle')}>
                     {t('investigate.rerun')}
                   </Link>
                 )}
@@ -601,6 +649,7 @@ const Detail = () => {
             {previewIssues.map((issue) => (
               <div
                 key={issue.id}
+                className="detail-issue-row"
                 style={{
                   display: 'flex',
                   gap: '0.75rem',
@@ -612,7 +661,7 @@ const Detail = () => {
                 <span className={`ds-chip ${severityChip(issue.severity)}`} style={{ marginTop: 2 }}>
                   {issue.severity}
                 </span>
-                <div style={{ flexGrow: 1, minWidth: 0 }}>
+                <div className="detail-issue-text" style={{ flexGrow: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
                     {issue.description || issue.error_target || 'Untitled issue'}
                   </div>
@@ -649,6 +698,7 @@ const Detail = () => {
         <div
           role="tablist"
           aria-label="Batch data source"
+          className="detail-tabs"
           style={{
             display: 'flex', gap: 2, flexWrap: 'wrap',
             borderBottom: '1px solid var(--border-default)',
@@ -857,7 +907,7 @@ const Detail = () => {
           bordered
           hover
           responsive
-          className="rounded-4 overflow-hidden mt-2"
+          className="rounded-4 overflow-hidden mt-2 table-stack detail-logs-table"
         >
           <thead className="table-primary">
             <tr>
@@ -878,10 +928,10 @@ const Detail = () => {
           <tbody>
             {paginatedData.map((item) => (
               <tr key={item.id}>
-                <td style={{ padding: "0.5rem", fontSize: "13px", whiteSpace: "nowrap", color: "var(--text-secondary)" }}>
+                <td data-label={t('detail.colTimestamp', 'Timestamp')} style={{ padding: "0.5rem", fontSize: "13px", whiteSpace: "nowrap", color: "var(--text-secondary)" }}>
                   {item.timestamp}
                 </td>
-                <td style={{ padding: "0.5rem", fontSize: "13px" }}>
+                <td data-label={t('detail.colLevel', 'Level')} style={{ padding: "0.5rem", fontSize: "13px" }}>
                   <span className={`ds-chip ${
                     (item.type || '').toLowerCase() === 'error' ? 'ds-chip-err'
                       : (item.type || '').toLowerCase() === 'warning' ? 'ds-chip-warn'
@@ -890,7 +940,7 @@ const Detail = () => {
                     {(item.type || 'info').toUpperCase()}
                   </span>
                 </td>
-                <td style={{ padding: "0.5rem", fontSize: "13px", color: "var(--text-secondary)" }}>
+                <td data-label={t('detail.colService', 'Service')} style={{ padding: "0.5rem", fontSize: "13px", color: "var(--text-secondary)" }}>
                   {item.serviceName || '—'}
                 </td>
                 <td
@@ -903,6 +953,13 @@ const Detail = () => {
                 </td>
               </tr>
             ))}
+            {paginatedData.length === 0 && (
+              <tr>
+                <td colSpan="4" className="text-center text-muted py-4" style={{ fontSize: "14px" }}>
+                  {data.length === 0 ? t('detail.noLogs') : t('detail.noLogsMatch')}
+                </td>
+              </tr>
+            )}
           </tbody>
         </Table>
 
@@ -926,6 +983,7 @@ const Detail = () => {
           </div>
         )}
       </div>
+      <PostmortemModal show={showPostmortem} onHide={() => setShowPostmortem(false)} batchId={batchId} />
     </div>
   );
 };

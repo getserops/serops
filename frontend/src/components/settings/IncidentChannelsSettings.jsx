@@ -294,7 +294,7 @@ const IncidentChannelsSettings = () => {
                     <p>{t('incidentChannels.empty')}</p>
                 </div>
             ) : (
-                <Table hover responsive>
+                <Table hover responsive className="table-stack">
                     <thead>
                         <tr>
                             <th>{t('incidentChannels.name')}</th>
@@ -309,7 +309,7 @@ const IncidentChannelsSettings = () => {
                     <tbody>
                         {channels.map((c) => (
                             <tr key={c.id} className={c.is_active ? '' : 'text-muted'}>
-                                <td>
+                                <td data-label={t('incidentChannels.name')}>
                                     <strong>{c.name}</strong>
                                     {c.last_error && (
                                         <div className="small text-danger">
@@ -318,8 +318,8 @@ const IncidentChannelsSettings = () => {
                                         </div>
                                     )}
                                 </td>
-                                <td>{c.kind_display}</td>
-                                <td>
+                                <td data-label={t('incidentChannels.kind')}>{c.kind_display}</td>
+                                <td data-label={t('incidentChannels.triggers')}>
                                     {(c.trigger_events || []).length === 0
                                         ? <span className="text-muted small">any</span>
                                         : c.trigger_events.map((t) => (
@@ -328,13 +328,13 @@ const IncidentChannelsSettings = () => {
                                             </Badge>
                                         ))}
                                 </td>
-                                <td>{c.min_severity || <span className="text-muted small">any</span>}</td>
-                                <td>
+                                <td data-label={t('incidentChannels.minSeverity')}>{c.min_severity || <span className="text-muted small">any</span>}</td>
+                                <td data-label={t('incidentChannels.status')}>
                                     {c.is_active
                                         ? <Badge bg="success">{t('common.active') || 'Active'}</Badge>
                                         : <Badge bg="secondary">{t('common.inactive') || 'Inactive'}</Badge>}
                                 </td>
-                                <td className="small text-muted">
+                                <td data-label={t('incidentChannels.lastSend')} className="small text-muted">
                                     {c.last_sent_at
                                         ? new Date(c.last_sent_at).toLocaleString()
                                         : '—'}

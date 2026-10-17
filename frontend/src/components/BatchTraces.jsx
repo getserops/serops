@@ -175,7 +175,7 @@ const StatCard = ({ icon, label, value, danger }) => (
 );
 
 const SpanTable = ({ rows, showMessage }) => (
-    <Table hover responsive size="sm" className="mb-0">
+    <Table hover responsive size="sm" className="mb-0 table-stack">
         <thead>
             <tr>
                 <th>Service</th>

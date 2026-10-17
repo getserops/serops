@@ -12,6 +12,21 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ### Added
 
+- **The Overview opens on what's broken now:** the most severe open issue
+  with why it is happening and what to do, plus the next ones, before the
+  numbers. "All clear" when nothing is open.
+- **Incident page:** a batch is titled by the AI's hypothesis, with
+  Acknowledge (stops escalation for its open issues), Copy link, Draft
+  post-mortem and Re-run analysis.
+- **⌘K / Ctrl+K search:** jump to any page, open issue or project, start an
+  investigation or switch theme from the keyboard (also in the top bar).
+- **Dark mode that works everywhere,** and a **compact density** option in
+  the profile menu.
+- **Issues:** filter by time ("seen in the last 24 h / 7 / 30 days", API
+  `since_hours`), a Last seen column, and when the list last refreshed.
+- **UI quality checks in CI:** every main page is checked for accessibility
+  (WCAG 2 AA, light and dark), phone layout and table alignment against the
+  quick-start stack built from the commit, with screenshots in the report.
 - **Issues side panel:** click any issue (or press Enter) to read its root
   cause, recommendation and correlations without leaving the list, then
   resolve, mute, acknowledge, open the analysis, investigate that time window,
@@ -43,6 +58,18 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
   selection; phones get one card per issue instead of a cut-off table.
 - Tables on the batch page and in Settings → Audit log were narrower than
   the search bar above them (a Data-page style leaked onto every table).
+- **Phones:** tables turn into one card per row (Data, Projects, Delivery,
+  Traces, Investigate, Team, Audit log and more); the batch page, Dashboard
+  charts, timeline and metrics no longer overflow or overlap.
+- The Create Project dialog kept Save below the screen; the 7-day trend drew
+  smoothed hills between whole counts (now bars); Recent AI analyses hid most
+  items in a small scroll box; the investigation / alert badge sat in the
+  Environment column (now a Trigger column); an empty batch showed an empty
+  table.
+- Typing `(` or `[` in the Data or batch log search crashed the page.
+- In the live demo, Settings disables every change with an explanation
+  instead of letting Save, Test or Rotate fail.
+- The last rows' action menus on Issues were cut off.
 
 ### Accessibility
 

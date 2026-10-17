@@ -111,7 +111,8 @@ const BatchTimelineChart = ({
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
-        const update = () => setWidth(Math.max(400, el.clientWidth));
+        // Floor of 260: a 400 px floor overflowed the card on phones.
+        const update = () => setWidth(Math.max(260, el.clientWidth));
         update();
         const ro = new ResizeObserver(update);
         ro.observe(el);
@@ -214,13 +215,14 @@ const BatchTimelineChart = ({
         activeLanes.length * LANE_HEIGHT + AXIS_HEIGHT + 24,
     );
 
-    // Time-axis ticks — 5 evenly spaced.
+    // Time-axis ticks, evenly spaced: one per ~70 px of plot (2 to 5) so
+    // the labels never overlap on a phone.
     const ticks = useMemo(() => {
         if (viewStart == null || viewEnd == null) return [];
-        const N = 5;
+        const N = Math.max(2, Math.min(5, Math.floor(plotWidth / 70) + 1));
         const step = spanMs / (N - 1);
         return Array.from({ length: N }, (_, i) => viewStart + step * i);
-    }, [viewStart, viewEnd, spanMs]);
+    }, [viewStart, viewEnd, spanMs, plotWidth]);
 
     // Zoom logic — scroll wheel zooms around the cursor's time position.
     const handleWheel = (e) => {
@@ -368,7 +370,7 @@ const BatchTimelineChart = ({
                                     // colour on a grey fill, which was unreadable.
                                     background: on ? `${LANE_META[k]?.colour || '#6c757d'}1f` : 'transparent',
                                     borderColor: on ? LANE_META[k]?.colour : '#dee2e6',
-                                    color: on ? '#1f2937' : '#6b7280',
+                                    color: on ? 'var(--text-primary)' : 'var(--text-tertiary)',
                                     fontWeight: on ? 600 : 400,
                                     padding: '2px 10px',
                                 }}
@@ -600,7 +602,7 @@ const BatchTimelineChart = ({
                                 <text
                                     x={x}
                                     y={chartHeight - AXIS_HEIGHT + 18}
-                                    textAnchor="middle"
+                                    textAnchor={i === ticks.length - 1 ? 'end' : 'middle'}
                                     fontSize="11"
                                     fill="#6c757d"
                                 >

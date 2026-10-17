@@ -159,7 +159,7 @@ const ClusterSettings = () => {
                     <p className="small">{t('clusters.emptyHint')}</p>
                 </div>
             ) : (
-                <Table hover responsive>
+                <Table hover responsive className="table-stack">
                     <thead>
                         <tr>
                             <th>{t('clusters.name')}</th>

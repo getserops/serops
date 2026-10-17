@@ -122,7 +122,18 @@
     "memorySpikes": "Pics mémoire",
     "cpuSpikes": "Pics CPU",
     "pipelineFailures": "Échecs de pipeline",
-    "topAffected": "Les plus touchés"
+    "topAffected": "Les plus touchés",
+    "viewAllAnalyses": "Voir les {{count}} analyses",
+    "attention": {
+      "title": "À traiter maintenant",
+      "viewOpen_one": "{{count}} incident ouvert",
+      "viewOpen_other": "Les {{count}} incidents ouverts",
+      "why": "Pourquoi",
+      "whatToDo": "Que faire",
+      "openIssue": "Ouvrir l'incident",
+      "allClear": "Tout va bien : aucun incident ouvert",
+      "allClearHint": "Sentinel continue de surveiller logs, métriques, traces et déploiements. Les nouveaux incidents apparaîtront ici en premier."
+    }
   },
   "data": {
     "title": "Données",
@@ -148,7 +159,8 @@
     "viewDetails": "Voir Détails",
     "viewLogs": "Voir les Journaux",
     "viewMetrics": "Voir les Métriques",
-    "openBatch": "Ouvrir le lot {{id}}"
+    "openBatch": "Ouvrir le lot {{id}}",
+    "trigger": "Déclencheur"
   },
   "issues": {
     "title": "Problèmes",
@@ -217,7 +229,12 @@
       "service": "Filtrer par service",
       "allProjects": "Tous les projets",
       "allEnvironments": "Tous les environnements",
-      "allServices": "Tous les services"
+      "allServices": "Tous les services",
+      "timeRange": "Filtrer par période",
+      "anyTime": "Toute période",
+      "last24h": "Vu ces dernières 24 h",
+      "last7d": "Vu ces 7 derniers jours",
+      "last30d": "Vu ces 30 derniers jours"
     },
     "menu": {
       "viewDetails": "Voir le détail"
@@ -225,7 +242,9 @@
     "resultCount_one": "{{count}} problème",
     "resultCount_other": "{{count}} problèmes",
     "searchPlaceholder": "Rechercher des problèmes…",
-    "openIssue": "Problème {{id}} : {{description}}. Entrée pour le détail."
+    "openIssue": "Problème {{id}} : {{description}}. Entrée pour le détail.",
+    "updatedAt": "Mis à jour à {{time}}",
+    "autoRefresh": "Actualisé toutes les 30 s"
   },
   "addService": {
     "title": "Ajouter un Nouveau Service",
@@ -358,7 +377,20 @@
     "colTimestamp": "Horodatage",
     "colLevel": "Niveau",
     "colService": "Service",
-    "colMessage": "Message"
+    "colMessage": "Message",
+    "noLogs": "Aucune ligne de log collectée pour ce lot.",
+    "noLogsMatch": "Aucune ligne de log ne correspond à ces filtres.",
+    "incident": {
+      "acknowledge_one": "Prendre en charge",
+      "acknowledge_other": "Prendre en charge {{count}} incidents",
+      "acknowledgeTitle": "Arrête l'escalade : l'astreinte s'en occupe",
+      "acknowledged_one": "Pris en charge : escalade arrêtée.",
+      "acknowledged_other": "{{count}} incidents pris en charge : escalade arrêtée.",
+      "copyLink": "Copier le lien",
+      "linkCopied": "Lien copié.",
+      "copyFailed": "Impossible de copier le lien.",
+      "postmortem": "Rédiger le post-mortem"
+    }
   },
   "timeline": {
     "title": "Chronologie du batch",
@@ -920,7 +952,13 @@
     "verifySuccess": "Connexion vérifiée !",
     "verifyFailed": "Échec de la vérification",
     "getStarted": "Connectez votre premier fournisseur pour commencer",
-    "selectProvider": "Choisir un fournisseur"
+    "selectProvider": "Choisir un fournisseur",
+    "tabs": {
+      "scm": "Gestion du code",
+      "cicd": "CI/CD",
+      "logs": "Fournisseurs de logs",
+      "metrics": "Fournisseurs de métriques"
+    }
   },
   "auditLog": {
     "title": "Journal d'Audit",
@@ -951,7 +989,9 @@
     "systemUser": "Système",
     "clearFilters": "Effacer",
     "expandDetails": "Afficher les détails",
-    "collapseDetails": "Masquer les détails"
+    "collapseDetails": "Masquer les détails",
+    "dateFrom": "Date de début",
+    "dateTo": "Date de fin"
   },
   "traces": {
     "settings": {
@@ -1432,6 +1472,26 @@
   },
   "demo": {
     "readOnlyNotice": "Ceci est la démo en lecture seule : les modifications ne sont pas enregistrées. Hébergez SerOps pour utiliser vos propres données.",
-    "settingsReadOnly": "Les paramètres sont en lecture seule dans la démo : vous pouvez tout consulter, mais rien n'est enregistré."
+    "settingsReadOnly": "Les paramètres sont en lecture seule dans la démo : vous pouvez tout consulter, mais rien n'est enregistré.",
+    "controlDisabled": "Lecture seule dans la démo. Installez SerOps pour modifier les paramètres."
+  },
+  "palette": {
+    "title": "Rechercher dans SerOps",
+    "trigger": "Rechercher",
+    "placeholder": "Aller à une page, un incident ou un projet, ou lancer une action…",
+    "pages": "Pages",
+    "actions": "Actions",
+    "issues": "Incidents ouverts",
+    "projects": "Projets",
+    "noResults": "Aucun résultat.",
+    "newInvestigation": "Nouvelle investigation",
+    "themeDark": "Passer au thème sombre",
+    "themeLight": "Passer au thème clair",
+    "themeSystem": "Suivre le thème du système"
+  },
+  "density": {
+    "label": "Densité",
+    "comfortable": "Confortable",
+    "compact": "Compacte"
   }
 }

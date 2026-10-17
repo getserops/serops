@@ -49,6 +49,9 @@ import {
     FaCheckCircle,
     FaExclamationCircle,
     FaFlask,
+    FaCodeBranch,
+    FaStream,
+    FaChartLine,
 } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
 
@@ -173,10 +176,10 @@ const extractHostname = (url) => {
 };
 
 const TABS = [
-    { key: "scm", label: "Source Control", icon: "📂" },
-    { key: "cicd", label: "CI/CD", icon: "🔄" },
-    { key: "logs", label: "Log Providers", icon: "📋" },
-    { key: "metrics", label: "Metric Providers", icon: "📊" },
+    { key: "scm", icon: FaCodeBranch },
+    { key: "cicd", icon: FaSync },
+    { key: "logs", icon: FaStream },
+    { key: "metrics", icon: FaChartLine },
 ];
 
 const SettingsIntegrations = () => {
@@ -631,25 +634,33 @@ const SettingsIntegrations = () => {
             )}
 
             {/* Tab Bar */}
-            <div className="d-flex gap-0 mb-4" style={{ borderBottom: "2px solid #e0e0e0" }}>
+            <div className="d-flex gap-0 mb-4" role="tablist" data-demo-allowed
+                 style={{ borderBottom: "2px solid #e0e0e0", overflowX: "auto", scrollbarWidth: "none" }}>
                 {TABS.map((tab) => (
                     <button
                         key={tab.key}
+                        role="tab"
+                        aria-selected={activeTab === tab.key}
                         onClick={() => setActiveTab(tab.key)}
                         style={{
+                            flex: "0 0 auto",
+                            whiteSpace: "nowrap",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
                             padding: "10px 20px",
                             fontSize: 13,
                             fontWeight: 600,
                             border: "none",
-                            borderBottom: activeTab === tab.key ? "2px solid var(--primary-color, #e8734a)" : "2px solid transparent",
-                            color: activeTab === tab.key ? "var(--primary-color, #e8734a)" : "#666",
+                            borderBottom: activeTab === tab.key ? "2px solid var(--text-link)" : "2px solid transparent",
+                            color: activeTab === tab.key ? "var(--text-link)" : "var(--text-secondary)",
                             backgroundColor: "transparent",
                             cursor: "pointer",
                             transition: "all 0.15s",
                             marginBottom: -2,
                         }}
                     >
-                        {tab.icon} {tab.label}
+                        <tab.icon size={12} aria-hidden="true" /> {t(`globalIntegrations.tabs.${tab.key}`)}
                     </button>
                 ))}
             </div>
@@ -700,17 +711,17 @@ const SettingsIntegrations = () => {
                                         <Card className="h-100 shadow-sm border-0 integration-card" style={{ transition: "all 0.2s" }}>
                                             <Card.Body>
                                                 {/* Header Row: Icon + Name + Status + Actions */}
-                                                <div className="d-flex justify-content-between align-items-start mb-3">
-                                                    <div className="d-flex align-items-center gap-3">
+                                                <div className="d-flex justify-content-between align-items-start mb-3 gap-2">
+                                                    <div className="d-flex align-items-center gap-3" style={{ minWidth: 0 }}>
                                                         <div
-                                                            className="rounded-3 p-2 d-flex align-items-center justify-content-center"
+                                                            className="rounded-3 p-2 d-flex align-items-center justify-content-center flex-shrink-0"
                                                             style={{ backgroundColor: `${prov.color}15`, width: 48, height: 48 }}
                                                         >
                                                             <Icon size={24} style={{ color: prov.color }} />
                                                         </div>
-                                                        <div>
+                                                        <div style={{ minWidth: 0 }}>
                                                             <h5 className="mb-0 fw-semibold">{int.name}</h5>
-                                                            <div className="d-flex align-items-center gap-2 text-muted small">
+                                                            <div className="d-flex align-items-center flex-wrap gap-2 text-muted small">
                                                                 <a
                                                                     href={int.base_url || prov.url}
                                                                     target="_blank"
@@ -733,7 +744,7 @@ const SettingsIntegrations = () => {
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <div className="d-flex align-items-center gap-2">
+                                                    <div className="d-flex align-items-center gap-2 flex-shrink-0">
                                                         <Badge
                                                             bg={verified ? "success" : "warning"}
                                                             className="d-flex align-items-center gap-1 px-2 py-1"

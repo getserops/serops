@@ -10,6 +10,7 @@ import {
 import { ClusterProvider } from "./context/ClusterContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PageTitle from "./components/PageTitle";
+import { applyTheme, applyDensity } from "./utils/theme";
 
 // Lazy loading components
 // Public registration now ENABLED for SaaS
@@ -65,15 +66,6 @@ const PageLoader = () => (
   </div>
 );
 
-// Apply theme on load
-const applyTheme = (theme) => {
-  if (theme === 'system') {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-  } else {
-    document.documentElement.setAttribute('data-theme', theme);
-  }
-};
 
 function App() {
   // Apply saved theme on app load
@@ -81,6 +73,7 @@ function App() {
     const savedSettings = JSON.parse(localStorage.getItem('seropsSettings') || '{}');
     const theme = savedSettings.theme || 'system';
     applyTheme(theme);
+    applyDensity(savedSettings.density);
 
     // Listen for system theme changes if using system preference
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -96,6 +89,9 @@ function App() {
     const handleSettingsChange = (e) => {
       if (e.detail?.theme) {
         applyTheme(e.detail.theme);
+      }
+      if (e.detail?.density) {
+        applyDensity(e.detail.density);
       }
     };
     window.addEventListener('settingsChanged', handleSettingsChange);

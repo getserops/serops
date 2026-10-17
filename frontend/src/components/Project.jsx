@@ -328,7 +328,7 @@ const Project = () => {
         ) : (
           <>
             <div className="table-responsive">
-              <Table hover className="align-middle mb-0">
+              <Table hover className="align-middle mb-0 table-stack">
                 <thead className="bg-light">
                   <tr>
                     <th className="py-3 ps-4 border-bottom rounded-start">{t('projects.name')}</th>
@@ -341,11 +341,11 @@ const Project = () => {
                   {paginatedProjects.length > 0 ? (
                     paginatedProjects.map((project) => (
                       <tr key={project.id} className="border-bottom">
-                        <td className="ps-4 fw-medium text-dark">{project.name}</td>
-                        <td className="text-muted">
+                        <td className="ps-4 fw-medium text-dark" data-label={t('projects.name')}>{project.name}</td>
+                        <td className="text-muted" data-label={t('projects.description')}>
                           {project.description || "-"}
                         </td>
-                        <td className="text-muted">
+                        <td className="text-muted" data-label={t('projects.createdDate')}>
                           {new Date(project.created_at).toLocaleDateString()}
                         </td>
                         <td className="text-end pe-4">
@@ -437,9 +437,9 @@ const Project = () => {
       </div>
 
       {/* Modal for creating/editing a project */}
-      <Modal show={showModal} onHide={() => { handleCloseModal(); setEditingProject(null); }} centered>
+      <Modal show={showModal} onHide={() => { handleCloseModal(); setEditingProject(null); }} centered scrollable>
         <Modal.Body
-          className="p-5"
+          className="p-4 p-md-5"
           style={{ backgroundColor: "#f0f4ff", borderRadius: "15px" }}
         >
           <h4 className="mb-4 text-center">
@@ -552,7 +552,9 @@ const Project = () => {
               </div>
             </Form.Group>
 
-            <div className="d-flex justify-content-end">
+            {/* Sticky so Save stays visible while the environment list scrolls. */}
+            <div className="d-flex justify-content-end"
+                 style={{ position: "sticky", bottom: 0, padding: "0.75rem 0", backgroundColor: "#f0f4ff" }}>
               <Button
                 variant="light"
                 onClick={() => { handleCloseModal(); setEditingProject(null); }}

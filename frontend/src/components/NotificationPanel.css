@@ -4,7 +4,7 @@
     top: 70px;
     right: 20px;
     width: 480px;
-    background-color: #fff;
+    background-color: var(--bg-card, #fff);
     max-height: 80vh;
     border-radius: 16px;
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
@@ -77,7 +77,7 @@
 .notification-filter-bar {
     padding: 0.75rem 1.5rem;
     border-bottom: 1px solid var(--border-default);
-    background-color: #fff;
+    background-color: var(--bg-card, #fff);
 }
 
 .notification-filter-btn {
@@ -94,7 +94,7 @@
 }
 
 .notification-filter-btn.active {
-    background-color: var(--primary);
+    background-color: var(--brand-fill, var(--primary));
     color: white;
 }
 
@@ -135,7 +135,7 @@
     position: relative;
     cursor: pointer;
     transition: background-color 0.2s;
-    background-color: #fff;
+    background-color: var(--bg-card, #fff);
 }
 
 .notification-item:hover {

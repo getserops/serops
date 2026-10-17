@@ -93,6 +93,51 @@ frontend:
       changes: [frontend/**/*]
 
 # ---------------------------------------------------------------------------
+# UI quality — axe (light + dark), phone layout, table alignment on every
+# main page, against the quick-start stack built from this commit.
+# ---------------------------------------------------------------------------
+ui-quality:
+  stage: test
+  image: docker:27
+  services:
+    - name: docker:27-dind
+      alias: docker
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: tcp://docker:2375
+    SEROPS_BACKEND_IMAGE: serops-ci/backend
+    SEROPS_FRONTEND_IMAGE: serops-ci/frontend
+  script:
+    - apk add --no-cache openssl
+    - docker build -t "$SEROPS_BACKEND_IMAGE" backend
+    - docker build -t "$SEROPS_FRONTEND_IMAGE" --build-arg VITE_BASE_URL=/api frontend
+    - cd deploy/quick-start
+    - cp .env.example .env
+    - sed -i "s|^DJANGO_SECRET_KEY=.*|DJANGO_SECRET_KEY=$(openssl rand -hex 32)|; s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 16)|; s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$(openssl rand -hex 16)|" .env
+    - docker compose up -d --no-build --wait
+    - docker compose exec -T backend python manage.py seed_demo_org
+    - cd ../..
+    # Caddy publishes 443 on the dind host, so the browser runs there too.
+    # Bind mounts don't reach the dind daemon: copy the sources in instead.
+    - >
+      CID=$(docker create --network host -w /app -e CI=1 -e UI_BASE_URL=https://localhost
+      mcr.microsoft.com/playwright:v1.63.0-jammy
+      sh -c "npm ci --no-audit --fund=false && npx playwright test -c playwright.ui-quality.config.ts")
+    - docker cp frontend/. "$CID":/app
+    - STATUS=0; docker start -a "$CID" || STATUS=$?
+    - docker cp "$CID":/app/playwright-report-ui frontend/ || true
+    - exit $STATUS
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths: [frontend/playwright-report-ui]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [frontend/**/*, backend/**/*, deploy/quick-start/**/*]
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes: [frontend/**/*, backend/**/*, deploy/quick-start/**/*]
+
+# ---------------------------------------------------------------------------
 # Docs — MkDocs
 # ---------------------------------------------------------------------------
 docs:

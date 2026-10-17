@@ -18,6 +18,12 @@
 
 /* Kept for legacy classes that already reference --font-mono */
 :root {
+  /* Brand blue as a solid fill under white text (dark theme overrides). */
+  --brand-fill: var(--primary-600);
+  /* Readable red / amber / green for text on cards and tints (AA). */
+  --tone-red-text: #c4123c;
+  --tone-amber-text: #8a6100;
+  --tone-green-text: #047857;
   --font-mono: 'IBM Plex Mono', 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
 }
 
@@ -160,6 +166,49 @@
   padding: var(--space-4) var(--space-5);
   border-top: 1px solid var(--border-default);
   background: var(--bg-sunken);
+}
+
+/* Tables that turn into one card per row on phones. Each <td> carries
+   data-label with its column name; a cell without one (checkbox,
+   actions, empty state) spans the card unlabelled. */
+@media (max-width: 767px) {
+  .table-stack thead { display: none; }
+  .table-stack, .table-stack tbody, .table-stack tr, .table-stack td {
+    display: block;
+    width: 100% !important;
+    max-width: none !important;
+  }
+  .table-stack tr {
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-3);
+    background: var(--bg-card);
+  }
+  .table-stack td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-3);
+    border: 0 !important;
+    padding: 4px 0 !important;
+    text-align: right !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+  .table-stack td::before {
+    content: attr(data-label);
+    flex: 0 0 38%;
+    max-width: 38%;
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-align: left;
+  }
+  .table-stack td > * { min-width: 0; max-width: 100%; }
+  .table-stack td:not([data-label])::before { content: none; }
+  .table-stack td:not([data-label]) { justify-content: flex-start; text-align: left !important; flex-wrap: wrap; }
 }
 
 /* =============================================================
@@ -553,7 +602,9 @@
 :root {
   --bg-page: hsl(220, 15%, 96.5%);
 }
-[data-theme="dark"] :root { --bg-page: hsl(230, 25%, 8%); }
+/* Same specificity as the :root rule above, so it needs the attribute on
+   :root itself (the old "[data-theme] :root" selector never matched). */
+:root[data-theme="dark"] { --bg-page: hsl(230, 25%, 8%); }
 
 /* WCAG AA contrast for Bootstrap utilities used across the app. Lives here,
    not in index.css, because this file loads after Bootstrap. The stock
@@ -565,9 +616,132 @@
 }
 .text-muted { color: #5f666d !important; }
 .text-info { color: #087990 !important; }
+/* Dark theme: the light-mode values above would be dark-on-dark. */
+:root[data-theme="dark"] {
+  --bs-code-color: #f78fc0;
+  --bs-link-color: #8ab4ff;
+  --bs-link-color-rgb: 138, 180, 255;
+}
+:root[data-theme="dark"] .text-muted { color: hsl(230, 10%, 68%) !important; }
+:root[data-theme="dark"] .text-info { color: #6edff6 !important; }
 .text-primary { color: #0258d6 !important; }
 .badge.bg-info { background-color: #087990 !important; }
 .btn-outline-secondary { --bs-btn-color: #5c636a; }
 code { color: var(--bs-code-color); }
 a code { color: inherit; }
 .settings-selection-card.active .settings-selection-desc { color: var(--text-secondary); }
+
+/* =============================================================
+   Dark theme corrections
+   Light-only values that read dark-on-dark or light-on-light once
+   data-theme="dark" is set. Measured with axe (WCAG AA 4.5:1).
+   ============================================================= */
+:root[data-theme="dark"] {
+  /* 50% lightness measured 3.9:1 on cards. */
+  --text-tertiary: hsl(230, 10%, 64%);
+  /* Used with light fallbacks (#f8f9fa / #eef0f4) by feed items, stats
+     tiles and hover states; undefined in dark, so they rendered white. */
+  --bg-surface: hsl(230, 20%, 17%);
+  --bg-hover: hsl(230, 20%, 22%);
+  /* Brand blue as a solid fill: the light primary-600 under white text
+     measured 2.9:1. */
+  --brand-fill: hsl(230, 70%, 52%);
+  --brand-fill-hover: hsl(230, 70%, 46%);
+  --tone-red-text: hsl(0, 85%, 75%);
+  --tone-amber-text: hsl(40, 90%, 66%);
+  --tone-green-text: hsl(150, 60%, 62%);
+  /* 60-68% lightness measured 4.2:1 for brand-coloured text. */
+  --primary-400: hsl(230, 85%, 74%);
+  --text-link: hsl(230, 90%, 80%);
+}
+
+:root[data-theme="dark"] .btn.btn-primary,
+:root[data-theme="dark"] .btn.btn-primary:disabled,
+:root[data-theme="dark"] .btn.btn-primary.disabled {
+  background-color: var(--brand-fill);
+  border-color: var(--brand-fill);
+  color: #fff;
+}
+:root[data-theme="dark"] .btn.btn-primary:hover,
+:root[data-theme="dark"] .btn.btn-primary:focus {
+  background-color: var(--brand-fill-hover);
+  border-color: var(--brand-fill-hover);
+}
+:root[data-theme="dark"] .btn-outline-secondary {
+  --bs-btn-color: hsl(230, 10%, 75%);
+  --bs-btn-border-color: hsl(230, 12%, 40%);
+  --bs-btn-hover-bg: hsl(230, 15%, 25%);
+  --bs-btn-hover-border-color: hsl(230, 12%, 50%);
+  --bs-btn-hover-color: #fff;
+}
+:root[data-theme="dark"] .btn-light {
+  --bs-btn-bg: hsl(230, 18%, 20%);
+  --bs-btn-border-color: hsl(230, 18%, 26%);
+  --bs-btn-color: hsl(230, 10%, 88%);
+  --bs-btn-hover-bg: hsl(230, 18%, 26%);
+  --bs-btn-hover-color: #fff;
+}
+:root[data-theme="dark"] .text-primary { color: hsl(230, 90%, 80%) !important; }
+:root[data-theme="dark"] .text-success { color: hsl(145, 60%, 60%) !important; }
+:root[data-theme="dark"] .text-danger { color: hsl(0, 85%, 72%) !important; }
+
+/* Chips: dark tint with a light label. */
+:root[data-theme="dark"] .ds-chip-neutral { background: hsl(230, 15%, 22%); color: hsl(230, 10%, 82%); }
+:root[data-theme="dark"] .ds-chip-brand   { background: hsl(230, 45%, 25%); color: hsl(230, 90%, 85%); }
+:root[data-theme="dark"] .ds-chip-ok      { background: hsl(145, 40%, 18%); color: hsl(145, 60%, 70%); }
+:root[data-theme="dark"] .ds-chip-warn,
+:root[data-theme="dark"] .ds-chip-p1      { background: hsl(40, 50%, 18%);  color: hsl(40, 90%, 70%); }
+:root[data-theme="dark"] .ds-chip-err,
+:root[data-theme="dark"] .ds-chip-p0      { background: hsl(0, 45%, 20%);   color: hsl(0, 85%, 78%); }
+:root[data-theme="dark"] .ds-chip-info,
+:root[data-theme="dark"] .ds-chip-p2      { background: hsl(210, 45%, 20%); color: hsl(210, 85%, 78%); }
+
+/* Badge families (severity, batch status, Sentinel) and notices. */
+:root[data-theme="dark"] .severity-badge-critical,
+:root[data-theme="dark"] .severity-badge-high,
+:root[data-theme="dark"] .status-badge.failed,
+:root[data-theme="dark"] .sentinel-alert   { background: hsl(0, 45%, 20%);   color: hsl(0, 85%, 78%); }
+:root[data-theme="dark"] .severity-badge-warning,
+:root[data-theme="dark"] .severity-badge-medium,
+:root[data-theme="dark"] .status-badge.pending,
+:root[data-theme="dark"] .sentinel-routine { background: hsl(40, 50%, 18%);  color: hsl(40, 90%, 70%); }
+:root[data-theme="dark"] .severity-badge-low,
+:root[data-theme="dark"] .status-badge.analyzed,
+:root[data-theme="dark"] .sentinel-quiet   { background: hsl(145, 40%, 18%); color: hsl(145, 60%, 70%); }
+:root[data-theme="dark"] .severity-badge-info,
+:root[data-theme="dark"] .sentinel-first   { background: hsl(210, 45%, 20%); color: hsl(210, 85%, 78%); }
+:root[data-theme="dark"] .severity-badge-unknown,
+:root[data-theme="dark"] .status-badge.skipped,
+:root[data-theme="dark"] .sentinel-shadow  { background: hsl(230, 15%, 22%); color: hsl(230, 10%, 82%); }
+:root[data-theme="dark"] .settings-readonly-notice,
+:root[data-theme="dark"] .investigate-banner { background: hsl(40, 45%, 16%); color: hsl(40, 90%, 75%); }
+:root[data-theme="dark"] .investigate-chip.is-on { background: hsl(230, 45%, 25%); color: hsl(230, 90%, 85%); border-color: hsl(230, 70%, 60%); }
+:root[data-theme="dark"] .count-heat-normal { color: var(--text-secondary); }
+:root[data-theme="dark"] .ds-btn-primary { background: var(--brand-fill); border-color: var(--brand-fill); }
+:root[data-theme="dark"] .ds-btn-primary:hover:not(:disabled) { background: var(--brand-fill-hover); border-color: var(--brand-fill-hover); }
+
+/* =============================================================
+   Compact density (profile menu): tighter tables, cards and rows.
+   ============================================================= */
+:root[data-density="compact"] .table > :not(caption) > * > *,
+:root[data-density="compact"] .modern-table td,
+:root[data-density="compact"] .modern-table th,
+:root[data-density="compact"] .investigate-table td {
+  padding-top: 0.3rem !important;
+  padding-bottom: 0.3rem !important;
+}
+:root[data-density="compact"] .ds-card-body,
+:root[data-density="compact"] .chart-card,
+:root[data-density="compact"] .metric-card,
+:root[data-density="compact"] .settings-card { padding: var(--space-4); }
+:root[data-density="compact"] .metrics-grid,
+:root[data-density="compact"] .charts-grid { gap: var(--space-4); }
+:root[data-density="compact"] .feed-item { padding: 8px 14px; }
+:root[data-density="compact"] .issue-row > td { padding-top: 0.45rem !important; padding-bottom: 0.45rem !important; }
+:root[data-density="compact"] body { font-size: 0.9375rem; }
+:root[data-theme="dark"] .issue-component-chip,
+:root[data-theme="dark"] .issue-component-chip.component-chip-pipeline { background-color: hsl(230, 15%, 22%); color: hsl(230, 10%, 85%); }
+:root[data-theme="dark"] .issue-component-chip.component-chip-service { background-color: hsl(210, 45%, 20%); color: hsl(210, 85%, 80%); }
+:root[data-theme="dark"] .issue-component-chip.component-chip-infra { background-color: hsl(285, 35%, 22%); color: hsl(285, 70%, 82%); }
+:root[data-theme="dark"] .count-heat-amber { color: hsl(35, 95%, 65%); }
+:root[data-theme="dark"] .count-heat-red { color: hsl(0, 85%, 75%); }

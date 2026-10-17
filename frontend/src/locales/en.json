@@ -122,7 +122,18 @@
     "memorySpikes": "Memory Spikes",
     "cpuSpikes": "CPU Spikes",
     "pipelineFailures": "Pipeline Failures",
-    "topAffected": "Top Affected"
+    "topAffected": "Top Affected",
+    "viewAllAnalyses": "View all {{count}} analyses",
+    "attention": {
+      "title": "Needs attention now",
+      "viewOpen_one": "{{count}} open issue",
+      "viewOpen_other": "All {{count}} open issues",
+      "why": "Why it is happening",
+      "whatToDo": "What to do",
+      "openIssue": "Open issue",
+      "allClear": "All clear: no open issues",
+      "allClearHint": "Sentinel keeps watching logs, metrics, traces and deploys. New issues will show up here first."
+    }
   },
   "data": {
     "title": "Data",
@@ -148,7 +159,8 @@
     "viewDetails": "View Details",
     "viewLogs": "View Logs",
     "viewMetrics": "View Metrics",
-    "openBatch": "Open batch {{id}}"
+    "openBatch": "Open batch {{id}}",
+    "trigger": "Trigger"
   },
   "issues": {
     "title": "Issues",
@@ -217,7 +229,12 @@
       "service": "Filter by service",
       "allProjects": "All projects",
       "allEnvironments": "All environments",
-      "allServices": "All services"
+      "allServices": "All services",
+      "timeRange": "Filter by time",
+      "anyTime": "Any time",
+      "last24h": "Seen in last 24 h",
+      "last7d": "Seen in last 7 days",
+      "last30d": "Seen in last 30 days"
     },
     "menu": {
       "viewDetails": "View details"
@@ -225,7 +242,9 @@
     "resultCount_one": "{{count}} issue",
     "resultCount_other": "{{count}} issues",
     "searchPlaceholder": "Search issues…",
-    "openIssue": "Issue {{id}}: {{description}}. Press Enter for details."
+    "openIssue": "Issue {{id}}: {{description}}. Press Enter for details.",
+    "updatedAt": "Updated {{time}}",
+    "autoRefresh": "Refreshes every 30 s"
   },
   "addService": {
     "title": "Add New Service",
@@ -358,7 +377,20 @@
     "colTimestamp": "Timestamp",
     "colLevel": "Level",
     "colService": "Service",
-    "colMessage": "Message"
+    "colMessage": "Message",
+    "noLogs": "No log lines were collected for this batch.",
+    "noLogsMatch": "No log lines match these filters.",
+    "incident": {
+      "acknowledge_one": "Acknowledge",
+      "acknowledge_other": "Acknowledge {{count}} issues",
+      "acknowledgeTitle": "Stop escalation: on-call is looking at it",
+      "acknowledged_one": "Acknowledged: escalation stopped.",
+      "acknowledged_other": "{{count}} issues acknowledged: escalation stopped.",
+      "copyLink": "Copy link",
+      "linkCopied": "Link copied.",
+      "copyFailed": "Could not copy the link.",
+      "postmortem": "Draft post-mortem"
+    }
   },
   "timeline": {
     "title": "Batch Timeline",
@@ -1003,7 +1035,13 @@
     "verifySuccess": "Connection verified!",
     "verifyFailed": "Verification failed",
     "getStarted": "Connect your first provider to get started",
-    "selectProvider": "Select Provider"
+    "selectProvider": "Select Provider",
+    "tabs": {
+      "scm": "Source Control",
+      "cicd": "CI/CD",
+      "logs": "Log Providers",
+      "metrics": "Metric Providers"
+    }
   },
   "auditLog": {
     "title": "Audit Log",
@@ -1034,7 +1072,9 @@
     "systemUser": "System",
     "clearFilters": "Clear",
     "expandDetails": "Show details",
-    "collapseDetails": "Hide details"
+    "collapseDetails": "Hide details",
+    "dateFrom": "From date",
+    "dateTo": "To date"
   },
   "traces": {
     "settings": {
@@ -1432,6 +1472,26 @@
   },
   "demo": {
     "readOnlyNotice": "This is the read-only live demo, so changes aren't saved. Self-host SerOps to use your own data.",
-    "settingsReadOnly": "Settings are read-only in the live demo: you can look around, but changes aren't saved."
+    "settingsReadOnly": "Settings are read-only in the live demo: you can look around, but changes aren't saved.",
+    "controlDisabled": "Read-only in the live demo. Self-host SerOps to change settings."
+  },
+  "palette": {
+    "title": "Search SerOps",
+    "trigger": "Search",
+    "placeholder": "Jump to a page, issue or project, or run an action…",
+    "pages": "Pages",
+    "actions": "Actions",
+    "issues": "Open issues",
+    "projects": "Projects",
+    "noResults": "No matches.",
+    "newInvestigation": "New investigation",
+    "themeDark": "Switch to dark theme",
+    "themeLight": "Switch to light theme",
+    "themeSystem": "Use the system theme"
+  },
+  "density": {
+    "label": "Density",
+    "comfortable": "Comfortable",
+    "compact": "Compact"
   }
 }

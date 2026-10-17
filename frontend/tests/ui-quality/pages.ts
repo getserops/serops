@@ -1,0 +1,29 @@
+// Every main page, using batches and settings the demo seed creates.
+export const BATCH = 'demo-05-2-production';
+
+export const PAGES: [string, string][] = [
+  ['dashboard', '/dash'],
+  ['issues', '/dash/issues'],
+  ['data', '/dash/data'],
+  ['batch', `/dash/data/details/${BATCH}`],
+  ['batch-metrics', `/dash/metrics/${BATCH}`],
+  ['batch-code', `/dash/code-changes/${BATCH}`],
+  ['batch-traces', `/dash/traces/batch/${BATCH}`],
+  ['batch-timeline', `/dash/timeline/${BATCH}`],
+  ['investigate', '/dash/investigate'],
+  ['chat', '/dash/chat'],
+  ['projects', '/dash/projects'],
+  ['traces', '/dash/traces'],
+  ['notifications', '/dash/notifications'],
+  ['profile', '/dash/profile'],
+  ['settings', '/dash/settings'],
+  ['settings-team', '/dash/settings/team'],
+  ['settings-delivery', '/dash/settings/delivery'],
+  ['settings-routing', '/dash/settings/routing-rules'],
+  ['settings-ai', '/dash/settings/ai'],
+  ['settings-sentinel', '/dash/settings/sentinel'],
+  ['settings-data', '/dash/settings/data'],
+  ['settings-integrations', '/dash/settings/integrations'],
+  ['settings-security', '/dash/settings/security'],
+  ['settings-audit', '/dash/settings/audit'],
+];

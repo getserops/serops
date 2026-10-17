@@ -1,0 +1,17 @@
+/* Batch page on phones: the summary card and the issue rows were laid
+   out side by side and wrapped to one word per line at 390px. */
+@media (max-width: 767px) {
+  .detail-page { padding-left: 0 !important; padding-right: 0 !important; }
+  .detail-hero { padding: var(--space-4) !important; }
+  .detail-hero-icon { display: none !important; }
+  .detail-issue-row { flex-wrap: wrap; padding: 0.75rem 1rem !important; }
+  .detail-issue-text { order: 3; flex-basis: 100%; }
+  .detail-issue-row > a { margin-left: auto; }
+  /* Tabs scroll sideways instead of stacking one per line. */
+  .detail-tabs { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; }
+  .detail-tabs > * { flex: 0 0 auto; white-space: nowrap; }
+  .detail-logs-table td { padding: 2px 0 !important; }
+}
+
+/* Incident actions under the hypothesis. */
+.detail-incident-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }

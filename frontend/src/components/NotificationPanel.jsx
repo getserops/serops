@@ -183,10 +183,11 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
 
   const getCategoryColor = (category) => {
     const colors = {
-      'critical_issue': '#ff4d4f',
-      'analysis_failed': '#faad14'
+      // Deep enough for white label text (AA) in both themes.
+      'critical_issue': '#c62828',
+      'analysis_failed': '#8a5a00'
     };
-    return colors[category] || '#1890ff';
+    return colors[category] || '#1d5fc4';
   };
 
   const getCategoryName = (type) => {

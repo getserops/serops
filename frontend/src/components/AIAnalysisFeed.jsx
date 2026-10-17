@@ -1,12 +1,14 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import { FaRobot, FaExclamationCircle, FaExclamationTriangle } from 'react-icons/fa';
+import { Link, useNavigate } from 'react-router-dom';
+import { FaRobot, FaExclamationCircle, FaExclamationTriangle, FaArrowRight } from 'react-icons/fa';
 import './AIAnalysisFeed.css';
 
 // Badge text: darker shades of the environment colours, readable on their
 // own 12% tint (the base colours measured under 3:1).
-const ENV_TEXT = { production: '#c4123c', staging: '#8a6100', dev: '#047857', development: '#047857' };
+const FEED_SIZE = 5;
+
+const ENV_TEXT = { production: 'var(--tone-red-text)', staging: 'var(--tone-amber-text)', dev: 'var(--tone-green-text)', development: 'var(--tone-green-text)' };
 
 const AIAnalysisFeed = ({ data, loading }) => {
     const { t } = useTranslation();
@@ -81,7 +83,8 @@ const AIAnalysisFeed = ({ data, loading }) => {
             </div>
 
             <div className="feed-list">
-                {feed.map((item, index) => {
+                {/* Five newest, no inner scroll box: the rest are a click away. */}
+                {feed.slice(0, FEED_SIZE).map((item, index) => {
                     const envKey = (item.environment || 'unknown').toLowerCase();
                     const envColor = envColors[envKey] || envColors.unknown;
 
@@ -90,13 +93,14 @@ const AIAnalysisFeed = ({ data, loading }) => {
                             key={index}
                             className="feed-item"
                             onClick={() => navigate(`/dash/data/details/${item.batch_id}`)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/dash/data/details/${item.batch_id}`); }}
                             role="button"
                             tabIndex={0}
                         >
                             <div className="feed-item-header">
                                 <span
                                     className="feed-env-badge"
-                                    style={{ backgroundColor: `${envColor}20`, color: ENV_TEXT[envKey] || '#4b5163', borderColor: envColor }}
+                                    style={{ backgroundColor: `${envColor}20`, color: ENV_TEXT[envKey] || 'var(--text-secondary)', borderColor: envColor }}
                                 >
                                     {item.environment || 'unknown'}
                                 </span>
@@ -124,6 +128,11 @@ const AIAnalysisFeed = ({ data, loading }) => {
                     );
                 })}
             </div>
+            {total_analyses > Math.min(feed.length, FEED_SIZE) && (
+                <Link to="/dash/data" className="feed-view-all">
+                    {t('dashboard.viewAllAnalyses', { count: total_analyses })} <FaArrowRight size={11} aria-hidden="true" />
+                </Link>
+            )}
         </div>
     );
 };

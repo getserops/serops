@@ -193,7 +193,7 @@ const Traces = () => {
                 </div>
             ) : (
                 <>
-                    <Table hover responsive className="align-middle">
+                    <Table hover responsive className="align-middle table-stack">
                         <thead>
                             <tr>
                                 <th>{t('traces.dashboard.trace')}</th>
@@ -208,7 +208,7 @@ const Traces = () => {
                         <tbody>
                             {traces.map((tr) => (
                                 <tr key={tr.trace_id}>
-                                    <td>
+                                    <td data-label={t('traces.dashboard.trace')}>
                                         <Link
                                             to={`/dash/traces/${tr.trace_id}`}
                                             className="text-decoration-none"
@@ -216,12 +216,12 @@ const Traces = () => {
                                             <code>{tr.trace_id.slice(0, 16)}…</code>
                                         </Link>
                                     </td>
-                                    <td>{tr.root_service_name || '—'}</td>
-                                    <td className="text-truncate" style={{ maxWidth: 280 }}>
+                                    <td data-label={t('traces.dashboard.service')}>{tr.root_service_name || '—'}</td>
+                                    <td data-label={t('traces.dashboard.operation')} className="text-truncate" style={{ maxWidth: 280 }}>
                                         {tr.root_operation || '—'}
                                     </td>
-                                    <td>{formatMs(tr.duration_ms)}</td>
-                                    <td>
+                                    <td data-label={t('traces.dashboard.duration')}>{formatMs(tr.duration_ms)}</td>
+                                    <td data-label={t('traces.dashboard.spans')}>
                                         {tr.span_count}
                                         {tr.error_span_count > 0 && (
                                             <span className="text-danger ms-2 small">
@@ -229,8 +229,8 @@ const Traces = () => {
                                             </span>
                                         )}
                                     </td>
-                                    <td>{statusBadge(tr.status_code)}</td>
-                                    <td className="small text-muted">{formatDate(tr.start_time)}</td>
+                                    <td data-label={t('traces.dashboard.status')}>{statusBadge(tr.status_code)}</td>
+                                    <td data-label={t('traces.dashboard.startedAt')} className="small text-muted">{formatDate(tr.start_time)}</td>
                                 </tr>
                             ))}
                         </tbody>

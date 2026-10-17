@@ -326,9 +326,15 @@ describe('Issues component', () => {
     expect(ageElements.length).toBeGreaterThan(0);
   });
 
-  it('renders auto-refresh indicator', () => {
+  it('renders the auto-refresh indicator until the first fetch time is known', () => {
     render(<Issues />);
-    expect(screen.getByText('auto-refresh')).toBeTruthy();
+    expect(screen.getByText('issues.autoRefresh')).toBeTruthy();
+  });
+
+  it('offers a time-range filter', () => {
+    render(<Issues />);
+    const select = screen.getByLabelText('issues.filters.timeRange');
+    expect([...select.options].map((o) => o.value)).toEqual(['', '24', '168', '720']);
   });
 });
 

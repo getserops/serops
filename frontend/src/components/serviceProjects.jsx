@@ -156,7 +156,7 @@ const ServiceProjects = () => {
                 ) : (
                   <>
                     <div className="table-responsive">
-                      <Table hover className="align-middle mb-0">
+                      <Table hover className="align-middle mb-0 table-stack">
                         <thead className="bg-light">
                           <tr>
                             <th className="py-3 ps-4 border-bottom">{t('services.service')}</th>
