@@ -26,7 +26,7 @@ at your own:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.0.3 \
+  --version 1.1.0 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set database.url="postgres://serops:PASSWORD@your-pg-host:5432/serops" \
@@ -41,7 +41,7 @@ For a lab or demo cluster, let the chart run Postgres and Redis itself:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.0.3 \
+  --version 1.1.0 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set devServices.postgresql.enabled=true \

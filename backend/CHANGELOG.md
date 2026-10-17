@@ -7,6 +7,12 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-17
+
+UI release: incident-first Overview and incident page, Issues side panel
+and filters, ⌘K search, dark mode, phone layouts, WCAG 2 AA.
+Full notes in the [project changelog](https://serops.ai/docs/changelog/).
+
 ## [1.0.3] - 2026-10-15
 
 Security and feature release: SSO tenant isolation, Investigate

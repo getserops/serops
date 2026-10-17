@@ -10,6 +10,23 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ## [Unreleased]
 
+Nothing yet.
+
+---
+
+## [1.1.0] - 2026-10-17
+
+A UI release: SerOps opens on what is broken and why, with an incident
+page, ⌘K search, dark mode, phone layouts and WCAG 2 AA accessibility.
+Upgrade by setting `SEROPS_VERSION=1.1.0` (Docker Compose) or
+`--version 1.1.0` (Helm).
+
+**Upgrade notes**
+
+- No database migrations and no configuration changes.
+- The issue list API gains optional filters (`project`, `environment`,
+  `component`, `since_hours`); existing calls are unchanged.
+
 ### Added
 
 - **The Overview opens on what's broken now:** the most severe open issue
