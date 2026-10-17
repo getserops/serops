@@ -10,6 +10,13 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-17
+
+Fixes: Sentinel skips recurring errors, OTLP JSON span status, chat model
+selection, Argo CD/Flux deploy webhook authentication; Slack/Teams URL
+validation and required deploy webhook signatures.
+Full notes in the [project changelog](https://serops.ai/docs/changelog/).
+
 ## [1.1.0] - 2026-10-17
 
 UI release: incident-first Overview and incident page, Issues side panel

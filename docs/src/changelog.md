@@ -14,6 +14,18 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ## [Unreleased]
 
+Nothing yet.
+
+---
+
+## [1.1.1] - 2026-10-17
+
+Fixes found by end-to-end testing of v1.1.0 on Kubernetes: Sentinel now
+skips recurring errors, trace error spans are recognised, chat uses the
+selected model, and deploy and notification webhooks are hardened.
+Upgrade by setting `SEROPS_VERSION=1.1.1` (Docker Compose) or
+`--version 1.1.1` (Helm).
+
 ### Fixed
 
 - **Sentinel skipped almost nothing.** It compared log patterns with issue
