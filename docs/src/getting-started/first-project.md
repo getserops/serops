@@ -1,3 +1,7 @@
+---
+seo_title: "Your first project: AI root cause analysis on your stack"
+description: "Create a project, connect a log provider and get your first AI root cause analysis in about 20 minutes."
+---
 # First Project
 
 Create your first project and get SerOps analyzing incidents in your

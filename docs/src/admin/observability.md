@@ -1,3 +1,6 @@
+---
+robots: "noindex, follow"
+---
 # Observability Configuration
 
 !!! info "Page Moved"

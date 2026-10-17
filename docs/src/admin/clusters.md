@@ -1,3 +1,7 @@
+---
+seo_title: "Multiple Kubernetes clusters"
+description: "Register each Kubernetes cluster (EKS, GKE, AKS, kind) in SerOps so integrations and analyses route to the right one."
+---
 # Kubernetes Clusters (multi-cluster)
 
 If you run SerOps against **multiple K8s clusters** (e.g., `prod-eks`,

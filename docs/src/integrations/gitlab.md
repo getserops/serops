@@ -1,3 +1,7 @@
+---
+seo_title: "GitLab integration (code, CI pipelines, deploys)"
+description: "Connect GitLab to SerOps for commits and diffs, CI pipeline status and logs, and deployments, on gitlab.com or self-hosted."
+---
 # GitLab Integration
 
 Connect GitLab to SerOps for pipeline logs, code changes, and deployment tracking.

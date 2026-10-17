@@ -1,3 +1,7 @@
+---
+seo_title: "Issues: root cause, recommendation and deduplication"
+description: "Issues are problems found by AI analysis, each with severity, root cause and a recommended fix. Learn to filter, resolve, mute and share them."
+---
 # Issues
 
 Issues are problems detected by AI analysis. Each issue includes severity, root cause, and recommendations. SerOps uses intelligent **deduplication** to prevent duplicate issues across batches.

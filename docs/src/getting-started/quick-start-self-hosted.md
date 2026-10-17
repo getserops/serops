@@ -1,3 +1,7 @@
+---
+seo_title: "Quick start: self-host SerOps with Docker Compose"
+description: "Install SerOps on your own Docker host in about 10 minutes: clone, set three secrets, docker compose up, create the first user."
+---
 # Quick Start (Self-Hosted)
 
 Deploy SerOps on your own Docker host in about 5 minutes.

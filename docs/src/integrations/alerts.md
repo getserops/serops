@@ -1,3 +1,7 @@
+---
+seo_title: "Alertmanager, Grafana and Datadog alerts: instant RCA"
+description: "Forward Alertmanager, Grafana or Datadog alerts to SerOps and get an AI root cause for the affected service within about 30 seconds."
+---
 # Real-time Alerts
 
 SerOps can ingest alerts from your existing alert manager and run

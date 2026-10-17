@@ -1,3 +1,7 @@
+---
+seo_title: "Grafana Mimir integration"
+description: "Connect Grafana Mimir to SerOps as a metric provider, with multi-tenant headers and PromQL queries."
+---
 # Grafana Mimir
 
 Grafana Mimir is a horizontally scalable, highly available, long-term storage solution for Prometheus metrics. SerOps uses it as a metric provider, querying time-series data via PromQL with support for multi-tenant isolation and up to 365 days of retention.

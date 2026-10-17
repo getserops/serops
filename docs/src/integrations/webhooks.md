@@ -1,3 +1,7 @@
+---
+seo_title: "CI/CD webhook setup"
+description: "Set up CI/CD and deployment webhooks for SerOps: one URL per binding, signature checks and per-provider instructions."
+---
 # Webhook Setup Guide
 
 SerOps receives CI/CD pipeline events and deployment events via webhooks. Every webhook URL is tied to a specific **CI/CD Binding** you create in SerOps under **Projects → Services → CI/CD Bindings**. The binding provides multi-tenancy isolation (only your org's data flows to your batches) and lets you configure per-binding secrets for signature verification.

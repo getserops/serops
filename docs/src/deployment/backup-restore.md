@@ -1,6 +1,6 @@
 ---
+description: "Back up SerOps (PostgreSQL and media) and restore it after data loss or before an upgrade, with Docker Compose and Kubernetes commands."
 title: Backup & Restore
-description: Back up SerOps state and restore it after data loss or before an upgrade
 tags:
   - deployment
   - operations

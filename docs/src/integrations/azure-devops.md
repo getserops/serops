@@ -1,3 +1,7 @@
+---
+seo_title: "Azure DevOps integration (Repos and Pipelines)"
+description: "Connect Azure DevOps Repos and Pipelines to SerOps for code changes, pipeline runs and deployment visibility."
+---
 # Azure DevOps Integration
 
 Connect Azure DevOps to SerOps for repository tracking, pipeline monitoring, and deployment visibility.

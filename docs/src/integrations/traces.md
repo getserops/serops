@@ -1,3 +1,7 @@
+---
+seo_title: "OpenTelemetry (OTLP) traces"
+description: "Send OpenTelemetry traces to SerOps over OTLP/HTTP from any SDK, agent or collector; slow and failing spans feed the root cause."
+---
 # OpenTelemetry (OTLP) Traces
 
 SerOps ingests distributed traces via the [OpenTelemetry Protocol

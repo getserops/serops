@@ -1,5 +1,7 @@
 site_name: SerOps Documentation
-site_description: AI-powered incident detection and resolution platform
+site_description: >-
+  SerOps documentation: install, connect your logs, metrics, traces and
+  CI/CD, and get AI root cause analysis on your own infrastructure.
 site_url: https://serops.ai/docs/
 repo_url: https://github.com/getserops/serops
 repo_name: getserops/serops
@@ -10,6 +12,12 @@ copyright: >
 
 theme:
   name: material
+  # Title, social and breadcrumb tags for search (overrides/main.html).
+  custom_dir: overrides
+  # System fonts: Google Fonts was a render-blocking third-party request
+  # (the first paragraph appeared after 14 s on mobile) and sends every
+  # visitor's IP to Google.
+  font: false
   palette:
     - scheme: default
       primary: indigo

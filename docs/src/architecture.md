@@ -1,3 +1,6 @@
+---
+robots: "noindex, follow"
+---
 # Architecture
 
 !!! info "Page Reorganized"

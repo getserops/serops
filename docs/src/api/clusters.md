@@ -1,3 +1,7 @@
+---
+seo_title: "Clusters API"
+description: "API endpoints to register and manage the Kubernetes clusters SerOps analyses."
+---
 # Clusters API
 
 Endpoints for registering and managing clusters — the physical or

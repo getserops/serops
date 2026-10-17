@@ -1,3 +1,7 @@
+---
+seo_title: "Set up SerOps for OpenTelemetry-first stacks"
+description: "Use SerOps with an OTEL-forward stack: OTLP traces to SerOps, Prometheus metrics and a log backend, and how onboarding handles it."
+---
 # Setting up SerOps for OTEL-forward stacks
 
 SerOps is **log-centric by design**. The onboarding wizard requires at

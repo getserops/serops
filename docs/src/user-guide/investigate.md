@@ -1,3 +1,7 @@
+---
+seo_title: "Investigate: on-demand AI root cause analysis"
+description: "Analyse any time window now, without waiting for the schedule or an alert: pick a project, environment and window, and get a root cause."
+---
 # Investigate
 
 **Investigate** analyses a time window **now**, without waiting for the

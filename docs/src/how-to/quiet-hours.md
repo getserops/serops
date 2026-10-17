@@ -1,3 +1,7 @@
+---
+seo_title: "Configure quiet hours"
+description: "Hold non-urgent SerOps notifications during off-hours and get a summary when the quiet period ends."
+---
 # Configure Quiet Hours
 
 Suppress notifications during off-hours so your team is not disturbed by non-urgent alerts. Notifications that arrive during quiet hours are held and delivered as a summary when the quiet period ends.

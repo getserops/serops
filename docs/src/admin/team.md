@@ -1,3 +1,7 @@
+---
+seo_title: "Team management and roles"
+description: "Invite users, assign admin, user and viewer roles, and manage access to your SerOps organisation."
+---
 # Team Management
 
 Manage users, roles, and permissions within your organization.

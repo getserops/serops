@@ -1,3 +1,7 @@
+---
+seo_title: "Batches and AI analysis"
+description: "How SerOps groups logs, metrics, traces and code changes into batches and runs AI root cause analysis on each one."
+---
 # Batches & Analysis
 
 Batches are the core analysis units in SerOps. Each batch contains logs, metrics, a distributed-trace summary, and AI-generated insights.

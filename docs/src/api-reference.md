@@ -1,3 +1,6 @@
+---
+robots: "noindex, follow"
+---
 # API Reference
 
 !!! info "Page Reorganized"

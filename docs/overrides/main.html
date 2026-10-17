@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{#- Search titles: a page can set `seo_title` in its front matter for the
+    <title> tag (what Google shows) without renaming it in the nav. -#}
+{% block htmltitle %}
+  {%- set doc_title = page.meta.seo_title if page and page.meta and page.meta.seo_title else (page.title if page and page.title else "") -%}
+  {%- if page and page.is_homepage %}
+    <title>{{ config.site_name }}: open-source AI root cause analysis</title>
+  {%- elif doc_title %}
+    <title>{{ doc_title | striptags }} · SerOps docs</title>
+  {%- else %}
+    <title>{{ config.site_name }}</title>
+  {%- endif %}
+{% endblock %}
+
+{% block extrahead %}
+  {#- Redirect stubs set `robots: noindex, follow` in their front matter. -#}
+  {%- if page and page.meta and page.meta.robots %}
+  <meta name="robots" content="{{ page.meta.robots }}">
+  {%- endif %}
+  {%- if page and page.is_homepage -%}
+    {%- set doc_title = config.site_name ~ ": open-source AI root cause analysis" -%}
+  {%- else -%}
+    {%- set doc_title = page.meta.seo_title if page and page.meta and page.meta.seo_title else (page.title if page and page.title else config.site_name) -%}
+  {%- endif -%}
+  {%- set doc_desc = page.meta.description if page and page.meta and page.meta.description else config.site_description -%}
+  {#- Link previews (LinkedIn, Slack, X) — same card image as serops.ai. -#}
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="SerOps">
+  <meta property="og:title" content="{{ doc_title | striptags }}">
+  <meta property="og:description" content="{{ doc_desc }}">
+  <meta property="og:url" content="{{ page.canonical_url }}">
+  <meta property="og:image" content="https://serops.ai/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ doc_title | striptags }}">
+  <meta name="twitter:description" content="{{ doc_desc }}">
+  <meta name="twitter:image" content="https://serops.ai/og-image.png">
+  {#- Breadcrumbs for search results: SerOps docs › page. Nav sections
+      have no URL of their own, and Google needs one on every crumb but
+      the last, so they are left out. -#}
+  {%- if page and not page.is_homepage %}
+  <script type="application/ld+json">
+  {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "SerOps docs", "item": "{{ config.site_url }}"},
+    {"@type": "ListItem", "position": 2, "name": {{ page.title | striptags | tojson }}, "item": "{{ page.canonical_url }}"}
+  ]}
+  </script>
+  {%- endif %}
+{% endblock %}

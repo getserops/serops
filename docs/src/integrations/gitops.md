@@ -1,3 +1,7 @@
+---
+seo_title: "Argo CD and Flux deploy events"
+description: "Send Argo CD and Flux notifications to SerOps so deployments appear in context and the AI links incidents to the deploy that caused them."
+---
 # GitOps Deploy Events (ArgoCD + Flux)
 
 SerOps ingests native ArgoCD and Flux notifications so deploy events

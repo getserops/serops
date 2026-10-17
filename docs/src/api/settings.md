@@ -1,3 +1,7 @@
+---
+seo_title: "Settings and admin API"
+description: "API endpoints for organisation settings, onboarding, security, audit log and data management."
+---
 # Settings & Admin API
 
 Endpoints for organisation settings, onboarding, security configuration, audit logging, data management, and utility functions.

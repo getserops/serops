@@ -1,3 +1,7 @@
+---
+seo_title: "Dashboard and analytics API"
+description: "API endpoints for health score, service reliability, trends, MTTR and deployments shown on the SerOps dashboard."
+---
 # Dashboard & Analytics API
 
 Endpoints for retrieving system health scores, service reliability metrics, trend analysis, MTTR, and deployment data.

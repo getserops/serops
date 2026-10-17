@@ -1,3 +1,7 @@
+---
+seo_title: "Projects and services API"
+description: "API endpoints for SerOps projects, services and their source-control and CI/CD bindings."
+---
 # Projects & Services API
 
 Endpoints for managing projects, services, and integration bindings (SCM and CI/CD).

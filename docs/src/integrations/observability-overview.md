@@ -1,3 +1,7 @@
+---
+seo_title: "Log and metric providers"
+description: "Connect SerOps to the log and metric backends you already run; capabilities, configuration and health checks per provider."
+---
 # Observability Providers
 
 Connect SerOps to your existing Log and Metric storage providers.

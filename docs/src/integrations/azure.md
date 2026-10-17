@@ -1,3 +1,7 @@
+---
+seo_title: "Azure Monitor and Log Analytics integration"
+description: "Connect Azure Log Analytics and Azure Monitor Metrics to SerOps with one service principal."
+---
 # Azure Monitor
 
 Azure Monitor covers both **Log Analytics** (logs) and **Azure Monitor Metrics** (metrics). A single SerOps integration handles both — one service principal, one config record, both capabilities.

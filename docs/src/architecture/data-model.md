@@ -1,3 +1,7 @@
+---
+seo_title: "Data model"
+description: "The SerOps relational schema: projects, services, deployments, batches, issues and the provider and notification layers."
+---
 # Data Model
 
 This page describes the relational schema behind SerOps: how a project's

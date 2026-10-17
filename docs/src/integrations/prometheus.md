@@ -1,3 +1,7 @@
+---
+seo_title: "Prometheus: correlate metrics with incidents"
+description: "Connect Prometheus to SerOps so PromQL metrics are correlated with errors, deployments and code changes during analysis."
+---
 # Prometheus
 
 Prometheus is an open-source monitoring and alerting toolkit designed for reliability and scalability. SerOps uses it as a metric provider, querying time-series data via PromQL to fetch performance metrics for correlation with CI/CD events.

@@ -1,3 +1,7 @@
+---
+seo_title: "Integrations: logs, metrics, traces, CI/CD"
+description: "Every SerOps integration in one matrix: log, metric and trace backends, source control, CI/CD, GitOps, alerts and notifications."
+---
 # Integrations Overview
 
 SerOps integrates with log, metric and trace backends, source-control and CI/CD providers. This page is the complete matrix.

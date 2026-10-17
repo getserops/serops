@@ -1,3 +1,7 @@
+---
+seo_title: "Track and cap AI costs"
+description: "See the tokens and estimated cost of every AI call SerOps makes, set a monthly budget and keep LLM spend predictable."
+---
 # Track AI Costs
 
 SerOps records every AI API call (batch analysis, chat message, re-analysis) along with input/output token counts and an estimated USD cost. This page explains where the data lives, how to query it, and how to keep costs predictable.

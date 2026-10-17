@@ -1,3 +1,7 @@
+---
+seo_title: "Onboarding wizard"
+description: "How the SerOps onboarding wizard guides first setup: connect source control, CI/CD and observability, create a project and see the first analysis."
+---
 # Onboarding Wizard
 
 The Onboarding Wizard guides new users through initial setup after their first login. It auto-detects completion by polling integration + project + service counts — no self-attested "Mark Complete" buttons.

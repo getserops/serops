@@ -1,3 +1,7 @@
+---
+seo_title: "REST API overview"
+description: "The SerOps REST API: authentication headers, response format, pagination and error codes."
+---
 # API Overview
 
 Complete REST API documentation for SerOps.

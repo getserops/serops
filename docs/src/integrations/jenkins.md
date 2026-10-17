@@ -1,3 +1,7 @@
+---
+seo_title: "Jenkins integration (builds and deploys)"
+description: "Connect Jenkins to SerOps so build and deployment events are linked to the incidents they cause."
+---
 # Jenkins Integration
 
 Connect Jenkins pipelines to SerOps for build and deployment tracking.

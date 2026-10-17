@@ -1,3 +1,7 @@
+---
+seo_title: "Send root causes to Slack, Teams, PagerDuty, OpsGenie"
+description: "Forward each SerOps root cause and recommendation to Slack, Microsoft Teams, PagerDuty, OpsGenie or email."
+---
 # Post-RCA Notifications
 
 Once SerOps finishes an incident analysis, forward the AI's root

@@ -1,3 +1,7 @@
+---
+seo_title: "Data protection and PII redaction before the AI"
+description: "How SerOps masks secrets and personal data in logs before anything reaches an AI model, and what you can configure."
+---
 # Data Protection & PII Redaction
 
 SerOps implements comprehensive data protection to ensure no sensitive information is sent to AI models.

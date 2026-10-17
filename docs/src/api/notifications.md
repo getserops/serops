@@ -1,3 +1,7 @@
+---
+seo_title: "Notifications API"
+description: "API endpoints for delivery channels, routing rules, in-app notifications, preferences and escalation rules."
+---
 # Notifications API
 
 Endpoints for delivery channels, routing rules, in-app notifications,

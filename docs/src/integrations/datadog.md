@@ -1,3 +1,7 @@
+---
+seo_title: "Datadog logs and metrics: AI root cause analysis"
+description: "Connect Datadog to SerOps for both logs and metrics with one API and application key, and get root causes across your stack."
+---
 # Datadog
 
 Datadog is a cloud-based monitoring and analytics platform. SerOps integrates with Datadog as a dual provider supporting both log retrieval and metric queries in a single integration, using the Datadog API with API key and application key authentication.

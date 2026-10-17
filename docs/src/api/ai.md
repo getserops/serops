@@ -1,3 +1,7 @@
+---
+seo_title: "AI and chat API"
+description: "API endpoints for SerOps batch analysis, AI chat sessions and AI provider administration."
+---
 # AI & Chat API
 
 Endpoints for AI-powered text generation, batch analysis, chat session management, and AI system administration.

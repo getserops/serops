@@ -1,3 +1,7 @@
+---
+seo_title: "On-prem AI root cause analysis with Ollama"
+description: "Run SerOps AI analysis fully inside your network with Ollama: no data leaves your perimeter, same pipeline as hosted models. Works air-gapped."
+---
 # On-prem AI (Ollama)
 
 Run SerOps' AI RCA **entirely inside your perimeter** — no data

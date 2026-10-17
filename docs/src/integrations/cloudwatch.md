@@ -1,3 +1,7 @@
+---
+seo_title: "AWS CloudWatch logs and metrics integration"
+description: "Connect AWS CloudWatch Logs Insights and metrics to SerOps with one integration, using the integration's own IAM access key."
+---
 # AWS CloudWatch
 
 AWS CloudWatch is a monitoring and observability service from Amazon Web Services. SerOps integrates with CloudWatch as a dual provider supporting both log retrieval (via CloudWatch Logs Insights) and metric queries (via GetMetricData) in a single integration.

@@ -1,3 +1,7 @@
+---
+seo_title: "Settings reference"
+description: "Reference for every SerOps settings page: organisation, team, AI providers, Sentinel, data, security, integrations and audit log."
+---
 # Settings Reference
 
 Complete reference for all SerOps settings modules.

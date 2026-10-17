@@ -1,3 +1,7 @@
+---
+seo_title: "VictoriaMetrics integration"
+description: "Connect VictoriaMetrics to SerOps as a Prometheus-compatible metric provider for AI root cause analysis."
+---
 # VictoriaMetrics
 
 VictoriaMetrics is a fast, cost-effective, and scalable time-series database and monitoring solution. It is API-compatible with Prometheus, and its query language MetricsQL is a superset of PromQL, providing additional functions and optimizations while remaining fully compatible with existing PromQL queries.

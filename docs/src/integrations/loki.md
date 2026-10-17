@@ -1,3 +1,7 @@
+---
+seo_title: "Grafana Loki: AI log analysis and root cause"
+description: "Connect Grafana Loki to SerOps: LogQL queries, labels, multi-tenant setups and troubleshooting for AI root cause analysis."
+---
 # Grafana Loki
 
 Grafana Loki is a horizontally scalable, highly available log aggregation system designed to be cost-effective and easy to operate. SerOps uses it as a log provider supporting full-text search, regex queries, live tail, and multi-tenant isolation via the LogQL query language.

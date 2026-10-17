@@ -1,3 +1,7 @@
+---
+seo_title: "Production deployment with Docker Compose"
+description: "Deploy SerOps in production with the quick-start distribution: TLS with Caddy, secrets, external PostgreSQL and Redis, backups and monitoring."
+---
 # Production Deployment
 
 Step-by-step guide to deploying SerOps on your own infrastructure

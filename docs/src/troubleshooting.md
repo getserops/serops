@@ -1,3 +1,7 @@
+---
+seo_title: "Troubleshooting"
+description: "Fixes for common SerOps problems: installation, providers, missing data, AI analysis, notifications and performance."
+---
 # Troubleshooting
 
 Common issues and their solutions, organised by category.

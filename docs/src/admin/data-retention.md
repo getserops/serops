@@ -1,3 +1,7 @@
+---
+seo_title: "Data retention"
+description: "Set batch intervals, automatic cleanup of old batches and audit-log retention in SerOps."
+---
 # Data Retention
 
 Configure batch generation intervals, automatic cleanup policies, and audit log retention.

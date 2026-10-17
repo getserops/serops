@@ -1,3 +1,7 @@
+---
+seo_title: "Delivery channels and routing rules"
+description: "Configure where SerOps sends notifications (channels) and which events go where (routing rules), as in Alertmanager."
+---
 # Notifications
 
 SerOps splits notification configuration into two pages, matching the

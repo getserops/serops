@@ -1,3 +1,7 @@
+---
+seo_title: "Issues API"
+description: "API endpoints to list, filter, resolve, mute and acknowledge SerOps issues, with project, environment, service and time filters."
+---
 # Issues API
 
 Endpoints for listing, filtering, and managing issues detected in log batches.

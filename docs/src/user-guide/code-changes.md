@@ -1,3 +1,7 @@
+---
+seo_title: "Code changes linked to incidents"
+description: "See the commits and code changes behind each batch, so you can tell which deploy or change caused an incident."
+---
 # Code Changes
 
 View commits and code changes associated with a batch.

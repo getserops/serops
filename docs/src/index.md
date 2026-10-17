@@ -1,6 +1,9 @@
-# Welcome to SerOps
+---
+description: "SerOps is open-source AI root cause analysis: it correlates logs, metrics, traces, deployments and code changes to explain why an incident happened. Self-hosted."
+---
+# SerOps documentation
 
-**SerOps** is an AI-powered incident detection and resolution platform. It connects to your existing observability, SCM, and CI/CD tools — correlating logs, metrics, distributed traces, code changes, and deployments to automatically detect issues and explain their root cause.
+**SerOps** is open-source AI root cause analysis, self-hosted on your own infrastructure. It connects to your existing observability, SCM, and CI/CD tools — correlating logs, metrics, distributed traces, code changes, and deployments to automatically detect issues and explain their root cause.
 
 <div class="grid cards" markdown>
 
@@ -43,6 +46,9 @@
 SerOps sits on top of the tools you already use. It takes in five kinds of
 signal, prepares them, and uses AI to connect the dots:
 
+<!-- Pre-rendered from the mermaid source below (docs home only): the live
+     renderer pulled ~1 MB of JavaScript onto the most-visited docs page.
+     Re-render both files if the flow changes.
 ```mermaid
 graph LR
     A[Logs<br/>Elasticsearch, OpenSearch, Loki, Splunk,<br/>Datadog, CloudWatch, GCP, Azure] -->|pull| P
@@ -54,6 +60,9 @@ graph LR
     F --> G[Root Cause +<br/>Commit Correlation]
     G --> H[Alerts &<br/>Escalation<br/>Email / Slack / Teams]
 ```
+-->
+![How SerOps works: logs, metrics and traces are pulled, code changes and CI/CD pipelines arrive by webhook; preprocessing (dedup, anomaly detection, span summary, PII redaction, cost gating) feeds AI analysis, which produces the root cause with commit correlation, then alerts and escalation.](assets/images/how-serops-works.svg#only-light){ loading=lazy }
+![How SerOps works: logs, metrics and traces are pulled, code changes and CI/CD pipelines arrive by webhook; preprocessing (dedup, anomaly detection, span summary, PII redaction, cost gating) feeds AI analysis, which produces the root cause with commit correlation, then alerts and escalation.](assets/images/how-serops-works-dark.svg#only-dark){ loading=lazy }
 
 Traces are the one signal that can arrive either way: ship them to SerOps
 directly over OTLP, or leave them where they are and let SerOps query Jaeger,

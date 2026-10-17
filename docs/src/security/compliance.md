@@ -1,3 +1,7 @@
+---
+seo_title: "Compliance and audit log"
+description: "Audit logging and GDPR-related features in SerOps for regulated environments: who did what, when, and how long it is kept."
+---
 # Compliance & Audit
 
 SerOps provides comprehensive audit logging and compliance features for enterprise environments.

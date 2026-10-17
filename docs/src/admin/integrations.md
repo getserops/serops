@@ -1,3 +1,7 @@
+---
+seo_title: "Global integrations"
+description: "Manage your organisation's source-control and CI/CD connections in one place and reuse them across projects."
+---
 # Global Integrations
 
 Manage your organisation's SCM and CI/CD provider connections from a central location.

@@ -1,3 +1,7 @@
+---
+seo_title: "Dashboard: system health and open incidents"
+description: "The SerOps dashboard: what needs attention now, system health, MTTR, AI insights, trends, failing services and recent deployments."
+---
 # Dashboard
 
 The Dashboard provides a comprehensive view of your system health, issues, and trends.

@@ -1,3 +1,7 @@
+---
+seo_title: "Notifications and escalation"
+description: "Configure SerOps notifications: preferences, project subscriptions and escalation rules so critical issues reach the right person."
+---
 # Notification System
 
 SerOps provides a comprehensive notification system designed to keep you informed about critical issues without overwhelming your inbox. This guide explains how to configure your preferences, manage subscriptions, and understand internal escalation rules.

@@ -1,3 +1,7 @@
+---
+seo_title: "Deployments"
+description: "How SerOps models where a project runs (cluster, region, namespace, environment) and links incidents to deployments."
+---
 # Deployments
 
 A **deployment** is one instance of "where a project runs" — a composed shape across four independent dimensions:

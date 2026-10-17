@@ -1,3 +1,7 @@
+---
+seo_title: "GitHub integration (code, Actions, deploys)"
+description: "Connect GitHub to SerOps for commits, pull requests, GitHub Actions runs and deployments, including GitHub Enterprise."
+---
 # GitHub Integration
 
 Connect GitHub repositories to SerOps for code change tracking and CI/CD monitoring.

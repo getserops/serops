@@ -1,3 +1,7 @@
+---
+seo_title: "Bitbucket integration (code and Pipelines)"
+description: "Connect Bitbucket Cloud or Server to SerOps for commits and Bitbucket Pipelines runs linked to incidents."
+---
 # Bitbucket Integration
 
 Connect Bitbucket repositories to SerOps for code change tracking and pipeline monitoring.

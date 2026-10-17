@@ -1,6 +1,10 @@
+---
+seo_title: "Architecture overview"
+description: "How SerOps works: collectors, batches, Sentinel, the AI pipeline, issues and notifications, and how they fit together."
+---
 # System Overview
 
-SerOps is an AI-powered incident detection and resolution platform. It connects to your existing observability, SCM, and CI/CD tools — correlating logs, metrics, distributed traces, code changes, and deployments across multiple environments to automatically detect issues and explain their root cause. This page covers the high-level system architecture, core concepts, and the standards that guide development.
+SerOps is an open-source AI root cause analysis platform. It connects to your existing observability, SCM, and CI/CD tools — correlating logs, metrics, distributed traces, code changes, and deployments across multiple environments to automatically detect issues and explain their root cause. This page covers the high-level system architecture, core concepts, and the standards that guide development.
 
 ---
 

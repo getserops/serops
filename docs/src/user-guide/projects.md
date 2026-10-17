@@ -1,3 +1,7 @@
+---
+seo_title: "Projects and services"
+description: "Organise services into projects so SerOps knows what to analyse together, with source control and CI/CD bindings per service."
+---
 # Projects
 
 Projects organize your services and provide the context for log analysis.

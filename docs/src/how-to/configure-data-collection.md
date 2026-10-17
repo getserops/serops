@@ -1,3 +1,7 @@
+---
+seo_title: "Configure log shippers and metric exporters"
+description: "The fields your log shippers and metric exporters must add (project, service, environment) so SerOps can find and isolate your data."
+---
 # Configure Data Collection Agents
 
 SerOps does not store logs or metrics itself — it queries your existing observability providers. For SerOps to find, filter, and isolate your data correctly, your log shippers and metric exporters **must** include specific enrichment fields on every record they send.

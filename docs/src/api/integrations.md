@@ -1,3 +1,7 @@
+---
+seo_title: "Integrations API"
+description: "API endpoints for organisation-level source-control and CI/CD integrations in SerOps."
+---
 # Integrations API
 
 Endpoints for managing global SCM and CI/CD provider integrations at the organisation level.

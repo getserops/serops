@@ -1,3 +1,7 @@
+---
+seo_title: "Changelog and release notes"
+description: "Every SerOps release: new features, fixes, security notes and upgrade steps."
+---
 # Changelog
 
 All notable changes to the SerOps project will be documented in this file.

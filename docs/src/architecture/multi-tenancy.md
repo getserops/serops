@@ -1,3 +1,7 @@
+---
+seo_title: "Multi-tenancy and data isolation"
+description: "How SerOps isolates organisations across API queries, logs, metrics and CI/CD events, and the guarantees behind it."
+---
 # Multi-Tenancy & Data Isolation
 
 SerOps enforces strict data isolation between organisations. This page details the isolation layers across every data path -- from API queries and log storage to metrics and CI/CD events -- along with the infrastructure components and security guarantees that underpin the multi-tenant architecture.

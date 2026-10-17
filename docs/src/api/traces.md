@@ -1,3 +1,7 @@
+---
+seo_title: "Traces API"
+description: "API endpoints for OTLP trace ingestion, ingest keys and reading stored traces."
+---
 # Traces API
 
 Endpoints for OTLP trace ingestion, ingest-key management, and reading

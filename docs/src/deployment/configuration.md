@@ -1,3 +1,7 @@
+---
+seo_title: "Configuration reference (environment variables)"
+description: "Every environment variable SerOps reads: Django, database, Redis, AI providers, email, SSO, metrics and image versions, with defaults."
+---
 # Configuration Reference
 
 Complete reference for all environment variables consumed by SerOps.

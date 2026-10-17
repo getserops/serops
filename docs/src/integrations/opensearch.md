@@ -1,3 +1,7 @@
+---
+seo_title: "OpenSearch: AI root cause analysis on your logs"
+description: "Connect OpenSearch to SerOps as a log provider, including Amazon OpenSearch Service: authentication, indices and troubleshooting."
+---
 # OpenSearch
 
 OpenSearch is an open-source search and analytics engine, fully compatible with the Elasticsearch DSL query language. SerOps uses it as a log provider supporting full-text search, regex queries, aggregations, and document indexing.

@@ -1,3 +1,7 @@
+---
+seo_title: "System requirements"
+description: "CPU, memory, disk, software and network requirements to run SerOps with Docker Compose or Kubernetes."
+---
 # System Requirements
 
 Minimum hardware, software, and network requirements for running SerOps in production.

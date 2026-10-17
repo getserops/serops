@@ -1,3 +1,7 @@
+---
+seo_title: "Similar incidents and AI post-mortems"
+description: "SerOps finds similar past incidents and drafts post-mortems, so each analysis learns from how earlier incidents were resolved."
+---
 # Historical Intelligence (Similar Incidents + Post-mortems)
 
 Two AI-powered features that turn SerOps into a **learning system**

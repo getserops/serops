@@ -1,3 +1,7 @@
+---
+seo_title: "Splunk: AI root cause analysis on your logs"
+description: "Connect Splunk Enterprise or Splunk Cloud to SerOps through the REST search API, with no SDK: tokens, SPL queries and troubleshooting."
+---
 # Splunk
 
 Splunk Enterprise and Splunk Cloud both work as SerOps log providers. SerOps uses Splunk's REST search API (no Splunk SDK dependency), translates every query through the canonical `LogQuery` object into SPL, and normalises the results into the same `LogEntry` shape every other adapter returns.

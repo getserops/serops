@@ -1,3 +1,7 @@
+---
+seo_title: "Connect your first provider"
+description: "Step by step: connect a source-control provider, create a project, add a service and verify that data reaches SerOps."
+---
 # Connect Your First Provider
 
 This guide walks you through connecting an SCM provider, creating a project, adding a service, and verifying that data flows into SerOps.

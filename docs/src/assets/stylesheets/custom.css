@@ -61,3 +61,17 @@ img.screenshot {
 
 [data-md-color-scheme="slate"] .capability-badge--logs { background: #1565c033; }
 [data-md-color-scheme="slate"] .capability-badge--metrics { background: #7b1fa233; }
+
+/* Accessibility (Lighthouse/axe): links inside paragraphs need more than
+   colour to stand out, and code comments measured 4.47:1 (needs 4.5). */
+.md-typeset p a,
+.md-typeset li a,
+.md-typeset td a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+[data-md-color-scheme="default"] .md-typeset .highlight .c1,
+[data-md-color-scheme="default"] .md-typeset .highlight .c,
+[data-md-color-scheme="default"] .md-typeset .highlight .cm {
+  color: #636363;
+}

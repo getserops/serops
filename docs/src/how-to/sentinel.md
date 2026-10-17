@@ -1,3 +1,7 @@
+---
+seo_title: "Sentinel: skip AI calls on quiet windows"
+description: "Sentinel checks every batch before the AI runs and skips windows with no anomaly, deploy or new error, cutting AI cost without missing incidents."
+---
 # Configure Sentinel Tiered Intelligence
 
 Sentinel is an intelligent gating layer that evaluates every batch before AI analysis to decide whether full AI processing is needed. By detecting "quiet" batches -- those with no anomalies, deployments, or new error patterns -- Sentinel skips unnecessary AI calls, saving 80--90% of your AI API usage while ensuring that every meaningful event still receives full analysis.

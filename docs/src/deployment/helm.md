@@ -1,3 +1,7 @@
+---
+seo_title: "Install SerOps on Kubernetes with Helm"
+description: "Install SerOps on Kubernetes with the official Helm chart: lab install with bundled PostgreSQL and Redis, or production with your own database and broker."
+---
 # Kubernetes / Helm
 
 Ship SerOps to Kubernetes via the Helm chart at

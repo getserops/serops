@@ -1,3 +1,7 @@
+---
+seo_title: "AI resilience: fallback, rate limits, circuit breaker"
+description: "How SerOps keeps AI analysis reliable: circuit breakers, rate limiting, fallback between providers and the plugin system."
+---
 # AI Resilience
 
 SerOps implements robust fault tolerance for AI provider integrations using industry-standard patterns. This page covers the circuit breaker mechanism, rate limiting strategy, smart fallback routing, and the modular AI plugin system that supports multiple providers.

@@ -1,3 +1,7 @@
+---
+seo_title: "Elasticsearch: AI root cause analysis on your logs"
+description: "Connect Elasticsearch to SerOps as a log provider: authentication, index patterns, field mapping and troubleshooting."
+---
 # Elasticsearch
 
 Elasticsearch is a distributed search and analytics engine used as a log provider in SerOps. It supports full-text search, regex queries, aggregations, and document indexing via the Elasticsearch DSL query language.

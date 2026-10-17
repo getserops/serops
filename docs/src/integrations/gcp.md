@@ -1,3 +1,7 @@
+---
+seo_title: "Google Cloud Logging and Monitoring integration"
+description: "Connect Google Cloud Logging and Cloud Monitoring (formerly Stackdriver) to SerOps with one service account, including GKE."
+---
 # Google Cloud Operations
 
 Google Cloud Operations (formerly Stackdriver) covers both **Cloud Logging** and **Cloud Monitoring**. A single SerOps integration serves both — one service-account key, one config record, both capabilities.

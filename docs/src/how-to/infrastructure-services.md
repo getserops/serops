@@ -1,3 +1,7 @@
+---
+seo_title: "Monitor databases, caches and queues"
+description: "Register PostgreSQL, Redis, Kafka and other infrastructure components as services so SerOps includes them in root cause analysis."
+---
 # Set Up Infrastructure Services
 
 Register your infrastructure components (databases, caches, message queues, etc.) as services in SerOps to monitor their health and include them in batch analysis.

@@ -1,3 +1,7 @@
+---
+seo_title: "Authentication and SSO (OIDC)"
+description: "Sign in to SerOps with email and password or single sign-on (OIDC) with Keycloak, Okta, Azure AD or Google, per organisation."
+---
 # Authentication & Single Sign-On (SSO)
 
 SerOps provides robust authentication options ranging from standard email/password login to Enterprise-grade Single Sign-On (SSO).

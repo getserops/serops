@@ -1,3 +1,7 @@
+---
+seo_title: "SerOps Prometheus metrics (/metrics)"
+description: "Scrape SerOps' own metrics in Prometheus format: HTTP requests, batches created and analysed, AI tokens, alerts and OTLP spans."
+---
 # Self-metrics (`/metrics/`)
 
 SerOps exposes its own operational metrics in **Prometheus text

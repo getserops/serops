@@ -1,3 +1,7 @@
+---
+seo_title: "License (AGPL-3.0)"
+description: "SerOps is open source under the GNU AGPL-3.0; what that means for self-hosting, modifying and offering it as a service."
+---
 # License
 
 SerOps is open-source software licensed under the **GNU Affero General Public License, Version 3** ("AGPL-3.0"). The same license applies to all three repositories:

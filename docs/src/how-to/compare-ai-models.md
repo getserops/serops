@@ -1,3 +1,7 @@
+---
+seo_title: "Compare AI models on the same incident"
+description: "Re-analyse a batch with another AI model and compare the root causes side by side to pick the best model for your workload."
+---
 # Compare AI Models
 
 Re-analyze batches with different AI models and compare the results side by side to find the best model for your workload.

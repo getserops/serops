@@ -1,3 +1,7 @@
+---
+seo_title: "Observability API"
+description: "API endpoints to manage log and metric provider connections in SerOps."
+---
 # Observability API
 
 Endpoints for managing log and metric provider connections per organisation.

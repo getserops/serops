@@ -1,6 +1,6 @@
 ---
+description: "How SerOps versions releases with Semantic Versioning, what each version bump guarantees, and how to check the version you run."
 title: Versioning & Release Contract
-description: How SerOps versions its releases, what version compatibility guarantees mean, and how to check what you're running.
 tags:
   - deployment
   - operations

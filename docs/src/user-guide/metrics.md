@@ -1,3 +1,7 @@
+---
+seo_title: "Batch metrics: CPU and memory"
+description: "Read CPU and memory metrics for each batch in SerOps and see how they correlate with errors and deployments."
+---
 # Metrics
 
 View system performance metrics for each batch including memory and CPU usage.

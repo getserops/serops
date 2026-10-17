@@ -1,3 +1,7 @@
+---
+seo_title: "Tune issue deduplication"
+description: "Control how SerOps groups similar issues across batches to cut noise and avoid duplicate alerts."
+---
 # Tune Issue Deduplication
 
 Configure how SerOps groups similar issues to reduce noise and prevent duplicate alerts from cluttering your issue list.

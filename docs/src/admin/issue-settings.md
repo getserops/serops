@@ -1,3 +1,7 @@
+---
+seo_title: "Issue settings"
+description: "Organisation-wide settings for issue deduplication, muting and auto-resolution in SerOps."
+---
 # Issue Settings
 
 Configure how SerOps handles issue deduplication, muting, and auto-resolution at the organisation level.

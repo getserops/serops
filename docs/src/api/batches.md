@@ -1,3 +1,7 @@
+---
+seo_title: "Batches API"
+description: "API endpoints to list, inspect, re-analyse and delete SerOps batches of logs, metrics and traces."
+---
 # Batches & Data API
 
 Endpoints for listing, inspecting, re-analysing, and deleting log batches.

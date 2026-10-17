@@ -1,3 +1,7 @@
+---
+seo_title: "Upgrade SerOps"
+description: "How to upgrade a SerOps installation safely with Docker Compose or Helm: back up, change the version, run migrations, verify."
+---
 # Upgrading SerOps
 
 How to safely upgrade your SerOps installation to a new version.

@@ -1,3 +1,7 @@
+---
+seo_title: "Set up escalation rules"
+description: "Escalate unacknowledged critical issues to more senior team members automatically, with timed escalation chains."
+---
 # Set Up Escalation Rules
 
 Ensure critical issues are never missed by configuring automatic escalation chains that notify progressively senior team members when issues go unacknowledged.

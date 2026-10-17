@@ -1,3 +1,7 @@
+---
+seo_title: "Authentication API"
+description: "API endpoints for login, registration, profile, SSO and account management in SerOps."
+---
 # Authentication API
 
 Endpoints for user authentication, registration, profile management, SSO, one-click demo login, and account deletion.
