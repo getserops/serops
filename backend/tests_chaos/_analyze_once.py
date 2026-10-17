@@ -35,7 +35,7 @@ try:
     window_end = os.environ.get('CHAOS_WINDOW_END') or None
 
     # Clear per-environment Sentinel state so each scenario is judged on its
-    # own signals. known_fingerprints accumulates across batches, so a
+    # own signals. known_log_patterns accumulates across batches, so a
     # pattern seen in scenario N is no longer "new" in scenario N+1 and
     # new_error_pattern would stop firing partway through the run.
     if os.environ.get('CHAOS_RESET_STATE') == '1':

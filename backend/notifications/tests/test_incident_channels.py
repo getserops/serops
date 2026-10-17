@@ -15,6 +15,20 @@ from Projects.models import Project
 
 User = get_user_model()
 
+# Webhook URLs are checked with validate_public_url, which resolves the
+# hostname. Resolve every name to a public test address so the suite never
+# needs network access; tests about refusals use IP literals or patch this.
+_PUBLIC_DNS = patch('Utils.url_validator.socket.getaddrinfo',
+                    return_value=[(2, 1, 6, '', ('52.95.110.1', 0))])
+
+
+def setUpModule():
+    _PUBLIC_DNS.start()
+
+
+def tearDownModule():
+    _PUBLIC_DNS.stop()
+
 
 # ---------------------------------------------------------------------------
 # Model
@@ -142,6 +156,17 @@ class SlackSenderTest(TestCase):
         ok, msg = send(self.channel, _payload())
         self.assertFalse(ok)
         self.assertIn('Network error', msg)
+
+    @patch('notifications.senders.slack.requests.post')
+    def test_stored_internal_url_is_refused_at_send_time(self, post):
+        c = IncidentNotificationChannel(organisation=self.org, name='old', kind='slack')
+        c.set_webhook_url('https://169.254.169.254/latest/meta-data/')   # saved before validation existed
+        c.save()
+        from notifications.senders.slack import send
+        ok, msg = send(c, _payload())
+        self.assertFalse(ok)
+        self.assertIn('Refused webhook URL', msg)
+        post.assert_not_called()
 
     def test_missing_url(self):
         c = IncidentNotificationChannel(
@@ -411,6 +436,16 @@ class CrudEndpointTest(TestCase):
         self.assertEqual(c.organisation, self.org)
         self.assertNotEqual(c.webhook_url, 'https://hooks.slack.com/xyz')   # encrypted
         self.assertEqual(c.get_webhook_url(), 'https://hooks.slack.com/xyz')
+
+    def test_create_refuses_internal_webhook_urls(self):
+        """SSRF: an org admin cannot point a channel inside the network."""
+        self.client.force_authenticate(user=self.admin)
+        for url in ('http://hooks.slack.com/plain-http', 'https://10.0.0.5/hook',
+                    'https://169.254.169.254/latest/meta-data/', 'https://127.0.0.1:8000/admin/'):
+            r = self.client.post(self.url, {'name': 'x', 'kind': 'slack', 'webhook_url_input': url}, format='json')
+            self.assertEqual(r.status_code, 400, url)
+            self.assertIn('webhook_url_input', r.json())
+        self.assertFalse(IncidentNotificationChannel.objects.exists())
 
     def test_create_missing_webhook_url_fails(self):
         self.client.force_authenticate(user=self.admin)

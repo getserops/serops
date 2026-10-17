@@ -8,11 +8,11 @@ translation layer that turns vendor-native shapes into the canonical
 """
 
 from django.test import TestCase
-from rest_framework.test import APIClient
 
 from Organisations.models import Organisations
 from Projects.models import CICDBinding, Project, ProjectService
 from providers.models import Deployment, ProviderIntegration
+from providers.tests.signing_client import SigningAPIClient
 
 
 class GitopsWebhookBase(TestCase):
@@ -28,9 +28,9 @@ class GitopsWebhookBase(TestCase):
         )
         self.binding = CICDBinding.objects.create(
             project_service=self.service, integration=self.integration,
-            binding_type='deploy', is_active=True,
+            binding_type='deploy', is_active=True, webhook_secret='gitops-secret',
         )
-        self.client = APIClient()
+        self.client = SigningAPIClient('gitops-secret')
 
 
 # ============================================================================
@@ -240,3 +240,23 @@ class FluxWebhookTest(GitopsWebhookBase):
             format='json',
         )
         self.assertEqual(response.status_code, 400)
+
+
+class FluxGenericHmacSignatureTest(GitopsWebhookBase):
+    """Flux's generic-hmac provider sends X-Signature, not X-SerOps-Signature."""
+
+    def test_x_signature_header_accepted(self):
+        import hashlib
+        import hmac
+        import json
+        body = json.dumps({
+            'involvedObject': {'kind': 'Kustomization', 'name': 'api', 'namespace': 'flux-system'},
+            'severity': 'info', 'reason': 'ReconciliationSucceeded',
+            'metadata': {'revision': 'main@sha1:' + 'a' * 40}, 'message': 'Applied revision',
+        }).encode()
+        sig = 'sha256=' + hmac.new(b'gitops-secret', body, hashlib.sha256).hexdigest()
+        response = self.client.post(f'/api/providers/webhook/flux/{self.binding.id}/', data=body,
+                                    content_type='application/json',
+                                    HTTP_X_SEROPS_SIGNATURE='', HTTP_X_SIGNATURE=sig)
+        self.assertNotEqual(response.status_code, 403, response.content)
+

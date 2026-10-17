@@ -65,7 +65,7 @@ def _prime_sentinel_state(ctx):
     state.baseline_stddev_cpu = 3.0
     state.error_counts = [0, 0, 0]
     state.batches_since_last_ai = 1  # not near max_quiet_batches
-    state.known_fingerprints = {}
+    state.known_log_patterns = {}
     state.save()
     return env
 

@@ -1514,8 +1514,10 @@ class ProjectEnvironmentState(models.Model):
     baseline_stddev_memory = models.FloatField(default=1)
     baseline_stddev_cpu = models.FloatField(default=1)
 
-    # Known error fingerprints — cached from Issue table
-    known_fingerprints = models.JSONField(default=dict)
+    # Warning/error log patterns seen recently: signature -> last-seen ISO
+    # timestamp. Sentinel's "new error pattern" check reads this; it is not
+    # the same hash as Issue.fingerprint (that one keys AI-found issues).
+    known_log_patterns = models.JSONField(default=dict)
 
     # Deployment tracking
     last_deploy_sha = models.CharField(max_length=100, blank=True, default='')

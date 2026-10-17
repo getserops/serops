@@ -66,12 +66,11 @@ Sentinel evaluates eight trigger types on every batch. If any trigger fires, the
 | Trigger | Description | Default Threshold |
 |---------|-------------|-------------------|
 | `deployment_detected` | A new deployment occurred within the batch time window | -- |
-| `new_error_pattern` | An error fingerprint appeared that was not seen in the last 50 batches | -- |
+| `new_error_pattern` | A warning/error pattern not seen in this project and environment in the last 6 hours (numbers, IDs and timestamps are ignored when comparing) | -- |
 | `error_rate_spike` | Error rate exceeds the rolling baseline multiplied by the spike multiplier | 2.0x baseline |
 | `memory_anomaly` | Memory usage z-score above the configured threshold | z-score > 3.0 |
 | `cpu_anomaly` | CPU usage z-score above the configured threshold | z-score > 3.0 |
 | `error_rate_escalating` | Error rate is trending upward across recent batches | -- |
-| `issue_regression` | A previously resolved issue's fingerprint reappeared in this batch | -- |
 | `forced_periodic` | Safety net: forced AI analysis after `max_quiet_batches` consecutive quiet batches | 12 batches |
 
 When a batch triggers, the specific trigger names are stored in the `sentinel_triggers` field on the batch record. A single batch can have multiple triggers.
@@ -197,7 +196,7 @@ Sentinel learns what "normal" looks like for each project and environment by mai
 | **Error rate** | Exponential moving average (EMA) | Smoothed error rate across recent batches |
 | **Memory usage** | Rolling mean + standard deviation | Average and variance of memory metrics |
 | **CPU usage** | Rolling mean + standard deviation | Average and variance of CPU metrics |
-| **Known error fingerprints** | Last 50 batches | Set of error fingerprints seen recently, used to detect `new_error_pattern` |
+| **Known log patterns** | Last 6 hours | Warning/error patterns seen recently, used to detect `new_error_pattern`; a pattern unseen for 6 hours counts as new again |
 | **Deployment state** | Last deploy SHA + timestamp | Tracks the most recent deployment to detect new ones |
 | **AI analysis cadence** | Batches since last AI run | Counter used by `forced_periodic` safety net |
 

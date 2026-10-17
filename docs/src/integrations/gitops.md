@@ -16,8 +16,8 @@ side.
 
 | Tool | Default payload accepted | Auth |
 |---|---|---|
-| ArgoCD (argocd-notifications-controller) | ✅ | Optional HMAC-SHA256 (per-binding secret) |
-| Flux (notification-controller) | ✅ | Optional HMAC-SHA256 (per-binding secret) |
+| ArgoCD (argocd-notifications-controller) | ✅ | Required: bearer token or HMAC-SHA256 (per-binding secret) |
+| Flux (notification-controller) | ✅ | HMAC-SHA256, required (per-binding secret) |
 
 ## Prerequisites
 
@@ -32,15 +32,26 @@ binding's numeric ID goes in the webhook URL.
 ```
 POST https://your-serops-host/api/providers/webhook/argocd/<binding_id>/
 Content-Type: application/json
-X-SerOps-Signature: sha256=<hex>    # optional but recommended
+Authorization: Bearer <binding webhook secret>   # or X-SerOps-Signature: sha256=<hex>
 ```
 
 **Configure argocd-notifications-controller**
 
-Create a notification service pointing at SerOps + a template + a
-trigger:
+Put the binding's webhook secret in `argocd-notifications-secret`, then
+create a notification service pointing at SerOps + a template + a
+trigger. Argo CD notifications cannot sign a request body, so the secret
+is sent as a bearer token (over https); `$serops-webhook-secret` is read
+from the secret by Argo CD. Requests without it are refused.
 
 ```yaml
+# argocd-notifications-secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-notifications-secret
+stringData:
+  serops-webhook-secret: <the binding's webhook secret>
+---
 # argocd-notifications-cm.yaml
 apiVersion: v1
 kind: ConfigMap
@@ -50,8 +61,8 @@ data:
   service.webhook.serops: |
     url: https://your-serops-host/api/providers/webhook/argocd/42/
     headers:
-      - name: X-SerOps-Signature
-        value: sha256={{ hmac_sha256 . "your-shared-secret" | hex }}
+      - name: Authorization
+        value: Bearer $serops-webhook-secret
       - name: Content-Type
         value: application/json
 
@@ -119,14 +130,25 @@ metadata:
 ```
 POST https://your-serops-host/api/providers/webhook/flux/<binding_id>/
 Content-Type: application/json
-X-SerOps-Signature: sha256=<hex>    # optional but recommended
+X-Signature: sha256=<hex>    # Flux generic-hmac; X-SerOps-Signature also accepted
 ```
 
 **Configure notification-controller**
 
-Create a `Provider` + `Alert`:
+Create a `Secret` holding the binding's webhook secret, then a
+`generic-hmac` `Provider` + `Alert`. Flux signs each event with that
+secret and sends it as `X-Signature: sha256=<hex>`, which SerOps accepts
+in place of `X-SerOps-Signature`. Unsigned events are refused.
 
 ```yaml
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: serops-webhook
+  namespace: flux-system
+stringData:
+  token: <the binding's webhook secret>
 ---
 apiVersion: notification.toolkit.fluxcd.io/v1beta3
 kind: Provider
@@ -134,9 +156,10 @@ metadata:
   name: serops
   namespace: flux-system
 spec:
-  type: generic
+  type: generic-hmac
   address: https://your-serops-host/api/providers/webhook/flux/42/
-  # secretRef for the shared secret if you want HMAC signing
+  secretRef:
+    name: serops-webhook
 ---
 apiVersion: notification.toolkit.fluxcd.io/v1beta3
 kind: Alert

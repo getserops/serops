@@ -49,7 +49,15 @@ class ArgoCDWebhookE2ETest(E2ETestCase):
             pipeline_id='argo-checkout',
             pipeline_name='checkout',
             is_active=True,
+            webhook_secret='e2e-argocd-shared-secret',
         )
+
+    def _as_argocd(self):
+        """Anonymous, like Argo CD: no user, the binding secret as a bearer
+        token (Argo CD templates cannot compute an HMAC). force_authenticate
+        (user=None) also clears credentials, so the token is set after it."""
+        self.client.force_authenticate(user=None)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.binding.webhook_secret}')
 
     # ------------------------------------------------------------------
     # Payload + URL helpers
@@ -110,7 +118,7 @@ class ArgoCDWebhookE2ETest(E2ETestCase):
     # ------------------------------------------------------------------
 
     def test_successful_sync_creates_deployment_and_stub_code_change(self):
-        self.client.force_authenticate(user=None)
+        self._as_argocd()
 
         resp = self.client.post(
             self._url(),
@@ -142,7 +150,7 @@ class ArgoCDWebhookE2ETest(E2ETestCase):
         self.assertIn('argocd-app=checkout', d.notes or '')
 
     def test_environment_annotation_overrides_namespace(self):
-        self.client.force_authenticate(user=None)
+        self._as_argocd()
 
         resp = self.client.post(
             self._url(),
@@ -158,7 +166,7 @@ class ArgoCDWebhookE2ETest(E2ETestCase):
     def test_out_of_sync_is_rejected_no_deployment(self):
         """ArgoCD fires notifications on health-changes and mid-sync
         transitions too. Only a completed Synced sync is a deployment."""
-        self.client.force_authenticate(user=None)
+        self._as_argocd()
 
         resp = self.client.post(
             self._url(),
@@ -170,7 +178,7 @@ class ArgoCDWebhookE2ETest(E2ETestCase):
         self.assertEqual(CodeChange.objects.count(), 0)
 
     def test_failed_phase_is_rejected_no_deployment(self):
-        self.client.force_authenticate(user=None)
+        self._as_argocd()
 
         resp = self.client.post(
             self._url(),
@@ -181,7 +189,7 @@ class ArgoCDWebhookE2ETest(E2ETestCase):
         self.assertEqual(Deployment.objects.count(), 0)
 
     def test_unknown_binding_is_403(self):
-        self.client.force_authenticate(user=None)
+        self._as_argocd()
 
         resp = self.client.post(
             self._url(binding_id=9999999),
@@ -194,9 +202,7 @@ class ArgoCDWebhookE2ETest(E2ETestCase):
     def test_hmac_signature_required_when_binding_has_secret(self):
         """When the operator sets a webhook_secret, the handler must
         reject any request without a matching X-SerOps-Signature."""
-        self.client.force_authenticate(user=None)
-        self.binding.webhook_secret = 'e2e-argocd-shared-secret'
-        self.binding.save(update_fields=['webhook_secret'])
+        self.client.force_authenticate(user=None)   # no bearer token: HMAC path only
 
         # 1. No signature → 403.
         resp = self.client.post(

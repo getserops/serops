@@ -12,6 +12,8 @@ import logging
 import requests
 from requests.exceptions import RequestException
 
+from Utils.url_validator import validate_public_url
+
 logger = logging.getLogger(__name__)
 
 _TIMEOUT_SECONDS = 8
@@ -86,6 +88,12 @@ def send(channel, payload: dict):
     url = channel.get_webhook_url()
     if not url:
         return False, 'Missing Slack webhook URL'
+    # Checked again at send time: URLs saved before validation existed, and
+    # hostnames whose DNS now points inside the network, are refused too.
+    try:
+        validate_public_url(url)
+    except ValueError as exc:
+        return False, f'Refused webhook URL: {exc}'
 
     body = {
         'blocks': _build_blocks(payload),

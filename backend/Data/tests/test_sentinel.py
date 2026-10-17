@@ -24,7 +24,7 @@ class ProjectEnvironmentStateModelTest(TestCase):
         )
         self.assertEqual(state.baseline_error_rate, 0)
         self.assertEqual(state.error_counts, [])
-        self.assertEqual(state.known_fingerprints, {})
+        self.assertEqual(state.known_log_patterns, {})
         self.assertEqual(str(state), 'State: test-project / production')
 
     def test_unique_together_constraint(self):
@@ -142,6 +142,41 @@ class SentinelEvaluateBatchTest(TestCase):
         self.assertEqual(decision, 'alert')
         self.assertIn('new_error_pattern', triggers)
 
+    def test_repeated_error_pattern_is_not_new(self):
+        """An error seen in the previous window is known, not new again.
+
+        Log patterns used to be compared with Issue fingerprints (another
+        hashing scheme), so they never matched and every window with a
+        warning or error was flagged new_error_pattern forever.
+        """
+        from Data.sentinel import evaluate_batch
+        logs = [self._make_error_log('redis ConnectionError connecting to redis-cache:6379')]
+        evaluate_batch(self.project, self.env, self._make_batch_data(logs=logs), self.org)  # first
+        evaluate_batch(self.project, self.env, self._make_batch_data(logs=logs), self.org)  # learns it
+        _, triggers = evaluate_batch(self.project, self.env, self._make_batch_data(logs=logs), self.org)
+        self.assertNotIn('new_error_pattern', triggers)
+
+    def test_changing_numbers_do_not_make_a_pattern_new(self):
+        from Data.sentinel import evaluate_batch
+        first = [self._make_error_log('2026-10-17T10:00:00Z upstream timeout after 5000ms (order 48213)')]
+        later = [self._make_error_log('2026-10-17T10:15:04Z upstream timeout after 5001ms (order 77310)')]
+        evaluate_batch(self.project, self.env, self._make_batch_data(logs=first), self.org)
+        _, triggers = evaluate_batch(self.project, self.env, self._make_batch_data(logs=later), self.org)
+        self.assertNotIn('new_error_pattern', triggers)
+
+    def test_pattern_unseen_for_hours_is_new_again(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from Data.sentinel import evaluate_batch, KNOWN_LOG_PATTERN_TTL
+        logs = [self._make_error_log('disk full on /var/lib/data')]
+        evaluate_batch(self.project, self.env, self._make_batch_data(logs=logs), self.org)
+        state = ProjectEnvironmentState.objects.get(project=self.project, environment=self.env)
+        old = (timezone.now() - KNOWN_LOG_PATTERN_TTL - timedelta(minutes=1)).isoformat()
+        state.known_log_patterns = {fp: old for fp in state.known_log_patterns}
+        state.save()
+        _, triggers = evaluate_batch(self.project, self.env, self._make_batch_data(logs=logs), self.org)
+        self.assertIn('new_error_pattern', triggers)
+
     def test_memory_anomaly(self):
         from Data.sentinel import evaluate_batch
 
@@ -238,44 +273,6 @@ class SentinelHelperTest(TestCase):
         # Second value: should be weighted average
         result = _ema(100, 50)
         self.assertAlmostEqual(result, 0.1 * 50 + 0.9 * 100)
-
-
-class SyncKnownFingerprintsTest(TestCase):
-    """Tests for sync_known_fingerprints."""
-
-    def setUp(self):
-        self.org = Organisations.objects.create(name='Sync Org')
-        self.project = Project.objects.create(name='sync-project', organisation=self.org)
-        self.env = ProjectEnvironment.objects.create(
-            project=self.project, name='production', display_name='Production'
-        )
-
-    def test_returns_empty_when_no_issues(self):
-        from Data.sentinel import sync_known_fingerprints
-        result = sync_known_fingerprints(self.project, self.env)
-        self.assertEqual(result, {})
-
-    def test_returns_fingerprints_for_matching_issues(self):
-        from Data.sentinel import sync_known_fingerprints
-        batch = AIAnalyzedBatch.objects.create(
-            batch_id='test-batch-001',
-            timestamp=timezone.now(),
-            project=self.project,
-            organisation=self.org,
-        )
-        Issue.objects.create(
-            batch=batch,
-            project=self.project,
-            severity='WARNING',
-            description='Test issue',
-            issue_type='OTHER',
-            environment='production',
-            fingerprint='v4:abc123def456',
-            status='OPEN',
-        )
-        result = sync_known_fingerprints(self.project, self.env)
-        self.assertIn('v4:abc123def456', result)
-        self.assertEqual(result['v4:abc123def456']['status'], 'OPEN')
 
 
 class CorrelationSectionPromptTest(TestCase):

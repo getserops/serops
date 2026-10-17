@@ -31,24 +31,21 @@ function _rethrow(err) {
     throw wrapped;
 }
 
-// Model IDs that the backend understands. Frontend labels
-// ("Deepseek", "Gemini") get mapped to the canonical lowercase
-// codes here so the API contract stays stable.
-const MODEL_LABEL_TO_CODE = {
-    Deepseek: 'deepseek',
-    Gemini: 'gemini',
-};
-
+// ``model`` is a provider id from /settings/available-models (gemini,
+// claude, openai, deepseek, ollama…), exactly what the backend expects.
+// A label map used to turn every id except two capitalised labels into
+// 'pods', which the backend reads as Gemini: on an install without a
+// Gemini key, chat failed whatever provider the user picked.
 export const sendChatMessage = async (
     message,
-    model = 'Deepseek',
+    model,
     chatId = null,
     batchId = null,
 ) => {
-    const aiModel = MODEL_LABEL_TO_CODE[model] || 'pods';
+    const aiModel = String(model || '').toLowerCase();
     const body = {
         type: 'chat',
-        ai_model: aiModel,
+        ...(aiModel ? { ai_model: aiModel } : {}),
         prompt: { message },
     };
     if (chatId) body.chat_id = chatId;

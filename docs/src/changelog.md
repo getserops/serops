@@ -14,7 +14,39 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **Sentinel skipped almost nothing.** It compared log patterns with issue
+  fingerprints (a different hash), so every window containing a warning or
+  error counted as a "new error pattern" and went to the AI. Sentinel now
+  remembers the warning/error patterns it has seen per project and
+  environment (numbers, IDs and timestamps ignored) and forgets one after 6
+  hours unseen, so recurring errors no longer trigger analysis while new
+  or returning ones still do. The "issue regression" rule, which could
+  never fire for the same reason, is removed.
+- **Spans from OpenTelemetry JSON exporters lost their status and kind.**
+  OTLP/HTTP JSON sends these as integers, which were ignored, so failing
+  spans never counted as errors in the analysis.
+- **AI chat always used Gemini,** whatever model was selected, and failed
+  on installs without a Gemini key.
+- **Argo CD and Flux deploy events could not authenticate.** Argo CD cannot
+  compute the documented HMAC and Flux sends its signature in another
+  header. Argo CD now sends the binding secret as a bearer token, and
+  Flux's `generic-hmac` signature (`X-Signature`) is accepted. See
+  [GitOps deploy events](integrations/gitops.md).
+
+### Security
+
+- **Slack and Teams channel URLs must be public https URLs,** checked when
+  saved and again when sending, so an organisation admin cannot make the
+  server call internal services or the cloud metadata endpoint.
+- **Deploy webhooks refuse unsigned events.** A binding without a secret
+  no longer accepts anything, and unknown bindings and bad signatures get
+  the same answer, so binding IDs cannot be probed.
+
+**Upgrade notes:** migrations `Data.0049` and `Data.0050` run
+automatically. If you send deploy events from Argo CD or Flux, update their
+configuration as described in [GitOps deploy events](integrations/gitops.md).
 
 ---
 

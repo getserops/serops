@@ -84,6 +84,18 @@ class IncidentNotificationChannelSerializer(serializers.ModelSerializer):
                 )
         return attrs
 
+    def validate_webhook_url_input(self, value):
+        """Slack/Teams webhooks must be public https URLs: an org admin
+        must not be able to make the server POST to internal services or
+        the cloud metadata endpoint (SSRF)."""
+        if value:
+            from Utils.url_validator import validate_public_url
+            try:
+                validate_public_url(value)
+            except ValueError as exc:
+                raise serializers.ValidationError(str(exc))
+        return value
+
     def create(self, validated_data):
         webhook_url = validated_data.pop('webhook_url_input', None)
         api_key = validated_data.pop('api_key_input', None)

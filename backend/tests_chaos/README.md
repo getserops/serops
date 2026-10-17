@@ -154,7 +154,7 @@ stretching back hours and confidently diagnosed pods that had already been
 deleted — it "passed" by describing a workload that no longer existed. Each
 scenario now pins `window_start`/`window_end` around its own soak.
 
-**Sentinel state is reset per scenario.** `known_fingerprints` accumulates
+**Sentinel state is reset per scenario.** `known_log_patterns` accumulates
 across batches, so a pattern seen in scenario 3 is no longer "new" in
 scenario 4 and `new_error_pattern` would quietly stop firing partway through
 a run. Resetting makes `first` the correct Sentinel decision, which is why

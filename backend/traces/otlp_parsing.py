@@ -48,9 +48,17 @@ def parse_attributes(attrs_list):
     return out
 
 
+# OTLP/HTTP JSON encodes enums as their integer values (the OpenTelemetry
+# collector's otlphttp exporter does), so both forms are accepted.
+_KIND_BY_NUMBER = {'1': 'INTERNAL', '2': 'SERVER', '3': 'CLIENT', '4': 'PRODUCER', '5': 'CONSUMER'}
+_STATUS_BY_NUMBER = {'0': 'UNSET', '1': 'OK', '2': 'ERROR'}
+
+
 def parse_kind(raw) -> str:
-    """OTLP kinds: SPAN_KIND_INTERNAL / _SERVER / _CLIENT / _PRODUCER / _CONSUMER."""
+    """OTLP kinds: SPAN_KIND_INTERNAL / _SERVER / _CLIENT / _PRODUCER / _CONSUMER, or 1-5."""
     raw = str(raw).upper()
+    if raw in _KIND_BY_NUMBER:
+        return _KIND_BY_NUMBER[raw]
     for k in ('INTERNAL', 'SERVER', 'CLIENT', 'PRODUCER', 'CONSUMER'):
         if k in raw:
             return k
@@ -60,13 +68,15 @@ def parse_kind(raw) -> str:
 def parse_status(status_obj):
     """Return (status_code, status_message).
 
-    OTLP uses STATUS_CODE_OK / _ERROR / _UNSET; some SDKs send plain
-    OK / ERROR. Accept both.
+    OTLP uses STATUS_CODE_OK / _ERROR / _UNSET, the JSON encoding sends
+    0 / 1 / 2, and some SDKs send plain OK / ERROR. Accept all three.
     """
     if not isinstance(status_obj, dict):
         return 'UNSET', ''
     raw = str(status_obj.get('code', '')).upper()
-    if raw.endswith('OK') or raw == 'OK':
+    if raw in _STATUS_BY_NUMBER:
+        code = _STATUS_BY_NUMBER[raw]
+    elif raw.endswith('OK') or raw == 'OK':
         code = 'OK'
     elif raw.endswith('ERROR') or raw == 'ERROR':
         code = 'ERROR'

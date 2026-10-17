@@ -162,7 +162,7 @@ For tools that emit deployment events but don't fit a "CI/CD pipeline" shape —
 ```
 POST /api/providers/webhook/deployment/<binding_id>/
 Content-Type: application/json
-X-SerOps-Signature: sha256=<hmac-hex>       # optional, only if binding has a secret
+X-SerOps-Signature: sha256=<hmac-hex>       # required (or Authorization: Bearer <binding secret>)
 
 {
   "commit_sha":  "abc123def456",
@@ -204,9 +204,10 @@ service.webhook.serops: |
   headers:
   - name: Content-Type
     value: application/json
-  # If your binding has a webhook_secret, add HMAC in a post-render step
-  # (ArgoCD Notifications doesn't compute HMAC itself — use a proxy or
-  # leave the secret unset for private-network installs).
+  # ArgoCD Notifications cannot compute an HMAC, so send the binding's
+  # webhook secret as a bearer token, read from argocd-notifications-secret.
+  - name: Authorization
+    value: Bearer $serops-webhook-secret
 ```
 
 Then annotate each app to use the trigger:
@@ -219,38 +220,9 @@ metadata:
 
 ### Flux Notification Controller
 
-Add an `Alert` + `Provider` under `notification.toolkit.fluxcd.io/v1beta1`:
-
-```yaml
-apiVersion: notification.toolkit.fluxcd.io/v1beta1
-kind: Provider
-metadata:
-  name: serops
-  namespace: flux-system
-spec:
-  type: generic
-  address: https://your-serops.com/api/providers/webhook/deployment/<binding_id>/
-  secretRef:
-    name: serops-webhook-secret   # optional — token used as HMAC key
----
-apiVersion: notification.toolkit.fluxcd.io/v1beta1
-kind: Alert
-metadata:
-  name: on-deploy
-  namespace: flux-system
-spec:
-  providerRef:
-    name: serops
-  eventSeverity: info
-  eventSources:
-    - kind: HelmRelease
-      name: '*'
-    - kind: Kustomization
-      name: '*'
-  suspend: false
-```
-
-Flux emits standard notification events — you'll need a small adapter (a Function or CronJob) to reshape them into the SerOps `{commit_sha, environment, ...}` payload. See the [SerOps community adapter](https://github.com/getserops/community-adapters) (post-launch).
+Flux events have their own endpoint that understands Flux's payload and
+its `generic-hmac` signature, with no adapter needed. See
+[GitOps deploy events → Flux CD](gitops.md#flux-cd).
 
 ### Helm hooks
 

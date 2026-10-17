@@ -745,7 +745,6 @@ const Data = () => {
                                 memory_anomaly: 'Memory anomaly',
                                 cpu_anomaly: 'CPU anomaly',
                                 error_rate_escalating: 'Error rate escalating',
-                                issue_regression: 'Issue regression',
                                 first_batch: 'First batch',
                               };
                               const tooltip = (item.sentinel_triggers || [])

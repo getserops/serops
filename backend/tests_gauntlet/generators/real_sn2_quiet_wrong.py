@@ -3,7 +3,7 @@
 Same benign baseline as SN1, but the batch contains ONE hidden CRITICAL
 line: a real OOMKill on the checkout service. Sentinel must escalate
 this via the 'new_error_pattern' trigger because the CRITICAL
-fingerprint isn't in state.known_fingerprints.
+fingerprint isn't in state.known_log_patterns.
 
 Ai_skipped must be False. AI must run and produce at least one issue.
 """

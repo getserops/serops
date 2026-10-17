@@ -12,7 +12,7 @@ bitbucket_webhook, azure_devops_webhook, jenkins_webhook), this endpoint:
     for post-hook triggers.
   * Creates a ``Deployment`` directly from a minimal payload.
   * Uses the same ``CICDBinding.binding_id``-in-URL identity pattern.
-  * Uses optional HMAC-SHA256 signature verification when the binding
+  * Requires an HMAC-SHA256 signature made with the binding
     has a ``webhook_secret`` set (strongly recommended for any
     public-facing deploy webhook).
 
@@ -87,28 +87,19 @@ class GenericDeploymentWebhookHandler(APIView):
     throttle_scope = 'webhook_deployment'
 
     def post(self, request, binding_id):
-        # 1. Resolve binding
+        # 1. Resolve the binding and verify the signature. Every binding
+        #    created through SerOps gets a secret, and unsigned events are
+        #    refused. Unknown, inactive, secret-less and badly signed
+        #    requests get the same answer, so binding ids (sequential)
+        #    cannot be enumerated.
         binding = self._resolve_binding(binding_id)
-        if binding is None:
+        if binding is None or not binding.webhook_secret \
+                or not self._verify_hmac(request, binding.webhook_secret):
+            logger.warning('deployment webhook: refused request for binding %s', binding_id)
             return Response(
-                {'error': 'Unknown or inactive binding'},
+                {'error': 'Unknown binding or invalid signature'},
                 status=status.HTTP_403_FORBIDDEN,
             )
-
-        # 2. Verify HMAC signature if the binding has a secret configured.
-        #    We ONLY verify when a secret is set — otherwise the binding
-        #    is opt-out unsigned (backward-compat + convenience for
-        #    private-network ArgoCD → SerOps installs).
-        if binding.webhook_secret:
-            if not self._verify_hmac(request, binding.webhook_secret):
-                logger.warning(
-                    'deployment webhook: HMAC verification failed for binding %s',
-                    binding_id,
-                )
-                return Response(
-                    {'error': 'Invalid signature'},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
 
         # 3. Parse + validate payload
         try:
@@ -182,7 +173,17 @@ class GenericDeploymentWebhookHandler(APIView):
         Expected header: ``X-SerOps-Signature: sha256=<hex>``.
         Signature is computed over the raw request body.
         """
-        header = request.META.get('HTTP_X_SEROPS_SIGNATURE', '')
+        # Argo CD notifications cannot compute an HMAC of their own body,
+        # but can send a fixed header read from argocd-notifications-secret:
+        # ``Authorization: Bearer <binding secret>`` is accepted too.
+        auth = request.META.get('HTTP_AUTHORIZATION', '')
+        if auth.startswith('Bearer '):
+            return hmac.compare_digest(auth[len('Bearer '):].strip(), secret)
+
+        # Flux's ``generic-hmac`` provider signs the same way as SerOps but
+        # sends the digest as ``X-Signature: sha256=<hex>``; accept either.
+        header = (request.META.get('HTTP_X_SEROPS_SIGNATURE')
+                  or request.META.get('HTTP_X_SIGNATURE') or '')
         if not header.startswith('sha256='):
             return False
         provided = header[len('sha256='):]

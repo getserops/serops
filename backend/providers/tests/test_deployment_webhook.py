@@ -23,7 +23,8 @@ from unittest.mock import patch
 
 from django.test import TestCase
 from django.urls import reverse
-from rest_framework.test import APIClient
+
+from providers.tests.signing_client import SigningAPIClient
 
 from Organisations.models import Organisations
 from Projects.models import Project, ProjectService, CICDBinding
@@ -52,8 +53,9 @@ class DeploymentWebhookTestBase(TestCase):
             integration=self.integration,
             binding_type='deploy',
             is_active=True,
+            webhook_secret='test-binding-secret',
         )
-        self.client = APIClient()
+        self.client = SigningAPIClient('test-binding-secret')
         self.url = f'/api/providers/webhook/deployment/{self.binding.id}/'
 
     def _payload(self, **overrides):
@@ -226,6 +228,7 @@ class HmacSignatureTest(DeploymentWebhookTestBase):
         self.secret = 'super-secret-webhook-key'
         self.binding.webhook_secret = self.secret
         self.binding.save()
+        self.client = SigningAPIClient(self.secret)
 
     def _sign(self, body: bytes) -> str:
         return 'sha256=' + hmac.new(
@@ -250,8 +253,19 @@ class HmacSignatureTest(DeploymentWebhookTestBase):
         )
         self.assertEqual(response.status_code, 403)
 
-    def test_missing_signature_header_rejected_when_secret_set(self):
-        response = self.client.post(self.url, self._payload(), format='json')
+    def test_missing_signature_header_rejected(self):
+        response = self.client.post(self.url, self._payload(), format='json', HTTP_X_SEROPS_SIGNATURE='')
+        self.assertEqual(response.status_code, 403)
+
+    def test_bearer_token_accepted(self):
+        """Argo CD sends the binding secret as a static bearer token."""
+        response = self.client.post(self.url, self._payload(), format='json',
+                                    HTTP_X_SEROPS_SIGNATURE='', HTTP_AUTHORIZATION=f'Bearer {self.secret}')
+        self.assertEqual(response.status_code, 200)
+
+    def test_wrong_bearer_token_rejected(self):
+        response = self.client.post(self.url, self._payload(), format='json',
+                                    HTTP_X_SEROPS_SIGNATURE='', HTTP_AUTHORIZATION='Bearer nope')
         self.assertEqual(response.status_code, 403)
 
     def test_malformed_signature_header_rejected(self):
@@ -263,10 +277,20 @@ class HmacSignatureTest(DeploymentWebhookTestBase):
 
 
 class NoSecretConfiguredTest(DeploymentWebhookTestBase):
-    """When binding has no webhook_secret, signature is not required."""
+    """A binding without a secret refuses events: nothing is accepted unsigned."""
 
-    def test_no_secret_no_signature_needed(self):
-        # setUp() doesn't set webhook_secret — binding.webhook_secret is empty
-        self.assertFalse(self.binding.webhook_secret)
-        response = self.client.post(self.url, self._payload(), format='json')
-        self.assertEqual(response.status_code, 200)
+    def test_binding_without_secret_refuses_events(self):
+        self.binding.webhook_secret = ''
+        self.binding.save()
+        response = self.client.post(self.url, self._payload(), format='json', HTTP_X_SEROPS_SIGNATURE='')
+        self.assertEqual(response.status_code, 403)
+
+    def test_refusals_are_indistinguishable(self):
+        """Unknown binding, no secret and bad signature give the same answer."""
+        unknown = self.client.post('/api/providers/webhook/deployment/999999/', self._payload(), format='json')
+        bad = self.client.post(self.url, self._payload(), format='json', HTTP_X_SEROPS_SIGNATURE='sha256=' + '0' * 64)
+        self.binding.webhook_secret = ''
+        self.binding.save()
+        no_secret = self.client.post(self.url, self._payload(), format='json', HTTP_X_SEROPS_SIGNATURE='')
+        bodies = {(r.status_code, r.content) for r in (unknown, bad, no_secret)}
+        self.assertEqual(len(bodies), 1, bodies)

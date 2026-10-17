@@ -8,6 +8,9 @@ Logs decisions for observability without changing behavior.
 import hashlib
 import logging
 import math
+import re
+from datetime import datetime, timedelta
+
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -23,6 +26,13 @@ Z_SCORE_THRESHOLD = 3.0
 
 # Multiplier for error rate spike detection
 ERROR_SPIKE_MULTIPLIER = 2.0
+
+
+# A log pattern unseen for this long counts as new again, so an error that
+# went away and came back is analysed instead of being remembered forever.
+KNOWN_LOG_PATTERN_TTL = timedelta(hours=6)
+# Bound on remembered patterns per project/environment (most recent kept).
+MAX_KNOWN_LOG_PATTERNS = 2000
 
 
 def _get_sentinel_config(organisation):
@@ -137,7 +147,8 @@ def evaluate_batch(project, environment, batch_data, organisation, thresholds=No
         # First batch ever for this project+environment — seed state
         batch_stats = _extract_batch_stats(batch_data)
         update_rolling_state(state, batch_stats)
-        state.known_fingerprints = sync_known_fingerprints(project, environment)
+        state.known_log_patterns = _remember_log_patterns(
+            {}, _generate_log_fingerprints(batch_data.get('logs', [])))
         state.save()
         return ('first', ['first_batch'])
 
@@ -153,13 +164,13 @@ def evaluate_batch(project, environment, batch_data, organisation, thresholds=No
             state.last_deploy_sha = latest_sha
             state.last_deploy_at = timezone.now()
 
-    # 2. New error pattern detection
+    # 2. New error pattern detection: a warning/error signature not seen in
+    # this project+environment within KNOWN_LOG_PATTERN_TTL.
     log_fingerprints = _generate_log_fingerprints(batch_data.get('logs', []))
-    known = state.known_fingerprints or {}
-    for fp in log_fingerprints:
-        if fp not in known:
-            triggers.append('new_error_pattern')
-            break
+    recent_patterns = _prune_log_patterns(state.known_log_patterns or {})
+    if any(fp not in recent_patterns for fp in log_fingerprints):
+        triggers.append('new_error_pattern')
+    state.known_log_patterns = _remember_log_patterns(recent_patterns, log_fingerprints)
 
     # 3. Error rate spike
     current_errors = batch_stats['error_count']
@@ -186,23 +197,12 @@ def evaluate_batch(project, environment, batch_data, organisation, thresholds=No
         if last3[0] < last3[1] < last3[2] and last3[0] > 0:
             triggers.append('error_rate_escalating')
 
-    # 7. Issue regression — log fingerprint matches a RESOLVED issue
-    if log_fingerprints:
-        for fp in log_fingerprints:
-            fp_info = known.get(fp)
-            if fp_info and fp_info.get('status') == 'RESOLVED':
-                triggers.append('issue_regression')
-                break
-
     # Update rolling state
     update_rolling_state(state, batch_stats)
 
-    # Sync known fingerprints periodically (every 5 batches to avoid DB pressure)
     state.batches_since_last_ai = (state.batches_since_last_ai or 0) + 1
-    if state.batches_since_last_ai % 5 == 0:
-        state.known_fingerprints = sync_known_fingerprints(project, environment)
 
-    # 8. Safety net: force AI analysis after max_quiet_batches consecutive quiet batches
+    # 7. Safety net: force AI analysis after max_quiet_batches consecutive quiet batches
     if not triggers and state.batches_since_last_ai >= max_quiet:
         triggers.append('forced_periodic')
 
@@ -222,34 +222,6 @@ def record_ai_analysis(project, environment):
         state.save(update_fields=['batches_since_last_ai', 'last_ai_analysis_at'])
     except ProjectEnvironmentState.DoesNotExist:
         pass
-
-
-def sync_known_fingerprints(project, environment):
-    """
-    Query Issue table for OPEN/MUTED/RESOLVED issues for this project+environment.
-
-    Returns:
-        dict of fingerprint -> {issue_id, status, count}
-    """
-    from .models import Issue
-
-    env_name = environment.name if hasattr(environment, 'name') else str(environment)
-    issues = Issue.objects.filter(
-        project=project,
-        environment=env_name,
-        status__in=['OPEN', 'MUTED', 'RESOLVED'],
-    ).values('id', 'fingerprint', 'status', 'occurrence_count')
-
-    result = {}
-    for issue in issues:
-        fp = issue['fingerprint']
-        if fp:
-            result[fp] = {
-                'issue_id': issue['id'],
-                'status': issue['status'],
-                'count': issue['occurrence_count'],
-            }
-    return result
 
 
 def update_rolling_state(state, batch_stats):
@@ -336,21 +308,50 @@ def _extract_batch_stats(batch_data):
 
 def _generate_log_fingerprints(logs):
     """
-    Generate fingerprint signatures for logs.
+    Signatures of the warning/error lines in a batch.
 
-    Uses level + first 60 chars of message as signature (same heuristic as
-    AI analysis log grouping).
+    The message is normalised first (timestamps, IPs, hex ids and every
+    number collapse to placeholders) so one error with different order ids,
+    durations or retry counts is one pattern, not a new one each time.
     """
+    from integrations.ingestion import _make_signature
+
     fingerprints = set()
     for log in logs:
         source = log.get('_source', {}) if isinstance(log, dict) else {}
         level = source.get('log_level', source.get('level', '')).upper()
         message = source.get('message', '')
         if level in ('ERROR', 'CRITICAL', 'FATAL', 'WARNING') and message:
-            sig = f"{level}|{message[:60]}"
-            fp = hashlib.md5(sig.encode()).hexdigest()[:16]
+            signature = _NUMBER.sub('<N>', _make_signature(message))[:120]
+            fp = hashlib.md5(f"{level}|{signature}".encode()).hexdigest()[:16]
             fingerprints.add(fp)
     return fingerprints
+
+
+_NUMBER = re.compile(r'\d+')
+
+
+def _prune_log_patterns(patterns):
+    """Drop patterns last seen longer ago than KNOWN_LOG_PATTERN_TTL."""
+    cutoff = timezone.now() - KNOWN_LOG_PATTERN_TTL
+    kept = {}
+    for fp, seen in patterns.items():
+        try:
+            if datetime.fromisoformat(seen) >= cutoff:
+                kept[fp] = seen
+        except (TypeError, ValueError):
+            continue
+    return kept
+
+
+def _remember_log_patterns(patterns, fingerprints):
+    """Mark fingerprints as seen now, keeping the most recent MAX entries."""
+    now = timezone.now().isoformat()
+    merged = {**patterns, **{fp: now for fp in fingerprints}}
+    if len(merged) > MAX_KNOWN_LOG_PATTERNS:
+        newest = sorted(merged.items(), key=lambda kv: kv[1], reverse=True)[:MAX_KNOWN_LOG_PATTERNS]
+        merged = dict(newest)
+    return merged
 
 
 def _ema(current, new_value):
