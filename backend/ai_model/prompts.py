@@ -18,6 +18,8 @@
 # If you inline dynamic data here, cache-hit rate drops to zero and
 # the whole optimisation becomes a rounding error.
 # -----------------------------------------------------------------------
+from .diff_selection import build_code_changes_section
+
 _JSON_TEMPLATE = '''{
     "summary": {
         "total_entries": "<number>",
@@ -485,39 +487,7 @@ def _build_user_content(context):
     # tells the AI whether code is a source we watch, and a "No code
     # changes in this time window" placeholder would just spend tokens
     # to restate that.
-    code_changes_section = ''
-    if code_changes and len(code_changes) > 0:
-        code_changes_section = "\nRecent Code Changes:\n-------------\n"
-        code_changes_section += f"{len(code_changes)} commits in time window:\n"
-        for change in code_changes[:10]:  # Limit to 10 most recent
-            sha = change.get('sha', 'N/A')[:8]
-            author = change.get('author', 'Unknown')
-            message = change.get('message', 'No message')[:100]  # Truncate long messages
-            timestamp = change.get('timestamp', 'N/A')
-            branch = change.get('branch', 'N/A')
-            stats = change.get('stats', {})
-            files = change.get('files', [])
-            
-            code_changes_section += f"\n[{sha}] {author} ({timestamp})\n"
-            code_changes_section += f"  Branch: {branch}\n"
-            code_changes_section += f"  Message: {message}\n"
-            if stats:
-                code_changes_section += f"  Changed: {stats.get('files', 0)} files (+{stats.get('additions', 0)}/-{stats.get('deletions', 0)})\n"
-            if files:
-                code_changes_section += "  Files & Diffs:\n"
-                for f in files[:5]:
-                    # Handle both string (legacy) and dict (new) formats
-                    if isinstance(f, dict):
-                        path = f.get('path', 'unknown')
-                        diff = f.get('diff', '')
-                        code_changes_section += f"    File: {path}\n"
-                        if diff:
-                            code_changes_section += f"    Diff:\n{diff[:500]}...\n" # Truncate diff per file for prompt 
-                    else:
-                        code_changes_section += f"    File: {str(f)}\n"
-                        
-                if len(files) > 5:
-                    code_changes_section += f"    ... and {len(files) - 5} more files\n"
+    code_changes_section = build_code_changes_section(code_changes, logs)
 
     # CI/CD section — failed jobs plus a one-line success summary.
     # Empty batch → empty section (same rationale as code changes).
