@@ -26,4 +26,7 @@ export const PAGES: [string, string][] = [
   ['settings-integrations', '/dash/settings/integrations'],
   ['settings-security', '/dash/settings/security'],
   ['settings-audit', '/dash/settings/audit'],
+  ['settings-preferences', '/dash/settings/preferences'],
+  ['settings-traces', '/dash/settings/traces'],
+  ['settings-clusters', '/dash/settings/clusters'],
 ];
