@@ -119,6 +119,13 @@ _SPAN_LOG_TOKEN_OVERLAP_MIN = 0.6
 _SPAN_LOG_MIN_TOKEN_LEN = 4
 
 
+def _file_path(f) -> str:
+    """A changed file's path, whether the commit lists dicts or strings."""
+    if isinstance(f, dict):
+        return str(f.get('path') or '')
+    return str(f or '')
+
+
 def _significant_tokens(text: str) -> set:
     """Return the set of alphanumeric tokens of at least four chars,
     lowercased. Used for span↔log token-overlap comparison."""
@@ -235,10 +242,15 @@ def correlate_logs_with_code_changes(logs: List[Dict], code_changes: List[Dict])
             if not changed_files:
                 continue
             
-            # Find matching files
+            # Find matching files. Files arrive as {'path', 'diff'} dicts
+            # (CodeChange.to_ai_summary) or, from older batches, as plain
+            # paths.
+            changed_paths = [_file_path(f) for f in changed_files]
             matching_files = []
             for mentioned_file in file_mentions:
-                for changed_file in changed_files:
+                for changed_file in changed_paths:
+                    if not changed_file:
+                        continue
                     # Match if the file path ends with the mentioned file
                     if changed_file.endswith(mentioned_file) or mentioned_file in changed_file:
                         matching_files.append(mentioned_file)
@@ -343,7 +355,7 @@ def correlate_metrics_with_code_changes(metrics_summary: Dict, code_changes: Lis
                     'time_after_deploy_minutes': round(time_diff_minutes, 1),
                     'confidence': confidence,
                     'score': score,
-                    'files_changed': change.get('files', [])[:5],
+                    'files_changed': [_file_path(f) for f in (change.get('files') or [])[:5]],
                 })
             except Exception:
                 continue
@@ -514,7 +526,7 @@ def correlate_cicd_with_code_changes(cicd_logs: List[Dict], code_changes: List[D
                 'time_between_minutes': round(time_diff_seconds / 60, 1),
                 'confidence': confidence,
                 'score': score,
-                'files_changed': change.get('files', [])[:5],
+                'files_changed': [_file_path(f) for f in (change.get('files') or [])[:5]],
             })
 
     # Sort by confidence score (highest first)
