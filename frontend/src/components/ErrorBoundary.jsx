@@ -1,4 +1,5 @@
 import React from 'react';
+import { isChunkLoadError, reloadForNewBuild } from '../utils/staleBuild';
 
 /**
  * Error boundary — one crash contained per region rather than blanking
@@ -30,6 +31,9 @@ class ErrorBoundary extends React.Component {
     }
 
     componentDidCatch(error, info) {
+        // A page from the previous build after a deploy: load the new one
+        // instead of showing an error.
+        if (isChunkLoadError(error) && reloadForNewBuild()) return;
         // eslint-disable-next-line no-console
         console.error('[ErrorBoundary]', error, info?.componentStack);
     }

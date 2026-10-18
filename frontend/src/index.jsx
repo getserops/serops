@@ -11,9 +11,11 @@ import 'react-toastify/dist/ReactToastify.css';
 import './i18n';
 import { installReadOnlyDemoHandling } from './utils/readOnlyDemo';
 import { installStackTables } from './utils/stackTables';
+import { installStaleBuildReload } from './utils/staleBuild';
 
 installReadOnlyDemoHandling();
 installStackTables();
+installStaleBuildReload();
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
