@@ -272,6 +272,7 @@ class IntegrationHealthService:
                     project_id='',
                     access_token=self.integration.get_access_token(),
                     base_url=self.integration.base_url,
+                    organization=self.integration.provider_organization(),
                 )
 
             details = provider.verify_connection()

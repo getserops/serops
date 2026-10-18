@@ -395,17 +395,17 @@ class TestAzureDevOpsProvider(unittest.TestCase):
 
     @patch('requests.request')
     def test_list_projects_success(self, mock_request):
-        """Test successful Azure DevOps project listing."""
+        """The Azure picker lists Git repositories (a project can hold several)."""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "value": [
                 {
-                    "id": "proj-id-123",
-                    "name": "MyProject",
-                    "description": "A project",
-                    "state": "wellFormed",
-                    "visibility": "private"
+                    "id": "repo-guid-1",
+                    "name": "payments-api",
+                    "defaultBranch": "refs/heads/main",
+                    "webUrl": "https://dev.azure.com/myorg/MyProject/_git/payments-api",
+                    "project": {"name": "MyProject", "description": "A project", "visibility": "private"},
                 }
             ]
         }
@@ -414,8 +414,10 @@ class TestAzureDevOpsProvider(unittest.TestCase):
         projects = self.provider.list_projects()
 
         self.assertEqual(len(projects), 1)
-        self.assertEqual(projects[0]['name'], "MyProject")
-        self.assertEqual(projects[0]['full_name'], "myorg/MyProject")
+        self.assertEqual(projects[0]['id'], "myorg/MyProject/payments-api")
+        self.assertEqual(projects[0]['name'], "payments-api")
+        self.assertEqual(projects[0]['full_name'], "MyProject/payments-api")
+        self.assertEqual(projects[0]['default_branch'], "main")
         self.assertTrue(projects[0]['is_private'])
 
 

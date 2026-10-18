@@ -1400,6 +1400,7 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
                     project_id='',
                     access_token=integration.get_access_token(),
                     base_url=integration.base_url,
+                    organization=integration.provider_organization(),
                 )
 
             result = provider.verify_connection()
@@ -1468,6 +1469,7 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
                     project_id='',
                     access_token=access_token,
                     base_url=base_url,
+                    organization=(credentials or {}).get('organization') or request.data.get('organization'),
                 )
 
             result = provider.verify_connection()
@@ -1528,6 +1530,7 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
                 project_id='',
                 access_token=integration.get_access_token(),
                 base_url=integration.base_url,
+                organization=integration.provider_organization(),
             )
 
             # Hard 10s timeout to protect worker pool
@@ -1783,6 +1786,7 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
                 project_id='',
                 access_token=integration.get_access_token(),
                 base_url=integration.base_url,
+                organization=integration.provider_organization(),
             )
 
             provider.verify_connection()

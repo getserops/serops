@@ -133,6 +133,7 @@ export default function SCMModal({ open, onClose, onSaved }) {
     const hasIntegrations = integrations.length > 0;
     const hasServices = services.length > 0;
 
+    const isAzure = integrations.find((i) => String(i.id) === String(integrationId))?.provider_type === 'azure_devops';
     const canSubmit = () =>
         hasIntegrations && hasServices && integrationId && serviceId
         && repoId.trim().length > 0 && !saving;
@@ -241,8 +242,10 @@ export default function SCMModal({ open, onClose, onSaved }) {
                             label="Repository ID"
                             value={repoId}
                             onChange={(e) => setRepoId(e.target.value)}
-                            placeholder="owner/repo — or numeric GitLab project ID"
-                            helperText="The provider-specific identifier for this repo."
+                            placeholder={isAzure ? 'organization/project/repository' : 'owner/repo — or numeric GitLab project ID'}
+                            helperText={isAzure
+                                ? 'Azure DevOps: organization, project and repository. organization/project works when the repository is named like the project.'
+                                : 'The provider-specific identifier for this repo.'}
                         />
 
                         <TextField

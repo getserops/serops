@@ -470,7 +470,8 @@ class SCMBinding(models.Model):
             provider_name=self.integration.provider_type,
             project_id=self.repository_id,
             access_token=self.integration.get_access_token(),
-            base_url=self.integration.base_url
+            base_url=self.integration.base_url,
+            organization=self.integration.provider_organization(),
         )
 
 
@@ -669,7 +670,8 @@ class CICDBinding(models.Model):
                 provider_name=self.integration.provider_type,
                 project_id=self.pipeline_id,
                 access_token=self.integration.get_access_token(),
-                base_url=self.integration.base_url
+                base_url=self.integration.base_url,
+                organization=self.integration.provider_organization(),
             )
 
 

@@ -530,6 +530,14 @@ class ProviderIntegration(models.Model):
         from .encryption import decrypt_credentials
         return decrypt_credentials(self.credentials)
     
+    def provider_organization(self) -> str:
+        """The organization saved with the credentials (Azure DevOps keeps
+        it there, not in base_url). Empty for the other providers."""
+        try:
+            return (self.get_credentials() or {}).get('organization') or ''
+        except Exception:
+            return ''
+
     def get_access_token(self) -> str:
         """
         Convenience method to get the access token.

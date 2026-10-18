@@ -22,6 +22,54 @@ from dateutil import parser as date_parser
 
 logger = logging.getLogger(__name__)
 
+# Characters of each file's diff kept on the CodeChange. The prompt picks
+# hunks out of this (ai_model.diff_selection), so it needs the whole
+# change for typical commits, not the first screenful.
+DIFF_PREVIEW_CHARS = 16_000
+
+
+def split_unified_diff(text: str) -> Dict[str, str]:
+    """Split a whole-commit ``git diff`` into ``{path: hunks}``.
+
+    Keeps each file's text from its first ``@@`` hunk header, which is what
+    the prompt reads (ai_model.diff_selection); ``diff --git``/``index``/
+    ``---``/``+++`` lines carry nothing the file list doesn't.
+    """
+    files: Dict[str, str] = {}
+    path, body, in_hunks = None, [], False
+
+    def flush():
+        if path and body:
+            files[path] = '\n'.join(body)
+
+    for line in (text or '').splitlines():
+        if line.startswith('diff --git '):
+            flush()
+            # diff --git a/old/path b/new/path
+            parts = line.split(' b/', 1)
+            path = parts[1] if len(parts) == 2 else None
+            body, in_hunks = [], False
+        elif line.startswith('+++ ') and not in_hunks:
+            target = line[4:].strip()
+            if target.startswith('b/'):
+                path = target[2:]
+        elif line.startswith('@@'):
+            in_hunks = True
+            body.append(line)
+        elif in_hunks:
+            body.append(line)
+    flush()
+    return files
+
+
+def unified_diff_text(old: str, new: str, context: int = 3) -> str:
+    """Hunks (no file header) between two versions of a file."""
+    import difflib
+    lines = difflib.unified_diff(
+        (old or '').splitlines(), (new or '').splitlines(), lineterm='', n=context,
+    )
+    return '\n'.join(line for line in lines if not line.startswith(('--- ', '+++ ')))
+
 
 class SCMProviderError(Exception):
     """Base exception for SCM provider errors."""
@@ -340,7 +388,7 @@ class GitLabProvider(BaseProvider):
                 "is_renamed": diff.get("renamed_file", False),
                 "additions": additions,
                 "deletions": deletions,
-                "diff_preview": diff_content[:2000] if diff_content else ""  # Store up to 2000 chars of diff
+                "diff_preview": diff_content[:DIFF_PREVIEW_CHARS] if diff_content else ""
             }
             
             summary["files"].append(file_summary)
@@ -552,6 +600,10 @@ class GitHubProvider(BaseProvider):
                     "is_renamed": f.get("status") == "renamed",
                     "additions": f.get("additions", 0),
                     "deletions": f.get("deletions", 0),
+                    # The commit API already returns the unified diff
+                    # hunks; keeping them is what lets the AI read the
+                    # change, not just its file name.
+                    "diff_preview": (f.get("patch") or "")[:DIFF_PREVIEW_CHARS],
                 }
                 for f in data.get("files", [])
             ],
@@ -920,6 +972,21 @@ class BitbucketProvider(BaseProvider):
         
         return normalized[:limit]
     
+    def _fetch_diff_text(self, commit_sha: str) -> Dict[str, str]:
+        """``{path: hunks}`` from GET /repositories/{ws}/{repo}/diff/{sha}.
+        Empty on any failure: the file list is still useful without it."""
+        url = f"{self.base_url}/repositories/{self.project_id}/diff/{commit_sha}"
+        headers = {**self._get_headers(), "Accept": "text/plain"}
+        try:
+            response = self._make_request("GET", url, headers=headers)
+        except SCMProviderError as e:
+            logger.info(f"Bitbucket diff text unavailable for {commit_sha[:8]}: {e}")
+            return {}
+        if response.status_code != 200:
+            logger.info(f"Bitbucket diff text unavailable for {commit_sha[:8]}: HTTP {response.status_code}")
+            return {}
+        return split_unified_diff(response.text)
+
     def get_commit_diff(self, commit_sha: str) -> Dict[str, Any]:
         """
         Get diff for a specific commit from Bitbucket.
@@ -953,15 +1020,22 @@ class BitbucketProvider(BaseProvider):
             total_deletions += lines_removed
             
             files.append({
-                "path": f.get("new", {}).get("path") or f.get("old", {}).get("path"),
-                "old_path": f.get("old", {}).get("path"),
+                "path": (f.get("new") or {}).get("path") or (f.get("old") or {}).get("path"),
+                "old_path": (f.get("old") or {}).get("path"),
                 "is_new": f.get("status") == "added",
                 "is_deleted": f.get("status") == "removed",
                 "is_renamed": f.get("status") == "renamed",
                 "additions": lines_added,
                 "deletions": lines_removed,
             })
-        
+
+        # diffstat has no line content; the raw diff endpoint has all of it
+        # in one response.
+        patches = self._fetch_diff_text(commit_sha)
+        for entry in files:
+            patch = patches.get(entry["path"]) or patches.get(entry.get("old_path") or "")
+            entry["diff_preview"] = (patch or "")[:DIFF_PREVIEW_CHARS]
+
         return {
             "files": files,
             "total_additions": total_additions,
@@ -1235,22 +1309,39 @@ class AzureDevOpsProvider(BaseProvider):
     
     DEFAULT_BASE_URL = "https://dev.azure.com"
     
-    def __init__(self, project_id: str, access_token: str, base_url: Optional[str] = None):
+    def __init__(self, project_id: str, access_token: str, base_url: Optional[str] = None,
+                 organization: Optional[str] = None):
         """
         Initialize Azure DevOps provider.
-        
+
         Args:
-            project_id: In format 'organization/project' or just 'organization'
+            project_id: The repository, as ``organization/project/repository``.
+                ``organization/project`` still works and means the repository
+                named like its project (Azure's default). With ``organization``
+                given, ``project[/repository]`` is enough.
             access_token: Personal Access Token (PAT)
-            base_url: API base URL (default: https://dev.azure.com)
+            base_url: API base URL (default: https://dev.azure.com). An
+                organization URL (https://dev.azure.com/my-org) also works.
+            organization: The integration's organization, used when
+                ``project_id`` does not start with it.
         """
+        from urllib.parse import urlparse
+
+        org = (organization or '').strip().strip('/')
+        parsed = urlparse(base_url or self.DEFAULT_BASE_URL)
+        url_org = parsed.path.strip('/').split('/')[0] if parsed.path.strip('/') else ''
+        if url_org:
+            base_url = f"{parsed.scheme}://{parsed.netloc}"
+            org = org or url_org
         super().__init__(project_id, access_token, base_url or self.DEFAULT_BASE_URL)
-        
-        # Parse organization and project from project_id
-        parts = self.project_id.split('/')
-        self.organization = parts[0]
-        self.project = parts[1] if len(parts) > 1 else None
-    
+
+        parts = [p for p in (self.project_id or '').strip('/').split('/') if p]
+        if parts and (not org or parts[0] == org):
+            org, parts = parts[0], parts[1:]
+        self.organization = org
+        self.project = parts[0] if parts else None
+        self.repository = parts[1] if len(parts) > 1 else self.project
+
     @property
     def provider_name(self) -> str:
         return 'azure_devops'
@@ -1321,46 +1412,53 @@ class AzureDevOpsProvider(BaseProvider):
         Returns:
             List of project dictionaries
         """
-        url = f"{self.base_url}/{self.organization}/_apis/projects?api-version=7.0"
-        
-        params = {
-            '$top': min(per_page, 100),
-            '$skip': (page - 1) * per_page,
-        }
-        
+        # Bindings point at a Git repository, and an Azure project can hold
+        # several, named differently from the project. List repositories.
+        scope = f"{self.organization}/{self.project}" if self.project else self.organization
+        url = f"{self.base_url}/{scope}/_apis/git/repositories?api-version=7.0"
+
         try:
-            response = self._make_request("GET", url, headers=self._get_headers(), params=params)
-            
+            response = self._make_request("GET", url, headers=self._get_headers())
+
             if response.status_code != 200:
-                logger.error(f"Azure DevOps projects API error: {response.status_code}")
+                logger.error(f"Azure DevOps repositories API error: {response.status_code}")
                 return []
-            
-            data = response.json()
-            projects = data.get('value', [])
-            
-            # Filter by search term if provided
+
+            repos = response.json().get('value', [])
             if search:
-                projects = [p for p in projects if search.lower() in p.get('name', '').lower()]
-            
-            return [
-                {
-                    'id': proj.get('id'),
-                    'name': proj.get('name'),
-                    'full_name': f"{self.organization}/{proj.get('name')}",
-                    'description': proj.get('description'),
-                    'url': f"{self.base_url}/{self.organization}/{proj.get('name')}",
-                    'state': proj.get('state'),
-                    'visibility': proj.get('visibility'),
-                    'default_branch': 'main',  # Azure DevOps doesn't return this in projects list
-                    'is_private': proj.get('visibility') != 'public',
-                }
-                for proj in projects
-            ]
-            
+                needle = search.lower()
+                repos = [
+                    r for r in repos
+                    if needle in r.get('name', '').lower()
+                    or needle in (r.get('project') or {}).get('name', '').lower()
+                ]
+            repos.sort(key=lambda r: ((r.get('project') or {}).get('name', '').lower(), r.get('name', '').lower()))
+            start = (max(page, 1) - 1) * per_page
+            repos = repos[start:start + per_page]
+
+            result = []
+            for repo in repos:
+                project = repo.get('project') or {}
+                project_name = project.get('name', '')
+                name = repo.get('name', '')
+                branch = repo.get('defaultBranch') or 'refs/heads/main'
+                result.append({
+                    # Self-contained: stored code changes rebuild the
+                    # provider from this alone.
+                    'id': f"{self.organization}/{project_name}/{name}",
+                    'name': name,
+                    'full_name': f"{project_name}/{name}",
+                    'description': project.get('description'),
+                    'url': repo.get('webUrl') or f"{self.base_url}/{self.organization}/{project_name}/_git/{name}",
+                    'default_branch': branch.replace('refs/heads/', ''),
+                    'is_private': project.get('visibility') != 'public',
+                })
+            return result
+
         except Exception as e:
-            logger.exception(f"Failed to list Azure DevOps projects: {e}")
-            raise SCMProviderError(f"Failed to list projects: {str(e)}")
-    
+            logger.exception(f"Failed to list Azure DevOps repositories: {e}")
+            raise SCMProviderError(f"Failed to list repositories: {str(e)}")
+
     def get_commits(
         self, 
         since: Optional[datetime] = None, 
@@ -1375,7 +1473,7 @@ class AzureDevOpsProvider(BaseProvider):
             logger.error("Project name required for Azure DevOps commits")
             return []
         
-        url = f"{self.base_url}/{self.organization}/{self.project}/_apis/git/repositories/{self.project}/commits?api-version=7.0"
+        url = f"{self._repo_url()}/commits?api-version=7.0"
         
         params = {'$top': min(limit, 100)}
         if since:
@@ -1401,40 +1499,101 @@ class AzureDevOpsProvider(BaseProvider):
             logger.exception(f"Failed to get Azure DevOps commits: {e}")
             return []
     
+    # Azure DevOps has no diff-text API: each file's before/after content is
+    # fetched and diffed here. Two requests per file, so only the first few
+    # files of a commit, and only text files of a sane size.
+    MAX_DIFF_FILES = 10
+    MAX_FILE_BYTES = 200_000
+
+    def _repo_url(self) -> str:
+        return f"{self.base_url}/{self.organization}/{self.project}/_apis/git/repositories/{self.repository}"
+
+    def _file_at(self, path: str, version: str) -> Optional[str]:
+        """Text of ``path`` at commit ``version``; None if missing, binary or too big."""
+        params = {
+            'path': path,
+            'versionDescriptor.version': version,
+            'versionDescriptor.versionType': 'commit',
+            'includeContent': 'true',
+            'api-version': '7.0',
+        }
+        try:
+            response = self._make_request("GET", f"{self._repo_url()}/items", headers=self._get_headers(), params=params)
+        except SCMProviderError:
+            return None
+        if response.status_code != 200:
+            return None
+        item = response.json()
+        meta = item.get('contentMetadata') or {}
+        content = item.get('content')
+        if meta.get('isBinary') or not isinstance(content, str) or len(content) > self.MAX_FILE_BYTES:
+            return None
+        return content
+
+    def _parent_sha(self, commit_sha: str) -> Optional[str]:
+        try:
+            response = self._make_request(
+                "GET", f"{self._repo_url()}/commits/{commit_sha}?api-version=7.0", headers=self._get_headers(),
+            )
+        except SCMProviderError:
+            return None
+        if response.status_code != 200:
+            return None
+        parents = response.json().get('parents') or []
+        return parents[0] if parents else None
+
     def get_commit_diff(self, commit_sha: str) -> Dict[str, Any]:
-        """Get diff for a specific commit."""
+        """Files changed by a commit, with diff hunks for the first few."""
         if not self.project:
             return {"files": [], "total_additions": 0, "total_deletions": 0}
-        
-        url = f"{self.base_url}/{self.organization}/{self.project}/_apis/git/repositories/{self.project}/commits/{commit_sha}/changes?api-version=7.0"
-        
+
+        url = f"{self._repo_url()}/commits/{commit_sha}/changes?api-version=7.0"
         try:
             response = self._make_request("GET", url, headers=self._get_headers())
-            
             if response.status_code != 200:
                 return {"files": [], "total_additions": 0, "total_deletions": 0}
-            
-            data = response.json()
-            changes = data.get('changes', [])
-            
-            return {
-                "files": [
-                    {
-                        "path": c.get('item', {}).get('path'),
-                        "is_new": c.get('changeType') == 'add',
-                        "is_deleted": c.get('changeType') == 'delete',
-                        "additions": 0,  # Azure DevOps doesn't provide line counts in this API
-                        "deletions": 0,
-                    }
-                    for c in changes
-                ],
-                "total_additions": 0,
-                "total_deletions": 0,
-                "total_files": len(changes),
-            }
+            changes = [
+                c for c in response.json().get('changes', [])
+                if not (c.get('item') or {}).get('isFolder')
+                and (c.get('item') or {}).get('gitObjectType', 'blob') == 'blob'
+            ]
         except Exception:
             return {"files": [], "total_additions": 0, "total_deletions": 0}
-    
+
+        parent = self._parent_sha(commit_sha)
+        files = []
+        total_add = total_del = 0
+        for index, change in enumerate(changes):
+            path = (change.get('item') or {}).get('path')
+            change_type = str(change.get('changeType') or '')
+            entry = {
+                "path": path,
+                "is_new": 'add' in change_type,
+                "is_deleted": 'delete' in change_type,
+                "additions": 0,
+                "deletions": 0,
+                "diff_preview": "",
+            }
+            if path and index < self.MAX_DIFF_FILES:
+                before = '' if entry["is_new"] or not parent else self._file_at(path, parent)
+                after = '' if entry["is_deleted"] else self._file_at(path, commit_sha)
+                if before is not None and after is not None:
+                    hunks = unified_diff_text(before, after)
+                    body = hunks.splitlines()
+                    entry["additions"] = sum(1 for l in body if l.startswith('+'))
+                    entry["deletions"] = sum(1 for l in body if l.startswith('-'))
+                    entry["diff_preview"] = hunks[:DIFF_PREVIEW_CHARS]
+            total_add += entry["additions"]
+            total_del += entry["deletions"]
+            files.append(entry)
+
+        return {
+            "files": files,
+            "total_additions": total_add,
+            "total_deletions": total_del,
+            "total_files": len(files),
+        }
+
     def parse_webhook_payload(self, payload: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Parse Azure DevOps webhook payload."""
         event_type = payload.get('eventType', '')
@@ -1906,7 +2065,8 @@ def get_provider(
     provider_name: str, 
     project_id: str, 
     access_token: str,
-    base_url: Optional[str] = None
+    base_url: Optional[str] = None,
+    organization: Optional[str] = None,
 ) -> BaseProvider:
     """
     Factory function to get the appropriate SCM provider.
@@ -1916,6 +2076,8 @@ def get_provider(
         project_id: SCM project/repository ID
         access_token: API access token
         base_url: Optional custom base URL (for self-hosted instances)
+        organization: Azure DevOps organization from the integration's
+            credentials (ignored by the other providers)
         
     Returns:
         An instance of the appropriate provider class
@@ -1929,6 +2091,8 @@ def get_provider(
         supported = ", ".join(PROVIDERS.keys())
         raise ValueError(f"Unsupported provider: {provider_name}. Supported: {supported}")
     
+    if provider_class is AzureDevOpsProvider:
+        return provider_class(project_id, access_token, base_url, organization=organization)
     return provider_class(project_id, access_token, base_url)
 
 
