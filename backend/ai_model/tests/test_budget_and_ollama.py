@@ -202,6 +202,20 @@ class AIBudgetStatusViewTest(TestCase):
         self.assertEqual(body['current_spend_usd'], '0')
         self.assertFalse(body['is_exceeded'])
 
+    def test_no_budget_still_reports_the_month_spend(self):
+        # Settings → AI shows "Spent so far this month" when no cap is set;
+        # it used to read 0 whatever had been spent.
+        AITokenUsage.objects.create(
+            organisation=self.org, model_name='m', cost_usd=Decimal('3.25'),
+            tokens_input=0, tokens_output=0, tokens_total=0,
+        )
+        self.client.force_authenticate(user=self.user)
+        body = self.client.get('/api/settings/ai/budget/').json()
+        self.assertIsNone(body['monthly_budget_usd'])
+        self.assertEqual(Decimal(body['current_spend_usd']), Decimal('3.25'))
+        self.assertIsNone(body['remaining_usd'])
+        self.assertFalse(body['is_exceeded'])
+
     def test_with_budget_returns_snapshot(self):
         OrganisationAISettings.objects.create(
             organisation=self.org, monthly_budget_usd=Decimal('50.00'),

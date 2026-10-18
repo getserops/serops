@@ -285,9 +285,12 @@ class AIBudgetStatusView(APIView):
         if org is None:
             return Response({'error': 'No organisation'}, status=400)
         check = BudgetTracker.check_budget(org)
+        # check_budget skips the spend query when no cap is set (it runs
+        # before every AI call); this page shows the spend either way.
+        spend = check.current if check.budget is not None else BudgetTracker.current_month_spend(org)
         return Response({
             'monthly_budget_usd': str(check.budget) if check.budget is not None else None,
-            'current_spend_usd': str(check.current),
+            'current_spend_usd': str(spend),
             'remaining_usd': str(check.remaining) if check.remaining is not None else None,
             'warn_threshold_pct': (
                 BudgetTracker._settings_for(org).budget_warn_pct
