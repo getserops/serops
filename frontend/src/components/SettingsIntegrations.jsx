@@ -54,6 +54,7 @@ import {
     FaChartLine,
 } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
+import PageHeader from './PageHeader';
 
 import { IntegrationService } from "../services/integration.service";
 import { toast } from "react-toastify";
@@ -615,52 +616,28 @@ const SettingsIntegrations = () => {
     return (
         <div className="settings-section">
             {/* Header */}
-            <div className="settings-header">
-                <div className="settings-icon-wrapper primary">
-                    <FaPlug />
-                </div>
-                <div>
-                    <h2>{t("globalIntegrations.title", "Integrations")}</h2>
-                    <p>{t("globalIntegrations.subtitle", "Connect your development tools and data sources")}</p>
-                </div>
-            </div>
+            <PageHeader title={t("globalIntegrations.title", "Integrations")} subtitle={t("globalIntegrations.subtitle", "Connect your development tools and data sources")} />
 
             {(activeTab === "scm" || activeTab === "cicd") && (
                 <div className="d-flex justify-content-end mb-3">
-                    <Button variant="primary" onClick={openAdd} className="rounded-pill px-4">
+                    <Button variant="primary" onClick={openAdd}>
                         <FaPlus className="me-2" />{t("globalIntegrations.addIntegration", "Add Integration")}
                     </Button>
                 </div>
             )}
 
             {/* Tab Bar */}
-            <div className="d-flex gap-0 mb-4" role="tablist" data-demo-allowed
-                 style={{ borderBottom: "2px solid #e0e0e0", overflowX: "auto", scrollbarWidth: "none" }}>
+            <div className="nav nav-tabs mb-4" role="tablist" data-demo-allowed>
                 {TABS.map((tab) => (
                     <button
                         key={tab.key}
+                        type="button"
                         role="tab"
                         aria-selected={activeTab === tab.key}
+                        className={`nav-link ${activeTab === tab.key ? "active" : ""}`}
                         onClick={() => setActiveTab(tab.key)}
-                        style={{
-                            flex: "0 0 auto",
-                            whiteSpace: "nowrap",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                            padding: "10px 20px",
-                            fontSize: 13,
-                            fontWeight: 600,
-                            border: "none",
-                            borderBottom: activeTab === tab.key ? "2px solid var(--text-link)" : "2px solid transparent",
-                            color: activeTab === tab.key ? "var(--text-link)" : "var(--text-secondary)",
-                            backgroundColor: "transparent",
-                            cursor: "pointer",
-                            transition: "all 0.15s",
-                            marginBottom: -2,
-                        }}
                     >
-                        <tab.icon size={12} aria-hidden="true" /> {t(`globalIntegrations.tabs.${tab.key}`)}
+                        <tab.icon size={14} aria-hidden="true" /> {t(`globalIntegrations.tabs.${tab.key}`)}
                     </button>
                 ))}
             </div>
@@ -707,7 +684,7 @@ const SettingsIntegrations = () => {
                                 const usage = integrationUsage[int.id] || {};
 
                                 return (
-                                    <Col key={int.id} xs={12} lg={6} className="mb-4">
+                                    <Col key={int.id} xs={12} lg={6} xxl={4} className="mb-4">
                                         <Card className="h-100 shadow-sm border-0 integration-card" style={{ transition: "all 0.2s" }}>
                                             <Card.Body>
                                                 {/* Header Row: Icon + Name + Status + Actions */}

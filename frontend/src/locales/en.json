@@ -5,7 +5,6 @@
     "data": "Data",
     "issues": "Issues",
     "aiChat": "AI Chat",
-    "traces": "Traces",
     "settings": "Settings",
     "profile": "Profile",
     "logout": "Logout",
@@ -16,7 +15,20 @@
     "primary": "Primary navigation",
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
-    "closeSidebar": "Close sidebar"
+    "closeSidebar": "Close sidebar",
+    "overview": "Overview",
+    "analyses": "Analyses",
+    "groupMonitor": "Monitor",
+    "groupInvestigate": "Investigate",
+    "groupConfigure": "Configure",
+    "alertsRouting": "Alerts & routing",
+    "openMenu": "Open menu",
+    "environment": "Env",
+    "environmentFilter": "Filter by environment",
+    "allEnvironments": "All",
+    "notificationsUnread_one": "{{count}} unread notification",
+    "notificationsUnread_other": "{{count}} unread notifications",
+    "integrations": "Integrations"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -133,7 +145,10 @@
       "openIssue": "Open issue",
       "allClear": "All clear: no open issues",
       "allClearHint": "Sentinel keeps watching logs, metrics, traces and deploys. New issues will show up here first."
-    }
+    },
+    "overviewSubtitle": "What's broken, why, and what to do.",
+    "autoRefresh": "Live · refreshes every minute",
+    "trendsTitle": "Trends"
   },
   "data": {
     "title": "Data",
@@ -160,7 +175,8 @@
     "viewLogs": "View Logs",
     "viewMetrics": "View Metrics",
     "openBatch": "Open batch {{id}}",
-    "trigger": "Trigger"
+    "trigger": "Trigger",
+    "pageSubtitle": "Every AI analysis of your logs, newest first."
   },
   "issues": {
     "title": "Issues",
@@ -244,7 +260,8 @@
     "searchPlaceholder": "Search issues…",
     "openIssue": "Issue {{id}}: {{description}}. Press Enter for details.",
     "updatedAt": "Updated {{time}}",
-    "autoRefresh": "Refreshes every 30 s"
+    "autoRefresh": "Refreshes every 30 s",
+    "fromBatch": "Issues found by this analysis"
   },
   "addService": {
     "title": "Add New Service",
@@ -389,7 +406,42 @@
       "copyLink": "Copy link",
       "linkCopied": "Link copied.",
       "copyFailed": "Could not copy the link.",
-      "postmortem": "Draft post-mortem"
+      "postmortem": "Draft post-mortem",
+      "statusOpen": "Open",
+      "statusAcknowledged": "Acknowledged",
+      "statusNoIssues": "No issues",
+      "analysedAgo": "analysed {{when}}",
+      "quietTitle": "No AI analysis: the signal was quiet",
+      "quietBody": "Sentinel skipped AI analysis for this batch because nothing stood out.",
+      "rootCause": "Root cause",
+      "confidence": "Confidence",
+      "evidence": "How the AI got there",
+      "corrCommit": "Commit {{value}}",
+      "corrMetric": "Metric: {{value}}",
+      "corrCicd": "Pipeline: {{value}}",
+      "logsAnalysed_one": "{{count}} log analysed",
+      "logsAnalysed_other": "{{count}} logs analysed",
+      "tokens_one": "{{formatted}} token",
+      "tokens_other": "{{formatted}} tokens",
+      "timelineTitle": "Correlated timeline",
+      "openTimeline": "Open full timeline",
+      "noTimeline": "No events were recorded for this window.",
+      "suggestedFix": "Suggested fix",
+      "details": "Incident details",
+      "impact": "Impact",
+      "issuesFound_one": "issue found",
+      "issuesFound_other": "issues found",
+      "critical": "critical",
+      "services": "Services",
+      "environment": "Environment",
+      "logs": "Logs analysed",
+      "response": "Response",
+      "status": "Status",
+      "trigger": "Trigger",
+      "model": "Model",
+      "analysed": "Analysed",
+      "related": "Related",
+      "allIssues": "Issues"
     }
   },
   "timeline": {
@@ -583,7 +635,10 @@
     "passwordUpdateFailed": "Failed to update password. Please try again.",
     "invalidEmail": "Invalid email format",
     "phoneDigits": "Phone must contain exactly 8 digits",
-    "demoRole": "Read-only demo"
+    "demoRole": "Read-only demo",
+    "changePhoto": "Change photo",
+    "password": "Password",
+    "passwordDesc": "Change the password you use to sign in."
   },
   "settings": {
     "title": "Settings",
@@ -872,9 +927,9 @@
     },
     "memory": {
       "title": "Recent Resolutions Context",
-      "subtitle": "Inject root causes from recently resolved issues into AI analysis as diagnostic context for this project.",
+      "subtitle": "Give the AI the root causes of recently resolved issues from the same project, as context for new analyses.",
       "enable": "Enable recent resolutions context",
-      "enableHint": "When on, recently resolved issues for this project are passed to the AI as diagnostic context for new batches and chat questions.",
+      "enableHint": "Each analysis and chat question gets the latest resolutions from its own project. Applies to every project in the organisation.",
       "window": "How far back to look",
       "maxItems": "Max resolutions per analysis",
       "maxItemsHint": "Higher values give the AI more context but use more tokens. 3 is a good default."
@@ -927,7 +982,10 @@
     "discoveryUrlHint": "The URL returning the OpenID Connect metadata.",
     "realmOptional": "Realm (Optional)",
     "redirectUri": "Redirect URI",
-    "redirectUriHint": "Register this exact URL as a valid redirect URI in your identity provider."
+    "redirectUriHint": "Register this exact URL as a valid redirect URI in your identity provider.",
+    "enableSso": "Enable single sign-on",
+    "enableSsoHint": "Let people sign in through your identity provider with OpenID Connect (Okta, Azure AD, Google, Keycloak).",
+    "oidcConfig": "OpenID Connect configuration"
   },
   "batchInterval": {
     "title": "Batch Generation Interval",
@@ -993,7 +1051,7 @@
     "plannedForFuture": "Planned for future updates"
   },
   "globalIntegrations": {
-    "title": "Global Integrations",
+    "title": "Integrations",
     "subtitle": "Connect your development tools and data sources",
     "addIntegration": "Add Integration",
     "name": "Name",
@@ -1108,7 +1166,8 @@
       "copied": "Copied to clipboard.",
       "copyFallback": "Clipboard blocked — copy manually from the field.",
       "loadFailed": "Could not load ingest keys.",
-      "noKeys": "No ingest keys yet. Create one to start sending traces."
+      "noKeys": "No ingest keys yet. Create one to start sending traces.",
+      "viewReceived": "View received traces"
     },
     "dashboard": {
       "title": "Distributed Traces",
@@ -1185,7 +1244,8 @@
     "actions": "Actions",
     "optional": "(optional)",
     "active": "Active",
-    "inactive": "Inactive"
+    "inactive": "Inactive",
+    "breadcrumb": "Breadcrumb"
   },
   "languages": {
     "en": "English",

@@ -11,6 +11,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 // hunting a fault that is not there.
 
 vi.mock('react-router-dom', () => ({
+  Link: ({ to, children }) => <a href={to}>{children}</a>,
   useNavigate: () => vi.fn(),
   useParams: () => ({ id: 'batch-1' }),
   useSearchParams: () => [new URLSearchParams(), vi.fn()],

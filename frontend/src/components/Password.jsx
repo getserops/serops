@@ -3,6 +3,7 @@ import "./Login.css";
 import { useNavigate } from "react-router-dom";
 import { FaLock } from "react-icons/fa";
 import AuthService from "../services/auth.service";
+import BrandMark from './BrandMark';
 
 const Password = () => {
   const [password_confirmation, setPassword_confirmation] = useState("");
@@ -54,7 +55,7 @@ const Password = () => {
       <div className="login-form-panel">
         <div className="form-container">
           <div className="form-header">
-            <img src="/assets/images/Serops-Logo.png" alt="SerOps" className="form-logo" />
+            <BrandMark className="form-logo" />
             <h2>Set your password</h2>
             <p>Choose a strong password to finish activating your account.</p>
           </div>

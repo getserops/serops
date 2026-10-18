@@ -13,10 +13,10 @@
  */
 
 import React, { useState } from 'react';
-import { Dropdown, Form, InputGroup, Button, Badge } from 'react-bootstrap';
+import { Dropdown, Form, InputGroup, Button } from 'react-bootstrap';
 import {
-    FaServer, FaChevronDown, FaTag, FaGlobe, FaCube,
-    FaTimes, FaFilter,
+    FaServer, FaChevronDown, FaGlobe, FaCube,
+    FaTimes,
 } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { useDeployment } from '../context/DeploymentContext';
@@ -27,20 +27,20 @@ const ClusterPicker = () => {
         clusters, hasMultiple, filter, setField, resetFilters,
         activeCount, currentCluster,
     } = useDeployment();
-    const [envDraft, setEnvDraft] = useState('');
     const [regionDraft, setRegionDraft] = useState('');
     const [nsDraft, setNsDraft] = useState('');
 
+    // The environment has its own picker in the top bar; this one owns
+    // cluster, region and namespace.
+    const scopeCount = activeCount - (filter.environment ? 1 : 0);
     // Single-cluster org AND no composed filter active — hide.
-    if (!hasMultiple && activeCount === 0) return null;
+    if (!hasMultiple && scopeCount === 0) return null;
 
     const clusterLabel = currentCluster ? currentCluster.name : t('clusterPicker.all', 'All clusters');
     // Toggle label — show the most specific active chip or a summary.
-    const toggleLabel = activeCount === 0
-        ? clusterLabel
-        : `${clusterLabel}${activeCount > 1 ? ` +${activeCount - (currentCluster ? 1 : 0)}` : ''}`;
+    const extra = scopeCount - (currentCluster ? 1 : 0);
+    const toggleLabel = extra > 0 ? `${clusterLabel} +${extra}` : clusterLabel;
 
-    const applyEnv = () => { if (envDraft.trim()) { setField('environment', envDraft.trim()); setEnvDraft(''); } };
     const applyRegion = () => { if (regionDraft.trim()) { setField('region', regionDraft.trim()); setRegionDraft(''); } };
     const applyNs = () => {
         if (!filter.clusterId) return;
@@ -48,12 +48,8 @@ const ClusterPicker = () => {
     };
 
     return (
-        <div className="d-flex align-items-center gap-2">
+        <div className="d-flex align-items-center gap-2 app-picker">
             {/* Active-filter chips — inline, dismissible */}
-            {filter.environment && (
-                <FilterChip icon={<FaTag />} label={`env=${filter.environment}`}
-                    onClear={() => setField('environment', '')} />
-            )}
             {filter.region && (
                 <FilterChip icon={<FaGlobe />} label={`region=${filter.region}`}
                     onClear={() => setField('region', '')} />
@@ -65,17 +61,14 @@ const ClusterPicker = () => {
 
             <Dropdown className="cluster-picker" autoClose="outside">
                 <Dropdown.Toggle
-                    variant="outline-secondary"
-                    size="sm"
+                    as="button"
+                    type="button"
                     id="deployment-filter-toggle"
-                    className="d-flex align-items-center"
+                    className="app-picker-toggle"
                 >
-                    {activeCount > 0 ? <FaFilter className="me-2" /> : <FaServer className="me-2" />}
+                    <span className="app-picker-key">{t('clusterPicker.cluster', 'Cluster')}</span>
                     <span className="text-nowrap">{toggleLabel}</span>
-                    {activeCount > 0 && (
-                        <Badge bg="primary" pill className="ms-2">{activeCount}</Badge>
-                    )}
-                    <FaChevronDown className="ms-2" size={10} />
+                    <FaChevronDown size={10} aria-hidden="true" />
                 </Dropdown.Toggle>
                 <Dropdown.Menu style={{ minWidth: 280 }}>
                     {/* Cluster section */}
@@ -108,14 +101,6 @@ const ClusterPicker = () => {
                     {/* Env / region / namespace text filters */}
                     <div className="px-3 py-2">
                         <ScopeInput
-                            icon={<FaTag />}
-                            label={t('deploymentFilter.env', 'Environment')}
-                            placeholder="production"
-                            value={envDraft}
-                            onChange={setEnvDraft}
-                            onApply={applyEnv}
-                        />
-                        <ScopeInput
                             icon={<FaGlobe />}
                             label={t('deploymentFilter.region', 'Region')}
                             placeholder="us-east-1"
@@ -134,7 +119,7 @@ const ClusterPicker = () => {
                         />
                     </div>
 
-                    {activeCount > 0 && (
+                    {scopeCount > 0 && (
                         <>
                             <Dropdown.Divider />
                             <div className="px-3 py-1 d-flex justify-content-end">

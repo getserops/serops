@@ -1,0 +1,27 @@
+import React from 'react';
+
+// The SerOps mark: the white "S" on a blue rounded square, the same mark as
+// serops.ai, its favicon and the search-engine logo.
+const SerOpsMark = ({ size = 28, className = '' }) => (
+  <svg
+    className={className}
+    width={size}
+    height={size}
+    viewBox="0 0 32 32"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+    focusable="false"
+  >
+    <rect width="32" height="32" rx="6" fill="#3B82F6" />
+    <path
+      d="M21.5 10.5C21.5 9.39543 20.6046 8.5 19.5 8.5H12.5C11.3954 8.5 10.5 9.39543 10.5 10.5V11.5C10.5 12.6046 11.3954 13.5 12.5 13.5H18.5C19.6046 13.5 20.5 14.3954 20.5 15.5V19.5C20.5 20.6046 19.6046 21.5 18.5 21.5H10.5"
+      stroke="white"
+      strokeWidth="3"
+      strokeLinecap="round"
+    />
+    <path d="M10.5 21.5H18.5" stroke="white" strokeWidth="3" strokeLinecap="round" />
+  </svg>
+);
+
+export default SerOpsMark;

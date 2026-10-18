@@ -1,32 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { FaCamera } from "react-icons/fa";
+import { Camera, Pencil } from "lucide-react";
+import PageHeader from "../components/PageHeader";
 import { useTranslation } from "react-i18next";
 import AuthService from "../services/auth.service";
 import ProfileService from "../services/profile.service";
-import {
-  Card,
-  Input,
-  Form,
-  Row,
-  Col,
-  Container,
-  Modal,
-  ModalBody,
-  ModalFooter,
-  Badge,
-} from "reactstrap";
+import { Input, Form, Modal, ModalBody, ModalFooter } from "reactstrap";
 import "../Styles/Profil.css";
-import { Icon } from "@iconify/react";
-import { useMediaQuery } from '@mui/material';
-import { Space, Alert } from 'antd';
-import { getRoleDisplayName, getRoleColor } from '../utils/permissions';
+import { getRoleDisplayName } from '../utils/permissions';
 import { isDemoUser } from '../utils/demo';
 
 function Profile() {
   const { t } = useTranslation();
   const BACKEND_HOST = import.meta.env.VITE_BASE_URL;
   const [image, setImage] = useState(JSON.parse(localStorage.getItem('user')).avatar);
-  const isSmallScreen = useMediaQuery("(max-width: 767px)");
   const [user, setUser] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [passwordChanged, setPasswordChanged] = useState(null);
@@ -163,285 +149,96 @@ function Profile() {
     }
   };
 
+  const initials = `${(formData.first_name || '').charAt(0)}${(formData.last_name || '').charAt(0)}`.toUpperCase() || 'U';
+  const field = (id, label, props = {}, error) => (
+    <div className="profile-field">
+      <label htmlFor={id} className="form-label">{label}</label>
+      <Input className="form-control" id={id} {...props} />
+      {error && <div className="profile-field-error">{error}</div>}
+    </div>
+  );
+
   return (
-    <div>
+    <div className="profile-page">
+      <PageHeader
+        title={t('profile.title')}
+        actions={
+          isEditing ? (
+            <button className="btn btn-primary" type="button" onClick={handleSaveButtonClick}>{t('common.save')}</button>
+          ) : (
+            <button className="btn btn-secondary" type="button" onClick={handleEditButtonClick}>
+              <Pencil size={14} aria-hidden="true" /> {t('common.edit')}
+            </button>
+          )
+        }
+      />
 
-      {passwordChanged && (
-        <Space direction="vertical" style={{ width: "40%" }}>
-          <Alert
-            message={t('common.success')}
-            description={t('profile.passwordUpdated')}
-            type="success"
-            showIcon
-            closable
-          />
-        </Space>
+      {passwordChanged === true && (
+        <div className="alert alert-success" role="status">{t('profile.passwordUpdated')}</div>
       )}
-
-      {/* Display error message */}
       {passwordChanged === false && (
-        <Space direction="vertical" style={{ width: "40%" }}>
-          <Alert
-            message={t('common.error')}
-            description={t('profile.passwordUpdateFailed')}
-            type="error"
-            showIcon
-            closable
-          />
-        </Space>
+        <div className="alert alert-danger" role="alert">{t('profile.passwordUpdateFailed')}</div>
       )}
 
-      <Container className="container-project mt-5">
-        <Row className="row1 mx-auto">
-          <Col className="text-start">
+      <section className="ds-settings-section">
+        <div className="ds-settings-section-body">
+          <div className="profile-identity">
+            <div className="profile-avatar">
+              {!imageError && formData.avatar ? (
+                <img src={`${BACKEND_HOST}${formData.avatar}`} alt="" onError={() => setImageError(true)} />
+              ) : (
+                <span aria-hidden="true">{initials}</span>
+              )}
+              <label className="profile-avatar-edit" htmlFor="avatar" title={t('profile.changePhoto')}>
+                <input type="file" id="avatar" accept="image/*" className="visually-hidden" onChange={handleAvatarChange} />
+                <Camera size={14} aria-hidden="true" />
+                <span className="visually-hidden">{t('profile.changePhoto')}</span>
+              </label>
+            </div>
+            <div className="profile-identity-text">
+              <div className="profile-name">{`${formData.first_name || ''} ${formData.last_name || ''}`.trim() || formData.email}</div>
+              <div className="profile-email">{formData.email}</div>
+              <span className="badge ds-chip ds-chip-neutral">
+                {isDemoUser() ? t('profile.demoRole') : getRoleDisplayName(formData.role)}
+              </span>
+            </div>
+          </div>
 
-          </Col>
-        </Row>
+          <Form className="profile-grid" onSubmit={(e) => e.preventDefault()}>
+            {field('first_name', t('profile.firstName'), { type: 'text', value: formData.first_name, onChange: handleInputChange, disabled: !isEditing })}
+            {field('last_name', t('profile.lastName'), { type: 'text', value: formData.last_name, onChange: handleInputChange, disabled: !isEditing })}
+            {field('email', t('profile.emailAddress'), { type: 'email', value: formData.email, onChange: handleInputChange, disabled: !isEditing }, isEditing && errors.email)}
+            {field('phone', t('profile.phoneNumber'), { type: 'text', value: formData.phone, onChange: handleInputChange, disabled: !isEditing, maxLength: 8 }, isEditing && errors.phone)}
+          </Form>
+        </div>
+      </section>
 
-        <Row className="row2 mt-2">
-          <Col lg="6" md="6" sm="12" xs="12" className="mx-auto">
-            <Card className="card-profil p-5" style={{ borderRadius: "5%" }}>
-              <div className="circle-avatar" style={{ position: "relative", width: "150px", height: "150px", margin: "0 auto" }}>
-                <div className="image-avatar" style={{ width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", border: "4px solid #fff", boxShadow: "0 0 20px rgba(0,0,0,0.1)" }}>
-                  <img
-                    className="img-pro"
-                    src={
-                      !imageError && formData.avatar
-                        ? `${BACKEND_HOST}${formData.avatar}`
-                        : `https://ui-avatars.com/api/?name=${(formData.first_name || 'User')}+${(formData.last_name || '')}&background=random&size=150`
-                    }
-                    alt="Profile"
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    onError={() => setImageError(true)}
-                  />
-                  <label className="camera-icon" htmlFor="avatar" style={{
-                    position: "absolute",
-                    bottom: "10px",
-                    right: "10px",
-                    background: "#2B47D6",
-                    color: "white",
-                    width: "35px",
-                    height: "35px",
-                    borderRadius: "50%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    boxShadow: "0 2px 5px rgba(0,0,0,0.2)"
-                  }}>
-                    <input
-                      type="file"
-                      id="avatar"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      onChange={handleAvatarChange}
-                    />
-                    <FaCamera size={16} />
-                  </label>
-                </div>
-              </div>
+      <section className="ds-settings-section">
+        <header className="ds-settings-section-head">
+          <div className="ds-settings-section-text">
+            <h2 className="ds-settings-section-title">{t('profile.password')}</h2>
+            <p className="ds-settings-section-desc">{t('profile.passwordDesc')}</p>
+          </div>
+          <div className="ds-settings-section-actions">
+            <button className="btn btn-secondary" type="button" onClick={toggle}>{t('profile.updatePassword')}</button>
+          </div>
+        </header>
+      </section>
 
-              <div className="card-body mt-2 w-100">
-                <Form style={{ marginTop: "5%" }}>
-                  <div className="mb-4">
-                    <label htmlFor="first_name" className="form-label">
-                      {t('profile.firstName')}
-                    </label>
-                    <Input
-                      className="form-control"
-                      type="text"
-                      id="first_name"
-                      value={formData.first_name}
-                      onChange={handleInputChange}
-                      disabled={!isEditing}
-                    />
-                  </div>
-
-                  <div className="mb-4">
-                    <label htmlFor="last_name" className="form-label">
-                      {t('profile.lastName')}
-                    </label>
-                    <Input
-                      className="form-control"
-                      type="text"
-                      id="last_name"
-                      value={formData.last_name}
-                      onChange={handleInputChange}
-                      disabled={!isEditing}
-                    />
-                  </div>
-
-                  <div className="mb-4">
-                    <label htmlFor="email" className="form-label">
-                      {t('profile.emailAddress')}
-                    </label>
-                    <Input
-                      className="form-control"
-                      type="email"
-                      id="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      disabled={!isEditing}
-                    />
-                    {isEditing && errors.email && (
-                      <div className="text-danger" style={{ fontSize: "0.8rem" }}>
-                        {errors.email}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mb-2">
-                    <label htmlFor="phone" className="form-label">
-                      {t('profile.phoneNumber')}
-                    </label>
-                    <Input
-                      className="form-control"
-                      type="text"
-                      id="phone"
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      disabled={!isEditing}
-                      maxLength={8}
-                    />
-                    {isEditing && errors.phone && (
-                      <div className="text-danger" style={{ fontSize: "0.8rem" }}>
-                        {errors.phone}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Role Display (Read-only) */}
-                  <div className="mb-4">
-                    <label className="form-label" htmlFor="profile-role">{t('profile.role')}</label>
-                    <Input
-                      id="profile-role"
-                      className="form-control"
-                      type="text"
-                      value={isDemoUser() ? t('profile.demoRole') : getRoleDisplayName(formData.role)}
-                      disabled={true}
-                    />
-                  </div>
-
-                  <div className="d-flex justify-content-end position-relative">
-                    {!isEditing && (
-                      <button
-                        className="btn text-center"
-                        type="button"
-                        style={{ cursor: "pointer" }}
-                        onClick={handleEditButtonClick}
-                      >
-                        <Icon icon="fluent:edit-24-filled" />
-                        {t('common.edit')}
-                      </button>
-                    )}
-                    {isEditing && (
-                      <button
-                        className="btn text-center"
-                        type="button"
-                        onClick={handleSaveButtonClick}
-                      >
-                        {t('common.save')}
-                      </button>
-                    )}
-                  </div>
-                </Form>
-
-                {/* Bouton "Update Password" déplacé ici */}
-                <div className="text-end mt-3">
-                  <button className="btn-update-password" onClick={toggle}>
-                    <i>
-                      <Icon icon="fluent:edit-24-filled" />
-                    </i>
-                    {isSmallScreen ? "" : t('profile.updatePassword')}
-                  </button>
-                </div>
-              </div>
-            </Card>
-          </Col>
-        </Row>
-
-        <Modal
-          className="model mt-0"
-          isOpen={modal}
-          toggle={toggle}
-          unmountOnClose={unmountOnClose}
-        >
-          <ModalBody className="model-body mt-0">
-            <Form>
-              <div className="mb-2">
-                <label htmlFor="old_password" className="form-label">
-                  {t('profile.oldPassword')}
-                </label>
-                <Input
-                  className="form-control"
-                  type="password"
-                  id="old_password"
-                  value={data.old_password}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="mb-2">
-                <label htmlFor="new_password" className="form-label">
-                  {t('profile.newPassword')}
-                </label>
-                <Input
-                  className="form-control"
-                  type="password"
-                  id="new_password"
-                  value={data.new_password}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="mb-2">
-                <label htmlFor="new_password_copy" className="form-label">
-                  {t('profile.repeatPassword')}
-                </label>
-                <Input
-                  className="form-control"
-                  type="password"
-                  id="new_password_copy"
-                  value={data.new_password_copy}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <ModalFooter className="form-btn">
-                <button
-                  className="cancel-button"
-                  onClick={toggle}
-                  style={{
-                    backgroundColor: "#ccc",
-                    color: "black",
-                    border: "none",
-                    padding: "10px 20px",
-                    borderRadius: "5px",
-                    cursor: "pointer",
-                    fontSize: "16px",
-                  }}
-                >
-                  {t('common.cancel')}
-                </button>
-
-                <button
-                  className="submit-button"
-                  onClick={handlePassword}
-                  style={{
-                    backgroundColor: "#2B47D6",
-                    color: "white",
-                    border: "none",
-                    padding: "10px 20px",
-                    borderRadius: "5px",
-                    cursor: "pointer",
-                    fontSize: "16px",
-                  }}
-                >
-                  {t('common.submit')}
-                </button>
-              </ModalFooter>
-            </Form>
-          </ModalBody>
-        </Modal>
-      </Container>
+      <Modal isOpen={modal} toggle={toggle} unmountOnClose={unmountOnClose}>
+        <ModalBody>
+          <h2 className="modal-title h5 mb-3">{t('profile.updatePassword')}</h2>
+          <Form onSubmit={(e) => e.preventDefault()} className="d-flex flex-column gap-3">
+            {field('old_password', t('profile.oldPassword'), { type: 'password', value: data.old_password, onChange: handleChange, autoComplete: 'current-password' })}
+            {field('new_password', t('profile.newPassword'), { type: 'password', value: data.new_password, onChange: handleChange, autoComplete: 'new-password' })}
+            {field('new_password_copy', t('profile.repeatPassword'), { type: 'password', value: data.new_password_copy, onChange: handleChange, autoComplete: 'new-password' })}
+          </Form>
+        </ModalBody>
+        <ModalFooter>
+          <button type="button" className="btn btn-secondary" onClick={toggle}>{t('common.cancel')}</button>
+          <button type="button" className="btn btn-primary" onClick={handlePassword}>{t('common.submit')}</button>
+        </ModalFooter>
+      </Modal>
     </div>
   );
 }

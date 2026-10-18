@@ -1,3 +1,4 @@
+import PageHeader from "../PageHeader";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -257,13 +258,7 @@ const Investigate = () => {
 
   return (
     <div className="investigate-page">
-      <div className="ds-section-header">
-        <div className="ds-section-header-icon"><FaSearch /></div>
-        <div className="ds-section-header-body">
-          <h1 className="ds-section-header-title">{t("investigate.title")}</h1>
-          <p className="ds-section-header-subtitle">{t("investigate.subtitle")}</p>
-        </div>
-      </div>
+      <PageHeader title={t("investigate.title")} subtitle={t("investigate.subtitle")} />
 
       {loadError && <div className="investigate-note is-error">{loadError}</div>}
       {!canRun && (

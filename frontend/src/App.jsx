@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useEffect } from "react";
 import "./App.css";
 import "./styles/primitives.css";
+import "./styles/design.css";
 import {
   BrowserRouter as Router,
   Route,

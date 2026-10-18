@@ -6,6 +6,7 @@
  * trace detail waterfall.
  */
 
+import PageHeader from "./PageHeader";
 import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Form, Button, Spinner, Alert, Badge } from 'react-bootstrap';
 import { FaProjectDiagram, FaFilter, FaSyncAlt, FaExclamationCircle } from 'react-icons/fa';
@@ -105,19 +106,21 @@ const Traces = () => {
     };
 
     return (
-        <div className="p-4">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-                <h2 className="mb-0">
-                    <FaProjectDiagram className="me-2 text-primary" />
-                    {t('traces.dashboard.title')}
-                </h2>
-                <Button variant="outline-secondary" onClick={load} disabled={loading}>
-                    <FaSyncAlt className={loading ? 'me-1 fa-spin' : 'me-1'} />
-                    {t('traces.dashboard.refresh')}
-                </Button>
-            </div>
+        <div>
+            <PageHeader
+                title={t('traces.dashboard.title')}
+                actions={(
+                    <Button variant="outline-secondary" onClick={load} disabled={loading}>
+                        <FaSyncAlt className={loading ? 'fa-spin' : ''} aria-hidden="true" />
+                        {t('traces.dashboard.refresh')}
+                    </Button>
+                )}
+            />
 
-            <Form onSubmit={applyFilters} className="mb-3">
+            {error && <Alert variant="danger">{error}</Alert>}
+
+            <div className="ds-card traces-card">
+            <Form onSubmit={applyFilters} className="traces-filters">
                 <div className="row g-2 align-items-end">
                     <div className="col-md-3">
                         <Form.Label className="mb-1 small" htmlFor="traces-service">{t('traces.dashboard.service')}</Form.Label>
@@ -179,8 +182,6 @@ const Traces = () => {
                 </div>
             </Form>
 
-            {error && <Alert variant="danger">{error}</Alert>}
-
             {loading ? (
                 <div className="text-center py-5">
                     <Spinner animation="border" />
@@ -236,8 +237,8 @@ const Traces = () => {
                         </tbody>
                     </Table>
 
-                    <div className="d-flex justify-content-between align-items-center">
-                        <span className="text-muted small">
+                    <div className="ds-table-footer">
+                        <span>
                             {t('traces.dashboard.total', { count: pageInfo.count })}
                         </span>
                         <div>
@@ -262,6 +263,7 @@ const Traces = () => {
                     </div>
                 </>
             )}
+            </div>
         </div>
     );
 };

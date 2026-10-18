@@ -86,19 +86,19 @@ describe('getCountHeatLevel', () => {
 });
 
 describe('getSeverityColor', () => {
-  it('returns red for critical', () => {
-    expect(getSeverityColor('critical')).toBe('#e53935');
-    expect(getSeverityColor('CRITICAL')).toBe('#e53935');
+  it('returns the red tone for critical', () => {
+    expect(getSeverityColor('critical')).toBe('var(--tone-red-text)');
+    expect(getSeverityColor('CRITICAL')).toBe('var(--tone-red-text)');
   });
 
-  it('returns orange for warning', () => {
-    expect(getSeverityColor('warning')).toBe('#fb8c00');
-    expect(getSeverityColor('WARNING')).toBe('#fb8c00');
+  it('returns the amber tone for warning', () => {
+    expect(getSeverityColor('warning')).toBe('var(--tone-amber-text)');
+    expect(getSeverityColor('WARNING')).toBe('var(--tone-amber-text)');
   });
 
-  it('returns grey for unknown/null', () => {
-    expect(getSeverityColor(null)).toBe('#6c757d');
-    expect(getSeverityColor('UNKNOWN')).toBe('#6c757d');
+  it('returns a neutral border for unknown/null', () => {
+    expect(getSeverityColor(null)).toBe('var(--border-hover)');
+    expect(getSeverityColor('UNKNOWN')).toBe('var(--border-hover)');
   });
 });
 
@@ -131,6 +131,7 @@ vi.mock('react-i18next', () => ({
     t: (key) => {
       const translations = {
         'common.loading': 'Loading...',
+        'common.actions': 'Actions',
         'issues.systemIssues': 'System Issues',
         'issues.trackAnomalies': 'Track and resolve anomalies',
         'issues.noIssues': 'No issues found',

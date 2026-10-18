@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaCircle, FaExclamationTriangle, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
+import { FaCircle, FaExclamationTriangle, FaCheckCircle, FaTimesCircle, FaMapMarkedAlt } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import './Dashboard.css';
 
@@ -54,7 +54,7 @@ const ServiceHealthHeatmap = ({ data, loading }) => {
         return (
             <div className="chart-card service-heatmap">
                 <div className="chart-header">
-                    <h2>🗺️ {t('dashboard.serviceHealthMap')}</h2>
+                    <h2><FaMapMarkedAlt className="chart-icon" aria-hidden="true" /> {t('dashboard.serviceHealthMap')}</h2>
                     <span className="chart-subtitle">{t('dashboard.realTimeStatus')}</span>
                 </div>
                 <div className="chart-container">
@@ -69,7 +69,7 @@ const ServiceHealthHeatmap = ({ data, loading }) => {
     return (
         <div className="chart-card service-heatmap">
             <div className="chart-header">
-                <h2>🗺️ {t('dashboard.serviceHealthMap')}</h2>
+                <h2><FaMapMarkedAlt className="chart-icon" aria-hidden="true" /> {t('dashboard.serviceHealthMap')}</h2>
                 <span className="chart-subtitle">{t('dashboard.servicesMonitored', { count: total_services })}</span>
             </div>
             <div className="heatmap-container">

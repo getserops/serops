@@ -1,50 +1,45 @@
 import React, { useEffect, useState } from "react";
 import "./Sidebar.css";
 import {
-  FaProjectDiagram,
-  FaCog,
-  FaComments,
-  FaExclamationCircle,
-  FaChevronDown,
-  FaChevronRight,
-  FaBuilding,
-  FaUsers,
-  FaBell,
-  FaRobot,
-  FaDatabase,
-  FaPlug,
-  FaBars,
-  FaShieldAlt,
-  FaHistory,
-  FaUserCircle,
-  FaEnvelope,
-  FaKey,
-  FaServer,
-  FaSearch,
-} from "react-icons/fa";
-import { RiDashboardHorizontalFill } from "react-icons/ri";
+  LayoutDashboard,
+  CircleAlert,
+  Activity,
+  Search,
+  MessageSquare,
+  Folder,
+  Plug,
+  Route,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
+import SerOpsMark from "./SerOpsMark";
 import { useMediaQuery } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import { BsClipboardDataFill } from "react-icons/bs";
 
+// Full-height app sidebar, grouped by what people come to do:
+// Monitor (what's happening), Investigate (dig in), Configure (set up).
 const Sidebar = ({ isOpen, setIsOpen }) => {
   const { t } = useTranslation();
   const isSmallScreen = useMediaQuery("(max-width: 860px)");
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const location = useLocation();
+  const path = location.pathname;
+  const onSettings = path.startsWith("/dash/settings")
+    && !path.startsWith("/dash/settings/integrations")
+    && !path.startsWith("/dash/settings/delivery")
+    && !path.startsWith("/dash/settings/routing-rules");
+  const [settingsOpen, setSettingsOpen] = useState(onSettings);
 
   const user = JSON.parse(localStorage.getItem("user")) || {};
   const [organisation, setOrganisation] = useState(
     user?.organisation_name || user?.organisation || null
   );
 
-  // PR-D3 (2026-09-20): fall back to /api/organisation/current/ when
-  // localStorage.user is stale or missing (e.g. token-only sessions
-  // from Playwright, cookie-only refresh flow, or a user whose stored
-  // shape predates the ``userinfo.organisation`` API change). Prevents
-  // the "NO ORGANISATION" sidebar label the 2026-09-20 UI review
-  // flagged.
+  // localStorage.user can be stale or missing (token-only sessions,
+  // cookie refresh); fall back to the API so the org name still shows.
   useEffect(() => {
     if (organisation) return;
     (async () => {
@@ -60,277 +55,178 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           } catch { /* localStorage may be blocked */ }
         }
       } catch {
-        /* endpoint may not exist yet; keep sidebar blank rather than
-         * shouting "NO ORGANISATION" — that read wrong more often
-         * than it read right. */
+        /* keep the label hidden rather than show a placeholder */
       }
     })();
   }, [organisation]);
 
-  // Auto-expand settings if on a settings page
   useEffect(() => {
-    if (location.pathname.startsWith('/dash/settings')) {
-      setSettingsOpen(true);
-      if (!isOpen && !isSmallScreen) setIsOpen(true);
-    }
-  }, [location.pathname, isSmallScreen]);
+    if (onSettings) setSettingsOpen(true);
+  }, [onSettings]);
 
   useEffect(() => {
-    if (isSmallScreen) {
-      setIsOpen(false);
-    } else {
-      setIsOpen(true);
-    }
+    setIsOpen(!isSmallScreen);
   }, [isSmallScreen]);
 
-  const menuItems = [
+  const groups = [
     {
-      path: "/dash",
-      name: t('nav.dashboard'),
-      icon: <RiDashboardHorizontalFill />,
-      exact: true,
+      id: "monitor",
+      label: t("nav.groupMonitor"),
+      items: [
+        { path: "/dash", name: t("nav.overview"), icon: LayoutDashboard, exact: true },
+        { path: "/dash/issues", name: t("nav.issues"), icon: CircleAlert },
+        { path: "/dash/data", name: t("nav.analyses"), icon: Activity },
+      ],
     },
     {
-      path: "/dash/projects",
-      name: t('nav.projects'),
-      icon: <FaProjectDiagram />,
+      id: "investigate",
+      label: t("nav.groupInvestigate"),
+      items: [
+        { path: "/dash/investigate", name: t("nav.investigate"), icon: Search },
+        { path: "/dash/chat", name: t("nav.aiChat"), icon: MessageSquare },
+      ],
     },
     {
-      path: "/dash/data",
-      name: t('nav.data'),
-      icon: <BsClipboardDataFill />,
+      id: "configure",
+      label: t("nav.groupConfigure"),
+      items: [
+        { path: "/dash/projects", name: t("nav.projects"), icon: Folder },
+        { path: "/dash/settings/integrations", name: t("nav.integrations"), icon: Plug },
+        {
+          path: "/dash/settings/delivery",
+          name: t("nav.alertsRouting"),
+          icon: Route,
+          match: ["/dash/settings/delivery", "/dash/settings/routing-rules"],
+        },
+      ],
     },
-    {
-      path: "/dash/issues",
-      name: t('nav.issues'),
-      icon: <FaExclamationCircle />,
-    },
-    {
-      path: "/dash/investigate",
-      name: t('nav.investigate'),
-      icon: <FaSearch />,
-    },
-    {
-      path: "/dash/chat",
-      name: t('nav.aiChat'),
-      icon: <FaComments />,
-    },
-    // Note: no top-level "Traces" nav entry. Traces are a data source
-    // (like logs / metrics / code changes / CI-CD logs) and are
-    // rendered inline on batch detail via BatchTraces, plus surfaced
-    // as "related traces" on issue detail (Item #12a). Keeping Traces
-    // out of the sidebar matches the peer pattern of the other data
-    // sources — none of them get a sidebar entry either. The
-    // /dash/traces/* routes still exist (BatchTraces, TraceDetail) but
-    // are only reached by context-linking from a batch or issue, not
-    // top-level exploration. Ingest-key management stays under
-    // Settings → Traces for admins.
   ];
 
+  // The sidebar lists tasks, not data sources: traces (like logs and
+  // metrics) are reached from an analysis, from Settings → Distributed
+  // Traces ("View received traces") and from ⌘K.
   const settingsItems = [
-    {
-      path: "/dash/settings",
-      name: t('settings.general.menuLabel'),
-      icon: <FaBuilding />,
-      exact: true,
-    },
-    {
-      path: "/dash/settings/team",
-      name: t('settings.team.title'),
-      icon: <FaUsers />,
-    },
-    {
-      path: "/dash/settings/delivery",
-      name: t('settings.delivery.title', 'Delivery Channels'),
-      icon: <FaBell />,
-    },
-    {
-      path: "/dash/settings/routing-rules",
-      name: t('settings.routing.title', 'Routing Rules'),
-      icon: <FaBell />,
-    },
-    {
-      path: "/dash/settings/ai",
-      name: t('settings.ai.title'),
-      icon: <FaRobot />,
-    },
-    {
-      path: "/dash/settings/sentinel",
-      name: "Sentinel",
-      icon: <FaShieldAlt />,
-    },
-    {
-      path: "/dash/settings/data",
-      name: t('settings.data.title'),
-      icon: <FaDatabase />,
-    },
-    {
-      path: "/dash/settings/integrations",
-      name: t('globalIntegrations.title'),
-      icon: <FaPlug />,
-    },
-    // Ingest-key management page — always visible. It used to share the
-    // Traces nav rule, but that capability turns on only once an active
-    // ingest key exists, and keys are created on this page: an OTLP user
-    // starting from zero could never reach it.
-    {
-      path: "/dash/settings/traces",
-      name: t('traces.settings.menuLabel'),
-      icon: <FaKey />,
-    },
-    // Cluster management — only useful for K8s installs, but always
-    // visible under Settings so users discover the feature. Empty
-    // state on the page itself guides them.
-    {
-      path: "/dash/settings/clusters",
-      name: t('clusters.menuLabel'),
-      icon: <FaServer />,
-    },
-    // PR-N phase 2: this entry used to point at /settings/incident-channels,
-    // which now redirects to /settings/delivery — it duplicated the
-    // "Delivery Channels" item above. Removed.
-    {
-      path: "/dash/settings/security",
-      name: t('settings.security.title'),
-      icon: <FaShieldAlt />,
-    },
-    {
-      path: "/dash/settings/audit",
-      name: t('auditLog.title'),
-      icon: <FaHistory />,
-    },
+    { path: "/dash/settings", name: t("settings.general.menuLabel"), exact: true },
+    { path: "/dash/settings/team", name: t("settings.team.title") },
+    { path: "/dash/settings/ai", name: t("settings.ai.title") },
+    { path: "/dash/settings/sentinel", name: "Sentinel" },
+    { path: "/dash/settings/data", name: t("settings.data.title") },
+    { path: "/dash/settings/traces", name: t("traces.settings.menuLabel") },
+    { path: "/dash/settings/clusters", name: t("clusters.menuLabel") },
+    { path: "/dash/settings/security", name: t("settings.security.title") },
+    { path: "/dash/settings/audit", name: t("auditLog.title") },
   ];
 
-  const toggleSidebar = () => setIsOpen(!isOpen);
+  const isActive = (item) => {
+    if (item.exact) return path === item.path;
+    const prefixes = item.match || [item.path];
+    return prefixes.some((p) => path === p || path.startsWith(`${p}/`));
+  };
+
+  const collapsed = !isOpen && !isSmallScreen;
+  const closeOnMobile = () => isSmallScreen && setIsOpen(false);
 
   return (
     <>
       <nav
-        className={`sidebar-container ${isOpen ? 'sidebar-expanded' : 'sidebar-collapsed'} ${isSmallScreen && isOpen ? 'mobile-open' : ''}`}
-        aria-label={t('nav.primary', 'Primary navigation')}
+        className={`app-sidebar ${collapsed ? "is-collapsed" : ""} ${isSmallScreen ? "is-mobile" : ""} ${isSmallScreen && isOpen ? "is-open" : ""}`}
+        aria-label={t("nav.primary", "Primary navigation")}
       >
-        {/* Header */}
-        <div className="sidebar-header">
-          {isOpen ? (
+        <div className="app-sidebar-brand">
+          <NavLink to="/dash" className="app-sidebar-logo" onClick={closeOnMobile} aria-label="SerOps">
+            <SerOpsMark size={28} className="app-sidebar-mark" />
+            {!collapsed && <span className="app-sidebar-wordmark">SerOps</span>}
+          </NavLink>
+          {!isSmallScreen && (
             <button
               type="button"
-              className="sidebar-logo-button"
-              onClick={toggleSidebar}
-              aria-label={t('nav.collapseSidebar', 'Collapse sidebar')}
-              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+              className="app-sidebar-collapse"
+              onClick={() => setIsOpen(!isOpen)}
+              aria-label={collapsed ? t("nav.expandSidebar") : t("nav.collapseSidebar")}
+              title={collapsed ? t("nav.expandSidebar") : t("nav.collapseSidebar")}
             >
-              <img
-                src="/assets/images/Serops-Logo.png"
-                alt="SerOps"
-                className="sidebar-logo"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'block';
-                }}
-              />
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="sidebar-toggle"
-              onClick={toggleSidebar}
-              aria-label={t('nav.expandSidebar', 'Expand sidebar')}
-            >
-              <FaBars />
+              {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
             </button>
           )}
-          <h2
-            style={{
-              display: 'none',
-              color: 'var(--primary)',
-              margin: 0,
-              fontSize: '24px',
-              fontWeight: 'bold',
-              cursor: 'pointer'
-            }}
-            onClick={toggleSidebar}
-          >
-            SerOps
-          </h2>
         </div>
 
-        {/* Organization Info — hidden entirely when we couldn't
-            resolve a name (see fetch fallback above). Reads cleaner
-            than the previous "NO ORGANISATION" placeholder. */}
-        {isOpen && organisation && (
-          <div className="sidebar-org">
-            <div className="org-name">{organisation}</div>
-          </div>
+        {!collapsed && organisation && (
+          <div className="app-sidebar-org" title={organisation}>{organisation}</div>
         )}
 
-        {/* Navigation Links */}
-        <div className="sidebar-nav">
-          {menuItems.map((item, index) => (
-            <NavLink
-              to={item.path}
-              key={index}
-              className={({ isActive }) =>
-                `nav-item ${isActive && (item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path)) ? 'active' : ''}`
-              }
-              title={!isOpen ? item.name : ''}
-              onClick={() => isSmallScreen && setIsOpen(false)}
-            >
-              <div className="nav-icon">{item.icon}</div>
-              <span className="nav-label">{item.name}</span>
-            </NavLink>
-          ))}
-
-          {/* Settings Group */}
-          <div className="settings-group">
-            <button
-              type="button"
-              className={`nav-item ${location.pathname.startsWith('/dash/settings') ? 'active' : ''}`}
-              onClick={() => {
-                if (!isOpen) setIsOpen(true);
-                setSettingsOpen(!settingsOpen);
-              }}
-              title={!isOpen ? t('nav.settings') : ''}
-              aria-expanded={settingsOpen}
-              aria-controls="sidebar-settings-submenu"
-              style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left' }}
-            >
-              <div className="nav-icon"><FaCog /></div>
-              <span className="nav-label" style={{ flex: 1 }}>{t('nav.settings')}</span>
-              {isOpen && (
-                <span className="settings-chevron" aria-hidden="true">
-                  {settingsOpen ? <FaChevronDown /> : <FaChevronRight />}
-                </span>
-              )}
-            </button>
-
-            {/* Settings Submenu */}
-            {isOpen && settingsOpen && (
-              <div className="settings-submenu" id="sidebar-settings-submenu">
-                {settingsItems.map((item, index) => (
+        <div className="app-sidebar-scroll">
+          {groups.map((group) => (
+            <div className="app-nav-group" key={group.id}>
+              {!collapsed && <div className="app-nav-group-label">{group.label}</div>}
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item);
+                return (
                   <NavLink
+                    key={item.path}
                     to={item.path}
-                    key={index}
-                    className={({ isActive }) => `sub-nav-item ${isActive ? 'active' : ''}`}
                     end={item.exact}
-                    onClick={() => isSmallScreen && setIsOpen(false)}
+                    className={`app-nav-item ${active ? "active" : ""}`}
+                    aria-current={active ? "page" : undefined}
+                    title={collapsed ? item.name : undefined}
+                    onClick={closeOnMobile}
                   >
-                    <div className="sub-nav-icon">{item.icon}</div>
-                    <span>{item.name}</span>
+                    <Icon size={18} strokeWidth={1.75} aria-hidden="true" />
+                    {!collapsed && <span className="app-nav-label">{item.name}</span>}
                   </NavLink>
-                ))}
-              </div>
-            )}
-          </div>
+                );
+              })}
+              {group.id === "configure" && (
+                <>
+                  <button
+                    type="button"
+                    className={`app-nav-item ${onSettings ? "active" : ""}`}
+                    onClick={() => {
+                      if (collapsed) setIsOpen(true);
+                      setSettingsOpen(!settingsOpen);
+                    }}
+                    title={collapsed ? t("nav.settings") : undefined}
+                    aria-expanded={settingsOpen}
+                    aria-controls="app-settings-submenu"
+                  >
+                    <SlidersHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
+                    {!collapsed && (
+                      <>
+                        <span className="app-nav-label">{t("nav.settings")}</span>
+                        <span className="app-nav-chevron" aria-hidden="true">
+                          {settingsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                  {!collapsed && settingsOpen && (
+                    <div className="app-subnav" id="app-settings-submenu">
+                      {settingsItems.map((item) => (
+                        <NavLink
+                          key={item.path}
+                          to={item.path}
+                          end={item.exact}
+                          className={({ isActive: a }) => `app-subnav-item ${a ? "active" : ""}`}
+                          onClick={closeOnMobile}
+                        >
+                          {item.name}
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          ))}
         </div>
       </nav>
 
-      {/* Mobile Backdrop — button so keyboard users can dismiss too. */}
       {isSmallScreen && isOpen && (
         <button
           type="button"
-          className="sidebar-backdrop"
+          className="app-sidebar-backdrop"
           onClick={() => setIsOpen(false)}
-          aria-label={t('nav.closeSidebar', 'Close sidebar')}
+          aria-label={t("nav.closeSidebar", "Close sidebar")}
         />
       )}
     </>

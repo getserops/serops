@@ -1,38 +1,23 @@
-import React, { useState } from 'react';
-import { FaChevronRight, FaChevronDown } from 'react-icons/fa';
+import React from 'react';
 import './SettingsLayout.css';
 
-const CollapsibleSection = ({
-    title,
-    description,
-    children,
-    defaultExpanded = false,
-    className = ''
-}) => {
-    const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-
-    return (
-        <div className={`gl-settings-section ${className}`}>
-            <div
-                className="gl-settings-header"
-                onClick={() => setIsExpanded(!isExpanded)}
-            >
-                <div className="gl-toggle-icon">
-                    {isExpanded ? <FaChevronDown /> : <FaChevronRight />}
-                </div>
-                <div className="gl-settings-header-content">
-                    <h3 className="gl-settings-title">{title}</h3>
-                    {description && <p className="gl-settings-description">{description}</p>}
-                </div>
+// A settings section: a card with a title, one line of context and the
+// form below. Sections stay open — settings pages are short enough once
+// choices are compact, and a hidden form is a form nobody finds.
+// (Name kept so the pages that use it don't change; `defaultExpanded`
+// is accepted and ignored.)
+// eslint-disable-next-line no-unused-vars
+const CollapsibleSection = ({ title, description, children, defaultExpanded, actions, className = '' }) => (
+    <section className={`ds-settings-section ${className}`}>
+        <header className="ds-settings-section-head">
+            <div className="ds-settings-section-text">
+                <h2 className="ds-settings-section-title">{title}</h2>
+                {description && <p className="ds-settings-section-desc">{description}</p>}
             </div>
-
-            <div className={`gl-settings-content ${isExpanded ? 'expanded' : ''}`}>
-                <div className="gl-settings-content-inner">
-                    {children}
-                </div>
-            </div>
-        </div>
-    );
-};
+            {actions && <div className="ds-settings-section-actions">{actions}</div>}
+        </header>
+        <div className="ds-settings-section-body">{children}</div>
+    </section>
+);
 
 export default CollapsibleSection;

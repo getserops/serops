@@ -3,6 +3,7 @@ import "./Login.css";
 import { useNavigate, useParams } from "react-router-dom";
 import { FaCheck, FaTimes, FaSpinner, FaLock } from "react-icons/fa";
 import AuthService from "../services/auth.service";
+import BrandMark from './BrandMark';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -68,7 +69,7 @@ const PasswordReset = () => {
       <div className="login-form-panel">
         <div className="form-container">
           <div className="form-header">
-            <img src="/assets/images/Serops-Logo.png" alt="SerOps" className="form-logo" />
+            <BrandMark className="form-logo" />
             <h2>Set your password</h2>
             <p>Create a secure password for your account.</p>
           </div>

@@ -15,3 +15,64 @@
 
 /* Incident actions under the hypothesis. */
 .detail-incident-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+
+/* =============================================================
+   Incident page (v2): header, root cause, timeline, fix, side rail
+   ============================================================= */
+.incident-meta { display: inline-flex; flex-wrap: wrap; gap: 4px 0; }
+.incident-meta > span + span::before { content: "·"; margin: 0 8px; color: var(--text-tertiary); }
+.incident-grid { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; margin-bottom: 24px; }
+.incident-main { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px; }
+.incident-main > .ds-card { margin-bottom: 0 !important; }
+.incident-rail { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.incident-rail-card { padding: 16px 20px 8px; }
+.incident-rail-title { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.incident-rail .ds-kv a { text-decoration: none; font-weight: 500; color: var(--text-link); }
+.incident-rail .ds-kv a:hover { text-decoration: underline; }
+.incident-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
+.incident-stats > div { background: var(--bg-sunken); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.incident-stats strong { font-size: 22px; font-weight: 600; line-height: 1.1; color: var(--text-primary); }
+.incident-stats span { font-size: 12px; color: var(--text-tertiary); }
+
+.incident-rootcause-body { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+.incident-narrative { margin: 0; font-size: 15px; line-height: 1.6; color: var(--text-primary); overflow-wrap: anywhere; }
+.incident-muted { color: var(--text-tertiary); font-size: 14px; }
+.incident-label { margin: 0; font-size: 12px; font-weight: 600; color: var(--text-tertiary); }
+.incident-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.incident-steps li { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; line-height: 1.5; color: var(--text-primary); }
+.incident-step-n {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--tone-brand-soft);
+  color: var(--tone-brand-text);
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.incident-correlations { display: flex; flex-wrap: wrap; gap: 6px; }
+.incident-model { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 12px; color: var(--text-tertiary); padding-top: 12px; border-top: 1px solid var(--border-default); }
+.incident-confidence { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-secondary); }
+.incident-confidence strong { color: var(--text-primary); font-weight: 600; }
+.incident-confidence-bar { width: 96px; height: 6px; border-radius: 3px; background: var(--tone-gray-soft); overflow: hidden; }
+.incident-confidence-bar > div { height: 100%; border-radius: 3px; }
+
+.incident-timeline-body { padding: 0 20px 16px; min-width: 0; overflow-x: auto; }
+.incident-fix { margin: 0; padding: 0 20px 18px; font-size: 14px; line-height: 1.6; color: var(--text-primary); }
+.incident-commits { list-style: none; margin: 0; padding: 12px 20px 16px; border-top: 1px solid var(--border-default); background: var(--bg-sunken); border-radius: 0 0 12px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.incident-commits li { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+
+/* Logs table: header and cells share the same padding, so each header sits
+   over its column (they were 6 px apart). */
+@media (min-width: 768px) {
+  :is(html, :root[data-theme]) .detail-logs-table :is(th, td) { padding: 10px 12px; }
+}
+:is(html, :root[data-theme]) .detail-logs-table thead th {
+  background: var(--bg-sunken);
+  color: var(--text-tertiary);
+  font-weight: 600;
+  border-color: var(--border-default);
+}

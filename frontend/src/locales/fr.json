@@ -5,7 +5,6 @@
     "data": "Données",
     "issues": "Problèmes",
     "aiChat": "Chat IA",
-    "traces": "Traces",
     "settings": "Paramètres",
     "profile": "Profil",
     "logout": "Déconnexion",
@@ -16,7 +15,20 @@
     "primary": "Navigation principale",
     "collapseSidebar": "Réduire le menu",
     "expandSidebar": "Développer le menu",
-    "closeSidebar": "Fermer le menu"
+    "closeSidebar": "Fermer le menu",
+    "overview": "Vue d'ensemble",
+    "analyses": "Analyses",
+    "groupMonitor": "Surveiller",
+    "groupInvestigate": "Enquêter",
+    "groupConfigure": "Configurer",
+    "alertsRouting": "Alertes et routage",
+    "openMenu": "Ouvrir le menu",
+    "environment": "Env",
+    "environmentFilter": "Filtrer par environnement",
+    "allEnvironments": "Tous",
+    "notificationsUnread_one": "{{count}} notification non lue",
+    "notificationsUnread_other": "{{count}} notifications non lues",
+    "integrations": "Intégrations"
   },
   "dashboard": {
     "title": "Tableau de Bord",
@@ -133,7 +145,10 @@
       "openIssue": "Ouvrir l'incident",
       "allClear": "Tout va bien : aucun incident ouvert",
       "allClearHint": "Sentinel continue de surveiller logs, métriques, traces et déploiements. Les nouveaux incidents apparaîtront ici en premier."
-    }
+    },
+    "overviewSubtitle": "Ce qui est cassé, pourquoi, et quoi faire.",
+    "autoRefresh": "En direct · actualisé chaque minute",
+    "trendsTitle": "Tendances"
   },
   "data": {
     "title": "Données",
@@ -160,7 +175,8 @@
     "viewLogs": "Voir les Journaux",
     "viewMetrics": "Voir les Métriques",
     "openBatch": "Ouvrir le lot {{id}}",
-    "trigger": "Déclencheur"
+    "trigger": "Déclencheur",
+    "pageSubtitle": "Toutes les analyses IA de vos logs, des plus récentes aux plus anciennes."
   },
   "issues": {
     "title": "Problèmes",
@@ -244,7 +260,8 @@
     "searchPlaceholder": "Rechercher des problèmes…",
     "openIssue": "Problème {{id}} : {{description}}. Entrée pour le détail.",
     "updatedAt": "Mis à jour à {{time}}",
-    "autoRefresh": "Actualisé toutes les 30 s"
+    "autoRefresh": "Actualisé toutes les 30 s",
+    "fromBatch": "Problèmes trouvés par cette analyse"
   },
   "addService": {
     "title": "Ajouter un Nouveau Service",
@@ -389,7 +406,42 @@
       "copyLink": "Copier le lien",
       "linkCopied": "Lien copié.",
       "copyFailed": "Impossible de copier le lien.",
-      "postmortem": "Rédiger le post-mortem"
+      "postmortem": "Rédiger le post-mortem",
+      "statusOpen": "Ouvert",
+      "statusAcknowledged": "Pris en charge",
+      "statusNoIssues": "Aucun problème",
+      "analysedAgo": "analysé {{when}}",
+      "quietTitle": "Pas d’analyse IA : le signal était calme",
+      "quietBody": "Sentinel a ignoré l’analyse IA de ce lot car rien ne se démarquait.",
+      "rootCause": "Cause racine",
+      "confidence": "Confiance",
+      "evidence": "Comment l’IA y est arrivée",
+      "corrCommit": "Commit {{value}}",
+      "corrMetric": "Métrique : {{value}}",
+      "corrCicd": "Pipeline : {{value}}",
+      "logsAnalysed_one": "{{count}} log analysé",
+      "logsAnalysed_other": "{{count}} logs analysés",
+      "tokens_one": "{{formatted}} jeton",
+      "tokens_other": "{{formatted}} jetons",
+      "timelineTitle": "Chronologie corrélée",
+      "openTimeline": "Ouvrir la chronologie",
+      "noTimeline": "Aucun événement enregistré sur cette période.",
+      "suggestedFix": "Correctif suggéré",
+      "details": "Détails de l’incident",
+      "impact": "Impact",
+      "issuesFound_one": "problème trouvé",
+      "issuesFound_other": "problèmes trouvés",
+      "critical": "critiques",
+      "services": "Services",
+      "environment": "Environnement",
+      "logs": "Logs analysés",
+      "response": "Réponse",
+      "status": "Statut",
+      "trigger": "Déclencheur",
+      "model": "Modèle",
+      "analysed": "Analysé",
+      "related": "Liens",
+      "allIssues": "Problèmes"
     }
   },
   "timeline": {
@@ -583,7 +635,10 @@
     "passwordUpdateFailed": "Échec de la mise à jour du mot de passe. Veuillez réessayer.",
     "invalidEmail": "Format d'email invalide",
     "phoneDigits": "Le téléphone doit contenir exactement 8 chiffres",
-    "demoRole": "Démo en lecture seule"
+    "demoRole": "Démo en lecture seule",
+    "changePhoto": "Changer la photo",
+    "password": "Mot de passe",
+    "passwordDesc": "Modifiez le mot de passe utilisé pour vous connecter."
   },
   "settings": {
     "title": "Paramètres",
@@ -844,7 +899,10 @@
     "realmOptional": "Realm (Optionnel)",
     "redirectUri": "URI de redirection",
     "redirectUriHint": "Enregistrez exactement cette URL comme URI de redirection valide dans votre fournisseur d'identité.",
-    "authenticationProtocol": "Protocole d'authentification"
+    "authenticationProtocol": "Protocole d'authentification",
+    "enableSso": "Activer l'authentification unique",
+    "enableSsoHint": "Permet de se connecter via votre fournisseur d'identité avec OpenID Connect (Okta, Azure AD, Google, Keycloak).",
+    "oidcConfig": "Configuration OpenID Connect"
   },
   "batchInterval": {
     "title": "Intervalle de Génération des Lots",
@@ -910,7 +968,7 @@
     "plannedForFuture": "Prévu pour les futures mises à jour"
   },
   "globalIntegrations": {
-    "title": "Intégrations Globales",
+    "title": "Intégrations",
     "subtitle": "Connectez vos outils de développement et sources de données",
     "addIntegration": "Ajouter une Intégration",
     "name": "Nom",
@@ -1025,7 +1083,8 @@
       "copied": "Copié dans le presse-papiers.",
       "copyFallback": "Presse-papiers bloqué — copiez manuellement.",
       "loadFailed": "Impossible de charger les clés.",
-      "noKeys": "Aucune clé pour l'instant. Créez-en une pour commencer à envoyer des traces."
+      "noKeys": "Aucune clé pour l'instant. Créez-en une pour commencer à envoyer des traces.",
+      "viewReceived": "Voir les traces reçues"
     },
     "dashboard": {
       "title": "Traces distribuées",
@@ -1102,7 +1161,8 @@
     "actions": "Actions",
     "optional": "(facultatif)",
     "active": "Actif",
-    "inactive": "Inactif"
+    "inactive": "Inactif",
+    "breadcrumb": "Fil d'Ariane"
   },
   "languages": {
     "en": "English",
@@ -1241,9 +1301,9 @@
     },
     "memory": {
       "title": "Contexte des résolutions récentes",
-      "subtitle": "Injecte les causes racines des problèmes récemment résolus dans l'analyse IA, comme contexte de diagnostic pour ce projet.",
+      "subtitle": "Fournit à l'IA les causes racines des problèmes récemment résolus du même projet, comme contexte pour les nouvelles analyses.",
       "enable": "Activer le contexte des résolutions récentes",
-      "enableHint": "Activé, les problèmes récemment résolus du projet sont transmis à l'IA comme contexte de diagnostic pour les nouveaux lots et les questions du chat.",
+      "enableHint": "Chaque analyse et question du chat reçoit les dernières résolutions de son propre projet. S'applique à tous les projets de l'organisation.",
       "window": "Période prise en compte",
       "maxItems": "Résolutions maximum par analyse",
       "maxItemsHint": "Plus de résolutions donnent plus de contexte à l'IA mais consomment plus de tokens. 3 est un bon choix par défaut."

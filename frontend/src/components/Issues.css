@@ -540,3 +540,54 @@ button.issue-stat-card:focus-visible { outline: 2px solid var(--primary-600, #2f
   .issue-description-clamp { white-space: normal; -webkit-line-clamp: 2; }
   .issues-table-wrap tbody tr.issue-row > td { background: transparent !important; }
 }
+
+/* =============================================================
+   v2: header and tiles sit on the page; the list is one card with
+   the filter bar on top and the table running edge to edge.
+   ============================================================= */
+.issues-page-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.issues-page-card .issues-toolbar { padding: 12px 16px; background: var(--bg-card); }
+.issues-page-card .issues-table-wrap thead.bg-light,
+.issues-page-card .issues-table-wrap thead.bg-light th { background: var(--bg-sunken) !important; }
+.issues-search-icon.input-group-text {
+  background: var(--bg-card);
+  border: 1px solid var(--border-hover);
+  border-right: 0;
+  color: var(--text-tertiary);
+  border-radius: 8px 0 0 8px;
+}
+.issues-search .form-control { border-left: 0; }
+.issue-stat-grid { gap: 16px; margin-bottom: 20px; }
+button.issue-stat-card,
+.issue-stat-card {
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: none;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  gap: 2px;
+}
+.issue-stat-card .issue-stat-value { font-size: 24px; font-weight: 600; }
+.issue-stat-card .issue-stat-label { font-size: 13px; text-transform: none; display: inline-flex; align-items: center; gap: 6px; }
+.issue-stat-card .issue-stat-label::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--border-hover); }
+.issue-stat-critical .issue-stat-label::before { background: var(--tone-red-text); }
+.issue-stat-warning .issue-stat-label::before { background: var(--tone-amber-text); }
+.issue-stat-open .issue-stat-label::before { background: var(--tone-brand-text); }
+.issue-stat-resolved .issue-stat-label::before { background: var(--tone-green-text); }
+button.issue-stat-card:hover { box-shadow: none; border-color: var(--border-hover); }
+button.issue-stat-card.is-active { background: var(--tone-brand-soft); border-color: var(--brand-fill); }
+button.issue-stat-card:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.issue-row-critical, .issue-row-warning, .issue-row-info { background-color: transparent; }
+.issue-row > td:first-child { box-shadow: inset 3px 0 0 var(--severity-color, transparent); }
+.issue-stat-grid .issue-stat-card[class] { border-left: 1px solid var(--border-default); }
+.issue-stat-grid button.issue-stat-card.is-active[class] { border-color: var(--brand-fill); }
+.issue-row-open > td { background-color: var(--tone-brand-soft) !important; }
+
+/* Actions column: wide enough for its header, header centred over the menu button */
+.issue-col-actions { width: 88px; white-space: nowrap; }
+.issue-col-actions .issue-actions-dropdown { display: inline-block; }

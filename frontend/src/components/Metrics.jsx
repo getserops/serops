@@ -4,7 +4,8 @@ import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
 import "./Data.css";
 import { useNavigate, useParams } from "react-router-dom";
-import { FiArrowLeft, FiBarChart2 } from "react-icons/fi";
+import { FiBarChart2 } from "react-icons/fi";
+import PageHeader from "./PageHeader";
 import { format, parse } from "date-fns";
 import DataService from "../services/data.service";
 import MetricsInsights, { deriveInsights } from "./MetricsInsights";
@@ -229,54 +230,28 @@ const Metrics = () => {
   );
 
   return (
-    <div className="data-page-container">
+    <div className="data-page-container metrics-page">
+      <PageHeader
+        crumbs={[
+          { label: t('nav.analyses'), to: '/dash/data' },
+          ...(batchId ? [{ label: batchId.length <= 24 ? batchId : `${batchId.slice(0, 8)}…${batchId.slice(-6)}`, to: `/dash/data/details/${batchId}`, mono: true }] : []),
+          { label: t('metrics.title') },
+        ]}
+        title={t('metrics.title')}
+        actions={
+          <Dropdown onSelect={(value) => handleFilterChange("type", value)} className="filter-dropdown">
+            <Dropdown.Toggle variant="light" className="d-flex align-items-center justify-content-between gap-2">
+              {filters.type}
+            </Dropdown.Toggle>
+            <Dropdown.Menu>
+              <Dropdown.Item eventKey="Memory Usage">Memory Usage</Dropdown.Item>
+              <Dropdown.Item eventKey="CPU Usage">CPU Usage</Dropdown.Item>
+              <Dropdown.Item eventKey="Issues">Issues</Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
+        }
+      />
       <div className="data-card mb-4">
-        <div className="data-toolbar justify-content-between">
-          <div className="d-flex align-items-center gap-3">
-            <button
-              onClick={() => navigate(-1)}
-              className="btn btn-outline-secondary d-flex align-items-center gap-2"
-            >
-              <FiArrowLeft />
-              {t('common.back')}
-            </button>
-            <div>
-              <h4 className="mb-0 fw-bold">{t('metrics.title')}</h4>
-              {batchId && (
-                <div className="small text-muted mt-1">
-                  Batch &middot;{" "}
-                  <span className="ds-mono" title={batchId}>
-                    {batchId.length <= 24 ? batchId : batchId.slice(0, 8) + '…' + batchId.slice(-6)}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="d-flex gap-3">
-            {/* Type Filter */}
-            <Dropdown
-              onSelect={(value) => handleFilterChange("type", value)}
-              className="filter-dropdown"
-            >
-              <Dropdown.Toggle variant="light" className="d-flex align-items-center justify-content-between gap-2">
-                {filters.type}
-              </Dropdown.Toggle>
-              <Dropdown.Menu className="shadow-sm border-0">
-                <Dropdown.Item eventKey="Memory Usage">
-                  Memory Usage
-                </Dropdown.Item>
-                <Dropdown.Item eventKey="CPU Usage">
-                  CPU Usage
-                </Dropdown.Item>
-                <Dropdown.Item eventKey="Issues">
-                  Issues
-                </Dropdown.Item>
-              </Dropdown.Menu>
-            </Dropdown>
-          </div>
-        </div>
-
         {/* What SerOps found, above the charts of the points it found it in.
           * Driven by metrics_summary, which survives the raw-point retention
           * trim — so the findings outlive the chart rather than disappearing
@@ -291,14 +266,14 @@ const Metrics = () => {
         <div className="p-4" ref={memorySectionRef}>
           {memoryMetrics.length > 0 && (
             <div>
-              <h5 className="mb-4 text-secondary fw-bold">
+              <h2 className="metrics-section-title">
                 {t('metrics.memoryUsage')}
-              </h5>
+              </h2>
               <Row className="g-4 align-items-stretch mb-5">
                 <Col md={8}>
-                  <Card className="h-100 border-0 shadow-sm bg-light">
+                  <Card className="h-100 metrics-chart-card">
                     <Card.Body>
-                      <h6 className="text-muted mb-3 fw-bold text-uppercase small">{t('metrics.memoryUsageOverTime')}</h6>
+                      <h3 className="metrics-card-title">{t('metrics.memoryUsageOverTime')}</h3>
                       <div style={{ height: "300px" }}>
                         <ResponsiveContainer width="100%" height={250}>
                           <AreaChart
@@ -399,9 +374,9 @@ const Metrics = () => {
                 </Col>
 
                 <Col md={4}>
-                  <Card className="h-100 border-0 shadow-sm bg-light">
+                  <Card className="h-100 metrics-chart-card">
                     <Card.Body className="d-flex flex-column justify-content-center align-items-center">
-                      <h6 className="text-muted mb-4 fw-bold text-uppercase small">{t('metrics.averageUsage')}</h6>
+                      <h3 className="metrics-card-title mb-3">{t('metrics.averageUsage')}</h3>
                       <div className="text-center">
                         <div
                           style={{
@@ -446,14 +421,14 @@ const Metrics = () => {
 
           {cpuMetrics.length > 0 && (
             <div ref={cpuSectionRef} className="pt-4 border-top">
-              <h5 className="mb-4 text-secondary fw-bold">
+              <h2 className="metrics-section-title">
                 {t('metrics.cpuUsage')}
-              </h5>
+              </h2>
               <Row className="g-4 align-items-stretch">
                 <Col md={8}>
-                  <Card className="h-100 border-0 shadow-sm bg-light">
+                  <Card className="h-100 metrics-chart-card">
                     <Card.Body>
-                      <h6 className="text-muted mb-3 fw-bold text-uppercase small">{t('metrics.cpuUsageOverTime')}</h6>
+                      <h3 className="metrics-card-title">{t('metrics.cpuUsageOverTime')}</h3>
                       <div style={{ height: "300px" }}>
                         <ResponsiveContainer width="100%" height={250}>
                           <AreaChart
@@ -545,9 +520,9 @@ const Metrics = () => {
                 </Col>
 
                 <Col md={4}>
-                  <Card className="h-100 border-0 shadow-sm bg-light">
+                  <Card className="h-100 metrics-chart-card">
                     <Card.Body className="d-flex flex-column justify-content-center align-items-center">
-                      <h6 className="text-muted mb-4 fw-bold text-uppercase small">{t('metrics.averageUsage')}</h6>
+                      <h3 className="metrics-card-title mb-3">{t('metrics.averageUsage')}</h3>
                       <div className="text-center">
                         <div
                           style={{

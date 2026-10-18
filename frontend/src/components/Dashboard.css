@@ -25,45 +25,126 @@
     min-width: 0;
     max-width: 100%;
     overflow-x: hidden;
-    transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.dashboard-main.expanded {
-    margin-left: 300px;
-    /* 280px sidebar + 20px gap */
+    margin-left: var(--sidebar-w, 232px);
+    transition: margin-left 0.2s ease;
 }
 
 .dashboard-main.collapsed {
-    margin-left: 100px;
-    /* 80px sidebar + 20px gap */
+    margin-left: 64px;
 }
 
-/* On small screens, the sidebar is likely overlapping or different behavior */
 @media (max-width: 860px) {
-
     .dashboard-main.expanded,
     .dashboard-main.collapsed {
         margin-left: 0;
     }
 }
 
-.dashboard-content {
-    flex: 1;
-    padding: var(--space-8);
-    max-width: 1400px;
-    margin: 0 auto;
-    width: 100%;
-    animation: fadeIn 0.4s ease;
-}
-
+/* Pages use the full width, like Grafana, Datadog or Sentry: tables and
+   dashboards get the room. Same 32 px gutters as the top bar, so the page
+   starts under the Env picker and ends under the avatar. Forms cap their
+   own width (settings, profile) and stay left-aligned. */
+.dashboard-content,
 .dashboard-outlet {
     flex: 1;
-    padding: var(--space-8);
-    max-width: 1400px;
-    margin: 0 auto;
     width: 100%;
-    animation: fadeIn 0.4s ease;
+    padding: 24px 32px 48px;
 }
+.dashboard-outlet:empty { display: none; }
+
+@media (max-width: 767px) {
+    .dashboard-content,
+    .dashboard-outlet {
+        padding: 16px 16px 32px;
+    }
+}
+
+/* ============ TOP BAR ============ */
+
+.app-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: var(--topbar-h, 56px);
+    padding: 8px 32px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-default);
+}
+.app-topbar-spacer { flex: 1 1 16px; }
+.app-topbar-menu { display: none; }
+@media (max-width: 860px) {
+    .app-topbar { padding: 8px 16px; }
+    .app-topbar-menu { display: inline-flex; }
+}
+.app-topbar-icon {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.app-topbar-icon:hover { background: var(--tone-gray-soft); color: var(--text-primary); }
+.app-topbar-icon:focus-visible,
+.app-picker-toggle:focus-visible,
+.app-topbar-user:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.app-topbar-badge {
+    position: absolute;
+    top: 1px;
+    right: -3px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--tone-red-solid);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 17px;
+    text-align: center;
+    border: 2px solid var(--bg-card);
+    box-sizing: content-box;
+}
+.app-topbar-user {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 2px;
+    border-radius: 999px;
+    cursor: pointer;
+}
+.app-topbar-user::after { display: none; }
+.app-topbar-user .account-user-name { font-size: 14px; font-weight: 500; color: var(--text-primary); padding-left: 8px; }
+
+.app-picker-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font: 500 13px/1 var(--font-sans);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.app-picker-toggle:hover { border-color: var(--border-hover); }
+.app-picker-toggle::after { display: none; }
+.app-picker-toggle svg { color: var(--text-tertiary); }
+.app-picker-key { color: var(--text-tertiary); font-weight: 400; }
+.app-picker-check { display: inline-flex; width: 18px; color: var(--tone-brand-text); }
+.app-picker .dropdown-item { display: flex; align-items: center; }
 
 /* ============ HEADER ============ */
 
@@ -798,3 +879,103 @@
 .legend-item svg {
     font-size: var(--text-lg);
 }
+
+/* =============================================================
+   Overview v2 — key numbers and cards share the design-system look
+   ============================================================= */
+.overview-numbers {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.overview-numbers > * { min-width: 0; }
+.overview-split {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    align-items: flex-start;
+    margin-bottom: 32px;
+}
+.overview-split > .overview-main { flex: 999 1 520px; min-width: 0; }
+.overview-split > .overview-side { flex: 1 1 320px; min-width: 0; }
+.overview-section-title {
+    margin: 8px 0 16px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.metric-card,
+.chart-card {
+    border: 1px solid var(--border-default);
+    border-radius: 12px;
+    box-shadow: none;
+    transition: none;
+}
+.metric-card { padding: 16px 20px; gap: 8px; }
+.chart-card { padding: 20px; }
+.metric-card:hover,
+.chart-card:hover { transform: none; box-shadow: none; }
+.metric-card::before { display: none; }
+.metric-icon { width: 32px; height: 32px; border-radius: 8px; font-size: 15px; }
+.metric-value { font-size: 28px; font-weight: 600; letter-spacing: -0.01em; }
+.metric-label { font-size: 13px; }
+.metric-trend { padding: 0; background: none !important; font-size: 12px; }
+.metric-trend.positive { color: var(--tone-green-text); }
+.metric-trend.negative { color: var(--tone-red-text); }
+.metric-trend.neutral { color: var(--text-tertiary); }
+.chart-header { margin-bottom: 16px; }
+.chart-header h2 { font-size: 16px; font-weight: 600; margin-bottom: 2px; }
+.chart-icon { color: var(--text-tertiary); }
+.chart-subtitle { font-size: 13px; color: var(--text-tertiary); }
+.charts-grid { gap: 24px; }
+@media (max-width: 767px) {
+    .overview-numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .overview-numbers > :first-child { grid-column: 1 / -1; }
+}
+
+/* Live-demo notice above the top bar */
+.demo-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 4px 8px;
+    padding: 8px 16px;
+    background: var(--tone-amber-soft);
+    color: var(--tone-amber-text);
+    font-size: 13px;
+    font-weight: 500;
+    border-bottom: 1px solid var(--border-default);
+}
+.demo-banner a { color: inherit; font-weight: 600; text-decoration: underline; }
+
+/* Soft tones instead of saturated fills (health map, correlation stats) */
+.heatmap-tile { aspect-ratio: auto; min-height: 104px; box-shadow: none; border: 1px solid transparent; border-radius: 10px; }
+.heatmap-tile:hover { transform: none; box-shadow: none; border-color: currentColor; }
+.service-healthy { background-color: var(--tone-green-soft) !important; color: var(--tone-green-text) !important; }
+.service-degraded { background-color: var(--tone-amber-soft) !important; color: var(--tone-amber-text) !important; }
+.service-critical { background-color: var(--tone-red-soft) !important; color: var(--tone-red-text) !important; }
+.correlation-rate-badge,
+.corr-stat { background: var(--bg-sunken); border: 1px solid var(--border-default); box-shadow: none; }
+.app-topbar-icon.app-topbar-menu { display: none; }
+@media (max-width: 860px) { .app-topbar-icon.app-topbar-menu { display: inline-flex; } }
+
+/* Overview polish: one 24 px gap everywhere, columns of equal height,
+   cards in pairs, and room between the charts and the cluster list. */
+.overview-numbers { gap: 24px; }
+.overview-split { align-items: stretch; }
+.overview-split > .overview-side > .chart-card { height: 100%; }
+.overview-charts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.overview-charts > .chart-card { height: 100%; }
+.overview-charts + * { margin-top: 24px; }
+.health-card .health-title { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+@media (max-width: 1100px) {
+    .overview-charts { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 767px) {
+    .overview-numbers { gap: 12px; }
+}
+/* Chart legends: readable text; the swatch carries the colour. */
+.dashboard-content .recharts-legend-item-text { color: var(--text-secondary) !important; font-size: 12px; }

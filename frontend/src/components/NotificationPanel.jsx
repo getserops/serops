@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { FaBell, FaBullhorn, FaEye, FaEyeSlash, FaTimes, FaExclamationTriangle, FaTrash } from 'react-icons/fa';
+import { Bell, CheckCheck, CircleCheck, Mail, MailOpen, Trash2, TriangleAlert, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import NotificationService from "../services/notification.service";
+import PageHeader from './PageHeader';
 import './NotificationPanel.css';
 
 const noop = () => {};
@@ -146,22 +147,6 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
     }
   };
 
-  const getPriorityForType = (type) => {
-    switch (type) {
-      case 'critical_issue': return 'high';
-      case 'analysis_failed': return 'high';
-      default: return 'normal';
-    }
-  };
-
-  const getIconForType = (type) => {
-    switch (type) {
-      case 'critical_issue': return <FaExclamationTriangle />;
-      case 'analysis_failed': return <FaExclamationTriangle />;
-      default: return <FaBullhorn />;
-    }
-  };
-
   const formatTime = (dateString) => {
     const now = new Date();
     const date = new Date(dateString);
@@ -181,13 +166,12 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
     return true;
   });
 
-  const getCategoryColor = (category) => {
-    const colors = {
-      // Deep enough for white label text (AA) in both themes.
-      'critical_issue': '#c62828',
-      'analysis_failed': '#8a5a00'
-    };
-    return colors[category] || '#1d5fc4';
+  // One tone per kind, from the design tokens (works in both themes).
+  const getTone = (type) => {
+    if (type === 'critical_issue') return 'err';
+    if (type === 'analysis_failed') return 'warn';
+    if (type === 'investigation_done') return 'ok';
+    return 'neutral';
   };
 
   const getCategoryName = (type) => {
@@ -217,73 +201,57 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
     }
   };
 
-  if (loading) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        transition={{ duration: 0.3 }}
-        className={`notification-panel-overlay${variant === 'page' ? ' is-page' : ''}`}
-      >
-        <div style={{ padding: '2rem', textAlign: 'center' }}>
-          {t('notifications.panel.loading')}
-        </div>
-      </motion.div>
-    );
-  }
-
-  if (error) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        transition={{ duration: 0.3 }}
-        className={`notification-panel-overlay${variant === 'page' ? ' is-page' : ''}`}
-      >
-        <div style={{ padding: '2rem', textAlign: 'center', color: '#ff4d4f' }}>
-          {t('notifications.panel.error', { message: error })}
-        </div>
-      </motion.div>
-    );
-  }
-
-  return (
+  const isPage = variant === 'page';
+  const shell = (children) => (
     <motion.div
-      initial={{ opacity: 0, y: -20 }}
+      initial={{ opacity: 0, y: isPage ? 0 : -8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.3 }}
-      className={`notification-panel-overlay${variant === 'page' ? ' is-page' : ''}`}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.15 }}
+      className={`notification-panel-overlay${isPage ? ' is-page' : ''}`}
     >
-      {/* Header */}
-      <div className="notification-header">
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <div className="notification-icon-wrapper">
-            <FaBell />
-          </div>
-          <div>
-            <h3 className="notification-title">{t('notifications.panel.title')}</h3>
-            <p className="notification-subtitle">
-              <span className="notification-dot"></span>
-              {t('notifications.panel.unread', { total: shownUnread })}
-            </p>
-          </div>
-        </div>
-        {variant !== 'page' && (
-          <button
-            onClick={onClose}
-            className="notification-close-btn"
-            aria-label={t('common.close')}
-          >
-            <FaTimes />
-          </button>
-        )}
-      </div>
+      {children}
+    </motion.div>
+  );
 
-      {/* Action notice — surfaces backend refusal (demo read-only) or
-          a generic action failure so a click never silently no-ops. */}
+  const unreadLine = t('notifications.panel.unread', { total: shownUnread });
+  const header = isPage ? (
+    <PageHeader title={t('notifications.panel.title')} subtitle={unreadLine} />
+  ) : (
+    <div className="notification-header">
+      <div>
+        <h3 className="notification-title">{t('notifications.panel.title')}</h3>
+        <p className="notification-subtitle">{unreadLine}</p>
+      </div>
+      <button onClick={onClose} className="notification-close-btn" aria-label={t('common.close')}>
+        <X size={16} aria-hidden="true" />
+      </button>
+    </div>
+  );
+
+  if (loading || error) {
+    return shell(
+      <>
+        {header}
+        <div className={`notification-card notification-state${error ? ' is-error' : ''}`}>
+          {error ? t('notifications.panel.error', { message: error }) : t('notifications.panel.loading')}
+        </div>
+      </>
+    );
+  }
+
+  const filters = [
+    { value: 'all', label: t('notifications.panel.tabs.all') },
+    { value: 'unread', label: t('notifications.panel.tabs.unread') },
+    { value: 'read', label: t('notifications.panel.tabs.read') },
+  ];
+
+  return shell(
+    <>
+      {header}
+
+      {/* Surfaces a backend refusal (demo read-only) or a failed action,
+          so a click never silently does nothing. */}
       {actionNotice && (
         <div
           className={`notification-action-notice notification-action-notice--${actionNotice.kind}`}
@@ -296,170 +264,120 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
             className="notification-action-notice__close"
             aria-label={t('common.close')}
           >
-            <FaTimes />
+            <X size={14} aria-hidden="true" />
           </button>
         </div>
       )}
 
-      {/* Filter Bar */}
-      <div className="notification-filter-bar">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={() => setFilter('all')}
-              className={`notification-filter-btn ${filter === 'all' ? 'active' : ''}`}
-            >
-              <FaEye style={{ marginRight: '6px' }} /> {t('notifications.panel.tabs.all')}
-            </button>
-            <button
-              onClick={() => setFilter('unread')}
-              className={`notification-filter-btn ${filter === 'unread' ? 'active' : ''}`}
-            >
-              {t('notifications.panel.tabs.unread')}
-            </button>
-            <button
-              onClick={() => setFilter('read')}
-              className={`notification-filter-btn ${filter === 'read' ? 'active' : ''}`}
-            >
-              {t('notifications.panel.tabs.read')}
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button
-              onClick={markAllAsRead}
-              disabled={unreadCount === 0}
-              className="notification-action-btn"
-            >
-              {t('notifications.panel.markAllRead')}
-            </button>
-
-            {notifications.length > 0 && (
+      <div className="notification-card">
+        <div className="notification-filter-bar">
+          <div className="ds-segmented" role="tablist" aria-label={t('notifications.panel.title')}>
+            {filters.map((f) => (
               <button
-                onClick={removeAllNotifications}
-                className="notification-action-btn"
-                style={{ ':hover': { color: '#ff4d4f' } }}
+                key={f.value}
+                type="button"
+                role="tab"
+                aria-selected={filter === f.value}
+                className={`ds-choice-option ${filter === f.value ? 'is-checked' : ''}`}
+                onClick={() => setFilter(f.value)}
               >
-                <FaTrash style={{ marginRight: '4px' }} /> {t('notifications.panel.clearAll')}
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div className="notification-bulk">
+            <button
+              type="button"
+              onClick={markAllAsRead}
+              disabled={shownUnread === 0}
+              className="btn btn-sm ds-btn-ghost"
+            >
+              <CheckCheck size={14} aria-hidden="true" /> {t('notifications.panel.markAllRead')}
+            </button>
+            {notifications.length > 0 && (
+              <button type="button" onClick={removeAllNotifications} className="btn btn-sm ds-btn-ghost">
+                <Trash2 size={14} aria-hidden="true" /> {t('notifications.panel.clearAll')}
               </button>
             )}
           </div>
         </div>
-      </div>
 
-      {/* Notifications List */}
-      <div className="notification-list">
-        <AnimatePresence>
-          {filteredNotifications.length > 0 ? (
-            filteredNotifications.map((note) => (
-              <motion.div
-                key={note.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, x: -50 }}
-                transition={{ duration: 0.2 }}
-                className={`notification-item ${!note.is_read ? 'unread' : ''}`}
-                onClick={() => handleNotificationClick(note)}
-              >
-                {/* Unread indicator */}
-                {!note.is_read && (
-                  <div style={{
-                    position: 'absolute',
-                    right: '12px',
-                    top: '24px',
-                    width: '8px',
-                    height: '8px',
-                    backgroundColor: getCategoryColor(note.notification_type),
-                    borderRadius: '50%'
-                  }} />
-                )}
-
-                {/* Icon */}
-                <div className="notification-item-icon" style={{
-                  color: getCategoryColor(note.notification_type),
-                  backgroundColor: !note.is_read ? '#e6f7ff' : '#f5f5f5',
-                }}>
-                  {getIconForType(note.notification_type)}
-                </div>
-
-                {/* Content */}
-                <div className="notification-item-content">
-                  <div className="notification-item-header">
-                    <div>
-                      <h4 className="notification-item-title">
-                        {note.subject}
-                      </h4>
-                      <p className="notification-item-message">
-                        {note.message}
-                      </p>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleReadStatus(note.id, note.is_read);
-                        }}
-                        className="notification-action-btn"
-                        title={note.is_read ? t('notifications.panel.tooltips.markUnread') : t('notifications.panel.tooltips.markRead')}
-                      >
-                        {note.is_read ? <FaEyeSlash /> : <FaEye />}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeNotification(note.id);
-                        }}
-                        className="notification-action-btn"
-                        style={{ ':hover': { color: '#ff4d4f' } }}
-                        title={t('notifications.panel.tooltips.delete')}
-                      >
-                        <FaTimes />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="notification-item-footer">
-                    <span className="notification-time">
-                      {formatTime(note.created_at)}
+        <ul className="notification-list">
+          <AnimatePresence initial={false}>
+            {filteredNotifications.length > 0 ? (
+              filteredNotifications.map((note) => {
+                const tone = getTone(note.notification_type);
+                const Icon = tone === 'err' || tone === 'warn' ? TriangleAlert : tone === 'ok' ? CircleCheck : Bell;
+                return (
+                  <motion.li
+                    key={note.id}
+                    layout
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className={`notification-item ${!note.is_read ? 'unread' : ''}`}
+                  >
+                    <span className={`notification-item-icon tone-${tone}`} aria-hidden="true">
+                      <Icon size={16} />
                     </span>
-                    <span
-                      className="notification-badge"
-                      style={{ backgroundColor: getCategoryColor(note.notification_type) }}
+                    <button
+                      type="button"
+                      className="notification-item-content"
+                      onClick={() => handleNotificationClick(note)}
                     >
-                      {getCategoryName(note.notification_type)}
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
-            ))
-          ) : (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '200px',
-                color: '#bfbfbf'
-              }}
-            >
-              <FaBell style={{ fontSize: '2.5rem', marginBottom: '1rem' }} />
-              <p style={{ margin: 0, fontWeight: 500 }}>{t('notifications.panel.empty.title')}</p>
-              <p style={{ margin: 0, fontSize: '0.875rem' }}>
-                {filter === 'all'
-                  ? t('notifications.panel.empty.all')
-                  : filter === 'read'
-                    ? t('notifications.panel.empty.read')
-                    : t('notifications.panel.empty.unread')}
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                      <span className="notification-item-title">
+                        {!note.is_read && <span className="notification-unread-dot" aria-label={t('notifications.panel.tabs.unread')} />}
+                        {note.subject}
+                      </span>
+                      <span className="notification-item-message">{note.message}</span>
+                      <span className="notification-item-footer">
+                        <span className="notification-time">{formatTime(note.created_at)}</span>
+                        {tone !== 'neutral' && (
+                          <span className={`badge ds-chip ds-chip-${tone}`}>{getCategoryName(note.notification_type)}</span>
+                        )}
+                      </span>
+                    </button>
+                    <div className="notification-item-actions">
+                      <button
+                        type="button"
+                        onClick={() => toggleReadStatus(note.id, note.is_read)}
+                        className="notification-icon-btn"
+                        title={note.is_read ? t('notifications.panel.tooltips.markUnread') : t('notifications.panel.tooltips.markRead')}
+                        aria-label={note.is_read ? t('notifications.panel.tooltips.markUnread') : t('notifications.panel.tooltips.markRead')}
+                      >
+                        {note.is_read ? <MailOpen size={15} aria-hidden="true" /> : <Mail size={15} aria-hidden="true" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeNotification(note.id)}
+                        className="notification-icon-btn"
+                        title={t('notifications.panel.tooltips.delete')}
+                        aria-label={t('notifications.panel.tooltips.delete')}
+                      >
+                        <X size={15} aria-hidden="true" />
+                      </button>
+                    </div>
+                  </motion.li>
+                );
+              })
+            ) : (
+              <li className="notification-empty">
+                <Bell size={28} aria-hidden="true" />
+                <p className="notification-empty-title">{t('notifications.panel.empty.title')}</p>
+                <p className="notification-empty-sub">
+                  {filter === 'all'
+                    ? t('notifications.panel.empty.all')
+                    : filter === 'read'
+                      ? t('notifications.panel.empty.read')
+                      : t('notifications.panel.empty.unread')}
+                </p>
+              </li>
+            )}
+          </AnimatePresence>
+        </ul>
       </div>
-    </motion.div>
+    </>
   );
 };
 

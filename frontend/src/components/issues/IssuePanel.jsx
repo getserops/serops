@@ -27,8 +27,11 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
 
 export function StatusChip({ status, t }) {
   const s = (status || "").toUpperCase();
-  const tone = s === "OPEN" ? "ds-chip-err" : s === "MUTED" ? "ds-chip-warn" : s === "RESOLVED" ? "ds-chip-ok" : "ds-chip-neutral";
-  return <span className={`ds-chip ${tone}`}>{t(`issues.statusLabel.${s.toLowerCase() || "unknown"}`, { defaultValue: status || "—" })}</span>;
+  // One status scale everywhere: open = warning, acknowledged = in
+  // progress, resolved = healthy, muted = neutral, regressed = critical.
+  const TONES = { OPEN: "ds-chip-warn", ACKNOWLEDGED: "ds-chip-info", RESOLVED: "ds-chip-ok", REGRESSED: "ds-chip-err" };
+  const tone = TONES[s] || "ds-chip-neutral";
+  return <span className={`ds-chip ds-dot ${tone}`}>{t(`issues.statusLabel.${s.toLowerCase() || "unknown"}`, { defaultValue: status || "—" })}</span>;
 }
 
 /**

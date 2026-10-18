@@ -13,6 +13,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import PageHeader from '../PageHeader';
 import { Button, Modal, Form, Spinner, Table, Alert, Badge } from 'react-bootstrap';
 import {
     FaServer, FaPlus, FaEdit, FaTrash, FaExclamationTriangle,
@@ -134,17 +135,15 @@ const ClusterSettings = () => {
 
     return (
         <div className="settings-section">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-                <h3 className="mb-0">
-                    <FaServer className="me-2 text-primary" />
-                    {t('clusters.title')}
-                </h3>
-                <Button variant="primary" onClick={openCreate}>
-                    <FaPlus className="me-1" /> {t('clusters.new')}
-                </Button>
-            </div>
-
-            <p className="text-muted mb-4">{t('clusters.subtitle')}</p>
+            <PageHeader
+                title={t('clusters.title')}
+                subtitle={t('clusters.subtitle')}
+                actions={
+                    <Button variant="primary" onClick={openCreate}>
+                        <FaPlus className="me-1" /> {t('clusters.new')}
+                    </Button>
+                }
+            />
 
             {error && <Alert variant="danger">{error}</Alert>}
 
@@ -159,7 +158,7 @@ const ClusterSettings = () => {
                     <p className="small">{t('clusters.emptyHint')}</p>
                 </div>
             ) : (
-                <Table hover responsive className="table-stack">
+                <Table hover responsive className="table-stack settings-table clusters-table">
                     <thead>
                         <tr>
                             <th>{t('clusters.name')}</th>

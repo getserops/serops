@@ -278,3 +278,17 @@
     text-decoration: none;
 }
 .deploy-investigate:hover { text-decoration: underline; }
+
+/* v2: a list with separators, no nested cards or inner scroll */
+.deployments-card .deployments-list { gap: 0; max-height: none; overflow: visible; padding-right: 0; margin: 0 -20px; }
+.deployments-card .deployment-item {
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--border-default);
+    border-radius: 0;
+    padding: 12px 20px;
+}
+.deployments-card .deployment-item:hover { transform: none; box-shadow: none; background: var(--bg-sunken); }
+.success-rate-good { background: var(--tone-green-soft); color: var(--tone-green-text); }
+.success-rate-warning { background: var(--tone-amber-soft); color: var(--tone-amber-text); }
+.success-rate-poor { background: var(--tone-red-soft); color: var(--tone-red-text); }

@@ -3,6 +3,7 @@ import "./Login.css";
 import { useNavigate, useParams } from "react-router-dom";
 import { FaEnvelope } from "react-icons/fa";
 import AuthService from "../services/auth.service";
+import BrandMark from './BrandMark';
 
 function Invitation() {
   const [error, setError] = useState('');
@@ -36,7 +37,7 @@ function Invitation() {
       <div className="login-form-panel">
         <div className="form-container">
           <div className="form-header">
-            <img src="/assets/images/Serops-Logo.png" alt="SerOps" className="form-logo" />
+            <BrandMark className="form-logo" />
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
               <FaEnvelope size={36} style={{ color: 'var(--primary-500)' }} />
             </div>

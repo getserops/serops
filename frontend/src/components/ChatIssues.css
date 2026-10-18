@@ -757,3 +757,29 @@
   text-decoration: none;
 }
 .chat-investigate-link:hover { text-decoration: underline; }
+
+/* v2 · the chat fills the content area as one card, like the rest */
+:is(html, :root[data-theme]) .chat-page-wrapper { padding: 0; background: transparent; min-height: 0; }
+:is(html, :root[data-theme]) .chat-container-modern {
+  height: calc(100vh - var(--topbar-h, 56px) - 64px);
+  min-height: 520px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: none;
+}
+:is(html, :root[data-theme]) .chat-header { padding: 12px 16px; background: transparent; border-bottom: 1px solid var(--border-default); }
+.chat-header-left { gap: 10px; }
+.chat-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--text-primary); }
+:is(html, :root[data-theme]) .history-toggle-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0;
+  border: 1px solid var(--border-default); border-radius: 8px;
+  background: var(--bg-card); color: var(--text-secondary);
+}
+:is(html, :root[data-theme]) .history-toggle-btn:hover { color: var(--text-primary); border-color: var(--border-hover); }
+:is(html, :root[data-theme]) .chat-messages-area { background: var(--bg-sunken); }
+@media (max-width: 767px) {
+  :is(html, :root[data-theme]) .chat-container-modern { height: calc(100vh - var(--topbar-h, 56px) - 32px); }
+}
+:is(html, :root[data-theme]) .chat-container-modern { max-width: none; }

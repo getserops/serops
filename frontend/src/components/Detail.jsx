@@ -10,6 +10,8 @@ import { PostOnboardingUpsells } from "./onboarding";
 import { isDemoUser } from "../utils/demo";
 import notificationService from "../services/notification.service";
 import PostmortemModal from "./PostmortemModal";
+import PageHeader from "./PageHeader";
+import BatchTimelineChart from "./BatchTimelineChart";
 import "./Detail.css";
 
 // Investigate prefilled with this batch's scope and window.
@@ -55,6 +57,36 @@ const severityChip = (severity) => {
     case 'INFO':     return 'ds-chip-info';
     default:         return 'ds-chip-neutral';
   }
+};
+
+// Every signal for this batch (deploys, metric anomalies, errors, CI/CD,
+// trace errors) on one time axis, with deploy-to-error arrows.
+const IncidentTimeline = ({ batchId }) => {
+  const { t } = useTranslation();
+  const [payload, setPayload] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    DataService.getBatchTimeline(batchId).then((d) => { if (!cancelled) setPayload(d); });
+    return () => { cancelled = true; };
+  }, [batchId]);
+  const events = payload?.events || [];
+  return (
+    <section className="ds-section incident-timeline" aria-labelledby="incident-tl">
+      <div className="ds-section-head">
+        <h2 className="ds-section-title" id="incident-tl">{t('detail.incident.timelineTitle')}</h2>
+        <Link to={`/dash/timeline/${batchId}`} className="ds-section-link">{t('detail.incident.openTimeline')}</Link>
+      </div>
+      <div className="incident-timeline-body">
+        {payload === null ? (
+          <div className="incident-muted" aria-busy="true">{t('common.loading')}</div>
+        ) : events.length === 0 ? (
+          <div className="incident-muted">{t('detail.incident.noTimeline')}</div>
+        ) : (
+          <BatchTimelineChart events={events} causalPairs={payload?.causal_pairs || []} />
+        )}
+      </div>
+    </section>
+  );
 };
 
 const Detail = () => {
@@ -397,27 +429,89 @@ const Detail = () => {
     600,
   );
 
+  // ---- Incident view model -------------------------------------------
+  const primary = _issuePrimary;
+  const _primaryTitle = primary?.description || primary?.error_target || null;
+  const incidentTitle = _cap(
+    _primaryTitle || _analysisSummary || (_looksLikeDictRepr ? null : _rawAnalysisText),
+    180,
+  );
+  // The narrative only adds something when it differs from the title.
+  const narrative = analysisText && analysisText !== incidentTitle ? analysisText : null;
+  const evidence = typeof primary?.reasoning === 'string'
+    ? primary.reasoning.split('\n').map((l) => l.replace(/^\s*\d+[.)]\s*/, '').trim()).filter(Boolean)
+    : (Array.isArray(primary?.reasoning) ? primary.reasoning.map(String) : []);
+  const confidence = (primary?.confidence || '').toUpperCase();
+  const CONFIDENCE_FILL = { HIGH: 88, MEDIUM: 60, LOW: 30 };
+  const CONFIDENCE_TONE = { HIGH: 'var(--tone-green-text)', MEDIUM: 'var(--tone-amber-text)', LOW: 'var(--text-tertiary)' };
+  const correlations = Array.isArray(primary?.correlation_summary) ? primary.correlation_summary : [];
+  const primarySeverity = (primary?.severity || '').toUpperCase();
+  const criticalCount = issues.filter((i) => (i.severity || '').toUpperCase() === 'CRITICAL').length;
+  const services = [...new Set(issues.map((i) => i.component).filter(Boolean))];
+  const environment = batchMeta?.data?.environment || primary?.environment || null;
+  const traceCount = batchMeta?.data?.traces?.trace_count || 0;
+  const codeCount = batchMeta?.data?.code_changes?.length || 0;
+  const status = issues.length === 0
+    ? { klass: 'ds-chip-ok', label: t('detail.incident.statusNoIssues') }
+    : unacknowledged.length > 0
+      ? { klass: primarySeverity === 'CRITICAL' ? 'ds-chip-err' : 'ds-chip-warn', label: t('detail.incident.statusOpen') }
+      : { klass: 'ds-chip-info', label: t('detail.incident.statusAcknowledged') };
+  const triggerLabel = batchMeta?.trigger === 'manual' || batchMeta?.trigger === 'alert'
+    ? t(`investigate.trigger.${batchMeta.trigger}`)
+    : sentinel.label;
+  const correlationLabel = (c) => {
+    if (c.type === 'commit') return t('detail.incident.corrCommit', { value: c.value });
+    if (c.type === 'metric') return t('detail.incident.corrMetric', { value: c.value });
+    if (c.type === 'cicd') return t('detail.incident.corrCicd', { value: c.value });
+    return String(c.value || c.type);
+  };
+
   return (
-    <div className="p-3 detail-page" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
-      {/* PR-D3 (2026-09-20): breadcrumb replaces the bottom-of-page
-          "Back to Data" button. Standard nav pattern; keeps the
-          bottom of the page for real content. */}
-      <nav aria-label="breadcrumb" className="mb-2" style={{ fontSize: 12 }}>
-        <ol className="breadcrumb mb-0" style={{ background: 'transparent', padding: 0 }}>
-          <li className="breadcrumb-item">
-            <Link to="/dash/data" style={{ textDecoration: 'none' }}>
-              {t('nav.data', 'Data')}
-            </Link>
-          </li>
-          <li
-            className="breadcrumb-item active ds-mono"
-            aria-current="page"
-            style={{ color: 'var(--text-tertiary)' }}
-          >
-            {batchId}
-          </li>
-        </ol>
-      </nav>
+    <div className="detail-page incident-page">
+      <PageHeader
+        crumbs={[
+          { label: t('nav.analyses'), to: '/dash/data' },
+          { label: batchId, mono: true },
+        ]}
+        title={batchMeta ? (incidentTitle || t('detail.incident.quietTitle')) : batchId}
+        badges={batchMeta && (
+          <>
+            <span className={`ds-chip ds-dot ${status.klass}`}>{status.label}</span>
+            {primary?.severity && <span className={`ds-chip ${severityChip(primary.severity)}`}>{primary.severity}</span>}
+          </>
+        )}
+        subtitle={batchMeta && (
+          <span className="incident-meta">
+            {services.length > 0 && <span className="ds-mono">{services.slice(0, 3).join(', ')}</span>}
+            {environment && <span>{environment}</span>}
+            <span>{triggerLabel}</span>
+            {batchMeta.analyzed_at && <span>{t('detail.incident.analysedAgo', { when: relTime(batchMeta.analyzed_at) })}</span>}
+          </span>
+        )}
+        actions={batchMeta && (
+          <>
+            <button type="button" className="ds-btn ds-btn-ghost" onClick={handleCopyLink}>
+              <FaLink size={12} aria-hidden="true" /> {t('detail.incident.copyLink')}
+            </button>
+            {batchMeta.project && !isDemoUser() && (
+              <Link to={rerunLink(batchMeta)} className="ds-btn ds-btn-secondary" title={t('investigate.rerunTitle')}>
+                {t('investigate.rerun')}
+              </Link>
+            )}
+            {unacknowledged.length > 0 && !isDemoUser() && (
+              <button type="button" className={`ds-btn ${analysisText ? 'ds-btn-secondary' : 'ds-btn-primary'}`} onClick={handleAcknowledgeAll} disabled={acking}
+                      title={t('detail.incident.acknowledgeTitle')}>
+                <FaBell size={12} aria-hidden="true" /> {t('detail.incident.acknowledge', { count: unacknowledged.length })}
+              </button>
+            )}
+            {analysisText && !isDemoUser() && (
+              <button type="button" className="ds-btn ds-btn-primary" onClick={() => setShowPostmortem(true)}>
+                <FaFileAlt size={12} aria-hidden="true" /> {t('detail.incident.postmortem')}
+              </button>
+            )}
+          </>
+        )}
+      />
 
       {/* Contextual "connect SCM / CI-CD" nudges — surfaced here
           rather than in the wizard because the aha-moment (after
@@ -425,100 +519,87 @@ const Detail = () => {
           to expanding the integration surface. */}
       <PostOnboardingUpsells />
 
-      {/* ============ PR-D · RCA hero ============
-          Renders the AI hypothesis + confidence + metadata + a
-          short issues panel above the logs table. Data comes from
-          the same /api/data/batches/<id>/ endpoint that already
-          feeds the logs — one extra parallel call, no new backend
-          work. Gracefully hidden when batchMeta hasn't loaded or
-          when the batch genuinely has no analysis (Sentinel QUIET
-          decision, etc). */}
       {batchMeta && (
-        <div className="ds-card ds-card-elevated" style={{ marginBottom: '1rem' }}>
-          <div className="ds-card-body detail-hero" style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
-            <div className="detail-hero-icon" style={{
-              width: 44, height: 44, borderRadius: 8,
-              background: 'hsl(230, 100%, 96%)',
-              color: 'var(--primary-600)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, fontSize: 20,
-            }}>
-              <FaBrain />
-            </div>
-            <div style={{ flexGrow: 1, minWidth: 0 }}>
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-                fontSize: 11, textTransform: 'uppercase',
-                letterSpacing: '0.12em', color: 'var(--text-tertiary)',
-                marginBottom: 6,
-              }}>
-                <span>AI hypothesis</span>
-                {batchMeta.trigger === 'manual' || batchMeta.trigger === 'alert' ? (
-                  <span className={`ds-chip ${batchMeta.trigger === 'alert' ? 'ds-chip-err' : 'ds-chip-brand'}`}>
-                    {t(`investigate.trigger.${batchMeta.trigger}`)}
-                  </span>
-                ) : (
-                  <span className={`ds-chip ${sentinel.klass}`}>{sentinel.label}</span>
-                )}
-                {batchMeta.model_name && <span className="ds-mono" style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--text-secondary)' }}>{batchMeta.model_name}</span>}
-                {batchMeta.analyzed_at && <span style={{ textTransform: 'none', letterSpacing: 0, marginLeft: 'auto' }}>{relTime(batchMeta.analyzed_at)}</span>}
-              </div>
-              {/* The incident is titled by the AI's hypothesis. */}
-              <h1 className="detail-hypothesis" style={{
-                fontSize: 18, fontWeight: 500, lineHeight: 1.5,
-                color: 'var(--text-primary)', marginBottom: 12,
-              }}>
-                {analysisText || (
-                  <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic', fontSize: 16 }}>
-                    Sentinel skipped AI analysis for this batch — signal was quiet.
-                  </span>
-                )}
-              </h1>
-              <div style={{
-                display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center',
-                fontSize: 12, color: 'var(--text-tertiary)',
-              }}>
-                {batchMeta.batch_id && (
-                  <span className="ds-mono" style={{ color: 'var(--text-secondary)' }}>{batchMeta.batch_id}</span>
-                )}
-                {typeof batchMeta.logs_analyzed === 'number' && (
-                  <span>{batchMeta.logs_analyzed} logs analysed</span>
-                )}
-                {typeof batchMeta.token_count === 'number' && batchMeta.token_count > 0 && (
-                  <span>{batchMeta.token_count.toLocaleString()} tokens</span>
-                )}
-                {batchMeta.data?.environment && (
-                  <span className="ds-chip ds-chip-neutral">{batchMeta.data.environment}</span>
-                )}
-                {(batchMeta.sentinel_triggers || []).slice(0, 3).map((tr) => (
-                  <span key={tr} className="ds-chip ds-chip-warn">{tr}</span>
-                ))}
-              </div>
-              <div className="detail-incident-actions">
-                {unacknowledged.length > 0 && !isDemoUser() && (
-                  <button type="button" className="ds-btn ds-btn-primary ds-btn-sm" onClick={handleAcknowledgeAll} disabled={acking}
-                          title={t('detail.incident.acknowledgeTitle')}>
-                    <FaBell size={11} aria-hidden="true" /> {t('detail.incident.acknowledge', { count: unacknowledged.length })}
-                  </button>
-                )}
-                <button type="button" className="ds-btn ds-btn-secondary ds-btn-sm" onClick={handleCopyLink}>
-                  <FaLink size={11} aria-hidden="true" /> {t('detail.incident.copyLink')}
-                </button>
-                {analysisText && !isDemoUser() && (
-                  <button type="button" className="ds-btn ds-btn-secondary ds-btn-sm" onClick={() => setShowPostmortem(true)}>
-                    <FaFileAlt size={11} aria-hidden="true" /> {t('detail.incident.postmortem')}
-                  </button>
-                )}
-                {batchMeta.project && !isDemoUser() && (
-                  <Link to={rerunLink(batchMeta)} className="ds-btn ds-btn-secondary ds-btn-sm" title={t('investigate.rerunTitle')}>
-                    {t('investigate.rerun')}
-                  </Link>
+        <div className="incident-grid">
+          <div className="incident-main">
+            {/* Root cause: the AI's narrative, how sure it is, and the
+                evidence chain it followed. */}
+            <section className="ds-section incident-rootcause" aria-labelledby="incident-rc">
+              <div className="ds-section-head">
+                <h2 className="ds-section-title" id="incident-rc">
+                  <FaBrain aria-hidden="true" style={{ color: 'var(--tone-brand-text)' }} /> {t('detail.incident.rootCause')}
+                </h2>
+                {confidence && CONFIDENCE_FILL[confidence] && (
+                  <div className="incident-confidence">
+                    {t('detail.incident.confidence')}
+                    <div className="incident-confidence-bar" role="img"
+                         aria-label={`${t('detail.incident.confidence')}: ${primary.confidence_display || confidence}`}>
+                      <div style={{ width: `${CONFIDENCE_FILL[confidence]}%`, background: CONFIDENCE_TONE[confidence] }} />
+                    </div>
+                    <strong>{primary.confidence_display || confidence}</strong>
+                  </div>
                 )}
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="incident-rootcause-body">
+                {narrative ? (
+                  <p className="incident-narrative">{narrative}</p>
+                ) : !analysisText && (
+                  <p className="incident-narrative incident-muted">{t('detail.incident.quietBody')}</p>
+                )}
+                {evidence.length > 0 && (
+                  <>
+                    <h3 className="incident-label">{t('detail.incident.evidence')}</h3>
+                    <ol className="incident-steps">
+                      {evidence.map((step, i) => (
+                        <li key={i}><span className="incident-step-n" aria-hidden="true">{i + 1}</span><span>{step}</span></li>
+                      ))}
+                    </ol>
+                  </>
+                )}
+                {correlations.length > 0 && (
+                  <div className="incident-correlations">
+                    {correlations.map((c, i) => (
+                      <span key={i} className="ds-chip ds-chip-neutral">{correlationLabel(c)}</span>
+                    ))}
+                  </div>
+                )}
+                <div className="incident-model">
+                  {batchMeta.model_name && <span className="ds-mono">{batchMeta.model_name}</span>}
+                  {typeof batchMeta.logs_analyzed === 'number' && <span>{t('detail.incident.logsAnalysed', { count: batchMeta.logs_analyzed })}</span>}
+                  {typeof batchMeta.token_count === 'number' && batchMeta.token_count > 0 && (
+                    <span>{t('detail.incident.tokens', { count: batchMeta.token_count, formatted: batchMeta.token_count.toLocaleString() })}</span>
+                  )}
+                  {(batchMeta.sentinel_triggers || []).slice(0, 3).map((tr) => (
+                    <span key={tr} className="ds-chip ds-chip-warn">{tr}</span>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <IncidentTimeline batchId={batchId} />
+
+            {primary?.recommendation && (
+              <section className="ds-section" aria-labelledby="incident-fix">
+                <div className="ds-section-head">
+                  <h2 className="ds-section-title" id="incident-fix">{t('detail.incident.suggestedFix')}</h2>
+                  {batchMeta.project && !isDemoUser() && (
+                    <Link to={rerunLink(batchMeta)} className="ds-btn ds-btn-secondary ds-btn-sm">{t('investigate.rerun')}</Link>
+                  )}
+                </div>
+                <p className="incident-fix">{primary.recommendation}</p>
+                {Array.isArray(primary.linked_commits) && primary.linked_commits.length > 0 && (
+                  <ul className="incident-commits">
+                    {primary.linked_commits.slice(0, 3).map((c, i) => (
+                      <li key={i}>
+                        <span className="ds-mono">{String(c?.sha || c).slice(0, 8)}</span>
+                        {c?.message && <span>{c.message}</span>}
+                        {c?.author && <span className="incident-muted">{c.author}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
 
       {/* ============ Compare panel (RCA audit #11, 2026-09-20) ============
           Surfaces analysis_history entries as a horizontally-scrollable
@@ -687,6 +768,38 @@ const Detail = () => {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+          </div>
+
+          <aside className="incident-rail" aria-label={t('detail.incident.details')}>
+            <section className="ds-section incident-rail-card">
+              <h2 className="incident-rail-title">{t('detail.incident.impact')}</h2>
+              <div className="incident-stats">
+                <div><strong>{issues.length}</strong><span>{t('detail.incident.issuesFound', { count: issues.length })}</span></div>
+                <div><strong>{criticalCount}</strong><span>{t('detail.incident.critical')}</span></div>
+              </div>
+              {services.length > 0 && <div className="ds-kv"><span>{t('detail.incident.services')}</span><span className="ds-mono">{services.join(', ')}</span></div>}
+              {environment && <div className="ds-kv"><span>{t('detail.incident.environment')}</span><span>{environment}</span></div>}
+              {typeof batchMeta.logs_analyzed === 'number' && <div className="ds-kv"><span>{t('detail.incident.logs')}</span><span>{batchMeta.logs_analyzed.toLocaleString()}</span></div>}
+            </section>
+            <section className="ds-section incident-rail-card">
+              <h2 className="incident-rail-title">{t('detail.incident.response')}</h2>
+              <div className="ds-kv"><span>{t('detail.incident.status')}</span><span><span className={`ds-chip ds-dot ${status.klass}`}>{status.label}</span></span></div>
+              <div className="ds-kv"><span>{t('detail.incident.trigger')}</span><span>{triggerLabel}</span></div>
+              {batchMeta.model_name && <div className="ds-kv"><span>{t('detail.incident.model')}</span><span className="ds-mono">{batchMeta.model_name}</span></div>}
+              {batchMeta.analyzed_at && <div className="ds-kv"><span>{t('detail.incident.analysed')}</span><span>{relTime(batchMeta.analyzed_at)}</span></div>}
+            </section>
+            <section className="ds-section incident-rail-card">
+              <h2 className="incident-rail-title">{t('detail.incident.related')}</h2>
+              <div className="ds-kv"><Link to={`/dash/issues/${batchId}`}>{t('detail.incident.allIssues')}</Link><span>{issues.length}</span></div>
+              <div className="ds-kv"><Link to={`/dash/metrics/${batchId}`}>{t('detail.metrics')}</Link><span /></div>
+              <div className="ds-kv"><Link to={`/dash/traces/batch/${batchId}`}>{t('detail.traces')}</Link><span>{traceCount || ''}</span></div>
+              <div className="ds-kv"><Link to={`/dash/code-changes/${batchId}`}>{t('detail.codeChanges')}</Link><span>{codeCount || ''}</span></div>
+              <div className="ds-kv"><Link to={`/dash/timeline/${batchId}`}>{t('detail.timeline')}</Link><span /></div>
+            </section>
+          </aside>
         </div>
       )}
 
@@ -928,10 +1041,10 @@ const Detail = () => {
           <tbody>
             {paginatedData.map((item) => (
               <tr key={item.id}>
-                <td data-label={t('detail.colTimestamp', 'Timestamp')} style={{ padding: "0.5rem", fontSize: "13px", whiteSpace: "nowrap", color: "var(--text-secondary)" }}>
+                <td data-label={t('detail.colTimestamp', 'Timestamp')} style={{ fontSize: "13px", whiteSpace: "nowrap", color: "var(--text-secondary)" }}>
                   {item.timestamp}
                 </td>
-                <td data-label={t('detail.colLevel', 'Level')} style={{ padding: "0.5rem", fontSize: "13px" }}>
+                <td data-label={t('detail.colLevel', 'Level')} style={{ fontSize: "13px" }}>
                   <span className={`ds-chip ${
                     (item.type || '').toLowerCase() === 'error' ? 'ds-chip-err'
                       : (item.type || '').toLowerCase() === 'warning' ? 'ds-chip-warn'
@@ -940,11 +1053,11 @@ const Detail = () => {
                     {(item.type || 'info').toUpperCase()}
                   </span>
                 </td>
-                <td data-label={t('detail.colService', 'Service')} style={{ padding: "0.5rem", fontSize: "13px", color: "var(--text-secondary)" }}>
+                <td data-label={t('detail.colService', 'Service')} style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
                   {item.serviceName || '—'}
                 </td>
                 <td
-                  style={{ padding: "0.5rem", fontSize: "13px", textAlign: "left" }}
+                  style={{ fontSize: "13px", textAlign: "left" }}
                   className="align-middle"
                 >
                   {/* Icon retired 2026-09-21: LEVEL column now owns

@@ -3,11 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Table, Button, Modal, Form, Badge, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
-import { FaUserPlus, FaEdit, FaTrash, FaEnvelope, FaUsers, FaUserShield, FaUserFriends, FaUserCog } from 'react-icons/fa';
+import { FaUserPlus, FaEdit, FaTrash, FaEnvelope, FaUserShield, FaUserFriends, FaUserCog } from 'react-icons/fa';
 import { OrganisationService } from '../services/organisation.service';
 import { canManageUsers, getRoleDisplayName, getRoleColor } from '../utils/permissions';
 import CollapsibleSection from './settings/CollapsibleSection';
 import './settings/SettingsLayout.css';
+import PageHeader from './PageHeader';
 
 const TeamManagement = ({ embedded = false }) => {
     const { t } = useTranslation();
@@ -124,26 +125,18 @@ const TeamManagement = ({ embedded = false }) => {
 
     const content = (
         <div className="settings-section">
-            <div className="settings-header">
-                <div className="settings-icon-wrapper primary">
-                    <FaUsers />
-                </div>
-                <div>
-                    <h2>{t('team.title')}</h2>
-                    <p>{t('team.subtitle')}</p>
-                </div>
-                <div className="ms-auto">
-                    <button
-                        className="btn btn-primary d-flex align-items-center gap-2"
-                        onClick={() => handleOpenModal('add')}
-                        style={{ borderRadius: '8px', padding: '0.6rem 1.2rem' }}
-                    >
+            <PageHeader
+                title={t('team.title')}
+                subtitle={t('team.subtitle')}
+                actions={
+                    <button className="btn btn-primary" onClick={() => handleOpenModal('add')}>
                         <FaUserPlus /> {t('team.inviteUser')}
                     </button>
-                </div>
-            </div>
+                }
+            />
 
             <CollapsibleSection
+                className="ds-settings-section-flush"
                 title={t('team.membersList') || "Team Members"}
                 description={t('team.membersDesc') || "Manage your team members and roles"}
                 defaultExpanded={true}
@@ -169,11 +162,11 @@ const TeamManagement = ({ embedded = false }) => {
                         <Table hover responsive className="mb-0 align-middle table-stack">
                             <thead className="bg-light">
                                 <tr>
-                                    <th className="ps-4 py-3 border-0 text-uppercase small fw-bold text-muted">{t('team.userColumn')}</th>
-                                    <th className="py-3 border-0 text-uppercase small fw-bold text-muted">{t('team.email')}</th>
-                                    <th className="py-3 border-0 text-uppercase small fw-bold text-muted">{t('team.role')}</th>
-                                    <th className="py-3 border-0 text-uppercase small fw-bold text-muted">{t('team.status')}</th>
-                                    <th className="text-end pe-4 py-3 border-0 text-uppercase small fw-bold text-muted">{t('team.actions')}</th>
+                                    <th className="ps-4 py-3 border-0">{t('team.userColumn')}</th>
+                                    <th className="py-3 border-0">{t('team.email')}</th>
+                                    <th className="py-3 border-0">{t('team.role')}</th>
+                                    <th className="py-3 border-0">{t('team.status')}</th>
+                                    <th className="text-end pe-4 py-3 border-0">{t('team.actions')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -181,14 +174,11 @@ const TeamManagement = ({ embedded = false }) => {
                                     <tr key={member.id}>
                                         <td className="ps-4">
                                             <div className="d-flex align-items-center">
-                                                <div
-                                                    className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3"
-                                                    style={{ width: 40, height: 40, fontSize: 16, fontWeight: 600 }}
-                                                >
-                                                    {member.first_name?.[0]}{member.last_name?.[0]}
+                                                <div className="team-avatar me-3" aria-hidden="true">
+                                                    {(`${member.first_name?.[0] || ''}${member.last_name?.[0] || ''}` || member.email?.[0] || '?').toUpperCase()}
                                                 </div>
                                                 <div>
-                                                    <div className="fw-medium text-dark">{member.first_name} {member.last_name}</div>
+                                                    <div className="fw-medium text-dark">{`${member.first_name || ''} ${member.last_name || ''}`.trim() || member.email}</div>
                                                     <small className="text-muted">{member.phone || t('team.noPhone')}</small>
                                                 </div>
                                             </div>

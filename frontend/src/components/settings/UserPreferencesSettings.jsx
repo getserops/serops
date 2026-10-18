@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Button, Spinner, Badge, Card, ListGroup } from 'react-bootstrap';
 import {
-    FaUser, FaBell, FaMoon, FaEnvelope, FaClock, FaProjectDiagram,
+    FaBell, FaMoon, FaEnvelope, FaClock, FaProjectDiagram,
     FaCheck, FaTimes, FaPlus, FaTrash
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
@@ -15,6 +15,7 @@ import NotificationService from '../../services/notification.service';
 import { ProjectService } from '../../services/project.service';
 import CollapsibleSection from './CollapsibleSection';
 import './SettingsLayout.css';
+import PageHeader from '../PageHeader';
 
 const TIMEZONE_OPTIONS = [
     'UTC', 'America/New_York', 'America/Los_Angeles', 'America/Chicago',
@@ -139,15 +140,7 @@ const UserPreferencesSettings = () => {
 
     return (
         <div className="settings-section">
-            <div className="settings-header">
-                <div className="settings-icon-wrapper primary">
-                    <FaUser />
-                </div>
-                <div>
-                    <h2>{t('preferences.title')}</h2>
-                    <p>{t('preferences.subtitle')}</p>
-                </div>
-            </div>
+            <PageHeader title={t('preferences.title')} subtitle={t('preferences.subtitle')} />
 
             {/* Channel Preferences */}
             <CollapsibleSection
@@ -208,7 +201,7 @@ const UserPreferencesSettings = () => {
 
                 <div className="toggle-item large">
                     <div className="toggle-label">
-                        <span className="text-warning"><FaBell className="me-2" />{t('preferences.severity.warnings')}</span>
+                        <span className="settings-tone-warn"><FaBell className="me-2" />{t('preferences.severity.warnings')}</span>
                         <small>{t('preferences.severity.warningsHint')}</small>
                     </div>
                     <label className="settings-toggle-switch">
@@ -396,9 +389,9 @@ const UserPreferencesSettings = () => {
                 </ListGroup>
             </CollapsibleSection>
 
-            <div className="d-flex justify-content-end mt-4">
+            <div className="settings-page-actions">
                 <button
-                    className="settings-save-btn text-white"
+                    className="btn btn-primary"
                     onClick={handleSavePreferences}
                     disabled={saving}
                 >

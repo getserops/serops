@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import PageHeader from '../PageHeader';
 import { Button, Modal, Form, Spinner, Table, Alert, Badge } from 'react-bootstrap';
 import {
     FaBell, FaPlus, FaEdit, FaTrash, FaCheckCircle, FaTimesCircle, FaPaperPlane,
@@ -268,19 +269,18 @@ const IncidentChannelsSettings = () => {
 
     return (
         <div className="settings-section">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-                <h3 className="mb-0">
-                    <FaBell className="me-2 text-primary" />
-                    {t('incidentChannels.title')}
-                </h3>
-                <div className="d-flex gap-2">
-                    <AlertIngestSecretButton />
-                    <Button variant="primary" onClick={openCreate}>
-                        <FaPlus className="me-1" /> {t('incidentChannels.new')}
-                    </Button>
-                </div>
-            </div>
-            <p className="text-muted mb-4">{t('incidentChannels.subtitle')}</p>
+            <PageHeader
+                title={t('incidentChannels.title')}
+                subtitle={t('incidentChannels.subtitle')}
+                actions={
+                    <div className="d-flex gap-2">
+                        <AlertIngestSecretButton />
+                        <Button variant="primary" onClick={openCreate}>
+                            <FaPlus className="me-1" /> {t('incidentChannels.new')}
+                        </Button>
+                    </div>
+                }
+            />
 
             {error && <Alert variant="danger">{error}</Alert>}
 
@@ -294,7 +294,7 @@ const IncidentChannelsSettings = () => {
                     <p>{t('incidentChannels.empty')}</p>
                 </div>
             ) : (
-                <Table hover responsive className="table-stack">
+                <Table hover responsive className="table-stack settings-table channels-table">
                     <thead>
                         <tr>
                             <th>{t('incidentChannels.name')}</th>

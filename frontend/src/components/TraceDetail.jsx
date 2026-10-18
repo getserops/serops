@@ -11,6 +11,7 @@
  * so a hostile attribute cannot inject markup.
  */
 
+import PageHeader from "./PageHeader";
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Spinner, Alert, Badge, Button, Table, Card } from 'react-bootstrap';
@@ -118,18 +119,16 @@ const TraceDetail = () => {
     if (!trace) return null;
 
     return (
-        <div className="p-4">
-            <Link to="/dash/traces" className="btn btn-outline-secondary btn-sm mb-3">
-                <FaArrowLeft className="me-1" /> {t('traces.detail.back')}
-            </Link>
-
-            <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap">
-                <div>
-                    <h3 className="mb-1">{trace.root_operation || t('traces.detail.unknownOp')}</h3>
-                    <div className="text-muted">
-                        <code>{trace.trace_id}</code>
-                    </div>
-                </div>
+        <div>
+            <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-3">
+                <PageHeader
+                    className="mb-0"
+                    crumbs={[
+                        { label: t('traces.dashboard.title'), to: '/dash/traces' },
+                        { label: trace.trace_id, mono: true },
+                    ]}
+                    title={trace.root_operation || t('traces.detail.unknownOp')}
+                />
                 <div className="text-end">
                     <div>
                         <Badge bg={trace.status_code === 'ERROR' ? 'danger' : 'success'} className="me-2">

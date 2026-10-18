@@ -1,4 +1,4 @@
-.investigate-page { display: flex; flex-direction: column; gap: var(--space-4); max-width: 1100px; }
+.investigate-page { display: flex; flex-direction: column; gap: var(--space-4); }
 .investigate-page h1.ds-section-header-title { font-size: var(--text-xl); }
 .investigate-form .ds-card-body { display: flex; flex-direction: column; gap: var(--space-4); }
 .investigate-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); }

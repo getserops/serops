@@ -452,3 +452,105 @@
         color: var(--primary-400);
     }
 }
+
+/* =============================================================
+   v2 · signed-out pages on the design system: same mark as the
+   sidebar, 40px controls, one primary and one secondary button
+   style, token colours (dark mode follows the app theme).
+   ============================================================= */
+.brand-mark { display: inline-flex; align-items: center; gap: 10px; color: var(--text-primary); }
+.brand-mark-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 9px;
+  background: var(--brand-fill); color: #fff;
+}
+.brand-mark-word { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.form-logo.brand-mark { display: flex; justify-content: center; height: auto; margin: 0 auto 24px; }
+
+:is(html, :root[data-theme]) .login-page { background: var(--bg-page); padding: 32px 16px; }
+:is(html, :root[data-theme]) .login-form-panel { max-width: 400px; }
+:is(html, :root[data-theme]) .form-container {
+  max-width: 400px;
+  padding: 32px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  animation: none;
+}
+:is(html, :root[data-theme]) .form-header { margin-bottom: 24px; }
+:is(html, :root[data-theme]) .form-header h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; margin-bottom: 6px; }
+:is(html, :root[data-theme]) .form-header p { font-size: 14px; color: var(--text-secondary); }
+:is(html, :root[data-theme]) .login-form { gap: 16px; }
+:is(html, :root[data-theme]) .form-group { gap: 6px; }
+:is(html, :root[data-theme]) .form-group label { font-size: 13px; font-weight: 500; }
+
+:is(html, :root[data-theme]) .input-wrapper input {
+  height: 40px;
+  padding: 0 12px 0 36px;
+  font-size: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-hover);
+  border-radius: 8px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+:is(html, :root[data-theme]) .input-wrapper input:hover { border-color: var(--text-tertiary); }
+:is(html, :root[data-theme]) .input-wrapper input:focus { border-color: var(--brand-fill); background: var(--bg-card); box-shadow: var(--focus-ring); }
+:is(html, :root[data-theme]) .input-wrapper input.error { border-color: var(--tone-red-text); }
+:is(html, :root[data-theme]) .input-icon { left: 12px; font-size: 14px; color: var(--text-tertiary); }
+:is(html, :root[data-theme]) .toggle-password { right: 8px; border-radius: 6px; }
+:is(html, :root[data-theme]) .toggle-password:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+:is(html, :root[data-theme]) .forgot-link,
+:is(html, :root[data-theme]) .register-prompt-link { color: var(--text-link); font-weight: 500; }
+:is(html, :root[data-theme]) .error-text { font-size: 12px; color: var(--tone-red-text); }
+:is(html, :root[data-theme]) .field-hint { font-size: 12px; color: var(--text-tertiary); }
+:is(html, :root[data-theme]) .alert-error { background: var(--tone-red-soft); color: var(--tone-red-text); border: 0; border-radius: 8px; }
+:is(html, :root[data-theme]) .alert-success { background: var(--tone-green-soft); color: var(--tone-green-text); border: 0; border-radius: 8px; }
+
+/* Primary */
+:is(html, :root[data-theme]) .submit-btn {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--brand-fill);
+  border-radius: 8px;
+  box-shadow: none;
+  transition: background-color 0.12s;
+}
+:is(html, :root[data-theme]) .submit-btn:hover:not(:disabled) { background: var(--brand-fill-hover); transform: none; box-shadow: none; }
+:is(html, :root[data-theme]) .submit-btn:hover:not(:disabled) .btn-icon { transform: none; }
+:is(html, :root[data-theme]) .submit-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+:is(html, :root[data-theme]) .submit-btn:disabled { opacity: 0.55; }
+
+/* Secondary (SSO, live demo, "Sign in" on sign-up) */
+:is(html, :root[data-theme]) .sso-btn {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  border: 1px solid var(--border-hover);
+  border-radius: 8px;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+:is(html, :root[data-theme]) .sso-btn:hover:not(:disabled) { background: var(--bg-hover); border-color: var(--text-tertiary); color: var(--text-primary); transform: none; box-shadow: none; }
+:is(html, :root[data-theme]) .sso-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+:is(html, :root[data-theme]) .sso-btn:disabled { background: var(--bg-card); opacity: 0.55; }
+:is(html, :root[data-theme]) .sso-btn .btn-icon-left { color: var(--text-secondary); }
+:is(html, :root[data-theme]) .sso-divider::before,
+:is(html, :root[data-theme]) .sso-divider::after { border-bottom-color: var(--border-default); }
+:is(html, :root[data-theme]) .sso-divider span { font-size: 12px; color: var(--text-tertiary); }
+
+:is(html, :root[data-theme]) .waitlist-link { color: var(--text-secondary); }
+:is(html, :root[data-theme]) .login-footer { position: static; margin-top: 24px; text-align: center; font-size: 12px; color: var(--text-tertiary); }
+:is(html, :root[data-theme]) .login-footer a { color: var(--text-secondary); }
+
+@media (max-width: 480px) {
+  :is(html, :root[data-theme]) .form-container { padding: 24px 20px; }
+}
+/* The design system's primary buttons carry no trailing arrow, and
+   ``.btn-icon`` is the icon-button class there. */
+:is(html, :root[data-theme]) .submit-btn .btn-icon { display: none; }
+/* A field without a leading icon starts at the normal inset. */
+:is(html, :root[data-theme]) .input-wrapper input:first-child { padding-left: 12px; }

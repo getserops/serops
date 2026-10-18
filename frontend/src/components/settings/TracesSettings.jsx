@@ -7,6 +7,8 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import PageHeader from '../PageHeader';
+import { Link } from 'react-router-dom';
 import { Button, Modal, Form, Spinner, Table, Alert } from 'react-bootstrap';
 import {
     FaKey, FaPlus, FaTrash, FaCopy, FaExclamationTriangle, FaCheckCircle,
@@ -108,17 +110,20 @@ const TracesSettings = () => {
 
     return (
         <div className="settings-section">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-                <h3 className="mb-0">
-                    <FaKey className="me-2 text-primary" />
-                    {t('traces.settings.title')}
-                </h3>
-                <Button variant="primary" onClick={() => setShowCreate(true)}>
-                    <FaPlus className="me-1" /> {t('traces.settings.newKey')}
-                </Button>
-            </div>
-
-            <p className="text-muted mb-4">{t('traces.settings.subtitle')}</p>
+            <PageHeader
+                title={t('traces.settings.title')}
+                subtitle={t('traces.settings.subtitle')}
+                actions={
+                    <>
+                    <Link to="/dash/traces" className="btn btn-secondary">
+                        {t('traces.settings.viewReceived')}
+                    </Link>
+                    <Button variant="primary" onClick={() => setShowCreate(true)}>
+                        <FaPlus className="me-1" /> {t('traces.settings.newKey')}
+                    </Button>
+                    </>
+                }
+            />
 
             {error && <Alert variant="danger">{error}</Alert>}
 
@@ -132,7 +137,7 @@ const TracesSettings = () => {
                     <p>{t('traces.settings.noKeys')}</p>
                 </div>
             ) : (
-                <Table hover responsive className="table-stack">
+                <Table hover responsive className="table-stack settings-table ingest-keys-table">
                     <thead>
                         <tr>
                             <th>{t('traces.settings.name')}</th>

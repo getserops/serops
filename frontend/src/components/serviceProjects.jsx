@@ -1,6 +1,7 @@
 
+import PageHeader from "./PageHeader";
 import React, { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { Table, Button, Pagination, Nav, Tab, Badge } from "react-bootstrap";
 import { FaPlus, FaTrash, FaEye, FaServer } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
@@ -95,41 +96,24 @@ const ServiceProjects = () => {
   return (
     <>
       <div className="fade-in">
-        <div className="bg-white p-4 rounded-4 shadow-sm">
-          <div className="d-flex flex-wrap justify-content-between align-items-center mb-4">
-            <div>
-              <h2 className="mb-1 fw-bold text-dark">
-                {projectName || t('services.title')}
-              </h2>
-              <p className="text-muted mb-0">
-                {t('services.subtitle') || 'Manage connected services and deployments'}
-              </p>
-            </div>
-            <div className="d-flex gap-2">
-              <Button
-                variant="light"
-                as={Link}
-                to="/dash/projects"
-                className="rounded-pill px-3"
-              >
-                {t('services.backToProjects')}
-              </Button>
-              {activeTab === 'services' && (
-                <Button
-                  variant="primary"
-                  className="rounded-pill px-4 d-flex align-items-center gap-2"
-                  onClick={handleOpenModal}
-                >
-                  <FaPlus size={14} />
-                  <span>{t('services.addNew')}</span>
-                </Button>
-              )}
-            </div>
-          </div>
-
+        <PageHeader
+          crumbs={[
+            { label: t('projects.title'), to: '/dash/projects' },
+            { label: projectName || t('services.title') },
+          ]}
+          title={projectName || t('services.title')}
+          subtitle={t('services.subtitle') || 'Manage connected services and deployments'}
+          actions={activeTab === 'services' && (
+            <Button variant="primary" onClick={handleOpenModal}>
+              <FaPlus size={14} aria-hidden="true" />
+              <span>{t('services.addNew')}</span>
+            </Button>
+          )}
+        />
+        <div className="ds-card projects-card">
           <Tab.Container activeKey={activeTab} onSelect={(k) => setActiveTab(k || 'services')}>
             {showDeploymentsTab && (
-              <Nav variant="tabs" className="mb-4">
+              <Nav variant="tabs" className="px-4 pt-2">
                 <Nav.Item>
                   <Nav.Link eventKey="services">
                     {t('services.title', 'Services')}
@@ -231,7 +215,7 @@ const ServiceProjects = () => {
 
                     {/* Pagination */}
                     {totalPages > 1 && (
-                      <div className="d-flex justify-content-between align-items-center mt-4">
+                      <div className="ds-table-footer">
                         <span className="text-muted small">
                           {t('common.showing')} {(currentPage - 1) * 5 + 1} -{" "}
                           {Math.min(currentPage * 5, paginatedServices.length * currentPage)} {t('common.of')}{" "}
@@ -265,7 +249,7 @@ const ServiceProjects = () => {
               </Tab.Pane>
 
               {showDeploymentsTab && (
-                <Tab.Pane eventKey="deployments" mountOnEnter unmountOnExit>
+                <Tab.Pane eventKey="deployments" mountOnEnter unmountOnExit className="p-4">
                   <DeploymentsPanel
                     projectId={projectId}
                     environments={environments}

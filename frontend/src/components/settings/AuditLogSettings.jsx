@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import enterpriseSettingsService from '../../services/enterpriseSettings.service';
 import { OrganisationService } from '../../services/organisation.service';
 import './SettingsLayout.css';
+import PageHeader from '../PageHeader';
 
 const ACTION_ICONS = {
     'LOGIN': FaSignInAlt,
@@ -181,15 +182,7 @@ const AuditLogSettings = () => {
     return (
         // Read-only page: filters, export and paging stay usable in the demo.
         <div className="settings-section" data-demo-allowed>
-            <div className="settings-header">
-                <div className="settings-icon-wrapper audit">
-                    <FaHistory />
-                </div>
-                <div>
-                    <h2>{t('auditLog.title')}</h2>
-                    <p>{t('auditLog.subtitle')}</p>
-                </div>
-            </div>
+            <PageHeader title={t('auditLog.title')} subtitle={t('auditLog.subtitle')} />
 
             {error && <div className="alert alert-danger">{error}</div>}
 
@@ -272,7 +265,7 @@ const AuditLogSettings = () => {
                         </div>
 
                         <div className="col-md-3 d-flex gap-2">
-                            <button type="submit" className="btn btn-primary flex-fill d-flex align-items-center justify-content-center">
+                            <button type="submit" className="btn btn-secondary d-flex align-items-center justify-content-center">
                                 {t('auditLog.searchBtn')}
                             </button>
                             <button
@@ -315,11 +308,11 @@ const AuditLogSettings = () => {
                         <table className="table table-hover mb-0 align-middle table-stack">
                             <thead className="bg-light">
                                 <tr>
-                                    <th className="ps-4 py-3 border-0 text-uppercase small fw-bold text-muted">{t('auditLog.timestamp')}</th>
-                                    <th className="py-3 border-0 text-uppercase small fw-bold text-muted">{t('auditLog.action')}</th>
-                                    <th className="py-3 border-0 text-uppercase small fw-bold text-muted">{t('auditLog.user')}</th>
-                                    <th className="py-3 border-0 text-uppercase small fw-bold text-muted">{t('auditLog.details')}</th>
-                                    <th className="py-3 border-0 text-uppercase small fw-bold text-muted">{t('auditLog.ipAddress')}</th>
+                                    <th className="ps-4 py-3 border-0">{t('auditLog.timestamp')}</th>
+                                    <th className="py-3 border-0">{t('auditLog.action')}</th>
+                                    <th className="py-3 border-0">{t('auditLog.user')}</th>
+                                    <th className="py-3 border-0">{t('auditLog.details')}</th>
+                                    <th className="py-3 border-0">{t('auditLog.ipAddress')}</th>
                                 </tr>
                             </thead>
                             <tbody>

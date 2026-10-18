@@ -56,14 +56,14 @@ const SentinelStatsCard = ({ data, loading }) => {
                         <div
                             className="sentinel-hero-stat mb-3 p-3 rounded"
                             style={{
-                                background: 'linear-gradient(135deg, #065f46 0%, #047857 100%)',
-                                color: '#fff',
+                                background: 'var(--tone-green-soft)',
+                                color: 'var(--tone-green-text)',
                             }}
                             title="Estimated by multiplying tokens-saved by this org's actual cost-per-token over the same window."
                         >
                             <div className="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <div className="small opacity-75">
+                                    <div className="small">
                                         <FaDollarSign className="me-1" />
                                         Saved this week by Sentinel
                                     </div>
@@ -71,7 +71,7 @@ const SentinelStatsCard = ({ data, loading }) => {
                                         {formatUsd(estimated_cost_saved_usd)}
                                     </div>
                                 </div>
-                                <div className="text-end small opacity-75">
+                                <div className="text-end small">
                                     AI spend
                                     <div style={{ fontWeight: 600 }}>
                                         {formatUsd(ai_spend_usd)}

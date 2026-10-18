@@ -12,12 +12,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Spinner } from 'react-bootstrap';
-import { FaBuilding, FaCamera } from 'react-icons/fa';
+import { FaCamera } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
 import { OrganisationService } from '../../services/organisation.service';
 import CollapsibleSection from './CollapsibleSection';
 import './SettingsLayout.css';
+import PageHeader from '../PageHeader';
 
 const GeneralSettings = () => {
     const { t } = useTranslation();
@@ -128,15 +129,7 @@ const GeneralSettings = () => {
 
     return (
         <div className="settings-section">
-            <div className="settings-header mb-4">
-                <div className="settings-icon-wrapper primary">
-                    <FaBuilding />
-                </div>
-                <div>
-                    <h2>{t('settings.general.title')}</h2>
-                    <p>{t('settings.general.subtitle')}</p>
-                </div>
-            </div>
+            <PageHeader title={t('settings.general.title')} subtitle={t('settings.general.subtitle')} />
 
             <CollapsibleSection
                 title={t('settings.general.organisation.title')}
@@ -151,13 +144,13 @@ const GeneralSettings = () => {
                         width: '80px',
                         height: '80px',
                         borderRadius: '12px',
-                        border: '2px dashed var(--border-color, #dee2e6)',
+                        border: '2px dashed var(--border-hover)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: 'pointer',
                         overflow: 'hidden',
-                        backgroundColor: 'var(--bg-secondary, #f8f9fa)',
+                        backgroundColor: 'var(--bg-sunken)',
                         position: 'relative'
                     }}
                 >
@@ -216,9 +209,9 @@ const GeneralSettings = () => {
                 </div>
             </CollapsibleSection>
 
-            <div className="d-flex justify-content-end mt-5">
+            <div className="settings-page-actions">
                 <button
-                    className="settings-save-btn text-white"
+                    className="btn btn-primary"
                     onClick={handleSave}
                     disabled={saving}
                 >

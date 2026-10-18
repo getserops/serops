@@ -17,6 +17,7 @@
  * treat parse failures as "unknown time". React auto-escapes text.
  */
 
+import PageHeader from "./PageHeader";
 import React, { useEffect, useState } from 'react';
 import { Container, Card, Badge, Alert, Spinner, Button } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -195,25 +196,23 @@ const BatchTimeline = () => {
     const filterActive = filteredIndexes && filteredIndexes.size !== events.length;
 
     return (
-        <Container fluid className="py-4">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                    <Button variant="outline-secondary" size="sm" onClick={() => navigate(-1)}>
-                        <FaArrowLeft className="me-1" /> {t('common.back')}
-                    </Button>
-                    <h3 className="d-inline-block ms-3 mb-0">
-                        <FaClock className="me-2 text-primary" />
-                        {t('timeline.title')}
-                    </h3>
-                </div>
-                <small className="text-muted">
-                    {t('timeline.batch')}: <code>{payload?.batch_id || batchId}</code>
-                    <span className="ms-3">{t('timeline.eventCount', { count: events.length })}</span>
-                    {causalPairs.length > 0 && (
-                        <span className="ms-3">{causalPairs.length} causal {causalPairs.length === 1 ? 'pair' : 'pairs'}</span>
-                    )}
-                </small>
-            </div>
+        <Container fluid className="px-0">
+            <PageHeader
+                crumbs={[
+                    { label: t('nav.analyses'), to: '/dash/data' },
+                    { label: payload?.batch_id || batchId, to: `/dash/data/details/${payload?.batch_id || batchId}`, mono: true },
+                    { label: t('timeline.title') },
+                ]}
+                title={t('timeline.title')}
+                subtitle={(
+                    <>
+                        {t('timeline.eventCount', { count: events.length })}
+                        {causalPairs.length > 0 && (
+                            <span className="ms-3">{causalPairs.length} causal {causalPairs.length === 1 ? 'pair' : 'pairs'}</span>
+                        )}
+                    </>
+                )}
+            />
 
             {events.length === 0 ? (
                 <div className="ds-card">

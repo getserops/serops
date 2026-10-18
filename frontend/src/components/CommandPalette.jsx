@@ -19,6 +19,7 @@ const PAGES = [
   ["/dash/data", "nav.data"],
   ["/dash/investigate", "nav.investigate"],
   ["/dash/chat", "nav.aiChat"],
+  ["/dash/traces", "traces.dashboard.title"],
   ["/dash/projects", "nav.projects"],
   ["/dash/notifications", "nav.notifications"],
   ["/dash/profile", "nav.profile"],

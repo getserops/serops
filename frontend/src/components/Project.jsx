@@ -1,3 +1,4 @@
+import PageHeader from "./PageHeader";
 import React, { useState, useEffect } from "react";
 import {
   Table,
@@ -303,22 +304,17 @@ const Project = () => {
 
   return (
     <div className="fade-in">
-      <div className="bg-white p-4 rounded-4 shadow-sm">
-        <div className="d-flex flex-wrap justify-content-between align-items-center mb-4">
-          <div>
-            <h2 className="mb-1 fw-bold text-dark">{t('projects.title')}</h2>
-            <p className="text-muted mb-0">{t('projects.subtitle')}</p>
-          </div>
-          <Button
-            variant="primary"
-            className="rounded-pill px-4 d-flex align-items-center gap-2"
-            onClick={handleOpenModal}
-          >
-            <FaPlus size={14} />
+      <PageHeader
+        title={t('projects.title')}
+        subtitle={t('projects.subtitle')}
+        actions={(
+          <Button variant="primary" onClick={handleOpenModal}>
+            <FaPlus size={14} aria-hidden="true" />
             <span>{t('projects.newProject')}</span>
           </Button>
-        </div>
-
+        )}
+      />
+      <div className="ds-card projects-card">
         {loading ? (
           <div className="text-center py-5">
             <div className="spinner-border text-primary" role="status">
@@ -403,7 +399,7 @@ const Project = () => {
             </div>
 
             {paginatedProjects.length > 0 && (
-              <div className="d-flex justify-content-between align-items-center mt-4">
+              <div className="ds-table-footer">
                 <span className="text-muted small">
                   {t('common.showing')} {(currentPage - 1) * pageSize + 1} -{" "}
                   {Math.min(currentPage * pageSize, projects.length)} {t('common.of')}{" "}

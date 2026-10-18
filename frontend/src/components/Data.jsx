@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useCluster } from "../context/ClusterContext";
 import PostmortemModal from "./PostmortemModal";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import PageHeader from "./PageHeader";
 import {
   Table,
   Pagination,
@@ -502,7 +503,13 @@ const Data = () => {
 
   return (
     <div className="data-page-container">
-      <div className="data-card">
+      {!isDetailRoute && (
+        <PageHeader
+          title={t('nav.analyses')}
+          subtitle={t('data.pageSubtitle')}
+        />
+      )}
+      <div className={isDetailRoute ? "data-detail-wrap" : "data-card"}>
         {notification && (
           <div className={`data-notification data-notification-${notification.type}`}>
             <span>{notification.message}</span>
@@ -647,7 +654,7 @@ const Data = () => {
                     <th>{t('data.trigger')}</th>
                     <th>{t('issues.title')}</th>
                     <th>{t('data.status')}</th>
-                    <th style={{ width: "80px" }}>{t('data.actions')}</th>
+                    <th className="text-end" style={{ width: "80px" }}>{t('data.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -778,7 +785,7 @@ const Data = () => {
                               )}
                             </div>
                           </td>
-                          <td>
+                          <td className="text-end">
                             <Link to={`/dash/data/details/${item.id}`} className="view-btn"
                                   aria-label={t('data.openBatch', { id: item.id })} title={t('data.openBatch', { id: item.id })}>
                               <FaEye size={18} />

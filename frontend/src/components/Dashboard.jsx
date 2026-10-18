@@ -1,5 +1,5 @@
 import React from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
@@ -8,6 +8,8 @@ import { useCluster } from "../context/ClusterContext";
 import { useQuery } from "@tanstack/react-query";
 import { FaChartPie, FaExclamationTriangle, FaBolt } from "react-icons/fa";
 import { useMediaQuery } from "@mui/material";
+import { Search } from "lucide-react";
+import PageHeader from "./PageHeader";
 import "./Dashboard.css";
 
 import HealthScoreCard from "./HealthScoreCard";
@@ -27,8 +29,6 @@ import { OnboardingWizard, OnboardingResumeChip } from "./onboarding";
 import { isDemoUser } from '../utils/demo';
 
 
-const ENV_OPTIONS = ['all', 'production', 'staging', 'dev'];
-
 const Dashboard = () => {
   const { t } = useTranslation();
   const location = useLocation();
@@ -36,7 +36,6 @@ const Dashboard = () => {
   const isSmallScreen = useMediaQuery("(max-width: 860px)");
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(!isSmallScreen);
   const [showOnboarding, setShowOnboarding] = React.useState(true);
-  const [environment, setEnvironment] = React.useState('all');
 
   // The composed deployment filter (cluster / region / namespace) is
   // already forwarded on every request by dash.service's withEnv(),
@@ -44,8 +43,10 @@ const Dashboard = () => {
   // here is the React Query cache key: without clusterId in the key,
   // switching clusters hits the same cache entry and the dashboard
   // silently keeps showing the previous cluster's numbers.
-  const { currentCluster, loading: clustersLoading } = useCluster();
+  const { currentCluster, loading: clustersLoading, filter } = useCluster();
   const clusterId = clustersLoading ? null : (currentCluster?.id ?? null);
+  // The environment comes from the top-bar picker (global filter).
+  const environment = filter?.environment || 'all';
 
   React.useEffect(() => {
     setIsSidebarOpen(!isSmallScreen);
@@ -183,22 +184,7 @@ const Dashboard = () => {
 
       <div className={`dashboard-main ${isSidebarOpen ? 'expanded' : 'collapsed'}`}>
         {isDemo && (
-          <div
-            className="demo-banner"
-            role="status"
-            style={{
-              background: '#fef3c7',
-              color: '#92400e',
-              padding: '0.5rem 1rem',
-              fontSize: '0.875rem',
-              fontWeight: 500,
-              borderBottom: '1px solid #fde68a',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
-            }}
-          >
+          <div className="demo-banner" role="status">
             <span>
               You're in the SerOps live demo · seeded data · resets nightly · nothing hits live infra.
             </span>
@@ -206,11 +192,6 @@ const Dashboard = () => {
               href="https://serops.ai/docs/getting-started/quick-start-self-hosted/"
               target="_blank"
               rel="noopener noreferrer"
-              style={{
-                color: '#92400e',
-                textDecoration: 'underline',
-                fontWeight: 600,
-              }}
             >
               Self-host SerOps →
             </a>
@@ -222,30 +203,26 @@ const Dashboard = () => {
 
         {isRootDashboard && (
           <div className="dashboard-content">
-            {/* Header with environment filter */}
-            <div className="dashboard-header">
-              <div className="header-text">
-                <h1>{t('dashboard.systemHealth')}</h1>
-                <p>{t('dashboard.realTimeMonitoring')}</p>
-              </div>
-              <div className="env-filter">
-                {ENV_OPTIONS.map(env => (
-                  <button
-                    key={env}
-                    className={`env-filter-btn ${environment === env ? 'active' : ''}`}
-                    onClick={() => setEnvironment(env)}
-                  >
-                    {env === 'all' ? t('dashboard.envAll', 'All') : env.charAt(0).toUpperCase() + env.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <PageHeader
+              title={t('nav.overview')}
+              subtitle={(
+                <span className="d-inline-flex flex-wrap align-items-center gap-2">
+                  {t('dashboard.overviewSubtitle')}
+                  <span className="live-dot">{t('dashboard.autoRefresh')}</span>
+                </span>
+              )}
+              actions={(
+                <Link to="/dash/investigate" className="ds-btn ds-btn-primary">
+                  <Search size={16} aria-hidden="true" /> {t('nav.investigate')}
+                </Link>
+              )}
+            />
 
             {/* What is broken now, why, and what to do — before the numbers. */}
             <NeedsAttention environment={environment} clusterId={clusterId} />
 
-            {/* Row 1: Health & Metrics — 4 cards, each handles its own loading */}
-            <div className="metrics-grid">
+            {/* Key numbers — each card handles its own loading */}
+            <div className="overview-numbers">
               <HealthScoreCard score={healthData?.health_score || 0} status={healthData?.status} loading={loadingHealth} />
               <MTTRCard data={mttrData} loading={loadingMTTR} />
 
@@ -281,20 +258,27 @@ const Dashboard = () => {
               </div>
             )}
 
-            {/* Row 2: AI Intelligence — full-width analysis feed */}
-            <AIAnalysisFeed data={analysisFeedData} loading={loadingFeed} />
+            {/* Latest AI findings beside the latest deploys */}
+            <div className="overview-split">
+              <div className="overview-main">
+                <AIAnalysisFeed data={analysisFeedData} loading={loadingFeed} />
+              </div>
+              <div className="overview-side">
+                <RecentDeploymentsCard data={deploymentsData} loading={loadingDeployments} />
+              </div>
+            </div>
 
-            <hr className="section-divider" />
-
-            {/* Row 3: Charts Grid */}
-            <div className="charts-grid extended-grid">
+            <h2 className="overview-section-title">{t('dashboard.trendsTitle')}</h2>
+            <div className="charts-grid overview-charts">
+              {/* Pairs, so no card sits alone in a half-empty row:
+                  what happened (trend, causes), where (services), and
+                  how SerOps helped (correlations, Sentinel). */}
               <TrendAnalysisChart data={trendData} loading={loadingTrends} />
+              <RootCausePie data={rootCauseData} loading={loadingRootCause} />
               <ServiceRankingChart data={serviceRanking} loading={loadingServices} />
               <ServiceHealthHeatmap data={serviceHealthData} loading={loadingServiceHealth} />
               <CorrelationInsightsCard data={correlationData} loading={loadingCorrelations} />
               <SentinelStatsCard data={sentinelData} loading={loadingSentinel} />
-              <RootCausePie data={rootCauseData} loading={loadingRootCause} />
-              <RecentDeploymentsCard data={deploymentsData} loading={loadingDeployments} />
             </div>
 
             {/* Multi-cluster orgs get a per-cluster workload breakdown
@@ -303,9 +287,11 @@ const Dashboard = () => {
           </div>
         )}
 
-        <div className="dashboard-outlet">
-          <Outlet />
-        </div>
+        {!isRootDashboard && (
+          <div className="dashboard-outlet">
+            <Outlet />
+          </div>
+        )}
       </div>
 
       {/* Onboarding wizard — shows for orgs still in setup.

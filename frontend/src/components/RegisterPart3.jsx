@@ -4,6 +4,7 @@ import './Login.css';
 import { useNavigate } from 'react-router';
 import { FaCheckCircle } from 'react-icons/fa';
 import AuthService from "../services/auth.service";
+import BrandMark from './BrandMark';
 
 function RegisterPart3() {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ function RegisterPart3() {
       <div className="login-form-panel">
         <div className="form-container">
           <div className="form-header">
-            <img src="/assets/images/Serops-Logo.png" alt="SerOps" className="form-logo" />
+            <BrandMark className="form-logo" />
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
               <FaCheckCircle size={40} style={{ color: 'var(--success-500)' }} />
             </div>

@@ -6,17 +6,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { Form, Button, Spinner } from 'react-bootstrap';
-import {
-    FaDatabase, FaTrash, FaCalendarAlt, FaClock, FaCheck,
-    FaExclamationTriangle, FaServer, FaChartPie, FaHistory, FaFilter,
-    FaSyncAlt, FaInfoCircle, FaBrain
-} from 'react-icons/fa';
+import { FaExclamationTriangle } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
 import DataService from '../../services/data.service';
 import enterpriseSettingsService from '../../services/enterpriseSettings.service';
 import CollapsibleSection from './CollapsibleSection';
+import ChoiceGroup from './ChoiceGroup';
 import './SettingsLayout.css';
+import PageHeader from '../PageHeader';
 
 const DataSettings = () => {
     const { t } = useTranslation();
@@ -204,15 +202,7 @@ const DataSettings = () => {
 
     return (
         <div className="settings-section">
-            <div className="settings-header">
-                <div className="settings-icon-wrapper data">
-                    <FaDatabase />
-                </div>
-                <div>
-                    <h2>{t('dataRetention.title')}</h2>
-                    <p>{t('dataRetention.subtitle')}</p>
-                </div>
-            </div>
+            <PageHeader title={t('dataRetention.title')} subtitle={t('dataRetention.subtitle')} />
 
             {/* Data Usage Section */}
             <CollapsibleSection
@@ -267,180 +257,106 @@ const DataSettings = () => {
                     <div className="text-center py-4"><Spinner animation="border" variant="primary" /></div>
                 ) : (
                     <>
-                        <div className="toggle-item large mb-4">
+                        <label className="toggle-item large">
                             <div className="toggle-label">
                                 <span>{t('issueSettings.dedup.enable')}</span>
                                 <small>{t('issueSettings.dedup.enableHint')}</small>
                             </div>
-                            <label className="settings-toggle-switch">
+                            <input
+                                type="checkbox"
+                                checked={formIssueSettings.dedup_enabled}
+                                onChange={(e) => setFormIssueSettings({ ...formIssueSettings, dedup_enabled: e.target.checked })}
+                            />
+                            <span className="toggle-slider"></span>
+                        </label>
+
+                        <fieldset className="settings-dependent" disabled={!formIssueSettings.dedup_enabled}>
+                            <ChoiceGroup
+                                label={t('issueSettings.dedup.window')}
+                                value={formIssueSettings.dedup_window_days}
+                                onChange={(days) => setFormIssueSettings({ ...formIssueSettings, dedup_window_days: days })}
+                                options={[7, 14, 30, 90, 0].map((days) => ({ value: days, label: getDedupWindowLabel(days) }))}
+                            />
+                            <ChoiceGroup
+                                label={t('issueSettings.dedup.muteDuration')}
+                                value={formIssueSettings.default_mute_duration_days}
+                                onChange={(days) => setFormIssueSettings({ ...formIssueSettings, default_mute_duration_days: days })}
+                                options={[1, 7, 30, 0].map((days) => ({ value: days, label: getMuteDurationLabel(days) }))}
+                            />
+                            <label className="toggle-item large">
+                                <div className="toggle-label">
+                                    <span>{t('issueSettings.dedup.autoResolve')}</span>
+                                    <small>{t('issueSettings.dedup.autoResolveHint', { days: formIssueSettings.auto_resolve_after_days })}</small>
+                                </div>
                                 <input
                                     type="checkbox"
-                                    checked={formIssueSettings.dedup_enabled}
-                                    onChange={(e) => setFormIssueSettings({ ...formIssueSettings, dedup_enabled: e.target.checked })}
+                                    checked={formIssueSettings.auto_resolve_enabled}
+                                    onChange={(e) => setFormIssueSettings({ ...formIssueSettings, auto_resolve_enabled: e.target.checked })}
                                 />
                                 <span className="toggle-slider"></span>
                             </label>
+                        </fieldset>
+
+                        <div className="settings-section-footer">
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleSaveIssueSettings}
+                                disabled={savingIssueSettings}
+                            >
+                                {savingIssueSettings ? t('common.saving') : t('common.save')}
+                            </button>
                         </div>
-
-                        {formIssueSettings.dedup_enabled && (
-                            <div className="settings-form-panel">
-                                <div className="form-group mb-4">
-                                    <label className="settings-form-label mb-3">
-                                        <FaFilter className="me-2" />
-                                        {t('issueSettings.dedup.window')}
-                                    </label>
-                                    <div className="settings-selection-grid">
-                                        {[7, 14, 30, 90, 0].map(days => (
-                                            <div
-                                                key={days}
-                                                className={`settings-selection-card ${formIssueSettings.dedup_window_days === days ? 'active' : ''}`}
-                                                onClick={() => setFormIssueSettings({ ...formIssueSettings, dedup_window_days: days })}
-                                            >
-                                                <div className="settings-selection-icon">
-                                                    <FaCalendarAlt />
-                                                </div>
-                                                <span className="settings-selection-label">{getDedupWindowLabel(days)}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="form-group mb-4">
-                                    <label className="settings-form-label mb-3">
-                                        <FaClock className="me-2" />
-                                        {t('issueSettings.dedup.muteDuration')}
-                                    </label>
-                                    <div className="settings-selection-grid">
-                                        {[1, 7, 30, 0].map(days => (
-                                            <div
-                                                key={days}
-                                                className={`settings-selection-card ${formIssueSettings.default_mute_duration_days === days ? 'active' : ''}`}
-                                                onClick={() => setFormIssueSettings({ ...formIssueSettings, default_mute_duration_days: days })}
-                                            >
-                                                <div className="settings-selection-icon">
-                                                    <FaClock />
-                                                </div>
-                                                <span className="settings-selection-label">{getMuteDurationLabel(days)}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="toggle-item large mb-4">
-                                    <div className="toggle-label">
-                                        <span>{t('issueSettings.dedup.autoResolve')}</span>
-                                        <small>{t('issueSettings.dedup.autoResolveHint', { days: formIssueSettings.auto_resolve_after_days })}</small>
-                                    </div>
-                                    <label className="settings-toggle-switch">
-                                        <input
-                                            type="checkbox"
-                                            checked={formIssueSettings.auto_resolve_enabled}
-                                            onChange={(e) => setFormIssueSettings({ ...formIssueSettings, auto_resolve_enabled: e.target.checked })}
-                                        />
-                                        <span className="toggle-slider"></span>
-                                    </label>
-                                </div>
-
-                                <div className="d-flex justify-content-end mt-4">
-                                    <button
-                                        className="settings-save-btn text-white"
-                                        onClick={handleSaveIssueSettings}
-                                        disabled={savingIssueSettings}
-                                    >
-                                        {savingIssueSettings ? t('common.saving') : t('common.save')}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
                     </>
                 )}
             </CollapsibleSection>
 
             {/* Past-Incident Memory Section */}
             <CollapsibleSection
-                title={t('issueSettings.memory.title', 'Recent Resolutions Context')}
-                description={t('issueSettings.memory.subtitle', 'Inject root causes from recently resolved issues into AI analysis as diagnostic context for this project.')}
+                title={t('issueSettings.memory.title')}
+                description={t('issueSettings.memory.subtitle')}
             >
                 {loadingIssueSettings ? (
                     <div className="text-center py-4"><Spinner animation="border" variant="primary" /></div>
                 ) : (
                     <>
-                        <div className="toggle-item large mb-4">
+                        <label className="toggle-item large">
                             <div className="toggle-label">
-                                <span>{t('issueSettings.memory.enable', 'Enable recent resolutions context')}</span>
-                                <small>{t('issueSettings.memory.enableHint', 'When on, recently resolved issues for this project are passed to the AI as diagnostic context for new batches and chat questions.')}</small>
+                                <span>{t('issueSettings.memory.enable')}</span>
+                                <small>{t('issueSettings.memory.enableHint')}</small>
                             </div>
-                            <label className="settings-toggle-switch">
-                                <input
-                                    type="checkbox"
-                                    checked={formIssueSettings.memory_enabled}
-                                    onChange={(e) => setFormIssueSettings({ ...formIssueSettings, memory_enabled: e.target.checked })}
-                                />
-                                <span className="toggle-slider"></span>
-                            </label>
+                            <input
+                                type="checkbox"
+                                checked={formIssueSettings.memory_enabled}
+                                onChange={(e) => setFormIssueSettings({ ...formIssueSettings, memory_enabled: e.target.checked })}
+                            />
+                            <span className="toggle-slider"></span>
+                        </label>
+
+                        <fieldset className="settings-dependent" disabled={!formIssueSettings.memory_enabled}>
+                            <ChoiceGroup
+                                label={t('issueSettings.memory.window')}
+                                value={formIssueSettings.memory_window_days}
+                                onChange={(days) => setFormIssueSettings({ ...formIssueSettings, memory_window_days: days })}
+                                options={[30, 60, 90, 180, 365].map((days) => ({ value: days, label: t('issueSettings.dedup.days', { count: days }) }))}
+                            />
+                            <ChoiceGroup
+                                label={t('issueSettings.memory.maxItems')}
+                                hint={t('issueSettings.memory.maxItemsHint')}
+                                value={formIssueSettings.memory_max_items}
+                                onChange={(n) => setFormIssueSettings({ ...formIssueSettings, memory_max_items: n })}
+                                options={[1, 2, 3, 5, 10].map((n) => ({ value: n, label: String(n) }))}
+                            />
+                        </fieldset>
+
+                        <div className="settings-section-footer">
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleSaveIssueSettings}
+                                disabled={savingIssueSettings}
+                            >
+                                {savingIssueSettings ? t('common.saving') : t('common.save')}
+                            </button>
                         </div>
-
-                        {formIssueSettings.memory_enabled && (
-                            <div className="settings-form-panel">
-                                <div className="form-group mb-4">
-                                    <label className="settings-form-label mb-3">
-                                        <FaHistory className="me-2" />
-                                        {t('issueSettings.memory.window', 'How far back to look')}
-                                    </label>
-                                    <div className="settings-selection-grid">
-                                        {[30, 60, 90, 180, 365].map(days => (
-                                            <div
-                                                key={days}
-                                                className={`settings-selection-card ${formIssueSettings.memory_window_days === days ? 'active' : ''}`}
-                                                onClick={() => setFormIssueSettings({ ...formIssueSettings, memory_window_days: days })}
-                                            >
-                                                <div className="settings-selection-icon">
-                                                    <FaCalendarAlt />
-                                                </div>
-                                                <span className="settings-selection-label">
-                                                    {t('issueSettings.dedup.days', { count: days })}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="form-group mb-4">
-                                    <label className="settings-form-label mb-3">
-                                        <FaBrain className="me-2" />
-                                        {t('issueSettings.memory.maxItems', 'Max resolutions per analysis')}
-                                    </label>
-                                    <div className="settings-selection-grid">
-                                        {[1, 2, 3, 5, 10].map(n => (
-                                            <div
-                                                key={n}
-                                                className={`settings-selection-card ${formIssueSettings.memory_max_items === n ? 'active' : ''}`}
-                                                onClick={() => setFormIssueSettings({ ...formIssueSettings, memory_max_items: n })}
-                                            >
-                                                <div className="settings-selection-icon">
-                                                    <FaBrain />
-                                                </div>
-                                                <span className="settings-selection-label">{n}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <small className="text-muted d-block mt-2">
-                                        <FaInfoCircle className="me-1" />
-                                        {t('issueSettings.memory.maxItemsHint', 'Higher values give the AI more context but use more tokens. 3 is a good default.')}
-                                    </small>
-                                </div>
-
-                                <div className="d-flex justify-content-end mt-4">
-                                    <button
-                                        className="settings-save-btn text-white"
-                                        onClick={handleSaveIssueSettings}
-                                        disabled={savingIssueSettings}
-                                    >
-                                        {savingIssueSettings ? t('common.saving') : t('common.save')}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
                     </>
                 )}
             </CollapsibleSection>
@@ -453,14 +369,12 @@ const DataSettings = () => {
                 {loadingPolicy ? (
                     <div className="text-center py-4"><Spinner animation="border" variant="primary" /></div>
                 ) : (
-                    <div className="settings-form-panel">
-                        <div className="form-group mb-4">
-                            <label className="settings-form-label mb-3">
-                                <FaSyncAlt className="me-2" />
-                                {t('batchInterval.interval')}
-                            </label>
+                    <>
+                        <div className="ds-choice">
+                            <label className="ds-choice-label" htmlFor="batch-interval">{t('batchInterval.interval')}</label>
                             <select
-                                className="form-select"
+                                id="batch-interval"
+                                className="form-select settings-select"
                                 value={formBatchInterval}
                                 onChange={(e) => setFormBatchInterval(parseInt(e.target.value))}
                             >
@@ -483,22 +397,19 @@ const DataSettings = () => {
                                     ))}
                                 </optgroup>
                             </select>
-                            <small className="text-muted mt-2 d-block">
-                                <FaInfoCircle className="me-1" />
-                                {t('batchInterval.hint')}
-                            </small>
+                            <div className="ds-choice-hint">{t('batchInterval.hint')}</div>
                         </div>
 
-                        <div className="d-flex justify-content-end mt-4">
+                        <div className="settings-section-footer">
                             <button
-                                className="settings-save-btn text-white"
+                                className="btn btn-primary"
                                 onClick={handleSaveBatchInterval}
                                 disabled={savingBatchInterval}
                             >
                                 {savingBatchInterval ? t('common.saving') : t('common.save')}
                             </button>
                         </div>
-                    </div>
+                    </>
                 )}
             </CollapsibleSection>
 
@@ -511,86 +422,59 @@ const DataSettings = () => {
                     <div className="text-center py-4"><Spinner animation="border" variant="primary" /></div>
                 ) : (
                     <>
-                        <div className="toggle-item large mb-4">
+                        <label className="toggle-item large">
                             <div className="toggle-label">
                                 <span>{t('dataRetention.enableAutoCleanup')}</span>
                                 <small>{t('dataRetention.autoCleanupDesc')}</small>
                             </div>
-                            <label className="settings-toggle-switch">
-                                <input
-                                    type="checkbox"
-                                    checked={formPolicy.auto_cleanup_enabled}
-                                    onChange={(e) => setFormPolicy({ ...formPolicy, auto_cleanup_enabled: e.target.checked })}
-                                />
-                                <span className="toggle-slider"></span>
-                            </label>
+                            <input
+                                type="checkbox"
+                                checked={formPolicy.auto_cleanup_enabled}
+                                onChange={(e) => setFormPolicy({ ...formPolicy, auto_cleanup_enabled: e.target.checked })}
+                            />
+                            <span className="toggle-slider"></span>
+                        </label>
+
+                        <fieldset className="settings-dependent" disabled={!formPolicy.auto_cleanup_enabled}>
+                            <ChoiceGroup
+                                label={t('dataRetention.retentionPeriod')}
+                                value={formPolicy.retention_days}
+                                onChange={(days) => setFormPolicy({ ...formPolicy, retention_days: days })}
+                                options={[7, 14, 30, 60, 90, 180, 365].map((days) => ({ value: days, label: `${days} ${t('dataRetention.days')}` }))}
+                            />
+                            <ChoiceGroup
+                                label={t('dataRetention.cleanupFrequency')}
+                                value={formPolicy.cleanup_frequency}
+                                onChange={(freq) => setFormPolicy({ ...formPolicy, cleanup_frequency: freq })}
+                                options={['daily', 'weekly', 'monthly'].map((freq) => ({ value: freq, label: getFrequencyLabel(freq) }))}
+                            />
+                        </fieldset>
+
+                        <div className="settings-section-footer">
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleSavePolicy}
+                                disabled={savingPolicy}
+                            >
+                                {savingPolicy ? t('common.saving') : t('dataRetention.savePolicy')}
+                            </button>
                         </div>
-
-                        {formPolicy.auto_cleanup_enabled && (
-                            <div className="settings-form-panel">
-                                <div className="form-group mb-4">
-                                    <label className="settings-form-label mb-3">{t('dataRetention.retentionPeriod')}</label>
-                                    <div className="settings-selection-grid">
-                                        {[7, 14, 30, 60, 90, 180, 365].map(days => (
-                                            <div
-                                                key={days}
-                                                className={`settings-selection-card ${formPolicy.retention_days === days ? 'active' : ''}`}
-                                                onClick={() => setFormPolicy({ ...formPolicy, retention_days: days })}
-                                            >
-                                                <div className="settings-selection-icon">
-                                                    <FaCalendarAlt />
-                                                </div>
-                                                <span className="settings-selection-label">{days} {t('dataRetention.days')}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="form-group mb-4">
-                                    <label className="settings-form-label mb-3">{t('dataRetention.cleanupFrequency')}</label>
-                                    <div className="settings-selection-grid">
-                                        {['daily', 'weekly', 'monthly'].map(freq => (
-                                            <div
-                                                key={freq}
-                                                className={`settings-selection-card ${formPolicy.cleanup_frequency === freq ? 'active' : ''}`}
-                                                onClick={() => setFormPolicy({ ...formPolicy, cleanup_frequency: freq })}
-                                            >
-                                                <div className="settings-selection-icon">
-                                                    <FaClock />
-                                                </div>
-                                                <span className="settings-selection-label">
-                                                    {getFrequencyLabel(freq)}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="d-flex justify-content-end mt-4">
-                                    <button
-                                        className="settings-save-btn text-white"
-                                        onClick={handleSavePolicy}
-                                        disabled={savingPolicy}
-                                    >
-                                        {savingPolicy ? t('common.saving') : t('dataRetention.savePolicy')}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
                     </>
                 )}
             </CollapsibleSection>
 
             {/* Manual Cleanup Section */}
             <CollapsibleSection
+                className="ds-settings-section-danger"
                 title={t('dataRetention.manualCleanup')}
                 description={t('dataRetention.manualCleanupDesc')}
             >
-                <div className="d-flex align-items-end gap-3 p-3 bg-light rounded">
-                    <div className="flex-grow-1">
-                        <label className="settings-form-label">{t('dataRetention.deleteBatchesOlderThan')}</label>
+                <div className="settings-inline-form">
+                    <div className="ds-choice">
+                        <label className="ds-choice-label" htmlFor="delete-older-than">{t('dataRetention.deleteBatchesOlderThan')}</label>
                         <select
-                            className="form-select"
+                            id="delete-older-than"
+                            className="form-select settings-select"
                             value={deleteDays}
                             onChange={(e) => setDeleteDays(parseInt(e.target.value))}
                         >
@@ -607,10 +491,10 @@ const DataSettings = () => {
                         {deleting ? t('dataRetention.deleting') : t('dataRetention.deleteNow')}
                     </Button>
                 </div>
-                <small className="text-danger mt-2 d-block">
-                    <FaExclamationTriangle className="me-1" />
+                <div className="ds-choice-hint ds-choice-hint-danger">
+                    <FaExclamationTriangle aria-hidden="true" />
                     {t('dataRetention.irreversibleWarning')}
-                </small>
+                </div>
             </CollapsibleSection>
         </div>
     );

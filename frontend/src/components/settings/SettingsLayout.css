@@ -1533,3 +1533,45 @@
     color: hsl(40, 90%, 24%);
     font-size: 0.875rem;
 }
+
+/* =============================================================
+   v2: settings sit on the page like every other page — no tinted
+   band, no card wrapped around the cards, same header style.
+   ============================================================= */
+:is(html, :root[data-theme]) .settings-page { background: transparent; margin-top: 0; min-height: 0; }
+:is(html, :root[data-theme]) .settings-page > .container-fluid { padding: 0; }
+:is(html, :root[data-theme]) .settings-content {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  min-height: 0;
+}
+:is(html, :root[data-theme]) .settings-section .settings-header { margin-bottom: 20px; align-items: flex-start; }
+:is(html, :root[data-theme]) .settings-icon-wrapper { display: none; }
+:is(html, :root[data-theme]) .settings-section .settings-header h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 6px; }
+:is(html, :root[data-theme]) .settings-section .settings-header p { font-size: 14px; color: var(--text-secondary); }
+:is(html, :root[data-theme]) .settings-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: none;
+  padding: 20px 24px;
+}
+:is(html, :root[data-theme]) .settings-card-title { color: var(--text-primary); font-size: 16px; font-weight: 600; }
+:is(html, :root[data-theme]) .settings-readonly-notice {
+  background: var(--tone-amber-soft);
+  color: var(--tone-amber-text);
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+:is(html, :root[data-theme]) .provider-card,
+:is(html, :root[data-theme]) .settings-toggle-item { background: var(--bg-sunken); border: 1px solid var(--border-default); }
+:is(html, :root[data-theme]) .settings-toggle-icon { background: var(--tone-brand-soft); color: var(--tone-brand-text); }
+.settings-subtabs { margin-bottom: 20px; }
+:is(html, :root[data-theme]) .settings-card.settings-card-flush,
+:is(html, :root[data-theme]) .settings-card:has(> .settings-card-body) { padding: 0; }

@@ -7,7 +7,8 @@
 
 import React from "react";
 import { Dropdown, Offcanvas, Badge, Card } from "react-bootstrap";
-import { FaBars, FaPaperPlane, FaTrashAlt, FaRobot, FaShieldAlt, FaLink, FaChartLine, FaExternalLinkAlt, FaCog, FaProjectDiagram, FaExclamationCircle } from "react-icons/fa";
+import { History } from "lucide-react";
+import { FaPaperPlane, FaTrashAlt, FaRobot, FaShieldAlt, FaLink, FaChartLine, FaExternalLinkAlt, FaCog, FaProjectDiagram, FaExclamationCircle } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useChatIssues } from "../hooks/useChatIssues";
@@ -393,27 +394,21 @@ const ChatIssues = () => {
         <div className="chat-header">
           <div className="chat-header-left">
             <button
+              type="button"
               className="history-toggle-btn"
               onClick={toggleHistory}
               title={t('chat.history')}
+              aria-label={t('chat.history')}
             >
-              <FaBars size={20} />
+              <History size={16} aria-hidden="true" />
             </button>
-            <h3
-              style={{
-                margin: 0,
-                fontSize: "var(--text-lg)",
-                fontWeight: "var(--font-semibold)",
-              }}
-            >
-              {t('chat.aiAssistant')}
-            </h3>
+            <h1 className="chat-title">{t('chat.aiAssistant')}</h1>
           </div>
           <div className="chat-header-right">
-            <span className="model-label">{t('chat.model')}:</span>
-            <Dropdown onSelect={handleSelectModel} className="model-dropdown">
-              <Dropdown.Toggle variant="outline-primary" size="sm">
-                {getSelectedModelName()}
+            <Dropdown onSelect={handleSelectModel} className="app-picker model-dropdown">
+              <Dropdown.Toggle as="button" type="button" className="app-picker-toggle">
+                <span className="app-picker-key">{t('chat.model')}</span>
+                <span>{getSelectedModelName()}</span>
               </Dropdown.Toggle>
               <Dropdown.Menu>
                 {availableModels && availableModels.length > 0 ? (

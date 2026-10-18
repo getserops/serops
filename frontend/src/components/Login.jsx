@@ -6,6 +6,7 @@ import { FaEye, FaEyeSlash, FaEnvelope, FaLock, FaArrowRight, FaShieldAlt, FaChe
 import enterpriseSettingsService from "../services/enterpriseSettings.service";
 import "./Login.css";
 import { describeRequestError } from "../utils/apiError";
+import BrandMark from './BrandMark';
 
 const Login = () => {
   const { t } = useTranslation();
@@ -202,7 +203,7 @@ const Login = () => {
           {demoOnly ? (
             <div className="login-form">
               <div className="form-header">
-                <img src="/assets/images/Serops-Logo.png" alt="SerOps" className="form-logo" />
+                <BrandMark className="form-logo" />
                 <h2>{t('login.demoOnlyTitle')}</h2>
                 <p>{t('login.demoOnlyText')}</p>
               </div>
@@ -240,7 +241,7 @@ const Login = () => {
           ) : (
             <>
               <div className="form-header">
-                <img src="/assets/images/Serops-Logo.png" alt="SerOps" className="form-logo" />
+                <BrandMark className="form-logo" />
                 <h2>{t('login.welcomeBack')}</h2>
                 <p>{t('login.enterCredentials')}</p>
               </div>

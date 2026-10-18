@@ -1,0 +1,949 @@
+/* =============================================================
+   SerOps · Design system v2
+   =============================================================
+   Loads last (after Bootstrap, App.css and primitives.css), so it
+   is the single source for colour tokens and the look of shared
+   components: one button set, one badge, one card, one dialog,
+   one table header, one tab strip.
+
+   Component rules use the ``:is(html, :root[data-theme])`` prefix:
+   it always matches <html>, and carries the specificity of
+   ``:root[data-theme]`` so it beats the older dark-theme overrides
+   in primitives.css without !important.
+   ============================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* -------------------------------------------------------------
+   1 · Tokens
+   ------------------------------------------------------------- */
+:root:not([data-theme="dark"]) {
+  --bg-page: #F4F5F8;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #FFFFFF;
+  --bg-sunken: #F8F9FB;
+  --bg-surface: #EEF0F4;
+  --bg-hover: #EEF0F4;
+  --border-default: #E3E6EE;
+  --border-hover: #C9CEDB;
+  --text-primary: #1F2333;
+  --text-secondary: #565C70;
+  --text-tertiary: #646A80;
+  --text-link: #2B47D6;
+  --text-link-hover: #1A33B0;
+  --primary-50: #EEF1FD;
+  --primary-100: #DCE2FB;
+  --primary-500: #3651DA;
+  --primary-600: #2B47D6;
+  --primary-700: #1A33B0;
+  --primary: #2B47D6;
+  --brand-fill: #2B47D6;
+  --brand-fill-hover: #1A33B0;
+  --tone-red-text: #C4123C;
+  --tone-amber-text: #8A6100;
+  --tone-green-text: #047857;
+  --tone-brand-text: #2B47D6;
+  --tone-gray-text: #565C70;
+  --tone-red-soft: #FDECEF;
+  --tone-amber-soft: #FDF4DD;
+  --tone-green-soft: #E3F6EE;
+  --tone-brand-soft: #EEF1FD;
+  --tone-gray-soft: #EEF0F4;
+  --tone-red-solid: #B3102F;
+  --focus-ring: 0 0 0 3px rgba(43, 71, 214, 0.35);
+  --shadow-pop: 0 12px 28px rgba(20, 22, 31, 0.14);
+  --shadow-dialog: 0 24px 48px rgba(20, 22, 31, 0.18);
+  --bs-link-color: #2B47D6;
+  --bs-link-color-rgb: 43, 71, 214;
+  --bs-link-hover-color: #1A33B0;
+}
+
+:root[data-theme="dark"] {
+  --bg-page: #14161F;
+  --bg-card: #1C1F2B;
+  --bg-elevated: #232736;
+  --bg-sunken: #181B25;
+  --bg-surface: #262A38;
+  --bg-hover: #262A38;
+  --border-default: #2C3040;
+  --border-hover: #41465A;
+  --text-primary: #E8EAF0;
+  --text-secondary: #B0B5C5;
+  --text-tertiary: #9298AC;
+  --text-link: #AEBBFF;
+  --text-link-hover: #C8D1FF;
+  --brand-fill: #4A64E8;
+  --brand-fill-hover: #3B55DB;
+  --tone-red-text: #FF9AAE;
+  --tone-amber-text: #F5C76A;
+  --tone-green-text: #7FDBB0;
+  --tone-brand-text: #AEBBFF;
+  --tone-gray-text: #B0B5C5;
+  --tone-red-soft: #3A1D25;
+  --tone-amber-soft: #3A2F17;
+  --tone-green-soft: #173327;
+  --tone-brand-soft: #232A4D;
+  --tone-gray-soft: #262A38;
+  --tone-red-solid: #C81E43;
+  --focus-ring: 0 0 0 3px rgba(174, 187, 255, 0.4);
+  --shadow-pop: 0 12px 28px rgba(0, 0, 0, 0.45);
+  --shadow-dialog: 0 24px 48px rgba(0, 0, 0, 0.5);
+  --bs-link-color: #AEBBFF;
+  --bs-link-color-rgb: 174, 187, 255;
+  --bs-link-hover-color: #C8D1FF;
+}
+
+:root {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --page-max: 1280px;
+  --sidebar-w: 232px;
+  --topbar-h: 56px;
+  --bs-body-font-family: var(--font-sans);
+  --bs-border-radius: 8px;
+}
+
+:is(html, :root[data-theme]) body {
+  font-family: var(--font-sans);
+  background: var(--bg-page);
+  color: var(--text-primary);
+}
+
+/* -------------------------------------------------------------
+   2 · Buttons — primary, secondary, ghost, danger; md 36 / sm 32
+   ------------------------------------------------------------- */
+:is(html, :root[data-theme]) .btn,
+:is(html, :root[data-theme]) .ds-btn {
+  --bs-btn-font-weight: 500;
+  --bs-btn-font-size: 14px;
+  --bs-btn-border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  box-shadow: none;
+}
+:is(html, :root[data-theme]) .btn-sm,
+:is(html, :root[data-theme]) .ds-btn-sm {
+  min-height: 32px;
+  height: auto;
+  padding: 0 12px;
+  font-size: 13px;
+}
+:is(html, :root[data-theme]) .btn-lg,
+:is(html, :root[data-theme]) .ds-btn-lg { min-height: 44px; padding: 0 20px; font-size: 15px; }
+:is(html, :root[data-theme]) .ds-btn-square { width: 36px; padding: 0; }
+:is(html, :root[data-theme]) .btn:focus-visible,
+:is(html, :root[data-theme]) .ds-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+:is(html, :root[data-theme]) .btn:disabled,
+:is(html, :root[data-theme]) .btn.disabled,
+:is(html, :root[data-theme]) .ds-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Primary */
+:is(html, :root[data-theme]) .btn-primary,
+:is(html, :root[data-theme]) .ds-btn-primary,
+:is(html, :root[data-theme]) .btn-success {
+  background: var(--brand-fill);
+  border: 1px solid var(--brand-fill);
+  color: #fff;
+}
+:is(html, :root[data-theme]) .btn-primary:hover:not(:disabled),
+:is(html, :root[data-theme]) .btn-primary:active,
+:is(html, :root[data-theme]) .ds-btn-primary:hover:not(:disabled),
+:is(html, :root[data-theme]) .btn-success:hover:not(:disabled) {
+  background: var(--brand-fill-hover);
+  border-color: var(--brand-fill-hover);
+  color: #fff;
+}
+
+/* Secondary — every outlined / light / grey Bootstrap variant */
+:is(html, :root[data-theme]) .btn-secondary,
+:is(html, :root[data-theme]) .btn-outline-secondary,
+:is(html, :root[data-theme]) .btn-outline-primary,
+:is(html, :root[data-theme]) .btn-outline-dark,
+:is(html, :root[data-theme]) .btn-outline-info,
+:is(html, :root[data-theme]) .btn-outline-success,
+:is(html, :root[data-theme]) .btn-light,
+:is(html, :root[data-theme]) .btn-info,
+:is(html, :root[data-theme]) .ds-btn-secondary {
+  background: var(--bg-card);
+  border: 1px solid var(--border-hover);
+  color: var(--text-primary);
+}
+:is(html, :root[data-theme]) .btn-secondary:hover:not(:disabled),
+:is(html, :root[data-theme]) .btn-outline-secondary:hover:not(:disabled),
+:is(html, :root[data-theme]) .btn-outline-primary:hover:not(:disabled),
+:is(html, :root[data-theme]) .btn-outline-dark:hover:not(:disabled),
+:is(html, :root[data-theme]) .btn-outline-info:hover:not(:disabled),
+:is(html, :root[data-theme]) .btn-outline-success:hover:not(:disabled),
+:is(html, :root[data-theme]) .btn-light:hover:not(:disabled),
+:is(html, :root[data-theme]) .btn-info:hover:not(:disabled),
+:is(html, :root[data-theme]) .ds-btn-secondary:hover:not(:disabled),
+:is(html, :root[data-theme]) .btn-outline-primary.active,
+:is(html, :root[data-theme]) .btn-outline-secondary.active,
+:is(html, :root[data-theme]) .btn-check:checked + .btn-outline-primary,
+:is(html, :root[data-theme]) .btn-check:checked + .btn-outline-secondary {
+  background: var(--bg-sunken);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+:is(html, :root[data-theme]) .btn-outline-primary.active,
+:is(html, :root[data-theme]) .btn-check:checked + .btn-outline-primary {
+  background: var(--tone-brand-soft);
+  border-color: var(--brand-fill);
+  color: var(--tone-brand-text);
+}
+
+/* Ghost */
+:is(html, :root[data-theme]) .ds-btn-ghost,
+:is(html, :root[data-theme]) .btn-link.btn-ghost {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  padding: 0 10px;
+}
+:is(html, :root[data-theme]) .ds-btn-ghost:hover:not(:disabled) {
+  background: var(--tone-gray-soft);
+  color: var(--text-primary);
+}
+
+/* Danger — outlined; solid only to confirm inside a dialog */
+:is(html, :root[data-theme]) .btn-danger,
+:is(html, :root[data-theme]) .btn-outline-danger,
+:is(html, :root[data-theme]) .btn-warning,
+:is(html, :root[data-theme]) .ds-btn-danger {
+  background: var(--bg-card);
+  border: 1px solid var(--tone-red-text);
+  color: var(--tone-red-text);
+}
+:is(html, :root[data-theme]) .btn-danger:hover:not(:disabled),
+:is(html, :root[data-theme]) .btn-outline-danger:hover:not(:disabled),
+:is(html, :root[data-theme]) .btn-warning:hover:not(:disabled),
+:is(html, :root[data-theme]) .ds-btn-danger:hover:not(:disabled) {
+  background: var(--tone-red-soft);
+  border-color: var(--tone-red-text);
+  color: var(--tone-red-text);
+}
+:is(html, :root[data-theme]) .modal .btn-danger,
+:is(html, :root[data-theme]) .modal .ds-btn-danger {
+  background: var(--tone-red-solid);
+  border-color: var(--tone-red-solid);
+  color: #fff;
+}
+:is(html, :root[data-theme]) .modal .btn-danger:hover:not(:disabled),
+:is(html, :root[data-theme]) .modal .ds-btn-danger:hover:not(:disabled) {
+  background: #8F0C26;
+  border-color: #8F0C26;
+  color: #fff;
+}
+
+/* Icon-only row actions: never a solid coloured square */
+:is(html, :root[data-theme]) .btn-icon,
+:is(html, :root[data-theme]) .ds-icon-btn {
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  border-radius: 8px;
+}
+:is(html, :root[data-theme]) .btn-icon:hover,
+:is(html, :root[data-theme]) .ds-icon-btn:hover { background: var(--tone-gray-soft); color: var(--text-primary); }
+
+/* -------------------------------------------------------------
+   3 · Badges — one pill, five tones, dot + label
+   ------------------------------------------------------------- */
+:is(html, :root[data-theme]) .ds-chip,
+:is(html, :root[data-theme]) .severity-badge,
+:is(html, :root[data-theme]) .status-badge,
+:is(html, :root[data-theme]) .sentinel-badge,
+:is(html, :root[data-theme]) .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: none;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+:is(html, :root[data-theme]) .ds-dot::before,
+:is(html, :root[data-theme]) .severity-badge::before,
+:is(html, :root[data-theme]) .status-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+/* Critical */
+:is(html, :root[data-theme]) .ds-chip-err,
+:is(html, :root[data-theme]) .ds-chip-p0,
+:is(html, :root[data-theme]) .severity-badge-critical,
+:is(html, :root[data-theme]) .severity-badge-high,
+:is(html, :root[data-theme]) .status-badge.failed,
+:is(html, :root[data-theme]) .sentinel-alert,
+:is(html, :root[data-theme]) .badge.bg-danger { background: var(--tone-red-soft) !important; color: var(--tone-red-text) !important; }
+/* Warning */
+:is(html, :root[data-theme]) .ds-chip-warn,
+:is(html, :root[data-theme]) .ds-chip-p1,
+:is(html, :root[data-theme]) .severity-badge-warning,
+:is(html, :root[data-theme]) .severity-badge-medium,
+:is(html, :root[data-theme]) .status-badge.pending,
+:is(html, :root[data-theme]) .sentinel-routine,
+:is(html, :root[data-theme]) .badge.bg-warning { background: var(--tone-amber-soft) !important; color: var(--tone-amber-text) !important; }
+/* Healthy */
+:is(html, :root[data-theme]) .ds-chip-ok,
+:is(html, :root[data-theme]) .status-badge.analyzed,
+:is(html, :root[data-theme]) .sentinel-quiet,
+:is(html, :root[data-theme]) .badge.bg-success { background: var(--tone-green-soft) !important; color: var(--tone-green-text) !important; }
+/* Info / in progress */
+:is(html, :root[data-theme]) .ds-chip-info,
+:is(html, :root[data-theme]) .ds-chip-brand,
+:is(html, :root[data-theme]) .ds-chip-p2,
+:is(html, :root[data-theme]) .severity-badge-info,
+:is(html, :root[data-theme]) .severity-badge-low,
+:is(html, :root[data-theme]) .sentinel-first,
+:is(html, :root[data-theme]) .badge.bg-primary,
+:is(html, :root[data-theme]) .badge.bg-info { background: var(--tone-brand-soft) !important; color: var(--tone-brand-text) !important; }
+/* Neutral */
+:is(html, :root[data-theme]) .ds-chip-neutral,
+:is(html, :root[data-theme]) .severity-badge-unknown,
+:is(html, :root[data-theme]) .status-badge.skipped,
+:is(html, :root[data-theme]) .sentinel-shadow,
+:is(html, :root[data-theme]) .badge.bg-secondary,
+:is(html, :root[data-theme]) .badge.bg-light,
+:is(html, :root[data-theme]) .badge.bg-dark { background: var(--tone-gray-soft) !important; color: var(--tone-gray-text) !important; }
+
+/* -------------------------------------------------------------
+   4 · Cards — 12 px radius, hairline border, no shadow
+   ------------------------------------------------------------- */
+:is(html, :root[data-theme]) .ds-card,
+:is(html, :root[data-theme]) .card,
+:is(html, :root[data-theme]) .chart-card,
+:is(html, :root[data-theme]) .metric-card,
+:is(html, :root[data-theme]) .settings-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: none;
+}
+:is(html, :root[data-theme]) .ds-card-elevated { box-shadow: none; }
+:is(html, :root[data-theme]) .card-header,
+:is(html, :root[data-theme]) .ds-card-header {
+  background: transparent;
+  border-bottom: 1px solid var(--border-default);
+}
+:is(html, :root[data-theme]) .card-header:first-child { border-radius: 12px 12px 0 0; }
+
+/* -------------------------------------------------------------
+   5 · Dialog — one design; a full-height sheet on phones
+   ------------------------------------------------------------- */
+:is(html, :root[data-theme]) .modal-content {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: var(--shadow-dialog);
+}
+:is(html, :root[data-theme]) .modal-header {
+  padding: 18px 20px 6px;
+  border-bottom: 0;
+  background: transparent;
+  color: var(--text-primary);
+}
+:is(html, :root[data-theme]) .modal-title { font-size: 16px; font-weight: 600; }
+:is(html, :root[data-theme]) .modal-body { padding: 14px 20px; }
+:is(html, :root[data-theme]) .modal-footer {
+  padding: 14px 20px;
+  gap: 8px;
+  border-top: 1px solid var(--border-default);
+  background: transparent;
+}
+:is(html, :root[data-theme]) .modal-footer > * { margin: 0; }
+:is(html, :root[data-theme]) .modal-backdrop.show { opacity: 0.45; background: #14161F; }
+@media (max-width: 575.98px) {
+  :is(html, :root[data-theme]) .modal-dialog {
+    margin: 0;
+    max-width: none;
+    min-height: 100%;
+  }
+  :is(html, :root[data-theme]) .modal-content {
+    min-height: 100dvh;
+    border-radius: 0;
+    border: 0;
+  }
+  :is(html, :root[data-theme]) .modal-body { overflow-y: auto; flex: 1 1 auto; }
+  :is(html, :root[data-theme]) .modal-footer {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-card);
+  }
+}
+
+/* Dropdown menus */
+:is(html, :root[data-theme]) .dropdown-menu {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  box-shadow: var(--shadow-pop);
+  padding: 6px;
+  font-size: 14px;
+}
+:is(html, :root[data-theme]) .dropdown-item {
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: var(--text-primary);
+}
+:is(html, :root[data-theme]) .dropdown-item:hover,
+:is(html, :root[data-theme]) .dropdown-item:focus { background: var(--tone-gray-soft); color: var(--text-primary); }
+:is(html, :root[data-theme]) .dropdown-item.active,
+:is(html, :root[data-theme]) .dropdown-item:active { background: var(--tone-brand-soft); color: var(--tone-brand-text); }
+
+/* -------------------------------------------------------------
+   6 · Forms
+   ------------------------------------------------------------- */
+:is(html, :root[data-theme]) .form-control,
+:is(html, :root[data-theme]) .form-select,
+:is(html, :root[data-theme]) .ds-input {
+  min-height: 36px;
+  border: 1px solid var(--border-hover);
+  border-radius: 8px;
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 14px;
+  box-shadow: none;
+}
+:is(html, :root[data-theme]) textarea.form-control { min-height: 80px; }
+:is(html, :root[data-theme]) .form-control-sm,
+:is(html, :root[data-theme]) .form-select-sm { min-height: 32px; font-size: 13px; }
+:is(html, :root[data-theme]) .form-control:focus,
+:is(html, :root[data-theme]) .form-select:focus,
+:is(html, :root[data-theme]) .ds-input:focus {
+  border-color: var(--brand-fill);
+  box-shadow: var(--focus-ring);
+}
+:is(html, :root[data-theme]) .form-label,
+:is(html, :root[data-theme]) .ds-label { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 6px; }
+:is(html, :root[data-theme]) .form-text,
+:is(html, :root[data-theme]) .ds-help { font-size: 12px; color: var(--text-tertiary); }
+:is(html, :root[data-theme]) .form-check-input:checked { background-color: var(--brand-fill); border-color: var(--brand-fill); }
+
+/* -------------------------------------------------------------
+   7 · Tables — same header everywhere
+   ------------------------------------------------------------- */
+:is(html, :root[data-theme]) .table {
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--text-primary);
+  --bs-table-hover-bg: var(--bg-sunken);
+  --bs-table-striped-bg: transparent;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+:is(html, :root[data-theme]) .table > thead > tr > th,
+:is(html, :root[data-theme]) .ds-table thead th,
+:is(html, :root[data-theme]) .table > thead.table-primary > tr > th,
+:is(html, :root[data-theme]) .table > thead.table-light > tr > th {
+  background: var(--bg-sunken);
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  border-bottom: 1px solid var(--border-default);
+  white-space: nowrap;
+}
+:is(html, :root[data-theme]) .table-bordered > :not(caption) > * > * { border-width: 0 0 1px; }
+:is(html, :root[data-theme]) .table-bordered > :not(caption) > * { border-width: 0; }
+
+/* -------------------------------------------------------------
+   8 · Tabs — underline strip
+   ------------------------------------------------------------- */
+:is(html, :root[data-theme]) .nav-tabs {
+  border-bottom: 1px solid var(--border-default);
+  gap: 24px;
+  flex-wrap: wrap;
+}
+:is(html, :root[data-theme]) .nav-tabs .nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 2px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+}
+:is(html, :root[data-theme]) .nav-tabs .nav-link:hover { color: var(--text-primary); border-bottom-color: var(--border-hover); }
+:is(html, :root[data-theme]) .nav-tabs .nav-link.active {
+  color: var(--text-primary);
+  background: transparent;
+  border-bottom-color: var(--brand-fill);
+}
+:is(html, :root[data-theme]) .nav-pills .nav-link.active { background: var(--tone-brand-soft); color: var(--tone-brand-text); }
+
+/* Pagination */
+:is(html, :root[data-theme]) .pagination {
+  --bs-pagination-color: var(--text-secondary);
+  --bs-pagination-bg: var(--bg-card);
+  --bs-pagination-border-color: var(--border-default);
+  --bs-pagination-hover-bg: var(--bg-sunken);
+  --bs-pagination-hover-color: var(--text-primary);
+  --bs-pagination-active-bg: var(--brand-fill);
+  --bs-pagination-active-border-color: var(--brand-fill);
+  --bs-pagination-font-size: 13px;
+  gap: 4px;
+}
+:is(html, :root[data-theme]) .page-link { border-radius: 8px !important; }
+
+/* Alerts follow the four tones */
+:is(html, :root[data-theme]) .alert { border-radius: 10px; border: 0; font-size: 14px; }
+:is(html, :root[data-theme]) .alert-danger { background: var(--tone-red-soft); color: var(--tone-red-text); }
+:is(html, :root[data-theme]) .alert-warning { background: var(--tone-amber-soft); color: var(--tone-amber-text); }
+:is(html, :root[data-theme]) .alert-success { background: var(--tone-green-soft); color: var(--tone-green-text); }
+:is(html, :root[data-theme]) .alert-info,
+:is(html, :root[data-theme]) .alert-primary { background: var(--tone-brand-soft); color: var(--tone-brand-text); }
+:is(html, :root[data-theme]) .alert-secondary,
+:is(html, :root[data-theme]) .alert-light { background: var(--tone-gray-soft); color: var(--text-secondary); }
+
+/* -------------------------------------------------------------
+   9 · Page header — breadcrumb, title, context, actions
+   ------------------------------------------------------------- */
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 16px;
+  margin-bottom: 20px;
+}
+.page-header-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 999 1 420px; }
+.page-header-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+.page-header-crumbs a { color: var(--text-secondary); text-decoration: none; }
+.page-header-crumbs a:hover { color: var(--text-primary); text-decoration: underline; }
+.page-header-crumbs li + li::before { content: "/"; margin-right: 6px; color: var(--text-tertiary); }
+.page-header-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+.page-header-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.page-header-subtitle { margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.5; }
+.page-header-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* Live indicator used next to auto-refreshing data */
+.live-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+.live-dot::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tone-green-text);
+}
+
+/* Section card used by the redesigned pages */
+.ds-section { background: var(--bg-card); border: 1px solid var(--border-default); border-radius: 12px; }
+.ds-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 16px 20px;
+}
+.ds-section-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+.ds-section-meta { font-size: 13px; color: var(--text-tertiary); }
+.ds-section-link { font-size: 13px; font-weight: 500; text-decoration: none; color: var(--text-link); }
+.ds-section-link:hover { text-decoration: underline; }
+.ds-kv { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--border-default); font-size: 13px; }
+.ds-kv > :first-child { color: var(--text-tertiary); }
+.ds-kv > :last-child { text-align: right; min-width: 0; overflow-wrap: anywhere; }
+
+/* Legacy page wrappers (``bg-white p-4 rounded-4 shadow-sm``) read as
+   the same card as everything else. */
+:is(html, :root[data-theme]) .bg-white.rounded-4,
+:is(html, :root[data-theme]) .bg-white.rounded-3.shadow-sm {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-default);
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+.projects-card { overflow: hidden; }
+
+/* Older tables share the standard header */
+:is(html, :root[data-theme]) .modern-table thead th {
+  background: var(--bg-sunken);
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  border-bottom: 1px solid var(--border-default);
+  padding: 10px 16px;
+}
+
+/* -------------------------------------------------------------
+   10 · Settings — open sections, one choice control, switch rows
+   ------------------------------------------------------------- */
+.ds-settings-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+.ds-settings-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-default);
+}
+.ds-settings-section-text { min-width: 0; flex: 1 1 320px; }
+.ds-settings-section-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.4; color: var(--text-primary); }
+.ds-settings-section-desc { margin: 2px 0 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+.ds-settings-section-body { padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.ds-settings-section-body > :empty { display: none; }
+.ds-settings-section-danger { border-color: color-mix(in srgb, var(--tone-red-text) 35%, var(--border-default)); }
+.ds-settings-section-danger .ds-settings-section-title { color: var(--tone-red-text); }
+
+/* Old section padding helpers stay neutral inside the new body */
+.ds-settings-section-body > .settings-form-panel,
+.ds-settings-section-body .settings-form-panel {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  box-shadow: none;
+}
+
+.settings-subsection { display: flex; flex-direction: column; gap: 12px; padding-top: 16px; border-top: 1px solid var(--border-default); }
+.settings-subsection-title { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.settings-subsection .form-group label { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 6px; }
+
+.settings-section-footer,
+.settings-page-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.settings-section-footer { padding-top: 16px; border-top: 1px solid var(--border-default); }
+.settings-page-actions { margin-top: 4px; }
+.settings-inline-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.settings-inline-form > .ds-choice { flex: 1 1 240px; }
+.settings-select { max-width: 360px; }
+
+/* Settings that only apply while a switch is on */
+.settings-dependent { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+.settings-dependent:disabled { opacity: 0.5; }
+
+/* Choice group */
+.ds-choice { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ds-choice-label { font-size: 13px; font-weight: 600; color: var(--text-primary); margin: 0; }
+.ds-choice-hint { display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 1.5; color: var(--text-tertiary); }
+.ds-choice-hint-danger { color: var(--tone-red-text); }
+
+.ds-segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 3px;
+  gap: 2px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+}
+.ds-segmented .ds-choice-option {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s;
+}
+.ds-segmented .ds-choice-option:hover:not(:disabled):not(.is-checked) { color: var(--text-primary); background: color-mix(in srgb, var(--bg-card) 60%, transparent); }
+.ds-segmented .ds-choice-option.is-checked {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(20, 22, 31, 0.12), 0 0 0 1px var(--border-default);
+}
+.ds-choice-option:focus-visible { outline: none; box-shadow: var(--focus-ring); position: relative; z-index: 1; }
+.ds-choice-option:disabled { cursor: not-allowed; opacity: 0.55; }
+
+.ds-choice-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.ds-choice-cards .ds-choice-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  text-align: left;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.12s, background-color 0.12s;
+}
+.ds-choice-cards .ds-choice-option:hover:not(:disabled) { border-color: var(--border-hover); }
+.ds-choice-cards .ds-choice-option.is-checked { border-color: var(--brand-fill); background: var(--tone-brand-soft); box-shadow: inset 0 0 0 1px var(--brand-fill); }
+.ds-choice-radio {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-hover);
+  background: var(--bg-card);
+}
+.ds-choice-option.is-checked .ds-choice-radio { border: 5px solid var(--brand-fill); }
+.ds-choice-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.ds-choice-title { font-size: 14px; font-weight: 600; line-height: 1.35; }
+.ds-choice-desc { font-size: 12px; color: var(--text-tertiary); overflow-wrap: anywhere; font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
+
+/* Switch rows: label on the left, switch on the right, one per row */
+:is(html, :root[data-theme]) .ds-settings-section-body .toggle-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+}
+:is(html, :root[data-theme]) .ds-settings-section-body .toggle-item + .toggle-item { padding-top: 16px; border-top: 1px solid var(--border-default); }
+.ds-settings-section-body .toggle-item .toggle-label { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; color: var(--text-primary); }
+.ds-settings-section-body .toggle-item.large .toggle-label small { font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-top: 2px; }
+.ds-settings-section-body .toggle-item .settings-toggle-switch { margin: 0; flex-shrink: 0; order: 2; }
+:is(html, :root[data-theme]) .toggle-slider { background: var(--border-hover); }
+:is(html, :root[data-theme]) .toggle-item input:checked + .toggle-slider { background: var(--brand-fill); }
+.toggle-item input:focus-visible + .toggle-slider { box-shadow: var(--focus-ring); }
+
+@media (max-width: 576px) {
+  .ds-settings-section-head, .ds-settings-section-body { padding-left: 16px; padding-right: 16px; }
+  .ds-segmented { display: flex; width: 100%; }
+  .ds-segmented .ds-choice-option { flex: 1 1 auto; padding: 0 10px; }
+  .settings-select { max-width: none; }
+}
+/* The real checkbox stays in the tab order (it was display:none). */
+:is(html, :root[data-theme]) .toggle-item { position: relative; }
+:is(html, :root[data-theme]) .toggle-item input[type="checkbox"] {
+  display: block;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+/* -------------------------------------------------------------
+   11 · Profile
+   ------------------------------------------------------------- */
+/* Full width like every page; the fields keep a readable width. */
+.profile-page .profile-grid { max-width: 880px; }
+.profile-identity { display: flex; align-items: center; gap: 16px; }
+.profile-avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--tone-brand-soft);
+  color: var(--tone-brand-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 600;
+}
+.profile-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.profile-avatar-edit {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+  cursor: pointer;
+}
+.profile-avatar-edit:hover { color: var(--text-primary); border-color: var(--border-hover); }
+.profile-avatar-edit:focus-within { box-shadow: var(--focus-ring); }
+.profile-identity-text { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.profile-name { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+.profile-email { font-size: 13px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; padding-top: 20px; border-top: 1px solid var(--border-default); }
+.profile-field .form-label { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 6px; }
+.profile-field-error { margin-top: 4px; font-size: 12px; color: var(--tone-red-text); }
+@media (max-width: 576px) { .profile-grid { grid-template-columns: 1fr; } }
+
+/* Table footer (count + pagination): same 24px inset as the cells */
+.ds-table-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--border-default);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.ds-table-footer .text-muted { color: var(--text-secondary) !important; }
+@media (max-width: 576px) { .ds-table-footer { padding: 12px 16px; } }
+
+/* Tables inside cards run edge to edge; their first and last columns sit on
+   the same inset as the card's header text (20px, or Bootstrap's 16px card
+   header inside .card). */
+.ds-settings-section-flush .ds-settings-section-body { padding: 0; gap: 0; }
+.ds-settings-section-flush table { margin: 0; }
+.ds-settings-section-flush :is(th, td):first-child { padding-left: 20px !important; }
+.ds-settings-section-flush :is(th, td):last-child { padding-right: 20px !important; }
+:is(html, :root[data-theme]) .ds-settings-section-flush thead th {
+  background: var(--bg-sunken);
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  border-radius: 0;
+}
+.batch-traces-table :is(th, td):first-child { padding-left: 16px; }
+.batch-traces-table :is(th, td):last-child { padding-right: 16px; }
+.investigate-table :is(th, td):first-child { padding-left: 20px; }
+.investigate-table :is(th, td):last-child { padding-right: 20px; }
+.nav-tabs.px-4 .nav-item:first-child .nav-link { margin-left: -2px; }
+.settings-tone-warn { color: var(--tone-amber-text); }
+.toggle-item:has(.settings-tone-warn) input:checked + .toggle-slider { background: var(--warning-500, #f59e0b); }
+
+/* Settings use the full width like every page. Inside the cards, fields
+   keep a readable width, switches sit before their label (a switch at the
+   far edge of a wide card would be a long way from what it controls), and
+   Save sits under the fields it saves. */
+.ds-settings-section-body :is(.form-control, .form-select, .input-group, textarea):not(.ds-choice-option) { max-width: 640px; }
+.ds-settings-section-body .settings-inline-form { max-width: 760px; }
+:is(html, :root[data-theme]) .ds-settings-section-body .toggle-item { justify-content: flex-start; gap: 14px; }
+.ds-settings-section-body .toggle-item .toggle-label { flex: 0 1 auto; }
+.ds-settings-section-body .toggle-item > .toggle-slider,
+.ds-settings-section-body .toggle-item .settings-toggle-switch { order: -1; }
+.settings-section-footer,
+.settings-page-actions { justify-content: flex-start; }
+
+/* Settings pages whose content is one table: the table sits in a card,
+   like Team, Audit log or Projects. */
+:is(html, :root[data-theme]) .settings-section > .table-responsive:has(> .settings-table) {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  overflow-x: auto;
+}
+.settings-section > .table-responsive > .settings-table { margin: 0; }
+:is(html, :root[data-theme]) .settings-table thead th {
+  background: var(--bg-sunken);
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-default);
+  white-space: nowrap;
+}
+.settings-table :is(th, td) { padding-top: 12px; padding-bottom: 12px; vertical-align: middle; }
+.settings-table :is(th, td):first-child { padding-left: 20px; }
+.settings-table :is(th, td):last-child { padding-right: 20px; text-align: right; }
+.settings-table tbody tr:last-child td { border-bottom: 0; }
+
+/* Short values (counts, status, dates) sit centred under their header.
+   Phones stack the rows into cards, so only from tablet width up. */
+@media (min-width: 768px) {
+  .clusters-table :is(th, td):is(:nth-child(4), :nth-child(5)),
+  .ingest-keys-table :is(th, td):is(:nth-child(3), :nth-child(4), :nth-child(5)),
+  .channels-table :is(th, td):is(:nth-child(4), :nth-child(5), :nth-child(6)),
+  .routing-table :is(th, td):is(:nth-child(4), :nth-child(5)) { text-align: center; }
+}
+.team-avatar {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--tone-brand-soft);
+  color: var(--tone-brand-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Distributed traces: filters, table and footer in one card */
+.traces-card { overflow: hidden; }
+.traces-card .traces-filters { padding: 16px 20px; border-bottom: 1px solid var(--border-default); }
+.traces-card .table-responsive { margin: 0; }
+.traces-card table { margin: 0; }
+.traces-card :is(th, td):first-child { padding-left: 20px; }
+.traces-card :is(th, td):last-child { padding-right: 20px; }
+:is(html, :root[data-theme]) .traces-card thead th { background: var(--bg-sunken); color: var(--text-tertiary); font-size: 12px; font-weight: 600; }
+
+/* Audit log: the standard header and a quieter filter button */
+:is(html, :root[data-theme]) .audit-log-table thead th,
+:is(html, :root[data-theme]) .settings-card table thead th { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 600; color: var(--text-tertiary); background: var(--bg-sunken); }
+
+/* Action buttons in the last column line up under the right-aligned
+   "Actions" header, also when they sit in a flex group. */
+:is(.ds-settings-section-flush, .settings-table, .projects-card, .traces-card) td:last-child > :is(.d-flex, .btn-group) { justify-content: flex-end; }
+.traces-card .ds-table-footer { padding-left: 20px; padding-right: 20px; }
+
+/* The SerOps mark is a complete SVG (square and S); no box behind it. */
+:is(html, :root[data-theme]) :is(svg.app-sidebar-mark, svg.brand-mark-icon) { background: none; border-radius: 0; display: block; flex: none; }

@@ -11,8 +11,9 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import PageHeader from '../PageHeader';
 import { Button, Modal, Form, Spinner, Table, Alert, Badge } from 'react-bootstrap';
-import { FaBell, FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { SettingsService } from '../../services/settings.service';
 import './SettingsLayout.css';
@@ -138,37 +139,31 @@ const RoutingRulesSettings = () => {
 
     return (
         <div className="settings-content">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-                <h4>
-                    <FaBell className="me-2" aria-hidden="true" /> Routing Rules
-                </h4>
-                <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={openCreate}
-                    aria-label="Add a new routing rule"
-                >
-                    <FaPlus className="me-1" aria-hidden="true" /> New rule
-                </Button>
-            </div>
-
-            <Alert variant="info" className="small">
-                Rules decide which delivery channels get notified for each incident.
-                Every active rule that matches contributes its targets; a channel
-                that matches multiple rules is contacted once.
-            </Alert>
+            <PageHeader
+                title="Routing Rules"
+                subtitle="Rules decide which delivery channels get notified for each incident. Every active rule that matches contributes its targets; a channel that matches multiple rules is contacted once."
+                actions={
+                    <Button
+                        variant="primary"
+                        onClick={openCreate}
+                        aria-label="Add a new routing rule"
+                    >
+                        <FaPlus className="me-1" aria-hidden="true" /> New rule
+                    </Button>
+                }
+            />
 
             {loading ? (
                 <div className="text-center py-4">
                     <Spinner animation="border" size="sm" /> Loading…
                 </div>
             ) : rules.length === 0 ? (
-                <div className="text-center text-muted py-4">
+                <div className="ds-card text-center text-muted py-5 px-3">
                     No routing rules yet. Create one to route incidents to your
                     Delivery Channels.
                 </div>
             ) : (
-                <Table hover responsive size="sm" className="table-stack">
+                <Table hover responsive size="sm" className="table-stack settings-table routing-table">
                     <thead>
                         <tr>
                             <th>Name</th>

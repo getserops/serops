@@ -5,12 +5,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { Spinner } from 'react-bootstrap';
-import { FaShieldAlt, FaSlidersH } from 'react-icons/fa';
+import { FaSlidersH } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
 import SettingsService from '../../services/settings.service';
 import CollapsibleSection from './CollapsibleSection';
 import './SettingsLayout.css';
+import PageHeader from '../PageHeader';
 
 const SentinelSettings = () => {
     const { t } = useTranslation();
@@ -58,15 +59,7 @@ const SentinelSettings = () => {
 
     return (
         <div className="settings-section">
-            <div className="settings-header">
-                <div className="settings-icon-wrapper sentinel">
-                    <FaShieldAlt />
-                </div>
-                <div>
-                    <h2>{t('sentinel.title')}</h2>
-                    <p>{t('sentinel.subtitle')}</p>
-                </div>
-            </div>
+            <PageHeader title={t('sentinel.title')} subtitle={t('sentinel.subtitle')} />
 
             {/* Active Mode Toggle */}
             <CollapsibleSection
@@ -97,9 +90,9 @@ const SentinelSettings = () => {
                             </label>
                         </div>
 
-                        <div className="d-flex justify-content-end mt-4">
+                        <div className="settings-section-footer">
                             <button
-                                className="settings-save-btn text-white"
+                                className="btn btn-primary"
                                 onClick={handleSave}
                                 disabled={saving}
                             >
@@ -179,9 +172,9 @@ const SentinelSettings = () => {
                             />
                         </div>
 
-                        <div className="d-flex justify-content-end mt-4">
+                        <div className="settings-section-footer">
                             <button
-                                className="settings-save-btn text-white"
+                                className="btn btn-primary"
                                 onClick={handleSave}
                                 disabled={saving}
                             >

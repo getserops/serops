@@ -15,8 +15,10 @@ import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
 import SettingsService from '../../services/settings.service';
 import CollapsibleSection from './CollapsibleSection';
+import ChoiceGroup from './ChoiceGroup';
 import AIBudgetCard from './AIBudgetCard';
 import './SettingsLayout.css';
+import PageHeader from '../PageHeader';
 
 const AISettings = () => {
     const { t } = useTranslation();
@@ -274,15 +276,7 @@ const AISettings = () => {
 
     return (
         <div className="settings-section">
-            <div className="settings-header">
-                <div className="settings-icon-wrapper ai">
-                    <FaRobot />
-                </div>
-                <div>
-                    <h2>{t('ai.title')}</h2>
-                    <p>{t('ai.subtitle')}</p>
-                </div>
-            </div>
+            <PageHeader title={t('ai.title')} subtitle={t('ai.subtitle')} />
 
             {/* Monthly cost budget — shown first because admins want to
                 see current spend + set caps BEFORE picking providers.
@@ -295,44 +289,36 @@ const AISettings = () => {
                 description={t('ai.primaryProviderDesc')}
                 defaultExpanded={true}
             >
-                <div className="settings-selection-grid">
-                    {activeProviders.map((provider) => {
+                <ChoiceGroup
+                    variant="cards"
+                    value={settings.default_provider}
+                    onChange={(id) => handleProviderChange('default_provider', id)}
+                    options={activeProviders.map((provider) => {
                         const supported = isProviderSupported(provider);
-                        return (
-                            <div
-                                key={provider.id}
-                                className={`settings-selection-card ${settings.default_provider === provider.id ? 'active' : ''} ${!supported ? 'opacity-50' : ''}`}
-                                onClick={() => supported && handleProviderChange('default_provider', provider.id)}
-                                style={{ cursor: supported ? 'pointer' : 'not-allowed' }}
-                            >
-                                <div className="settings-selection-icon" style={{ fontSize: '2rem' }}>
-                                    {getProviderIcon(provider.name)}
-                                </div>
-                                <span className="settings-selection-label">
-                                    {provider.display_name}
-                                </span>
-                                <span className="settings-selection-desc">
-                                    {provider.default_model}
-                                </span>
-                                {!supported && <Badge bg="warning" text="dark" className="mt-2">{t('ai.comingSoon')}</Badge>}
-                            </div>
-                        );
+                        return {
+                            value: provider.id,
+                            label: provider.display_name,
+                            description: provider.default_model,
+                            disabled: !supported,
+                            badge: !supported && <span className="badge ds-chip">{t('ai.comingSoon')}</span>,
+                        };
                     })}
-                </div>
+                />
             </CollapsibleSection>
 
 
 
             {/* Manage AI Providers (Consolidated) */}
             <CollapsibleSection
+                className="ds-settings-section-flush"
                 title={t('ai.manageProviders') || "Manage AI Providers"}
                 description={t('ai.manageProvidersDesc') || "Configure all AI providers, including API keys, endpoints, and adapters."}
-            >
-                <div className="d-flex justify-content-end mb-3">
+                actions={
                     <Button variant="outline-primary" size="sm" onClick={() => { setEditingProvider(null); setShowProviderModal(true); }}>
                         <FaPlus className="me-1" /> {t('ai.addProvider') || "Add Provider"}
                     </Button>
-                </div>
+                }
+            >
 
                 <div className="table-responsive">
                     <table className="table settings-table table-stack">
@@ -458,9 +444,9 @@ const AISettings = () => {
             </CollapsibleSection>
 
             {/* Save Button */}
-            <div className="d-flex justify-content-end mt-4">
+            <div className="settings-page-actions">
                 <button
-                    className="settings-save-btn text-white"
+                    className="btn btn-primary"
                     onClick={handleSave}
                     disabled={saving}
                 >

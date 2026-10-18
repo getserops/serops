@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import AuthService from "../services/auth.service";
 import "./Login.css";
 import { FaUser, FaEnvelope, FaBuilding, FaLock, FaArrowRight, FaArrowLeft, FaEye, FaEyeSlash } from "react-icons/fa";
+import BrandMark from './BrandMark';
 
 const Register = () => {
   const { t } = useTranslation();
@@ -142,7 +143,7 @@ const Register = () => {
       <div className="login-form-panel">
         <div className="form-container">
           <div className="form-header">
-            <img src="/assets/images/Serops-Logo.png" alt="SerOps" className="form-logo" />
+            <BrandMark className="form-logo" />
             <h2>{step === 1 ? "Create Account" : "Secure your account"}</h2>
             <p>
               {step === 1

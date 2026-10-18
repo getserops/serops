@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from 'react-i18next';
-import { IoIosNotifications } from "react-icons/io";
 import ClusterPicker from "./ClusterPicker";
 import { OPEN_EVENT as OPEN_PALETTE } from "./CommandPalette";
 import { MdPerson } from "react-icons/md";
 import { RiLogoutBoxLine } from "react-icons/ri";
-import { FaBell, FaBars, FaSearch } from 'react-icons/fa';
+import { FaBell } from 'react-icons/fa';
+import { Bell, Menu, Search } from 'lucide-react';
+import EnvironmentPicker from './EnvironmentPicker';
 import { AnimatePresence } from 'framer-motion';
 import AuthService from "../services/auth.service";
-import { Dropdown, Nav } from "react-bootstrap";
+import { Dropdown } from "react-bootstrap";
 import ProfileService from "../services/profile.service";
 import NotificationService from "../services/notification.service";
 import NotificationPanel from "./NotificationPanel";
@@ -203,86 +204,48 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
 
   return (
     <>
-      <Nav className="navbar" style={{ padding: "0 20px", display: "flex", justifyContent: "space-between", width: "100%" }}>
-        {/* Mobile Sidebar Toggle - visible only on small screens */}
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <button
-            onClick={toggleSidebar}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'var(--text-secondary)',
-              fontSize: '24px',
-              padding: '8px',
-              marginRight: '16px',
-              display: window.innerWidth > 860 ? 'none' : 'block' // Simple initial check, CSS media query better
-            }}
-            className="d-lg-none" // Bootstrap class for hiding on large screens
-          >
-            <FaBars />
-          </button>
-          {/* Breadcrumb or Title could go here */}
-        </div>
-
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "24px",
-          marginLeft: "auto"
-        }}>
-          <button type="button" className="command-palette-trigger me-2" aria-label={t('palette.title')}
+      <header className="app-topbar">
+        <button
+          type="button"
+          className="app-topbar-icon app-topbar-menu"
+          onClick={toggleSidebar}
+          aria-label={t('nav.openMenu')}
+        >
+          <Menu size={20} aria-hidden="true" />
+        </button>
+        <EnvironmentPicker />
+        {/* Cluster picker (Item #19) — visible only for multi-cluster orgs. */}
+        <ClusterPicker />
+        <div className="app-topbar-spacer" />
+          <button type="button" className="command-palette-trigger" aria-label={t('palette.title')}
                   onClick={() => window.dispatchEvent(new Event(OPEN_PALETTE))}>
-            <FaSearch size={12} aria-hidden="true" />
+            <Search size={15} aria-hidden="true" />
             <span className="command-palette-trigger-label">{t('palette.trigger')}</span>
             <kbd className="command-palette-kbd">{/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
           </button>
-          {/* Cluster picker (Item #19) — visible only for multi-cluster orgs. */}
-          <ClusterPicker />
-          {/* Notification Icon */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={toggleNotifications}>
-            <IoIosNotifications
-              style={{
-                fontSize: "24px",
-                color: "var(--text-secondary)",
-                transition: "color 0.2s"
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.color = "#2B47D6"}
-              onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}
-            />
+          <button
+            type="button"
+            className="app-topbar-icon"
+            onClick={toggleNotifications}
+            aria-label={unreadCount > 0 ? t('nav.notificationsUnread', { count: unreadCount }) : t('nav.notifications')}
+            aria-expanded={showNotifications}
+          >
+            <Bell size={18} strokeWidth={1.75} aria-hidden="true" />
             {unreadCount > 0 && (
-              <span style={{
-                position: 'absolute',
-                top: '-8px',
-                right: '-8px',
-                backgroundColor: '#ef476f',
-                color: 'white',
-                borderRadius: '10px',
-                minWidth: '20px',
-                height: '20px',
-                padding: '0 4px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '0.7rem',
-                fontWeight: 'bold',
-                border: '2px solid #fff'
-              }}>
+              <span className="app-topbar-badge" aria-hidden="true">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
-          </div>
-
-          <div style={{ height: "24px", width: "1px", backgroundColor: "var(--border-default)" }}></div>
+          </button>
 
           {/* User Profile Dropdown */}
           <Dropdown show={dropdownOpen} onToggle={toggleDropdown}>
-            <Dropdown.Toggle as="div" id="userDropdown" className="nav-link"
+            <Dropdown.Toggle as="div" id="userDropdown" className="app-topbar-user"
                              data-testid="user-menu-trigger"
                              aria-label="Open user menu"
                              role="button"
-                             style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span className="d-none d-lg-inline account-user-name" style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
+                             tabIndex={0}>
+              <span className="d-none d-xl-inline account-user-name">
                 {getFullName()}
               </span>
               {image && !imageFailed ? (
@@ -291,13 +254,13 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
                   src={`${BACKEND_HOST}${image}`}
                   onError={() => setImageFailed(true)}
                   alt="Profile"
-                  style={{ width: "36px", height: "36px", objectFit: "cover", border: "2px solid #fff", boxShadow: "0 2px 5px rgba(0,0,0,0.05)" }}
+                  style={{ width: "32px", height: "32px", objectFit: "cover" }}
                 />
               ) : (
                 <span
                   className="img-profile rounded-circle"
                   aria-label="Profile"
-                  style={{ width: "36px", height: "36px", display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--brand-fill, #2563eb)", color: "#fff", fontWeight: 600, fontSize: "14px", border: "2px solid #fff", boxShadow: "0 2px 5px rgba(0,0,0,0.05)" }}
+                  style={{ width: "32px", height: "32px", display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--tone-brand-soft)", color: "var(--tone-brand-text)", fontWeight: 700, fontSize: "12px" }}
                 >
                   {getInitials()}
                 </span>
@@ -425,8 +388,7 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
               </div>
             </Dropdown.Menu>
           </Dropdown>
-        </div>
-      </Nav>
+      </header>
 
       {/* Notification Panel */}
       <AnimatePresence>
