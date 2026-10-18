@@ -16,7 +16,7 @@ Connect Azure DevOps to SerOps for repository tracking, pipeline monitoring, and
 
 ## Setup
 
-Configuration is managed in **Settings → Global Integrations**.
+Configuration is managed in **Integrations**.
 
 1. In Azure DevOps: **User Settings → Personal Access Tokens**
 2. Create a new token with scopes:
@@ -24,7 +24,7 @@ Configuration is managed in **Settings → Global Integrations**.
    - `Build: Read`
    - `Release: Read`
    - `Project and Team: Read`
-3. In SerOps: **Settings → Global Integrations**
+3. In SerOps: **Integrations**
 4. Click **+ Add Integration** and select **Azure DevOps**
 5. Enter:
    - **Name**: Identifier (e.g., "Corporate Azure DevOps")
@@ -44,6 +44,23 @@ Organisation: my-company
 ```
 
 SerOps uses this to construct API URLs and token generation links.
+
+### Choosing the repository
+
+An Azure DevOps project can hold several Git repositories, and they are often named differently from the project. When you link a service, the picker lists every repository in the organisation as **project / repository**.
+
+If you enter the repository by hand (onboarding), use:
+
+```
+organisation/project/repository
+Example: my-company/Shop/payments-api
+```
+
+`organisation/project` still works and means the repository named like the project (Azure's default repository).
+
+### How diffs are read
+
+Azure DevOps has no API that returns a commit's diff, so SerOps fetches each changed file before and after the commit and computes the diff itself. This takes one request for the commit plus two per file, for the first 10 files of each commit; binary files and files over 200 KB are skipped. Only the diff is kept. See [What SerOps reads from your repositories](../security/data-protection.md#what-serops-reads-from-your-repositories).
 
 ---
 

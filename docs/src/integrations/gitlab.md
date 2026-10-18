@@ -18,7 +18,7 @@ Connect GitLab to SerOps for pipeline logs, code changes, and deployment trackin
 
 All integrations must be configured in **Settings** before they can be used in projects.
 
-1. Navigate to **Settings → Global Integrations**
+1. Navigate to **Integrations**
 2. Click **+ Add Integration** and select **GitLab**
 3. Enter:
     *   **Name**: Identifier for this integration (e.g. "Corporate GitLab")
@@ -102,7 +102,7 @@ If webhooks fail, SerOps has automatic fallback:
 
 ## API Reference
 
-### Create Global Integration
+### Create the integration
 ```
 POST /api/providers/integrations/
 {

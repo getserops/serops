@@ -2,15 +2,15 @@
 seo_title: "Global integrations"
 description: "Manage your organisation's source-control and CI/CD connections in one place and reuse them across projects."
 ---
-# Global Integrations
+# Integrations
 
 Manage your organisation's SCM and CI/CD provider connections from a central location.
 
 ## Overview
 
-**Location**: Settings → Global Integrations
+**Location**: Integrations (sidebar)
 
-Global Integrations store credentials and configuration for connecting to external providers like GitLab, GitHub, Jenkins, and Azure DevOps. Once configured, these integrations can be used by any project in your organisation.
+Integrations store credentials and configuration for connecting to external providers like GitLab, GitHub, Jenkins, and Azure DevOps. Once configured, these integrations can be used by any project in your organisation.
 
 ```mermaid
 graph TD

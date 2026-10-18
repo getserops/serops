@@ -21,7 +21,7 @@ AWS CloudWatch is a monitoring and observability service from Amazon Web Service
 
 ## Configuration
 
-In the UI: **Settings → Global Integrations → AWS CloudWatch**, then fill in
+In the UI: **Integrations → Log Providers → Add Integration → AWS CloudWatch**, then fill in
 the region, the access key ID and the secret access key. Through the API:
 
 ```json

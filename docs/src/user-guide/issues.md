@@ -102,7 +102,7 @@ All columns are sortable by clicking the column header.
 
 ### Batch Issues View
 
-Click **Issues** count in the Data page to see issues for that specific batch.
+Click the **Issues** count on the Analyses page to see issues for that specific batch.
 
 ---
 
@@ -275,7 +275,7 @@ Issues can trigger notifications based on status:
 | MUTED | Any | ❌ No |
 | RESOLVED | N/A | ❌ No |
 
-Configure in **Settings → Delivery Channels** and **Settings → Routing Rules**.
+Configure in **Alerts & routing → Delivery Channels** and **Alerts & routing → Routing Rules**.
 
 ---
 
@@ -297,7 +297,7 @@ Configure in **Settings → Delivery Channels** and **Settings → Routing Rules
 
 ## Related Pages
 
-- [Batches & Analysis](batches.md) — Batches that produce issues
+- [Analyses](batches.md) — Batches that produce issues
 - [AI Chat](ai-chat.md) — Send issues to AI for deeper analysis
 - [Notifications](notifications.md) — Get alerted when issues are detected
 - [Tune Issue Deduplication](../how-to/tune-deduplication.md) — Configure dedup windows and auto-resolve

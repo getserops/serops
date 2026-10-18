@@ -163,7 +163,7 @@ curl -X PUT https://api.yourdomain.com/api/settings/sentinel/ \
 
 ### Batch List
 
-The **Data** page displays a **Sentinel** column in the batch table. Each batch shows a coloured badge:
+The **Analyses** page displays a **Sentinel** column in the batch table. Each batch shows a coloured badge:
 
 | Badge | Colour | Meaning |
 |-------|--------|---------|
@@ -175,7 +175,7 @@ The **Data** page displays a **Sentinel** column in the batch table. Each batch 
 
 ### Dashboard
 
-The **Dashboard** includes a **Sentinel Intelligence** card that provides an at-a-glance summary:
+The **Overview** includes a **Sentinel Intelligence** card that provides an at-a-glance summary:
 
 - **Skip rate percentage** -- the proportion of batches where AI analysis was saved
 - **Decision breakdown** -- counts of alert, quiet, and first decisions over the selected period

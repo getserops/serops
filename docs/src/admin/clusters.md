@@ -78,7 +78,7 @@ rename or a migration, not a full data purge.
 
 ## Assigning projects to clusters
 
-*Settings → Projects → (project) → Cluster.* Or via API:
+*Projects → (project) → Deployments → Cluster.* Or via API:
 
 ```bash
 curl -X PATCH https://your-serops-host/api/projects/42/ \

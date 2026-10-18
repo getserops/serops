@@ -16,12 +16,12 @@ Connect Jenkins pipelines to SerOps for build and deployment tracking.
 
 ## Setup
 
-Jenkins integrations are configured in **Settings → Global Integrations**.
+Jenkins integrations are configured in **Integrations**.
 
 1. In Jenkins: **User Profile → Configure → API Token**
 2. Click **Add new Token** and give it a name (e.g., "SerOps Integration")
 3. Copy the generated token
-4. In SerOps: **Settings → Global Integrations**
+4. In SerOps: **Integrations**
 5. Click **+ Add Integration** and select **Jenkins**
 6. Enter:
    - **Name**: Identifier (e.g., "Production Jenkins")

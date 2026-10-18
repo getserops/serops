@@ -120,7 +120,7 @@ If webhooks fail, SerOps has automatic fallback:
 
 ## Related Pages
 
-- [Batches & Analysis](batches.md) — Code changes are displayed within batch details
+- [Analyses](batches.md) — Code changes are displayed within batch details
 - [Projects & Services](projects.md) — Configure SCM bindings for code tracking
 - [Connect Your First Provider](../how-to/connect-provider.md) — Set up SCM webhooks
 - [Integrations Overview](../integrations/overview.md) — Supported SCM and CI/CD providers

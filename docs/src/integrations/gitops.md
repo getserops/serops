@@ -22,7 +22,7 @@ side.
 ## Prerequisites
 
 You need a `CICDBinding` on the project service you're deploying.
-See *Settings → Global Integrations → CI/CD Providers* to create one. The
+See *Integrations → CI/CD* to create one. The
 binding's numeric ID goes in the webhook URL.
 
 ## ArgoCD

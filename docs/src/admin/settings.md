@@ -78,7 +78,7 @@ Manage AI providers and private API keys in **Settings > AI Providers > Manage P
 
 ## Delivery Channels
 
-**Location**: Settings → Delivery Channels
+**Location**: Alerts & routing → Delivery Channels
 
 One row per notification destination, following the Grafana contact
 point model. Multiple channels of the same kind are supported.
@@ -103,7 +103,7 @@ See [Notifications](notifications.md) for the full guide.
 
 ## Routing Rules
 
-**Location**: Settings → Routing Rules
+**Location**: Alerts & routing → Routing Rules
 
 Decides which delivery channels fire for which incidents — the
 Alertmanager route table, flattened.
@@ -190,7 +190,7 @@ Supported providers:
 
 ## Integration Settings
 
-**Location**: Settings → Global Integrations
+**Location**: Integrations (sidebar)
 
 Manage global provider integrations:
 
@@ -204,7 +204,7 @@ Manage global provider integrations:
 
 ## Observability Configuration
 
-**Location**: Settings → Global Integrations
+**Location**: Integrations (sidebar)
 
 Log, metric, and trace providers are configured alongside SCM and
 CI/CD providers on the Integrations page — there is no separate

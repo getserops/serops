@@ -7,6 +7,14 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-18
+
+A redesigned app (full-width pages, grouped navigation, environment
+picker, dark mode everywhere), AI analysis that reads the diff hunks the
+stack traces point at, diff text for GitHub/Bitbucket/Azure DevOps, code
+redaction before the AI, and Azure DevOps repositories. No migrations.
+Full notes in the [project changelog](https://serops.ai/docs/changelog/).
+
 ## [1.1.1] - 2026-10-17
 
 Fixes: Sentinel skips recurring errors, OTLP JSON span status, chat model

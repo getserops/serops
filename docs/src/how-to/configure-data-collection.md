@@ -94,7 +94,7 @@ Kubernetes mode is verified with Prometheus on single-node clusters; the Datadog
 
 - **CloudWatch (EKS)**: enable Container Insights on the cluster + install the CloudWatch agent DaemonSet. Metrics land in the `ContainerInsights` namespace.
 
-Switch modes in the SerOps UI (Settings → Global Integrations → your metric provider → Topology Mode) or via API (`PATCH /api/integrations/observability/<id>/ topology_mode=kubernetes`). The change takes effect on the next query — no restart required.
+Switch modes in the SerOps UI (Integrations → your metric provider → Topology Mode) or via API (`PATCH /api/integrations/observability/<id>/ topology_mode=kubernetes`). The change takes effect on the next query — no restart required.
 
 ### Alias support (Datadog USM, OpenTelemetry, Kubernetes)
 
@@ -529,12 +529,12 @@ The enrichment values must match what you configured in SerOps:
 
 After configuring your agents, verify data is flowing correctly:
 
-- [ ] **Health check passes**: Go to **Settings > Global Integrations > Observability** and run a health check on your provider
+- [ ] **Health check passes**: Go to **Integrations → Log Providers** (or **Metric Providers**) and run a health check on your provider
 - [ ] **Service names match**: The `service_name` in your logs exactly matches a service registered under your project
 - [ ] **Environment names match**: The `environment` in your logs matches an enabled environment in your project settings (or a known alias)
 - [ ] **Logs are queryable**: Check your provider directly (Kibana, Grafana, Datadog UI) to confirm enriched fields are present on log entries
 - [ ] **Metrics have labels**: Query Prometheus/VictoriaMetrics directly to verify `org_id`, `project_id`, `environment` labels exist on `node_*` metrics
-- [ ] **Batches appear**: Navigate to **Data** in SerOps — batches should appear within the configured generation interval (default: 60 seconds)
+- [ ] **Batches appear**: Navigate to **Analyses** in SerOps — batches should appear within the configured generation interval (default: 60 seconds)
 
 ---
 

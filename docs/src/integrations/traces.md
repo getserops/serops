@@ -106,8 +106,8 @@ is fine for early testing.
 
 ## 3. Verify Ingest
 
-Once your collector is sending, check the **Traces** entry in the
-main sidebar. The dashboard lists the most recent traces with filters
+Once your collector is sending, go to **Settings → Distributed Traces** and click **View received
+traces** (or press ⌘K / Ctrl K and type "traces"). The page lists the most recent traces with filters
 for service, status (OK / ERROR / UNSET), minimum duration, and time
 window. Click any row to open the trace detail view — a proportional
 span waterfall with an attribute + events inspector.
@@ -166,7 +166,7 @@ IDs.
 If you already ship traces to Jaeger, Zipkin, or Datadog APM and don't
 want to change your pipeline, SerOps can **pull** traces from them at
 RCA time instead of receiving them via OTLP. Configure a trace
-provider under *Settings → Global Integrations*:
+provider under *Integrations*:
 
 | Provider       | Host / endpoint                        | Auth                       |
 |----------------|----------------------------------------|----------------------------|

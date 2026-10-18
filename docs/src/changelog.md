@@ -18,6 +18,53 @@ Nothing yet.
 
 ---
 
+## [1.2.0] - 2026-10-18
+
+A redesigned app, root cause analysis that reads the part of a diff the
+incident points at, code diffs for every SCM provider, and redaction of
+code before it reaches the AI. No database migrations and no new
+environment variables: upgrade by setting `SEROPS_VERSION=1.2.0`
+(Docker Compose) or `--version 1.2.0` (Helm).
+
+### Added
+
+- **The AI reads the part of a diff the incident points at.** Diff excerpts
+  are chosen from the stack traces and error text in the batch's logs
+  (Python, JavaScript/TypeScript, Java/Kotlin, Go, Ruby, PHP, C#): whole
+  hunks around the named lines and functions, within a fixed budget of about
+  3,000 tokens. Previously each file got its first 500 characters.
+- **Diff text for GitHub, Bitbucket and Azure DevOps.** Only GitLab stored
+  diff content before; the others stored file names and line counts only.
+- **Azure DevOps repositories.** The repository picker lists Git
+  repositories across the organisation, and bindings accept
+  `organisation/project/repository`, so repositories named differently from
+  their project work. The organisation saved on the integration now
+  reaches every request.
+- Redesigned app: grouped navigation (Integrations and Alerts & routing
+  now have their own entries; Dashboard is **Overview**, Data is
+  **Analyses**), an environment picker on every page, full-width pages,
+  a single page header, compact settings controls, the SerOps logo, and
+  dark mode across every page. The list of received traces is reachable
+  from Settings → Distributed Traces and the ⌘K palette.
+
+### Security
+
+- Code diffs and commit messages are redacted (credentials, tokens, emails)
+  before they reach the AI, like logs. If redaction fails, the diff text is
+  left out. See [What SerOps reads from your repositories](security/data-protection.md#what-serops-reads-from-your-repositories).
+
+### Fixed
+
+- Correlations were dropped for a whole batch when an error log named a
+  file and the batch had code changes.
+- Settings → AI showed $0.00 spent this month when no budget cap was set.
+- An open tab no longer shows an error after an upgrade; it reloads into
+  the new version.
+- Turning off deduplication, recent resolutions or auto-cleanup could not
+  be saved.
+
+---
+
 ## [1.1.1] - 2026-10-17
 
 Fixes found by end-to-end testing of v1.1.0 on Kubernetes: Sentinel now

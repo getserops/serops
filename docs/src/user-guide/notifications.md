@@ -44,8 +44,8 @@ Each user can fully customize how and when they receive notifications. Access yo
 !!! note "Personal versus organisation-wide"
     The preferences on this page control *your* delivery. The Slack and
     Teams destinations themselves are organisation-wide and configured
-    by an admin under **Settings → Delivery Channels**, with
-    **Settings → Routing Rules** deciding which incidents reach them.
+    by an admin under **Alerts & routing → Delivery Channels**, with
+    **Alerts & routing → Routing Rules** deciding which incidents reach them.
     See [Notifications](../admin/notifications.md).
 
 ### Severity Filters

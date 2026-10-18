@@ -90,7 +90,7 @@ Metrics are fetched from the configured **Metric Provider** (Prometheus, Victori
 
 ## Related Pages
 
-- [Batches & Analysis](batches.md) — Metrics are collected as part of batch creation
+- [Analyses](batches.md) — Metrics are collected as part of batch creation
 - [Integrations Overview](../integrations/overview.md) — Supported metric providers
 - [Prometheus](../integrations/prometheus.md) · [VictoriaMetrics](../integrations/victoriametrics.md) · [Datadog](../integrations/datadog.md) — Provider-specific setup
 - [Observability API](../api/observability.md) — REST API reference

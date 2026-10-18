@@ -8,7 +8,7 @@ Once SerOps finishes an incident analysis, forward the AI's root
 cause + recommendation to wherever your on-call already looks —
 Slack, Teams, a PagerDuty incident timeline, OpsGenie, or email.
 
-Configure under **Settings → Delivery Channels**. Multiple channels
+Configure under **Alerts & routing → Delivery Channels**. Multiple channels
 per kind are supported.
 
 ## Kinds
@@ -42,7 +42,7 @@ SMTP itself is environment-only — see
 ## Routing
 
 Channels are destinations; they do not decide what reaches them.
-That is the job of **Settings → Routing Rules**, which pairs a matcher
+That is the job of **Alerts & routing → Routing Rules**, which pairs a matcher
 with a set of target channels:
 
 | Matcher axis | Values | Blank means |

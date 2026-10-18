@@ -74,7 +74,7 @@ is **logs + SCM + CI/CD** but any subset works (see
 [auto-detect](../architecture/multi-tenancy.md) — the AI adapts to
 what's available).
 
-1. Go to **Settings > Global Integrations**.
+1. Go to **Integrations**.
 2. Click **+ Add Integration** and pick a provider.
 3. Fill the connection form and click **Save**.
 4. Click **Verify** to confirm the credentials work.
@@ -126,7 +126,7 @@ Batch pipelines run on a schedule, but webhooks let SerOps react
    - GitLab: project **Settings > Webhooks**
    - Bitbucket: repo **Repository settings > Webhooks**
    - Jenkins: use the "Generic Webhook Trigger" plugin
-4. Trigger a push and confirm SerOps receives the event (**Data**
+4. Trigger a push and confirm SerOps receives the event (the **Analyses**
    page will show fresh activity).
 
 If the webhook fires but nothing appears in SerOps, check
@@ -140,7 +140,7 @@ SerOps aggregates logs, metrics, distributed traces, code changes, and CI/CD
 outputs into a **batch** at a configurable interval (default: every few
 minutes; see **Settings > Data Management**).
 
-1. Go to the **Data** page.
+1. Go to the **Analyses** page.
 2. When your first batch appears, click it to open the detail view.
 3. Scroll to **AI Analysis** — you'll see the AI-authored summary,
    detected issues, and root-cause hypotheses.

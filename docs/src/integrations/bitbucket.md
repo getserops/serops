@@ -16,7 +16,7 @@ Connect Bitbucket repositories to SerOps for code change tracking and pipeline m
 
 ## Setup
 
-Configuration is managed in **Settings → Global Integrations**.
+Configuration is managed in **Integrations**.
 
 ### Bitbucket Cloud
 
@@ -25,7 +25,7 @@ Configuration is managed in **Settings → Global Integrations**.
    - `Repositories: Read`
    - `Pipelines: Read` (for CI/CD)
    - `Webhooks: Read and write` (optional, for auto-setup)
-3. In SerOps: **Settings → Global Integrations**
+3. In SerOps: **Integrations**
 4. Click **+ Add Integration** and select **Bitbucket**
 5. Enter:
    - **Name**: Identifier (e.g., "Team Bitbucket")

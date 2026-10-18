@@ -74,7 +74,7 @@ service:
       exporters: [prometheusremotewrite]
 ```
 
-Then in SerOps → Settings → Global Integrations → Add Observability:
+Then in SerOps → Integrations → Log Providers → Add Integration:
 
 - **Provider**: Grafana Loki
 - **URL**: `http://loki:3100`

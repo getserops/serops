@@ -56,7 +56,7 @@ data local.
 
 ### How to use
 
-*Data page → select one batch → dropdown → "Generate post-mortem
+*Analyses page → select one batch → dropdown → "Generate post-mortem
 draft"*. A modal opens with:
 
 * AI-drafted markdown with 10 standard sections (Summary, Impact,

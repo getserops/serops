@@ -24,7 +24,7 @@ provide one; the per-organisation secret is the recommended path.
 
 ### Per-organisation secret (recommended)
 
-Go to **Settings → Delivery Channels** and use **Generate ingest
+Go to **Alerts & routing → Delivery Channels** and use **Generate ingest
 secret** (or **Rotate ingest secret** if one already exists).
 
 The plaintext is shown **exactly once**, in that dialog. SerOps stores

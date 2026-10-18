@@ -21,13 +21,13 @@ SerOps AI Chat is powered by pluggable AI models (Claude, Gemini, DeepSeek, or a
 
 ### New Conversation
 
-1. Click the **Chat** icon in the sidebar
+1. Click **AI Chat** in the sidebar
 2. Type your question
 3. The AI responds with context from your data
 
 ### With Batch Context
 
-From the **Data** page:
+From the **Analyses** page:
 1. Select a batch
 2. Click **Chat about Batch**
 3. The batch context is automatically included
@@ -163,7 +163,7 @@ DELETE /api/chat/chats/delete/{chat_id}
 
 ## Related Pages
 
-- [Batches & Analysis](batches.md) — Send batch context to chat
+- [Analyses](batches.md) — Send batch context to chat
 - [Issues](issues.md) — Send issues to AI for remediation guidance
 - [Compare AI Models](../how-to/compare-ai-models.md) — Re-analyze with different models
 - [Track AI Costs](../how-to/ai-costs.md) — Monitor token usage and costs

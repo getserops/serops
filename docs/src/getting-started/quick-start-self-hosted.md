@@ -149,7 +149,7 @@ with no key at all.
 
 ## Step 6: Connect your observability stack
 
-Go to **Settings → Global Integrations** and connect at least one of the
+Go to **Integrations** and connect at least one of the
 supported observability providers so SerOps has real logs and metrics
 to analyse. See [Integrations Overview](../integrations/overview.md)
 for the full list and per-provider setup guides.
@@ -310,7 +310,7 @@ DNS points at your host and the host firewall allows port 80.
 
 Either no AI provider key is configured, or the org has no
 observability integration wired. Check **Settings → AI Providers** for the
-provider key, and **Settings → Global Integrations** to connect at least one
+provider key, and **Integrations** to connect at least one
 of the supported log or metric providers.
 
 ---

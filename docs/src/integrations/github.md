@@ -16,13 +16,13 @@ Connect GitHub repositories to SerOps for code change tracking and CI/CD monitor
 
 ## Setup
 
-Configuration is managed in **Settings → Global Integrations**.
+Configuration is managed in **Integrations**.
 
 1. In GitHub: **Settings → Developer settings → Personal access tokens → Tokens (classic)**
 2. Generate token with scopes:
    - `repo` - Full repository access
    - `workflow` - (Optional) For GitHub Actions
-3. In SerOps: **Settings → Global Integrations**
+3. In SerOps: **Integrations**
 4. Click **+ Add Integration** and select **GitHub**
 5. Enter:
    - **Name**: Identifier (e.g. "My GitHub")

@@ -96,7 +96,7 @@ Separate setting for compliance logs:
 
 For immediate cleanup:
 
-1. Go to **Data** page
+1. Go to the **Analyses** page
 2. Select batches to delete
 3. Click **Delete Selected**
 4. Confirm

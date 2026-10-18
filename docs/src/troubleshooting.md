@@ -107,7 +107,7 @@ is salvaged from the primary instead.
 | PagerDuty pages nobody | Integration key | Ensure the Events API v2 integration key is for the correct service, not the account. |
 | OpsGenie alerts appear at P4 | Non-paging by design | SerOps posts as P4 to be additive to your existing pager schedule. Escalate manually via the alert if needed. |
 | Too many notifications | Preferences | Configure severity filters, quiet hours, or digest frequency in **Notification Preferences**. |
-| Escalation not triggering | Rules | Verify escalation rules are configured in **Settings > Routing Rules > Escalation Rules**. |
+| Escalation not triggering | Rules | Verify escalation rules exist: they are managed through the API (`/api/notification/escalation-rules/`), see [Escalation rules](how-to/escalation-rules.md). |
 | Notifications delayed | Quiet hours | Check if quiet hours are active. Notifications are held and delivered as a summary afterward. |
 
 ## Distributed traces (OTLP)

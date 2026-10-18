@@ -36,7 +36,7 @@ The models available for re-analysis depend on your organisation's configured AP
 
 ## Step 1: Select Batches
 
-1. Navigate to the **Data** page
+1. Navigate to the **Analyses** page
 2. Use filters to narrow down batches:
     - **Environment**: Production, Staging, or Development
     - **Date range**: Select the time period of interest
@@ -196,4 +196,4 @@ Estimate token spend before running large batch comparisons. Reference pricing f
 ## Next Steps
 
 - [Track AI Costs](ai-costs.md) -- monitor token usage and spending
-- [Batches & Analysis](../user-guide/batches.md) -- learn more about batch management
+- [Analyses](../user-guide/batches.md) -- learn more about batch management

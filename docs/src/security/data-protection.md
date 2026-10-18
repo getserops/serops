@@ -21,6 +21,21 @@ graph LR
 All data passes through the **DataRedactionService** before being sent to the configured AI model.
 
 ---
+
+## What SerOps reads from your repositories
+
+SerOps never clones, indexes or stores your repository. It reads **what changed**, nothing else:
+
+| Step | What happens |
+|------|--------------|
+| **Read** | The commits deployed in the analysis window, and their diffs. GitHub, GitLab and Bitbucket return the diff directly. Azure DevOps has no diff API, so SerOps fetches each changed file before and after the commit, computes the diff, and discards the file contents (first 10 files per commit; binary files and files over 200 KB are skipped). |
+| **Store** | The commit metadata (SHA, author, message, branch, file list) and up to 16,000 characters of diff per file, on the commit record in your own Postgres. |
+| **Send to the AI** | Only the parts of those diffs that the incident points at: hunks named by a stack frame in the logs, or mentioning the failing function or error text, within a fixed budget of about 3,000 tokens per analysis. Files nothing points at get a short excerpt. |
+| **Redact** | Diff excerpts and commit messages go through the same redaction as logs (credentials, tokens, emails, see below). If redaction fails, the diff text is left out and only file names are sent. |
+
+SerOps only ever reads code. The scopes each integration page asks for are a little wider (GitHub `repo`, GitLab `api`) because SerOps can also create the push webhook for you; if you create the webhook yourself, a token that can read repositories is enough.
+
+---
  
 ## Environment Isolation
 

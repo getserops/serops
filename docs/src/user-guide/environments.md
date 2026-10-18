@@ -87,19 +87,14 @@ Add environments beyond the defaults:
 
 ## Environment Filtering
 
-### Dashboard
+The **Environment** picker at the top left of every page filters the whole
+app: Overview, Issues, Analyses, traces and the rest follow the same choice.
+Pick **All environments** or one of production, staging and dev (an
+environment set elsewhere, for example from a shared link, is listed too).
+Organisations with registered Kubernetes clusters also get a **Cluster**
+picker next to it.
 
-Use the global environment dropdown:
-- All environments
-- Production only
-- Staging only
-- Development only
-
-### Data Page
-
-Filter batches by environment:
-- Color-coded badges show environment
-- Dropdown to filter
+On the **Analyses** page each analysis shows its environment as a badge.
 
 ---
 
@@ -175,6 +170,6 @@ GET /api/data/batches/?environment=production
 ## Related Pages
 
 - [Projects & Services](projects.md) — Configure environments per project
-- [Batches & Analysis](batches.md) — Batches are created per environment
+- [Analyses](batches.md) — Batches are created per environment
 - [Issues](issues.md) — Issues are scoped to environments
 - [Projects & Services API](../api/projects.md) — REST API reference

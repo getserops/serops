@@ -82,7 +82,7 @@ what did not is one of the most useful contributions right now.
 
 SerOps uses a two-level integration model:
 
-### Global Integrations (Organisation Level)
+### Integrations (organisation level)
 
 Credentials are stored once at the organisation level as a **ProviderIntegration**. This enables:
 
@@ -117,7 +117,7 @@ graph TD
 
 ## Setting Up Integrations
 
-1. **Add a Global Integration**: Go to **Settings > Global Integrations > Add Integration**
+1. **Add an integration**: go to **Integrations → Add Integration**
 2. **Add a Service**: Go to your project, click **+ New Service**, and select the integration
 3. **Verify**: Run a health check to confirm connectivity
 4. **Configure Webhooks** (optional): Set up webhooks for real-time updates
@@ -126,6 +126,6 @@ For a complete walkthrough, see [Connect Your First Provider](../how-to/connect-
 
 ## Related Pages
 
-- [Global Integrations Admin Guide](../admin/integrations.md)
+- [Integrations admin guide](../admin/integrations.md)
 - [Observability Providers](observability-overview.md)
 - [Integrations API](../api/integrations.md)

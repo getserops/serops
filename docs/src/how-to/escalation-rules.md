@@ -36,21 +36,19 @@ graph TD
 
 ---
 
-## Create an Escalation Rule via the UI
+## Where to manage them
 
-1. Navigate to **Settings > Routing Rules > Escalation Rules**
-2. Click **+ Add Rule**
-3. Configure the rule:
+Escalation rules have no settings screen yet: create and change them with
+the API below. Delivery channels and routing rules, which decide where
+notifications go, are managed in **Alerts & routing**.
 
-    | Field | Required | Description |
-    |-------|----------|-------------|
-    | **Project** | No | Specific project, or leave blank for all projects |
-    | **Severity** | Yes | `CRITICAL` or `WARNING` |
-    | **Level 1 Delay** | Yes | Minutes before notifying project admins (default: 15) |
-    | **Level 2 Delay** | Yes | Minutes before notifying all org admins (default: 45) |
-    | **Active** | Yes | Whether this rule is currently enabled |
-
-4. Click **Save**
+| Field | Required | Description |
+|-------|----------|-------------|
+| `project` | No | Project ID, or `null` for all projects |
+| `severity` | Yes | `CRITICAL` or `WARNING` |
+| `level_1_delay_minutes` | Yes | Minutes before notifying project admins (default 15) |
+| `level_2_delay_minutes` | Yes | Minutes before notifying all org admins (default 45) |
+| `is_active` | Yes | Whether the rule is enabled |
 
 !!! warning
     Level 2 delay must be greater than Level 1 delay. The system validates this and will reject invalid configurations.

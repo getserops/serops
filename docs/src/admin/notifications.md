@@ -9,8 +9,8 @@ model used by Grafana Alerting and Prometheus Alertmanager:
 
 | Page | Answers | Backed by |
 |------|---------|-----------|
-| **Settings → Delivery Channels** | *Where* can SerOps send? | `IncidentNotificationChannel` |
-| **Settings → Routing Rules** | *Which* incidents go *where*? | `NotificationRoutingRule` |
+| **Alerts & routing → Delivery Channels** | *Where* can SerOps send? | `IncidentNotificationChannel` |
+| **Alerts & routing → Routing Rules** | *Which* incidents go *where*? | `NotificationRoutingRule` |
 
 If you have configured Grafana contact points and notification
 policies, this is the same separation under different names. Channels
@@ -32,7 +32,7 @@ are destinations; rules decide which destinations fire.
 
 ## Delivery Channels
 
-**Location**: Settings → Delivery Channels
+**Location**: Alerts & routing → Delivery Channels
 
 One table, one row per destination. Unlike the old page, you can
 create as many channels of each kind as you need — separate Slack
@@ -107,7 +107,7 @@ channel.
 
 ## Routing Rules
 
-**Location**: Settings → Routing Rules
+**Location**: Alerts & routing → Routing Rules
 
 A rule pairs a *matcher* — which incidents it applies to — with a set
 of *target channels*.
@@ -224,7 +224,7 @@ Acknowledging or resolving the issue stops the chain. See
 
 | Symptom | Likely cause |
 |---------|--------------|
-| Nothing is sent at all | No active routing rule matches. Check Settings → Routing Rules |
+| Nothing is sent at all | No active routing rule matches. Check Alerts & routing → Routing Rules |
 | One channel silent, others fine | Channel auto-deactivated after a permanent failure — check its `last_error` |
 | No email received | SMTP not configured, or the channel's `extra_config.to` is empty |
 | Slack returns 404 | Webhook URL revoked or expired — regenerate it in Slack |

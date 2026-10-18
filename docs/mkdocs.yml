@@ -122,8 +122,8 @@ nav:
     - Upgrading: deployment/upgrading.md
     - Versioning: deployment/versioning.md
   - User Guide:
-    - Dashboard: user-guide/dashboard.md
-    - Batches & Analysis: user-guide/batches.md
+    - Overview: user-guide/dashboard.md
+    - Analyses: user-guide/batches.md
     - Metrics: user-guide/metrics.md
     - Code Changes: user-guide/code-changes.md
     - Issues: user-guide/issues.md
@@ -183,7 +183,7 @@ nav:
       - Slack / Teams / PagerDuty / OpsGenie: integrations/notifications.md
   - Admin Guide:
     - Settings Reference: admin/settings.md
-    - Global Integrations: admin/integrations.md
+    - Integrations: admin/integrations.md
     - Notifications: admin/notifications.md
     - Team Management: admin/team.md
     - Data Retention: admin/data-retention.md

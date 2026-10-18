@@ -1,213 +1,62 @@
 ---
-seo_title: "Dashboard: system health and open incidents"
-description: "The SerOps dashboard: what needs attention now, system health, MTTR, AI insights, trends, failing services and recent deployments."
+seo_title: "Overview: what's broken, why, and what to do"
+description: "The SerOps Overview: the incident that needs attention now, key numbers, recent AI analyses and deployments, and 7-day trends."
 ---
-# Dashboard
+# Overview
 
-The Dashboard provides a comprehensive view of your system health, issues, and trends.
+The Overview is the first page after sign-in (**Overview** in the sidebar). It answers three questions in order: what is broken right now, why, and what to do. It refreshes every minute.
 
-## Overview
-
-The Dashboard displays the following key components:
-
-1. **Health Score Card** - Overall system health
-2. **MTTR Card** - Mean Time To Resolution
-3. **Trend Analysis Chart** - Issue trends over time
-4. **Service Ranking Chart** - Top problematic services
-5. **Root Cause Pie** - Distribution of root causes
-6. **Service Health Heatmap** - Grid view of service status
-7. **Recent Deployments** - Latest deployment activity
-8. **AI Analysis Feed** - Recent AI analyses
-9. **Correlation Insights Card** - Cross-signal correlation insights
+The **Environment** picker at the top left (and **Cluster**, once you have registered clusters) filters it, like every other page.
 
 ---
 
-## Health Score Card
+## Needs attention now
 
-**Location**: Top left
+The most important open issue, with the AI's explanation (**Why it is happening**) and recommendation (**What to do**), and buttons to open the issue or the analysis it came from. Other open issues are listed below it, one line each, with their service.
 
-Displays the overall system health as a percentage:
+When nothing is open, the card says so.
 
-| Score | Color | Meaning |
-|-------|-------|---------|
-| 85-100% | Green | Healthy |
-| 60-84% | Yellow | Needs attention |
-| 0-59% | Red | Critical |
+## Key numbers
 
-**Calculated from**:
-- Active issue count and severity
-- Service availability
-- Recent error rate
+| Card | What it shows |
+|------|---------------|
+| **System health** | A 0–100 % score: green from 85, yellow 60–84, red below 60. |
+| **Mean time to resolve** | Average resolution time, its trend, and the time per severity. |
+| **AI insights** | Number of AI analyses in the period. |
+| **Critical** | Open critical issues. |
 
----
+## Recent AI analyses and deployments
 
-## MTTR Card
-
-**Mean Time To Resolution** shows how quickly issues are being resolved.
-
-| Metric | Description |
-|--------|-------------|
-| **Current MTTR** | Average resolution time (last 7 days) |
-| **Trend** | ↑ or ↓ compared to previous period |
-| **Severity Breakdown** | MTTR per severity level (Critical, Warning) |
-
-!!! tip "Improving MTTR"
-    - Investigate issues promptly
-    - Use AI analysis for quick root cause identification
-    - Set up notifications for critical issues
+- **Recent AI analyses**: the latest analyses, each with its environment, what was found and the model used. **View all** opens [Analyses](batches.md).
+- **Recent deployments**: the latest pipeline per service, with its branch, age and success rate.
 
 ---
 
-## Trend Analysis Chart
+## Trends
 
-**Location**: Main chart area
+Charts come in pairs:
 
-Line chart showing issue trends over time:
+| Chart | What it shows |
+|-------|---------------|
+| **7-day trend** | Critical and warning issues per day over the last 7 days. |
+| **Root cause breakdown** | Issues by root-cause category: Code, Infrastructure, Configuration, Dependency, Unknown. |
+| **Top failing services** | Services ranked by issue count. |
+| **Service health map** | One tile per service: healthy (80–100 %), degraded (50–79 %), critical (below 50 %). |
+| **AI correlation insights** | Share of issues SerOps linked to a deployment, a memory or CPU spike, or a failed pipeline, and the services most affected. |
+| **Sentinel intelligence** | AI analyses Sentinel skipped on quiet batches, and what that saved. |
 
-- **X-axis**: Time (hours/days/weeks)
-- **Y-axis**: Issue count
-- **Lines**: Critical (red), Warning (yellow), Info (blue)
+!!! info "Sentinel savings need active mode"
+    Skips and savings only apply when Sentinel is in **active mode**. In shadow mode every batch is analysed. See [Sentinel](../how-to/sentinel.md).
 
-### Time Range Options
-- Last 24 hours
-- Last 7 days
-- Last 30 days
-- Custom range
+## Workloads by cluster
 
----
-
-## Service Ranking Chart
-
-**Location**: Right panel
-
-Bar chart showing which services have the most issues:
-
-| Rank | Service | Issues |
-|------|---------|--------|
-| 1 | payment-api | 47 |
-| 2 | user-service | 23 |
-| 3 | notification-worker | 12 |
+Organisations with more than one Kubernetes cluster get a list of clusters with their projects and services. It is hidden with zero or one cluster.
 
 ---
 
-## Root Cause Pie
+## Related pages
 
-**Location**: Bottom left
-
-Pie chart showing distribution of identified root causes:
-
-| Category | Example |
-|----------|---------|
-| **Resource** | Memory exhaustion, CPU spike |
-| **Network** | Connection timeout, DNS failure |
-| **Application** | Null pointer, unhandled exception |
-| **Database** | Query timeout, connection pool |
-| **External** | Third-party API failure |
-
----
-
-## Service Health Heatmap
-
-**Location**: Center
-
-Grid showing all services with color-coded health:
-
-```
-┌─────────┬─────────┬─────────┐
-│ 🟢 API  │ 🟢 Auth │ 🟡 Pay  │
-├─────────┼─────────┼─────────┤
-│ 🔴 Notif│ 🟢 User │ 🟢 Log  │
-└─────────┴─────────┴─────────┘
-```
-
-Hover over a cell to see:
-- Last issue time
-- Issue count
-- Last deployment
-
----
-
-## Recent Deployments Card
-
-**Location**: Bottom right
-
-Shows the latest deployments across all projects:
-
-| Time | Project | Environment | Status |
-|------|---------|-------------|--------|
-| 14:30 | api-gateway | Production | ✅ Success |
-| 13:45 | user-service | Staging | ✅ Success |
-| 12:00 | payment-api | Production | ❌ Failed |
-
-Click a deployment to see:
-- Commit details
-- Code changes
-- Pipeline logs
-
----
-
-## AI Analysis Feed
-
-**Location**: Dashboard panel
-
-Displays recent AI analyses across your projects:
-
-- Latest batch analysis results
-- Issues detected with severity indicators
-- Quick links to full analysis details
-
----
-
-## Correlation Insights Card
-
-Highlights cross-signal correlations detected by AI:
-
-- Links between code deployments and issue spikes
-- Memory/CPU anomalies correlated with specific services
-- Timeline view of correlated events
-
----
-
-## Sentinel Intelligence Card
-
-Displays Sentinel gating statistics and AI cost savings:
-
-| Metric | Description |
-|--------|-------------|
-| **AI Skip Rate** | Percentage of batches where AI analysis was skipped (quiet batches) |
-| **Decision Breakdown** | Count of alert, quiet, and first decisions in the period |
-| **Batches Skipped** | Total batches that skipped AI analysis |
-| **Tokens Saved** | Estimated AI tokens saved by skipping quiet batches |
-
-!!! info "Requires Sentinel Active Mode"
-    The skip rate and savings metrics are only meaningful when Sentinel is in **active mode**. In shadow mode, all batches run AI analysis regardless of the sentinel decision.
-
-See [Sentinel How-To](../how-to/sentinel.md) for configuration details.
-
----
-
-## Filtering
-
-### Global Environment Filter
-
-Toggle between environments:
-- **All** (default)
-- **Production**
-- **Staging**
-- **Dev**
-
----
-
-## Refresh & Auto-Update
-
-- Dashboard auto-refreshes via polling
-- New batches trigger real-time updates
-
----
-
-## Related Pages
-
-- [Batches & Analysis](batches.md) — View batch details behind dashboard metrics
-- [Issues](issues.md) — Drill into issues shown on the dashboard
-- [Environments](environments.md) — Understand environment filtering
-- [Dashboard & Analytics API](../api/analytics.md) — REST API reference
+- [Analyses](batches.md): the analyses behind these numbers
+- [Issues](issues.md): drill into an issue
+- [Environments](environments.md): how environment filtering works
+- [Dashboard & Analytics API](../api/analytics.md): REST API reference

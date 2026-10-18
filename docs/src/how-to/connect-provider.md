@@ -14,7 +14,7 @@ The end-to-end flow for getting data into SerOps is:
 
 ```mermaid
 graph LR
-    A[Add Global Integration] --> B[Create Project]
+    A[Add Integration] --> B[Create Project]
     B --> C[Add Service]
     C --> D[Configure Webhook]
     D --> E[First Batch Appears]
@@ -22,11 +22,11 @@ graph LR
 
 ---
 
-## Step 1: Add a Global Integration
+## Step 1: Add an Integration
 
-Global Integrations store your SCM credentials once and let you reuse them across all projects.
+Integrations store your SCM credentials once and let you reuse them across all projects.
 
-1. Navigate to **Settings > Global Integrations**
+1. Navigate to **Integrations**
 2. Click **Add Integration**
 3. Select your provider type:
 
@@ -140,7 +140,7 @@ See **[Configure Data Collection Agents](configure-data-collection.md)** for the
 
 Once data starts flowing:
 
-1. Navigate to the **Data** page
+1. Navigate to the **Analyses** page
 2. You should see your first batch appear within the configured `BATCH_GENERATION_INTERVAL` (default: 60 seconds)
 3. The batch will show:
     - Environment badge (Production, Staging, or Development)
