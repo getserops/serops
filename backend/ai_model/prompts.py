@@ -591,12 +591,26 @@ def _build_user_content(context):
         traces_section = format_trace_context_for_prompt(traces_summary)
 
     # ─── Capability gating (single point of truth) ────────────────
-    # Sections for sources the org has NOT configured are wiped
-    # entirely — the AI must not reason about signals we can't see.
+    # Sections for sources we cannot see are wiped entirely — the AI must
+    # not reason about signals we don't have. A source counts as available
+    # when the org has configured it OR this batch carries data from it:
+    # OTLP traces (ingest keys), webhook-pushed commits and CI results, or
+    # alerts can arrive with no integration configured, and hiding data
+    # that is right here only loses evidence.
     # `enabled_capabilities=None` (legacy call sites) means all-on,
     # preserving pre-#29 behaviour for callers we haven't migrated.
     if enabled_capabilities is not None:
-        caps_set = frozenset(enabled_capabilities)
+        present = {
+            'logs': bool(logs),
+            # The metrics section can be bare headings ("CPU Usage Trends:")
+            # when the batch holds empty series; that is not data.
+            'metrics': any(line.strip() and not line.strip().endswith(':') and set(line.strip()) != {'-'}
+                           for line in metrics_section.splitlines()),
+            'code': bool(code_changes_section.strip()),
+            'cicd': bool(cicd_section.strip()),
+            'traces': bool(traces_section.strip()),
+        }
+        caps_set = frozenset(enabled_capabilities) | {k for k, v in present.items() if v}
         if 'logs' not in caps_set:
             log_section = ''
         if 'metrics' not in caps_set:

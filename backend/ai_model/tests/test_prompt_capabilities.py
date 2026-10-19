@@ -25,6 +25,12 @@ BASE_CTX = DataSourceContext(
 )
 
 
+# The same batch with data from logs only: what an org that configured
+# just a log provider actually sends.
+LOGS_ONLY_CTX = replace(BASE_CTX, metrics_summary=None, code_changes=None,
+                        ci_cd_outputs=None, traces_summary=None)
+
+
 class PromptCapabilityGatingTest(TestCase):
 
     def test_no_capabilities_arg_keeps_all_sections(self):
@@ -40,7 +46,7 @@ class PromptCapabilityGatingTest(TestCase):
 
     def test_logs_only_omits_the_other_four(self):
         _system, user = get_batch_analysis_prompt_parts(
-            replace(BASE_CTX, enabled_capabilities=['logs']),
+            replace(LOGS_ONLY_CTX, enabled_capabilities=['logs']),
         )
         self.assertIn('Logs to Analyze', user)
         self.assertNotIn('System Metrics Summary', user)
@@ -52,14 +58,15 @@ class PromptCapabilityGatingTest(TestCase):
 
     def test_metrics_only_omits_logs(self):
         _system, user = get_batch_analysis_prompt_parts(
-            replace(BASE_CTX, enabled_capabilities=['metrics']),
+            replace(BASE_CTX, logs=None, enabled_capabilities=['metrics']),
         )
         self.assertNotIn('Logs to Analyze', user)
         self.assertIn('System Metrics Summary', user)
 
     def test_no_capabilities_says_none_configured(self):
         _system, user = get_batch_analysis_prompt_parts(
-            replace(BASE_CTX, enabled_capabilities=[]),
+            replace(BASE_CTX, logs=None, metrics_summary=None, code_changes=None,
+                    ci_cd_outputs=None, traces_summary=None, enabled_capabilities=[]),
         )
         self.assertNotIn('Logs to Analyze', user)
         self.assertNotIn('System Metrics Summary', user)
@@ -81,3 +88,30 @@ class PromptCapabilityGatingTest(TestCase):
             'Available data sources for this org: cicd, code, logs, metrics, traces',
             user,
         )
+
+    def test_data_in_the_batch_is_kept_even_when_not_configured(self):
+        # OTLP traces, webhook commits and CI results arrive without an
+        # integration; wiping them hid real evidence from the AI.
+        system, user = get_batch_analysis_prompt_parts(
+            replace(BASE_CTX, enabled_capabilities=['logs']),
+        )
+        self.assertIn('Logs to Analyze', user)
+        self.assertIn('System Metrics Summary', user)
+        self.assertIn('Recent Code Changes', user)
+        self.assertIn('CI/CD Pipeline Outputs', user)
+        self.assertIn('Distributed Traces', user)
+        self.assertIn('Available data sources for this org: cicd, code, logs, metrics, traces', user)
+
+    def test_nothing_configured_but_data_present_lists_what_is_there(self):
+        system, user = get_batch_analysis_prompt_parts(
+            replace(LOGS_ONLY_CTX, enabled_capabilities=[]),
+        )
+        self.assertIn('Logs to Analyze', user)
+        self.assertIn('Available data sources for this org: logs', user)
+        self.assertNotIn('none configured', user)
+
+    def test_an_empty_metrics_heading_is_not_data(self):
+        system, user = get_batch_analysis_prompt_parts(
+            replace(LOGS_ONLY_CTX, system_metrics={'memory_usage_percent': [], 'cpu_usage_percent': []}, enabled_capabilities=[]),
+        )
+        self.assertIn('Available data sources for this org: logs', user)
