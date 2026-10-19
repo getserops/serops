@@ -10,6 +10,13 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-19
+
+Fixes: the AI sees every data source a batch carries (sections were hidden
+when no integration was configured), diff hunk headers survive redaction,
+a rejected Gemini key reads as an auth error; SerOps "SO" logo; Helm docs.
+Full notes in the [project changelog](https://serops.ai/docs/changelog/).
+
 ## [1.2.0] - 2026-10-18
 
 A redesigned app (full-width pages, grouped navigation, environment

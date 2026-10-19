@@ -18,6 +18,38 @@ Nothing yet.
 
 ---
 
+## [1.2.1] - 2026-10-19
+
+Fixes found by testing SerOps' root cause analysis on twelve simulated
+incidents: the AI now sees every data source a batch carries, and diff
+line numbers survive redaction. Also the SerOps "SO" logo and corrected
+Helm install docs. No migrations: set `SEROPS_VERSION=1.2.1` or
+`--version 1.2.1`.
+
+### Fixed
+
+- The AI now sees all the incident data in a batch. Logs, metrics, code
+  changes, CI results and traces were left out of the prompt whenever the
+  organisation had no integration configured for that source, even though
+  the batch carried them (OpenTelemetry traces, webhook commits and CI
+  results, and alerts arrive without one). A source now counts as available
+  when it is configured or the batch has data from it.
+- Code diffs sent to the AI kept their hunk headers: the phone-number
+  redaction turned `@@ -88,9 +88,9 @@` into `@@ -88,9 [PHONE],9 @@`,
+  dropping the line numbers that tie a change to a stack frame.
+- A rejected Gemini key ("API key not valid") is reported as an
+  authentication error instead of an unknown one.
+- Helm docs: the from-source install command failed (setting one field of
+  `ingress.hosts` dropped its paths), and neither install explained how to
+  use your own hostname; both now use a small values file.
+
+### Changed
+
+- The app uses the SerOps "SO" logo again (sidebar, sign-in pages, browser
+  icons).
+
+---
+
 ## [1.2.0] - 2026-10-18
 
 A redesigned app, root cause analysis that reads the part of a diff the
