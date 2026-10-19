@@ -946,4 +946,4 @@
 .traces-card .ds-table-footer { padding-left: 20px; padding-right: 20px; }
 
 /* The SerOps mark is a complete SVG (square and S); no box behind it. */
-:is(html, :root[data-theme]) :is(svg.app-sidebar-mark, svg.brand-mark-icon) { background: none; border-radius: 0; display: block; flex: none; }
+:is(html, :root[data-theme]) :is(.serops-mark.app-sidebar-mark, .serops-mark.brand-mark-icon) { background: none; border-radius: 0; display: block; flex: none; width: auto; object-fit: contain; }
