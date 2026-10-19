@@ -156,3 +156,13 @@ class RedactionTests(SimpleTestCase):
         self.assertNotIn('sk-ant-api03', section)
         self.assertIn('Diff: withheld (redaction unavailable)', section)
         self.assertIn('File: settings.py', section)
+
+    def test_hunk_headers_and_line_markers_survive_redaction(self):
+        # The phone-number pattern used to turn "@@ -88,9 +88,9 @@" into
+        # "@@ -88,9 [PHONE],9 @@", losing the line numbers that tie a diff
+        # to a stack frame.
+        diff = '@@ -88,9 +88,9 @@ class DatabaseSettings:\n-    pool_size = 50\n+    pool_size = 5\n+42 = answer'
+        section = build_code_changes_section([self._change(diff)], [])
+        self.assertIn('@@ -88,9 +88,9 @@ class DatabaseSettings:', section)
+        self.assertIn('+    pool_size = 5', section)
+        self.assertNotIn('[PHONE]', section)

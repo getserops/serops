@@ -304,6 +304,22 @@ def _default_redactor():
     return lambda text: service.redact(text)[0]
 
 
+def _redact_diff(text: str, redact) -> str:
+    """Redact a diff excerpt line by line. ``@@`` hunk headers hold only
+    line numbers and stay as they are (the phone-number pattern read
+    "+88,9" as a phone number), and each diff line is redacted after its
+    "+"/"-"/" " marker so the marker never becomes part of a match."""
+    out = []
+    for line in text.split('\n'):
+        if line.startswith('@@') or line.startswith('  … '):
+            out.append(line)
+        elif line[:1] in ('+', '-', ' '):
+            out.append(line[0] + redact(line[1:]))
+        else:
+            out.append(redact(line))
+    return '\n'.join(out)
+
+
 def build_code_changes_section(code_changes: list[dict] | None, log_lines: list[str] | None,
                                total_budget: int = TOTAL_BUDGET, redact=None) -> str:
     """The "Recent Code Changes" prompt section, with diffs chosen by the
@@ -319,7 +335,7 @@ def build_code_changes_section(code_changes: list[dict] | None, log_lines: list[
     except Exception:
         redact = None
 
-    def clean(text: str) -> str | None:
+    def clean(text: str, diff: bool = False) -> str | None:
         """Redacted text, or None when redaction is unavailable: code is
         left out rather than sent unmasked."""
         if not text:
@@ -327,7 +343,7 @@ def build_code_changes_section(code_changes: list[dict] | None, log_lines: list[
         if redact is None:
             return None
         try:
-            return redact(text)
+            return _redact_diff(text, redact) if diff else redact(text)
         except Exception:
             return None
     refs = extract_stack_refs(log_lines or [])
@@ -393,7 +409,7 @@ def build_code_changes_section(code_changes: list[dict] | None, log_lines: list[
             out.append(label)
             if (ci, fi) in excerpts:
                 text, shown, total = excerpts[(ci, fi)]
-                text = clean(text)
+                text = clean(text, diff=True)
                 if text is None:
                     out.append('    Diff: withheld (redaction unavailable)')
                     continue
