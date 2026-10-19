@@ -59,7 +59,12 @@ class User(AbstractUser):
     email = models.CharField(unique=True,max_length=255)
     password = models.CharField(unique=False,null=True,max_length=255)
     phone = models.CharField(unique=False,null=True,blank=True,max_length=255)  # Not unique, optional
-    avatar = models.ImageField(upload_to='images/', null=True ,blank=True)
+    # A small PNG, stored in the database (see Utils/images.py). It is
+    # served without authentication (an <img> cannot send the token) at
+    # /api/auth/avatar/<avatar_key>; the key is random and changes on
+    # every upload, so the URL cannot be guessed and can be cached forever.
+    avatar_png = models.BinaryField(null=True, blank=True, editable=False)
+    avatar_key = models.CharField(max_length=32, blank=True, default='', db_index=True)
     STATUS = Choices('active','suspended','disabled')
     status = models.CharField(choices=STATUS,null=False,default=STATUS.active,max_length=255)
     ROLE = Choices('viewer', 'user', 'admin')

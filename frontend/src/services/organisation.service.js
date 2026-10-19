@@ -56,6 +56,17 @@ export const OrganisationService = {
     }
   },
 
+  // An empty value removes the logo.
+  removeLogo: async () => {
+    const formData = new FormData();
+    formData.append('logo', '');
+    const token = localStorage.getItem("token");
+    const response = await axios.put(`${API_BASE_URL}/info/`, formData, {
+      headers: { Authorization: `Token ${token}`, 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
   getAllOrganisations: async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/list/`, getAuthHeaders());

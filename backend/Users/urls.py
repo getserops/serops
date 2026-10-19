@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import AcceptInvitationView, DeleteAccountView, DemoLoginView, EmailVerification, ForgetPasswordView, InvitationsetPasswordView, LogoutView, ProfileAvatarView, ProfileView, RegisterView, RegistrationStatusView, LoginView, ResendVerificationLinkView, SetPasswordView, UpdatePasswordView
+from .views import AcceptInvitationView, AvatarView, DeleteAccountView, DemoLoginView, EmailVerification, ForgetPasswordView, InvitationsetPasswordView, LogoutView, ProfileAvatarView, ProfileView, RegisterView, RegistrationStatusView, LoginView, ResendVerificationLinkView, SetPasswordView, UpdatePasswordView
 from .sso_views import SSOConfigView, SSOInitView, SSOCallbackView, SSOExchangeView
 
 
@@ -18,6 +18,7 @@ urlpatterns = [
     path('password/set/<str:uidb64>/<str:token>',SetPasswordView.as_view(),name="set-password"),
     path('accept/password',InvitationsetPasswordView.as_view(),name="accept-password"),
     path('profile/upload-avatar/', ProfileAvatarView.as_view(), name='upload-profile-avatar'),
+    path('avatar/<str:key>', AvatarView.as_view(), name='avatar'),
     path('account', DeleteAccountView.as_view(), name='delete-account'),
     
     # SSO Endpoints

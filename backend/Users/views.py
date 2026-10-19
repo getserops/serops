@@ -1,4 +1,6 @@
-import hashlib
+import secrets
+from django.http import Http404, HttpResponse
+from Utils.images import ImageRejected, to_small_png
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from .serializers import UserSerializer
@@ -17,7 +19,6 @@ from Utils.email_utils import send_activation_link, send_reset_password_link
 from django.contrib.auth.tokens import default_token_generator, PasswordResetTokenGenerator
 from django.core import signing
 import jwt
-import os
 from django.conf import settings
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.exceptions import ValidationError
@@ -29,6 +30,8 @@ from Data.audit import log_login, log_logout, log_action
 
 # Get Logger
 logger = logging.getLogger(__name__)
+
+AVATAR_MAX_SIDE = 128
 
 # Common response schemas
 registration_response = openapi.Schema(
@@ -921,53 +924,56 @@ class InvitationsetPasswordView(APIView):
 class ProfileAvatarView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
-    ALLOWED_IMAGE_EXTENSIONS = ["png","jpeg","jpg"]
+
     @swagger_auto_schema(
-        operation_description="Update user avatar",
+        operation_description="Upload the user's avatar (PNG, JPEG, GIF or WebP, max 2MB)",
         manual_parameters=[
-            openapi.Parameter(
-                'avatar',
-                openapi.IN_FORM,
-                description="Avatar image file (JPEG, JPG, PNG only)",
-                type=openapi.TYPE_FILE,
-                required=True
-            )
+            openapi.Parameter('avatar', openapi.IN_FORM, description="Image file",
+                              type=openapi.TYPE_FILE, required=True)
         ],
-        responses={
-            200: 'Avatar uploaded successfully',
-            400: 'Bad Request - Invalid file format',
-            500: 'Internal Server Error'
-        }
+        responses={200: 'Avatar uploaded; body has the new avatar path', 400: 'Not an image'}
     )
     def put(self, request):
-        logger.debug(f"Avatar update requested for user {request.user.email}")
-        user = User.objects.get(id=request.user.id)
-        
-        if 'avatar' not in request.data:
-            logger.warning(f"Avatar update failed: no avatar data provided for user {user.email}")
+        user = request.user
+        upload = request.FILES.get('avatar')
+        if not upload:
             return Response({'error': 'No avatar data provided'}, status=400)
-            
-        avatar_file = request.FILES.get('avatar')
-        file_extension = avatar_file.name.split('.')[-1].lower()
+        try:
+            user.avatar_png = to_small_png(upload, AVATAR_MAX_SIDE)
+        except ImageRejected as exc:
+            logger.warning(f"Avatar rejected for user {user.email}: {exc}")
+            return Response({'error': str(exc)}, status=400)
+        user.avatar_key = secrets.token_hex(16)
+        user.save(update_fields=['avatar_png', 'avatar_key'])
+        logger.info(f"Avatar updated for user {user.email}")
+        return Response({'avatar': UserSerializer(user).data['avatar']}, status=200)
 
-        if file_extension not in self.ALLOWED_IMAGE_EXTENSIONS:
-            logger.warning(f"Avatar update failed: invalid format ({file_extension}) for user {user.email}")
-            return Response({'error': 'Invalid image format. Allowed formats: JPEG, JPG, PNG'}, status=400)
+    @swagger_auto_schema(operation_description="Remove the user's avatar", responses={204: 'Removed'})
+    def delete(self, request):
+        user = request.user
+        user.avatar_png = None
+        user.avatar_key = ''
+        user.save(update_fields=['avatar_png', 'avatar_key'])
+        return Response(status=204)
 
-        file_hash = hashlib.sha256(avatar_file.read()).hexdigest()
-        avatar_file.seek(0)
-        avatar_filename = f"{user.id}_{file_hash[:10]}.{file_extension}"
-        avatar_path = os.path.join('images/', avatar_filename)
-        os.makedirs('images', exist_ok=True)
 
-        with open(avatar_path, 'wb+') as destination:
-            for chunk in avatar_file.chunks():
-                destination.write(chunk)
-                
-        user.avatar = avatar_path
-        user.save()
-        logger.info(f"Avatar successfully updated for user {user.email}")
-        return Response({'message': 'Avatar uploaded successfully'}, status=200)
+class AvatarView(APIView):
+    """GET /api/auth/avatar/<key>: the avatar PNG, without authentication.
+
+    An <img> cannot send the API token. The key is 128 random bits and
+    changes on every upload, so it works as an unguessable, immutable URL.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request, key):
+        user = User.objects.filter(avatar_key=key).exclude(avatar_key='').only('avatar_png').first()
+        if not user or not user.avatar_png:
+            raise Http404
+        response = HttpResponse(bytes(user.avatar_png), content_type='image/png')
+        response['Cache-Control'] = 'public, max-age=31536000, immutable'
+        response['X-Content-Type-Options'] = 'nosniff'
+        return response
 
 
 class DeleteAccountView(APIView):

@@ -10,6 +10,14 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+### Added
+
+- Organisation logo in the sidebar; remove logo / remove photo actions.
+
+### Changed
+
+- Smaller SerOps mark in the sidebar; profile photo updates without a reload.
+
 ## [1.2.1] - 2026-10-19
 
 Fixes: the AI sees every data source a batch carries (sections were hidden

@@ -637,6 +637,7 @@
     "phoneDigits": "Phone must contain exactly 8 digits",
     "demoRole": "Read-only demo",
     "changePhoto": "Change photo",
+    "removePhoto": "Remove photo",
     "password": "Password",
     "passwordDesc": "Change the password you use to sign in."
   },
@@ -650,7 +651,8 @@
         "title": "Organisation Information",
         "subtitle": "Your team's public profile details",
         "logo": "Company Logo",
-        "logoHint": "Click to upload (max 2MB)",
+        "logoHint": "Click to upload. PNG, JPEG, GIF or WebP, max 2 MB.",
+        "removeLogo": "Remove logo",
         "name": "Organisation Name",
         "nameHint": "Contact admin to change organisation name",
         "website": "Website",

@@ -82,7 +82,8 @@ class OrganisationInfoView(APIView):
             serializer = OrganisationSerializer(
                 organisation,
                 data=request.data,
-                partial=True
+                partial=True,
+                context={'request': request},
             )
 
             if serializer.is_valid():

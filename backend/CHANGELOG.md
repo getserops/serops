@@ -7,6 +7,14 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+### Fixed
+
+- Organisation logos and profile photos are stored in the database as
+  small PNGs (they were never served with `DEBUG` off). Profile photos are
+  served at `GET /api/auth/avatar/<key>`; `DELETE
+  /api/auth/profile/upload-avatar/` and an empty `logo` remove them.
+  Migrations `Organisations 0013`, `Users 0012`.
+
 ## [1.2.1] - 2026-10-19
 
 Fixes: the AI sees every data source a batch carries (sections were hidden

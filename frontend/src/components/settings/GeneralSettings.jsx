@@ -71,10 +71,26 @@ const GeneralSettings = () => {
         fileInputRef.current?.click();
     };
 
+    const handleLogoRemove = async () => {
+        try {
+            setUploadingLogo(true);
+            await OrganisationService.removeLogo();
+            setSettings(prev => ({ ...prev, logoUrl: null }));
+            window.dispatchEvent(new CustomEvent('serops:org-updated', { detail: { logo_url: null } }));
+            toast.success(t('common.success'));
+        } catch (error) {
+            console.error('Logo remove error:', error);
+            toast.error(t('common.error'));
+        } finally {
+            setUploadingLogo(false);
+        }
+    };
+
     const handleLogoChange = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        e.target.value = '';
         if (!file.type.startsWith('image/')) {
             toast.error('Please select an image file');
             return;
@@ -89,10 +105,12 @@ const GeneralSettings = () => {
             setUploadingLogo(true);
             const result = await OrganisationService.uploadLogo(file);
             setSettings(prev => ({ ...prev, logoUrl: result.logo_url }));
+            // The sidebar shows the organisation logo; let it follow.
+            window.dispatchEvent(new CustomEvent('serops:org-updated', { detail: { logo_url: result.logo_url } }));
             toast.success(t('common.success'));
         } catch (error) {
             console.error('Logo upload error:', error);
-            toast.error(t('common.error'));
+            toast.error(error.response?.data?.logo?.[0] || t('common.error'));
         } finally {
             setUploadingLogo(false);
         }
@@ -175,6 +193,14 @@ const GeneralSettings = () => {
                 />
                 <small className="text-muted d-block mb-4">
                     {t('settings.general.organisation.logoHint')}
+                    {settings.logoUrl && !uploadingLogo && (
+                        <>
+                            {' '}
+                            <button type="button" className="btn btn-link btn-sm p-0 align-baseline" onClick={handleLogoRemove}>
+                                {t('settings.general.organisation.removeLogo')}
+                            </button>
+                        </>
+                    )}
                 </small>
 
                 {/* Organisation Name */}

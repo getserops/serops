@@ -16,7 +16,8 @@ class Organisations(models.Model):
         help_text='URL-safe identifier, used as org_slug in log index naming'
     )
     website = models.CharField(null=True, blank=True, max_length=255)
-    logo = models.ImageField(upload_to='org_logos/', null=True, blank=True)
+    # A small PNG, stored in the database (see Utils/images.py).
+    logo_png = models.BinaryField(null=True, blank=True, editable=False)
     language = models.CharField(max_length=5, choices=LANGUAGE_CHOICES, default='en')
 
     # Flags this organisation as the public read-only demo on

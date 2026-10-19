@@ -72,7 +72,8 @@ class UserModelTest(TestCase):
     def test_avatar_optional(self):
         """Test avatar field is optional"""
         user = User.objects.create(**self.user_data)
-        self.assertIsNone(user.avatar.name)  # Fix: Check name instead of avatar
+        self.assertIsNone(user.avatar_png)
+        self.assertEqual(user.avatar_key, '')
 
     def test_unique_email(self):
         """Test email uniqueness constraint"""

@@ -36,4 +36,8 @@ ProfileService.uploadAvatar = (data) => {
     });
 };
 
+ProfileService.removeAvatar = () => {
+    return axios.delete(`${BACKEND_HOST}/profile/upload-avatar/`, AuthService.authHeader());
+};
+
 export default ProfileService;

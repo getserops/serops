@@ -14,7 +14,27 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- The organisation logo is shown next to the organisation name in the
+  sidebar. Settings → General and Profile have **Remove logo** and
+  **Remove photo**.
+
+### Fixed
+
+- Uploaded organisation logos and profile photos never displayed on a
+  production install (they were served only with `DEBUG` on, and on Helm
+  only one backend pod had the file). Both are now stored in the
+  database, resized to a small PNG. Migrations `Organisations 0013` and
+  `Users 0012`: existing profile photos are imported from the media
+  volume; existing organisation logos were never kept there and must be
+  uploaded again.
+- Uploading a profile photo now updates the page and the top bar
+  straight away.
+
+### Changed
+
+- The SerOps mark in the sidebar is smaller.
 
 ---
 

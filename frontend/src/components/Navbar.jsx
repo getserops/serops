@@ -25,6 +25,11 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
   const [image, setImage] = useState('');
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => { setImageFailed(false); }, [image]);
+  useEffect(() => {
+    const onUpdate = (e) => { if ('avatar' in (e.detail || {})) setImage(e.detail.avatar || ''); };
+    window.addEventListener('serops:user-updated', onUpdate);
+    return () => window.removeEventListener('serops:user-updated', onUpdate);
+  }, []);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();

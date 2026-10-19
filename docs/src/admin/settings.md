@@ -29,7 +29,7 @@ Personal preferences accessible from any page:
 | Setting | Description |
 |---------|-------------|
 | Organisation Name | Display name for your org |
-| Organisation Logo | Upload custom logo |
+| Organisation Logo | PNG, JPEG, GIF or WebP up to 2 MB, shown next to the organisation name in the sidebar. Stored in the database, resized to at most 256 px. |
 | Website | Organisation website URL |
 
 ---

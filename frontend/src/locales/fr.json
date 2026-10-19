@@ -637,6 +637,7 @@
     "phoneDigits": "Le téléphone doit contenir exactement 8 chiffres",
     "demoRole": "Démo en lecture seule",
     "changePhoto": "Changer la photo",
+    "removePhoto": "Supprimer la photo",
     "password": "Mot de passe",
     "passwordDesc": "Modifiez le mot de passe utilisé pour vous connecter."
   },
@@ -650,7 +651,8 @@
         "title": "Informations de l'Organisation",
         "subtitle": "Détails du profil public de votre équipe",
         "logo": "Logo de l'Entreprise",
-        "logoHint": "Cliquez pour télécharger (max 2 Mo)",
+        "logoHint": "Cliquez pour télécharger. PNG, JPEG, GIF ou WebP, max 2 Mo.",
+        "removeLogo": "Supprimer le logo",
         "name": "Nom de l'Organisation",
         "nameHint": "Contactez l'administrateur pour changer le nom de l'organisation",
         "website": "Site Web",

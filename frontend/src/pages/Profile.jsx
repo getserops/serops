@@ -113,15 +113,35 @@ function Profile() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('avatar', file);
+    e.target.value = '';
+    const upload = new FormData();
+    upload.append('avatar', file);
 
-    ProfileService.uploadAvatar(formData)
-      .then((response) => {
-      })
+    ProfileService.uploadAvatar(upload)
+      .then((response) => setAvatar(response.data.avatar))
       .catch((error) => {
         console.error('Error uploading avatar:', error);
       });
+  };
+
+  const handleAvatarRemove = () => {
+    ProfileService.removeAvatar()
+      .then(() => setAvatar(null))
+      .catch((error) => {
+        console.error('Error removing avatar:', error);
+      });
+  };
+
+  // Keep the page, the stored user and the top bar in step.
+  const setAvatar = (avatar) => {
+    setFormData((prev) => ({ ...prev, avatar }));
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      localStorage.setItem('user', JSON.stringify({ ...currentUser, avatar }));
+    } catch {
+      // Storage unavailable: the top bar still updates from the event.
+    }
+    window.dispatchEvent(new CustomEvent('serops:user-updated', { detail: { avatar } }));
   };
 
   useEffect(() => {
@@ -198,6 +218,11 @@ function Profile() {
             <div className="profile-identity-text">
               <div className="profile-name">{`${formData.first_name || ''} ${formData.last_name || ''}`.trim() || formData.email}</div>
               <div className="profile-email">{formData.email}</div>
+              {formData.avatar && (
+                <button type="button" className="btn btn-link btn-sm p-0" onClick={handleAvatarRemove}>
+                  {t('profile.removePhoto')}
+                </button>
+              )}
               <span className="badge ds-chip ds-chip-neutral">
                 {isDemoUser() ? t('profile.demoRole') : getRoleDisplayName(formData.role)}
               </span>

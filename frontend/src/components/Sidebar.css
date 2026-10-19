@@ -33,8 +33,8 @@
 }
 .app-sidebar-logo:hover { color: var(--text-primary); }
 .app-sidebar-mark {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   border-radius: 8px;
   background: var(--brand-fill);
   color: #fff;
@@ -165,3 +165,23 @@
 @media (prefers-reduced-motion: reduce) {
   .app-sidebar { transition: none; }
 }
+
+/* Organisation box: the org's own logo (or its initial) before its name. */
+.app-sidebar-org { display: flex; align-items: center; gap: 8px; }
+.app-sidebar-org.is-collapsed { justify-content: center; padding: 6px; margin: 0 10px 4px; }
+.app-sidebar-org-logo {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--tone-brand-soft);
+  color: var(--tone-brand-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+.app-sidebar-org-logo img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.app-sidebar-org-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

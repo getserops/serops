@@ -38,14 +38,19 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     user?.organisation_name || user?.organisation || null
   );
 
-  // localStorage.user can be stale or missing (token-only sessions,
-  // cookie refresh); fall back to the API so the org name still shows.
+  const [orgLogo, setOrgLogo] = useState(null);
+
+  // Load the organisation's name and logo from the API: localStorage.user
+  // can be stale or missing (token-only sessions, cookie refresh) and never
+  // carries the logo. Settings → General announces changes with a
+  // "serops:org-updated" event so the sidebar follows without a reload.
   useEffect(() => {
-    if (organisation) return;
+    let cancelled = false;
     (async () => {
       try {
         const apiClient = (await import('../services/api-client')).default;
         const res = await apiClient.get('/organisation/info/');
+        if (cancelled) return;
         const name = res?.data?.name || res?.data?.organisation_name;
         if (name) {
           setOrganisation(name);
@@ -54,11 +59,18 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             localStorage.setItem('user', JSON.stringify({ ...cur, organisation: name }));
           } catch { /* localStorage may be blocked */ }
         }
+        setOrgLogo(res?.data?.logo_url || null);
       } catch {
-        /* keep the label hidden rather than show a placeholder */
+        /* keep what localStorage had rather than show a placeholder */
       }
     })();
-  }, [organisation]);
+    const onUpdate = (e) => {
+      if (e.detail?.name) setOrganisation(e.detail.name);
+      if ('logo_url' in (e.detail || {})) setOrgLogo(e.detail.logo_url || null);
+    };
+    window.addEventListener('serops:org-updated', onUpdate);
+    return () => { cancelled = true; window.removeEventListener('serops:org-updated', onUpdate); };
+  }, []);
 
   useEffect(() => {
     if (onSettings) setSettingsOpen(true);
@@ -134,7 +146,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       >
         <div className="app-sidebar-brand">
           <NavLink to="/dash" className="app-sidebar-logo" onClick={closeOnMobile} aria-label="SerOps">
-            <SerOpsMark size={28} className="app-sidebar-mark" />
+            <SerOpsMark size={22} className="app-sidebar-mark" />
             {!collapsed && <span className="app-sidebar-wordmark">SerOps</span>}
           </NavLink>
           {!isSmallScreen && (
@@ -150,8 +162,15 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           )}
         </div>
 
-        {!collapsed && organisation && (
-          <div className="app-sidebar-org" title={organisation}>{organisation}</div>
+        {organisation && (
+          <div className={`app-sidebar-org ${collapsed ? "is-collapsed" : ""}`} title={organisation}>
+            <span className="app-sidebar-org-logo" aria-hidden="true">
+              {orgLogo
+                ? <img src={orgLogo} alt="" onError={() => setOrgLogo(null)} />
+                : organisation.trim().charAt(0).toUpperCase()}
+            </span>
+            {!collapsed && <span className="app-sidebar-org-name">{organisation}</span>}
+          </div>
         )}
 
         <div className="app-sidebar-scroll">

@@ -643,23 +643,65 @@ class TestProfileAvatarView(APITestCase):
         )
         self.client.force_authenticate(user=self.user)
 
-    @patch('builtins.open', mock_open())
-    def test_upload_avatar_png(self):
-        avatar = SimpleUploadedFile('test.png', b'\x89PNG\r\n\x1a\n' + b'\x00' * 100, content_type='image/png')
-        response = self.client.put(self.url, {'avatar': avatar}, format='multipart')
+    def _image(self, size=(300, 200), fmt='JPEG', name='photo.jpg'):
+        import io
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new('RGB', size, (200, 40, 40)).save(buf, format=fmt)
+        return SimpleUploadedFile(name, buf.getvalue(), content_type=f'image/{fmt.lower()}')
+
+    def test_upload_stores_small_png_in_db(self):
+        response = self.client.put(self.url, {'avatar': self._image()}, format='multipart')
+        self.assertEqual(response.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertEqual(response.data['avatar'], f'/auth/avatar/{self.user.avatar_key}')
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(bytes(self.user.avatar_png)))
+        self.assertEqual((img.format, img.size), ('PNG', (128, 85)))
+
+    def test_gif_accepted(self):
+        response = self.client.put(self.url, {'avatar': self._image(fmt='GIF', name='a.gif')}, format='multipart')
         self.assertEqual(response.status_code, 200)
 
-    @patch('builtins.open', mock_open())
-    def test_upload_avatar_jpeg(self):
-        avatar = SimpleUploadedFile('photo.jpeg', b'\xff\xd8\xff\xe0' + b'\x00' * 100, content_type='image/jpeg')
-        response = self.client.put(self.url, {'avatar': avatar}, format='multipart')
-        self.assertEqual(response.status_code, 200)
-
-    @patch('builtins.open', mock_open())
-    def test_upload_avatar_invalid_format(self):
-        avatar = SimpleUploadedFile('anim.gif', b'GIF89a' + b'\x00' * 100, content_type='image/gif')
-        response = self.client.put(self.url, {'avatar': avatar}, format='multipart')
+    def test_non_image_rejected(self):
+        fake = SimpleUploadedFile('test.png', b'\x89PNG\r\n\x1a\n' + b'\x00' * 100, content_type='image/png')
+        response = self.client.put(self.url, {'avatar': fake}, format='multipart')
         self.assertEqual(response.status_code, 400)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.avatar_key, '')
+
+    def test_new_upload_changes_key(self):
+        self.client.put(self.url, {'avatar': self._image()}, format='multipart')
+        self.user.refresh_from_db()
+        first = self.user.avatar_key
+        self.client.put(self.url, {'avatar': self._image()}, format='multipart')
+        self.user.refresh_from_db()
+        self.assertNotEqual(first, self.user.avatar_key)
+
+    def test_avatar_served_without_auth(self):
+        self.client.put(self.url, {'avatar': self._image()}, format='multipart')
+        self.user.refresh_from_db()
+        self.client.force_authenticate(user=None)
+        response = self.client.get(reverse('avatar', kwargs={'key': self.user.avatar_key}))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'image/png')
+        self.assertIn('immutable', response['Cache-Control'])
+        self.assertEqual(response.content, bytes(self.user.avatar_png))
+
+    def test_unknown_key_404(self):
+        response = self.client.get(reverse('avatar', kwargs={'key': 'deadbeef' * 4}))
+        self.assertEqual(response.status_code, 404)
+
+    def test_delete_removes_avatar(self):
+        self.client.put(self.url, {'avatar': self._image()}, format='multipart')
+        self.user.refresh_from_db()
+        key = self.user.avatar_key
+        self.assertEqual(self.client.delete(self.url).status_code, 204)
+        self.user.refresh_from_db()
+        self.assertIsNone(self.user.avatar_png)
+        self.assertEqual(self.client.get(reverse('avatar', kwargs={'key': key})).status_code, 404)
+        self.assertIsNone(self.client.get(reverse('profile')).data['avatar'])
 
     def test_upload_avatar_no_data(self):
         response = self.client.put(self.url, {}, format='multipart')

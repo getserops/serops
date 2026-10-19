@@ -12,6 +12,8 @@ class UserSerializer(serializers.ModelSerializer):
     # ``last_login`` were both absent from this serializer, so the
     # frontend fell through to a hard-coded 'Pending' default.
     status = serializers.SerializerMethodField()
+    # Path relative to the API base (the frontend prefixes VITE_BASE_URL).
+    avatar = serializers.SerializerMethodField()
     last_login = serializers.DateTimeField(read_only=True)
     is_active = serializers.BooleanField(read_only=True)
 
@@ -28,6 +30,9 @@ class UserSerializer(serializers.ModelSerializer):
             'last_name': {'required': False, 'allow_blank': True},
             'phone': {'required': False, 'allow_blank': True, 'allow_null': True},
         }
+
+    def get_avatar(self, obj):
+        return f'/auth/avatar/{obj.avatar_key}' if obj.avatar_key else None
 
     def get_status(self, obj):
         if not getattr(obj, 'is_active', True):
