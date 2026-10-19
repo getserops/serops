@@ -87,6 +87,16 @@ class AllAdaptersErrorClassificationTest(SimpleTestCase):
             err = adapter.normalize_error(Exception(msg))
             self.assertEqual(err.error_type, 'content_blocked')
 
+    def test_gemini_invalid_key_maps_to_auth(self):
+        # Google rejects a bad key with a 400 "API key not valid"
+        # (reason API_KEY_INVALID), which used to fall through to
+        # UNKNOWN_ERROR, so the UI could not tell the user to fix the key.
+        err = GeminiAdapter().normalize_error(Exception(
+            "400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'API key not valid. "
+            "Please pass a valid API key.', 'status': 'INVALID_ARGUMENT', 'details': "
+            "[{'reason': 'API_KEY_INVALID'}]}}"))
+        self.assertEqual(err.error_type, 'auth_error')
+
     def test_raw_error_is_capped_at_500_chars(self):
         # Gemini previously returned unbounded str(e) which spammed
         # logs when the provider echoed the request payload back in

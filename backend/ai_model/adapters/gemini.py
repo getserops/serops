@@ -120,7 +120,9 @@ class GeminiAdapter(BaseProviderAdapter):
         if '429' in msg or 'quota' in msg or 'resource_exhausted' in msg or 'rate limit' in msg:
             return AIServiceError.from_type('quota_exceeded', raw_error=str(e)[:500])
         # Auth
-        if '401' in msg or 'unauthenticated' in msg or 'permission_denied' in msg or 'invalid api key' in msg:
+        # Google says "API key not valid" (reason API_KEY_INVALID) with a 400.
+        if ('401' in msg or 'unauthenticated' in msg or 'permission_denied' in msg or 'invalid api key' in msg
+                or 'api key not valid' in msg or 'api_key_invalid' in msg):
             return AIServiceError.from_type('auth_error', raw_error=str(e)[:500])
         # Content filter / safety block — Gemini has a strong content
         # filter that returns SAFETY blocks. Users can retry only by
