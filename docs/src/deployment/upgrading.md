@@ -42,10 +42,11 @@ review the migration notes.
 
 ### Kubernetes / Helm chart compatibility
 
-The Helm chart follows its own SemVer, independent of the app version.
+Since 1.1.0 the Helm chart is versioned with the app: chart 1.2.0 deploys SerOps 1.2.0.
 
-| Chart version | App version support | Kubernetes tested |
+| Chart version | App version | Kubernetes tested |
 |---|---|---|
+| Same as the app (1.1.0 and later) | 1.1.0 and later | 1.28, 1.29, 1.30, 1.31 |
 | 0.1.x | 1.0.x | 1.28, 1.29, 1.30, 1.31 |
 
 We test the newest patch of each supported Kubernetes minor against
@@ -56,7 +57,7 @@ minors may work but aren't gated by CI.
 
 | SerOps version | Postgres major | Notes |
 |---|---|---|
-| 1.0.x | 14, 15, 16, 17 | 16 recommended; bundled image = 16 |
+| 1.x | 14, 15, 16, 17 | 16 recommended; bundled image = 16 |
 
 Upgrading Postgres itself (e.g. 15 → 16) is out of scope for the
 SerOps upgrade path — dump + reload into the new Postgres major,

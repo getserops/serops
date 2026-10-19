@@ -52,6 +52,29 @@ helm install serops oci://ghcr.io/getserops/charts/serops \
   --set devServices.redis.enabled=true
 ```
 
+Both commands serve SerOps at the chart's default host,
+`serops.example.com`. To use your own name, put it in a small values file
+and add `-f my-values.yaml` to the command: the host has to be set in three
+places, or the API rejects the browser's requests (HTTP 400) and the login
+page reads as though the password were wrong.
+
+```yaml
+# my-values.yaml
+ingress:
+  hosts:
+    - host: serops.company.io
+      paths:
+        - { path: /api, pathType: Prefix, service: backend }
+        - { path: /metrics, pathType: Prefix, service: backend }
+        - { path: /, pathType: Prefix, service: frontend }
+django:
+  allowedHosts: "serops.company.io"
+  corsAllowedOrigins: "https://serops.company.io"
+```
+
+Set the whole `hosts` entry as above: `--set ingress.hosts[0].host=…`
+replaces the entry and drops its paths, and the install fails.
+
 !!! warning "Set one of the two"
     With neither `database.url` nor `devServices.postgresql.enabled`
     (and likewise for the broker), the chart renders no connection
@@ -82,7 +105,7 @@ helm upgrade --install serops deploy/helm/serops \
   --set devServices.postgresql.enabled=true \
   --set devServices.redis.enabled=true \
   --set django.secretKey="$(openssl rand -hex 64)" \
-  --set ingress.hosts[0].host=serops.local
+  -f my-values.yaml   # your hostname: see my-values.yaml above
 ```
 
 Both **OCI** and **Helm HTTP repo** paths are published by the
