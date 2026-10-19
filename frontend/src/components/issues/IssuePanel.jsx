@@ -43,7 +43,11 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
   const demo = isDemoUser();
   if (!issue) return null;
   const commits = Array.isArray(issue.linked_commits) ? issue.linked_commits : [];
-  const reasoning = Array.isArray(issue.reasoning) ? issue.reasoning : (issue.reasoning ? [issue.reasoning] : []);
+  // The AI writes its reasoning as numbered lines ("1. …\n2. …"): one step
+  // per line, numbering dropped since the list numbers them.
+  const reasoning = (Array.isArray(issue.reasoning) ? issue.reasoning : String(issue.reasoning || "").split("\n"))
+    .map((r) => (typeof r === "string" ? r.replace(/^\s*\d+[.)]\s*/, "").trim() : JSON.stringify(r)))
+    .filter(Boolean);
   const open = issue.status === "OPEN";
 
   return (
@@ -85,7 +89,7 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
         {reasoning.length > 0 && (
           <section className="issue-panel-section">
             <h3>{t("issues.panel.reasoning")}</h3>
-            <ul>{reasoning.map((r, i) => <li key={i}>{typeof r === "string" ? r : JSON.stringify(r)}</li>)}</ul>
+            <ol>{reasoning.map((r, i) => <li key={i}>{r}</li>)}</ol>
           </section>
         )}
         {(commits.length > 0 || issue.metric_anomaly_type) && (

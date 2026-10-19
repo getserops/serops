@@ -181,6 +181,7 @@ vi.mock('@tanstack/react-query', () => ({
           status: 'OPEN',
           root_cause: 'Connection pool exhausted after the 2.3.4 deploy.',
           recommendation: 'Raise the pool size.',
+          reasoning: '1. Saw pool timeouts\n2. Traced them to the 2.3.4 deploy',
           batch_id_str: 'shop-batch-1',
           project: 7,
           environment: 'production',
@@ -259,6 +260,13 @@ describe('Issues component', () => {
     expect(panel.textContent).toContain('Raise the pool size.');
     expect(screen.getByRole('link', { name: /issues.panel.openAnalysis/ }).getAttribute('href')).toBe('/dash/data/details/shop-batch-1');
     expect(screen.getByRole('button', { name: /issues.panel.resolve/ })).toBeTruthy();
+  });
+
+  it('lists the AI reasoning one step per line', () => {
+    render(<Issues />);
+    fireEvent.click(screen.getByText('Test critical issue description'));
+    const steps = [...screen.getByRole('dialog').querySelectorAll('ol li')].map((li) => li.textContent);
+    expect(steps).toEqual(['Saw pool timeouts', 'Traced them to the 2.3.4 deploy']);
   });
 
   it('count tiles toggle a filter', () => {
