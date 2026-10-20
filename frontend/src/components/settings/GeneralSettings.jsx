@@ -51,7 +51,7 @@ const GeneralSettings = () => {
             }
 
             setSettings({
-                orgName: orgData.name || user.organisation || '',
+                orgName: orgData.name || (typeof user.organisation === 'string' ? user.organisation : ''),
                 website: orgData.website || '',
                 logoUrl: orgData.logo_url || null
             });

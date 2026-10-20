@@ -10,6 +10,10 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-10-20
+
+Fixed: the sidebar crashed when the stored organisation was an id (after a profile save); General settings guards the same value.
+
 ## [1.2.2] - 2026-10-20
 
 Permissions from the server, hidden controls and settings pages per role,

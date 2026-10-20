@@ -19,20 +19,22 @@ class UserSerializer(serializers.ModelSerializer):
     avatar = serializers.SerializerMethodField()
     last_login = serializers.DateTimeField(read_only=True)
     is_active = serializers.BooleanField(read_only=True)
+    # The organisation's name, as the login response always sent it (the UI
+    # shows it); views that create users set the organisation themselves.
+    organisation = serializers.SlugRelatedField(slug_field='name', read_only=True)
+    organisation_id = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = User
         fields = [
             'id', 'first_name', 'last_name', 'email', 'password',
-            'phone', 'role', 'avatar', 'username', 'organisation',
+            'phone', 'role', 'avatar', 'username', 'organisation', 'organisation_id',
             'is_active', 'last_login', 'status', 'is_staff', 'permissions',
         ]
         extra_kwargs = {
             'password': {'write_only': True},
             # Platform operator flag: shown to the UI, never settable via the API.
             'is_staff': {'read_only': True},
-            # Set by the views that create users, never from a request body.
-            'organisation': {'read_only': True},
             'first_name': {'required': False, 'allow_blank': True},
             'last_name': {'required': False, 'allow_blank': True},
             'phone': {'required': False, 'allow_blank': True, 'allow_null': True},

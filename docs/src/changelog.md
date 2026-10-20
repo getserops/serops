@@ -16,6 +16,23 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.2.3] - 2026-10-20
+
+Fixes a 1.2.2 regression. No migrations: set `SEROPS_VERSION=1.2.3` or
+`--version 1.2.3`.
+
+### Fixed
+
+- After saving their profile, a user's browser stored the organisation as
+  a number, and the new organisation badge in 1.2.2 then broke the
+  sidebar on every page until site data was cleared. Login, profile and
+  demo sign-in now all return the organisation's name (plus
+  `organisation_id`), and the sidebar ignores anything else.
+- Demo sign-in returns the user's permissions, so the demo shows the right
+  controls straight away.
+
+---
+
 ## [1.2.2] - 2026-10-20
 
 A security release from an internal review and penetration test of

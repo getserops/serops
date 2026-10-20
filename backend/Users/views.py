@@ -340,8 +340,6 @@ class LoginView(APIView):
                 auth.login(request, user)
                 
                 userinfo = UserSerializer(user).data
-                userinfo['organisation'] = user.organisation.name if user.organisation else None
-                userinfo['role'] = user.role  # Include role for frontend RBAC
                 
                 log_login(request, user=user, success=True)
                 # BE-P2-04 (audit 2026-09-05): use the proxy-aware helper
@@ -424,23 +422,11 @@ class DemoLoginView(APIView):
             )
 
         _instance, token = AuthToken.objects.create(demo_user)
-        return Response({
-            'token': token,
-            'user': {
-                'id': demo_user.id,
-                'email': demo_user.email,
-                'username': demo_user.username,
-                'first_name': demo_user.first_name,
-                'last_name': demo_user.last_name,
-                'role': demo_user.role,
-                'is_demo': True,
-                'organisation_id': demo_user.organisation_id,
-                'organisation_name': (
-                    demo_user.organisation.name
-                    if demo_user.organisation else None
-                ),
-            },
-        })
+        # Same user shape as a password sign-in (permissions included, so the
+        # app shows the right controls straight away).
+        user = UserSerializer(demo_user).data
+        user.update(is_demo=True, organisation_name=user.get('organisation'))
+        return Response({'token': token, 'user': user})
 
 
 class LogoutView(APIView):

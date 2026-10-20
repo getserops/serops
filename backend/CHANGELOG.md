@@ -7,6 +7,10 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-10-20
+
+`UserSerializer.organisation` is the organisation's name (read-only) plus `organisation_id` for login, profile and demo-login; demo-login returns the full serializer (permissions). No migrations.
+
 ## [1.2.2] - 2026-10-20
 
 Security release (roles, tenancy, webhooks, dependencies), issue resolution

@@ -37,7 +37,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
   const user = JSON.parse(localStorage.getItem("user")) || {};
   const [organisation, setOrganisation] = useState(
-    user?.organisation_name || user?.organisation || null
+    [user?.organisation_name, user?.organisation].find((v) => typeof v === 'string' && v) || null
   );
 
   const [orgLogo, setOrgLogo] = useState(null);
