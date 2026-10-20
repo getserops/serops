@@ -3,7 +3,7 @@
  * OpsGenie destinations for post-RCA notifications (Items #22 + #23).
  *
  * Under Settings → Incident Channels. Admin-only writes (backend
- * enforces IsAdminRole).
+ * requires alerting.manage).
  *
  * Payload security: secrets (webhook_url / api_key) are write-only —
  * once set, the backend never returns the plaintext, only a

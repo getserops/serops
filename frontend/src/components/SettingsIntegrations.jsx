@@ -62,6 +62,7 @@ import axios from "axios";
 import ObservabilityService from "../services/observability.service";
 import { LogProviderPanel, MetricProviderPanel } from "./settings/ObservabilitySettings";
 import "./settings/SettingsLayout.css";
+import { usePermissions } from "../utils/permissions";
 
 // Provider configuration with specific credential fields and token URLs
 const PROVIDERS = {
@@ -189,6 +190,9 @@ const SettingsIntegrations = () => {
     const [integrations, setIntegrations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    // Integrations hold provider credentials: only admins add, edit or
+    // delete them (the API enforces this). Users can still sync.
+    const canManage = usePermissions()("integration.manage");
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [verifying, setVerifying] = useState({});
@@ -618,7 +622,7 @@ const SettingsIntegrations = () => {
             {/* Header */}
             <PageHeader title={t("globalIntegrations.title", "Integrations")} subtitle={t("globalIntegrations.subtitle", "Connect your development tools and data sources")} />
 
-            {(activeTab === "scm" || activeTab === "cicd") && (
+            {canManage && (activeTab === "scm" || activeTab === "cicd") && (
                 <div className="d-flex justify-content-end mb-3">
                     <Button variant="primary" onClick={openAdd}>
                         <FaPlus className="me-2" />{t("globalIntegrations.addIntegration", "Add Integration")}
@@ -671,7 +675,7 @@ const SettingsIntegrations = () => {
                                 <FaPlug size={48} className="text-muted mb-3" />
                                 <h5>{t("globalIntegrations.noIntegrations", "No integrations yet")}</h5>
                                 <p className="text-muted mb-3">{t("globalIntegrations.getStarted", "Connect your first provider to get started")}</p>
-                                <Button variant="primary" onClick={openAdd}><FaPlus className="me-2" />Add Integration</Button>
+                                {canManage && <Button variant="primary" onClick={openAdd}><FaPlus className="me-2" />Add Integration</Button>}
                             </Card.Body>
                         </Card>
                     ) : (
@@ -738,19 +742,23 @@ const SettingsIntegrations = () => {
                                                                 <FaEllipsisV size={14} />
                                                             </Dropdown.Toggle>
                                                             <Dropdown.Menu>
+                                                                {canManage && (
                                                                 <Dropdown.Item onClick={() => openEdit(int)}>
                                                                     <FaEdit className="me-2" />Edit
                                                                 </Dropdown.Item>
+                                                                )}
                                                                 <Dropdown.Item onClick={() => handleSync(int)}>
                                                                     <FaSync className="me-2" />Sync Now
                                                                 </Dropdown.Item>
-                                                                <Dropdown.Divider />
+                                                                {canManage && <Dropdown.Divider />}
+                                                                {canManage && (
                                                                 <Dropdown.Item
                                                                     className="text-danger"
                                                                     onClick={() => { setSelected(int); setShowDeleteModal(true); }}
                                                                 >
                                                                     <FaTrash className="me-2" />Delete
                                                                 </Dropdown.Item>
+                                                                )}
                                                             </Dropdown.Menu>
                                                         </Dropdown>
                                                     </div>

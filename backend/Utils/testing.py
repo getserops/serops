@@ -43,8 +43,10 @@ class SeedPreservingTransactionTestCase(TransactionTestCase):
     # alias -> serialized contents, shared across every subclass in the run.
     _seed_snapshots: dict = {}
 
-    def _fixture_setup(self):
-        for alias in self._databases_names(include_mirrors=False):
+    @classmethod
+    def _fixture_setup(cls):
+        # A classmethod since Django 5.2 (it runs once per class there).
+        for alias in cls._databases_names(include_mirrors=False):
             if alias not in SeedPreservingTransactionTestCase._seed_snapshots:
                 SeedPreservingTransactionTestCase._seed_snapshots[alias] = (
                     connections[alias].creation.serialize_db_to_string()

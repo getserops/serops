@@ -1,10 +1,11 @@
 """
 Admin views for AI service monitoring and management.
 """
+from Middlewares.rbac import Requires
 
 import logging
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, IsAdminUser])
+@permission_classes([IsAuthenticated, Requires(GET='platform.manage')])
 def get_ai_circuit_status(request):
     """
     Get the status of all AI provider circuit breakers.
@@ -47,7 +48,7 @@ def get_ai_circuit_status(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, IsAdminUser])
+@permission_classes([IsAuthenticated, Requires(GET='platform.manage')])
 def get_ai_rate_status(request):
     """
     Get the current rate limit status for all AI providers.
@@ -81,7 +82,7 @@ def get_ai_rate_status(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated, IsAdminUser])
+@permission_classes([IsAuthenticated, Requires(POST='platform.manage')])
 def reset_ai_circuit(request, provider):
     """
     Manually reset a circuit breaker to CLOSED state.
@@ -127,7 +128,7 @@ def reset_ai_circuit(request, provider):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated, IsAdminUser])
+@permission_classes([IsAuthenticated, Requires(POST='platform.manage')])
 def trip_ai_circuit(request, provider):
     """
     Manually trip (open) a circuit breaker.
@@ -176,7 +177,7 @@ def trip_ai_circuit(request, provider):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, IsAdminUser])
+@permission_classes([IsAuthenticated, Requires(GET='platform.manage')])
 def get_ai_health(request):
     """
     Get overall AI service health status.

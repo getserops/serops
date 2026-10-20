@@ -1,8 +1,20 @@
 from rest_framework import serializers
+from Utils.scoped_relations import limit_relations
 from .models import Service, SCMService, InfraService, CustomService
 
 
-class ServiceSerializer(serializers.ModelSerializer):
+class OwnProjectMixin:
+    """The ``project`` of a service must be of the requester's organisation:
+    without this a member could create a service in, or move one to,
+    another organisation's project by sending its id."""
+
+    def get_fields(self):
+        from Projects.models import Project
+        return limit_relations(super().get_fields(), self.context.get('request'),
+                               project=lambda u, org: Project.objects.filter(organisation=org))
+
+
+class ServiceSerializer(OwnProjectMixin, serializers.ModelSerializer):
     """Base serializer for Service model"""
     class Meta:
         model = Service
@@ -11,7 +23,7 @@ class ServiceSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at", "updated_at"]
 
 
-class SCMServiceSerializer(serializers.ModelSerializer):
+class SCMServiceSerializer(OwnProjectMixin, serializers.ModelSerializer):
     """Serializer for SCM Service (GitLab, GitHub, etc.)"""
     class Meta:
         model = SCMService
@@ -44,7 +56,7 @@ class SCMServiceSerializer(serializers.ModelSerializer):
         return data
 
 
-class InfraServiceSerializer(serializers.ModelSerializer):
+class InfraServiceSerializer(OwnProjectMixin, serializers.ModelSerializer):
     """Serializer for Infrastructure Service"""
     class Meta:
         model = InfraService
@@ -59,7 +71,7 @@ class InfraServiceSerializer(serializers.ModelSerializer):
         }
 
 
-class CustomServiceSerializer(serializers.ModelSerializer):
+class CustomServiceSerializer(OwnProjectMixin, serializers.ModelSerializer):
     """Serializer for Custom Service"""
     class Meta:
         model = CustomService

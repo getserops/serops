@@ -19,6 +19,7 @@ import ChoiceGroup from './ChoiceGroup';
 import AIBudgetCard from './AIBudgetCard';
 import './SettingsLayout.css';
 import PageHeader from '../PageHeader';
+import { usePermissions } from '../../utils/permissions';
 
 const AISettings = () => {
     const { t } = useTranslation();
@@ -43,6 +44,10 @@ const AISettings = () => {
 
     // Provider Management State
     const [showProviderModal, setShowProviderModal] = useState(false);
+    // The provider catalogue is shared by every organisation on this install:
+    // platform staff edit it (or the admin of a single-organisation install).
+    // Org admins always set their own key and base URL.
+    const isStaff = usePermissions()('ai_catalogue.manage');
     const [editingProvider, setEditingProvider] = useState(null);
     const [providerForm, setProviderForm] = useState({
         name: '',
@@ -313,11 +318,11 @@ const AISettings = () => {
                 className="ds-settings-section-flush"
                 title={t('ai.manageProviders') || "Manage AI Providers"}
                 description={t('ai.manageProvidersDesc') || "Configure all AI providers, including API keys, endpoints, and adapters."}
-                actions={
+                actions={isStaff ? (
                     <Button variant="outline-primary" size="sm" onClick={() => { setEditingProvider(null); setShowProviderModal(true); }}>
                         <FaPlus className="me-1" /> {t('ai.addProvider') || "Add Provider"}
                     </Button>
-                }
+                ) : null}
             >
 
                 <div className="table-responsive">
@@ -420,11 +425,13 @@ const AISettings = () => {
                                         </td>
                                         <td>
                                             <div className="d-flex gap-2">
+                                                {isStaff && (
                                                 <Button variant="outline-secondary" size="sm" onClick={() => { setEditingProvider(provider); setShowProviderModal(true); }}>
                                                     Edit Config
                                                 </Button>
+                                                )}
 
-                                                {!provider.is_system && (
+                                                {isStaff && !provider.is_system && (
                                                     <Button variant="outline-danger" size="sm" onClick={() => {
                                                         if (confirm('Are you sure you want to delete this provider?')) {
                                                             handleDeleteProvider(provider.id);

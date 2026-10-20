@@ -1802,6 +1802,7 @@ def embed_resolved_issue(self, issue_id):
 
     issue = Issue.objects.filter(pk=issue_id).only(
         'id', 'root_cause', 'recommendation', 'description',
+        'resolution_root_cause', 'resolution_fix',
         'component', 'issue_type',
     ).first()
     if issue is None:

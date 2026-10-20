@@ -36,6 +36,7 @@ _JSON_TEMPLATE = '''{
             "issue_type": "<REQUIRED: CONNECTION_TIMEOUT|CONNECTION_REFUSED|DATABASE_ERROR|AUTH_FAILURE|PERMISSION_DENIED|API_ERROR|NULL_POINTER|SERVICE_UNAVAILABLE|RATE_LIMITED|MEMORY_HIGH|MEMORY_LEAK|CPU_HIGH|DISK_FULL|NETWORK_ERROR|DNS_FAILURE|SERVICE_DOWN|SERVICE_RESTART|POD_CRASH|HEALTH_CHECK_FAILED|BUILD_FAILED|TEST_FAILED|DEPLOY_FAILED|PIPELINE_TIMEOUT|CODE_QUALITY|POTENTIAL_BUG|SECURITY_RISK|DEPRECATED_USAGE|OTHER>",
             "scope": "<REQUIRED: SERVICE|INFRASTRUCTURE|PIPELINE|CODE>",
             "component": "<REQUIRED: use the 'service_name' field from log metadata, or INFRASTRUCTURE for node-level memory/CPU issues>",
+            "affected_services": ["<other services showing symptoms of this same cause; [] when only the component is affected>"],
             "severity": "<CRITICAL|WARNING|INFO>",
             "error_class": "<REQUIRED for deduplication: COMMAND_NOT_FOUND|SYNTAX_ERROR|MODULE_NOT_FOUND|DEPENDENCY_CONFLICT|CONNECTION_REFUSED|CONNECTION_TIMEOUT|DNS_FAILURE|AUTH_FAILED|TOKEN_EXPIRED|PERMISSION_DENIED|OUT_OF_MEMORY|DISK_FULL|RESOURCE_LIMIT|DB_CONNECTION|QUERY_ERROR|TEST_ASSERTION|BUILD_COMPILE|DEPLOY_ROLLBACK|CONFIG_ERROR|TYPO|NULL_REFERENCE|RACE_CONDITION|UNHANDLED_EXCEPTION|OTHER>",
             "error_target": "<REQUIRED for deduplication: the specific failing item - command name, module name, host:port, test name, etc.>",
@@ -133,7 +134,11 @@ ISSUE CREATION RULES (CRITICAL FOR DEDUPLICATION):
    - For code changes: Use 'service_name' field from the commit data
    - For CI/CD issues: Use pipeline/job name or 'service_name' from the job data
    - For metrics (memory/CPU) without logs: Use "INFRASTRUCTURE"
-9. **ONE ISSUE PER COMPONENT**: If the same error affects 3 services, create 3 separate issues, not one issue with 3 components.
+9. **ONE ISSUE PER ROOT CAUSE**: When several services fail because of the same underlying cause (a shared database, cache, queue, DNS, certificate, upstream API, a resource limit, or one deploy), report ONE issue, not one per service:
+   - `component` = where the cause lives: the shared dependency when it appears in the data (e.g. "redis-cache", "postgres-primary", "coredns"), otherwise the service whose change or failure triggered the others. Use scope INFRASTRUCTURE for cluster-wide causes such as DNS.
+   - `affected_services` = every other service showing symptoms of that cause.
+   - Describe the symptoms of the affected services in the description and root_cause, and put their evidence in evidence_sources.
+   Report separate issues only when the causes are genuinely different. `component` always holds a single name; never list several there.
 10. Provide concise root_cause as a simple string (not nested object)
 11. Provide specific recommended actions
 11a. **reasoning**: REQUIRED — Provide the *evidence chain* you followed in 3–5 short steps as a JSON array of strings. Each step should be one sentence, written in first person, showing the work — what you observed in the data, what hypothesis it suggested, what you checked next, how you ruled out alternatives. Skip the chain only when there is genuinely no evidence to trace (return an empty array []).

@@ -1,3 +1,4 @@
+from Middlewares.rbac import Requires
 import secrets
 from django.http import Http404, HttpResponse
 from Utils.images import ImageRejected, to_small_png
@@ -443,7 +444,7 @@ class DemoLoginView(APIView):
 
 
 class LogoutView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(POST='self.manage')]
 
     @swagger_auto_schema(
         operation_description="Logout current user",
@@ -534,7 +535,7 @@ class EmailVerification(APIView):
             return Response({"error": "Something went wrong while activating your account."}, status=500)
 
 class ProfileView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='self.manage', POST='self.manage')]
 
     @swagger_auto_schema(
         operation_description="Get user profile",
@@ -609,7 +610,7 @@ class ProfileView(APIView):
             return Response({"error": "Something went wrong while updating your profile."}, status=500)
 
 class UpdatePasswordView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(POST='self.manage')]
 
     @swagger_auto_schema(
         operation_description="Update user password",
@@ -658,7 +659,7 @@ class UpdatePasswordView(APIView):
         return Response({'success': 'Password updated successfully'}, status=200)
 
 class ResendVerificationLinkView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='self.manage')]
 
     @swagger_auto_schema(
         operation_description="Resend verification email",
@@ -821,11 +822,18 @@ class SetPasswordView(APIView):
             
             if not new_password or not new_password_confirm:
                 logger.warning(f"Password reset failed: missing password for user {user.email}")
-                raise ValidationError({'new_password': 'Password is required.'})
-            
+                return Response({'new_password': 'Password is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
             if new_password != new_password_confirm:
                 logger.warning(f"Password reset failed: passwords don't match for user {user.email}")
-                raise ValidationError({'new_password_confirm': 'Passwords do not match.'})
+                return Response({'new_password_confirm': 'Passwords do not match.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Enforce AUTH_PASSWORD_VALIDATORS on reset, as register does.
+            from django.contrib.auth.password_validation import validate_password
+            try:
+                validate_password(new_password, user=user)
+            except ValidationError as exc:
+                return Response({'new_password': list(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
             
             user.set_password(new_password)
             user.save()
@@ -922,7 +930,7 @@ class InvitationsetPasswordView(APIView):
         return Response({'success': 'Password updated successfully'}, status=200)
 
 class ProfileAvatarView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(PUT='self.manage', DELETE='self.manage')]
     parser_classes = (MultiPartParser, FormParser)
 
     @swagger_auto_schema(
@@ -1000,7 +1008,7 @@ class DeleteAccountView(APIView):
     is written BEFORE the destructive operation so the action is
     recorded even when the org is being purged.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(DELETE='self.manage')]
 
     @swagger_auto_schema(
         operation_description=(

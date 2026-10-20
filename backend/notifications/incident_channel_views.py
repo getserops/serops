@@ -1,4 +1,5 @@
 """CRUD + test-send API for IncidentNotificationChannel (Items #22/#23)."""
+from Middlewares.rbac import Requires
 
 import logging
 
@@ -7,7 +8,6 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from Middlewares.rbac import IsAdminRole
 from .models import IncidentNotificationChannel
 
 logger = logging.getLogger(__name__)
@@ -125,6 +125,7 @@ class IncidentNotificationChannelSerializer(serializers.ModelSerializer):
 
 
 class IncidentNotificationChannelViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, Requires(list='alerting.read', retrieve='alerting.read', default='alerting.manage')]
     """
     /api/notification/incident-channels/ — org-scoped CRUD.
 
@@ -132,11 +133,6 @@ class IncidentNotificationChannelViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = IncidentNotificationChannelSerializer
-
-    def get_permissions(self):
-        if self.action in ('list', 'retrieve'):
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), IsAdminRole()]
 
     def get_queryset(self):
         org = getattr(self.request.user, 'organisation', None)

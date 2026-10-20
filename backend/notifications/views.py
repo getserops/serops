@@ -1,6 +1,7 @@
+from Middlewares.rbac import Requires
+from rest_framework.permissions import IsAuthenticated
 from rest_framework import generics, permissions
 from rest_framework.response import Response
-from Middlewares.rbac import IsAdminRole
 from .models import Notification
 from .serializers import NotificationSerializer, NotificationCountSerializer, MarkAllReadResponseSerializer
 from django.contrib.auth import get_user_model
@@ -13,7 +14,7 @@ User = get_user_model()
 
 class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(default='self.manage')]
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
@@ -33,7 +34,7 @@ class NotificationListView(generics.ListAPIView):
 
 class ReadNotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(default='self.manage')]
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
@@ -47,7 +48,7 @@ class ReadNotificationListView(generics.ListAPIView):
 class NotificationDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(default='self.manage')]
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
@@ -55,7 +56,7 @@ class NotificationDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Notification.objects.filter(user=self.request.user)
 
 class MarkAllAsReadView(generics.GenericAPIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(default='self.manage')]
     serializer_class = MarkAllReadResponseSerializer
 
     @swagger_auto_schema(
@@ -80,7 +81,7 @@ class MarkAllAsReadView(generics.GenericAPIView):
         })
 
 class UnreadCountView(generics.GenericAPIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(default='self.manage')]
     serializer_class = NotificationCountSerializer
 
     @swagger_auto_schema(
@@ -103,7 +104,7 @@ class UnreadCountView(generics.GenericAPIView):
 
 
 class DeleteNotificationView(generics.DestroyAPIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(default='self.manage')]
     
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user)
@@ -119,7 +120,7 @@ class DeleteNotificationView(generics.DestroyAPIView):
         return super().delete(request, *args, **kwargs)
 
 class DeleteAllNotificationsView(generics.GenericAPIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(default='self.manage')]
     
     
   
@@ -175,7 +176,7 @@ class UserNotificationPreferenceView(generics.RetrieveUpdateAPIView):
     Creates defaults on first access based on user role.
     """
     serializer_class = UserNotificationPreferenceSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(default='self.manage')]
     
     def get_object(self):
         return UserNotificationPreference.get_or_create_for_user(self.request.user)
@@ -186,7 +187,7 @@ class ProjectSubscriptionListView(generics.ListCreateAPIView):
     GET: List all project subscriptions for current user.
     POST: Subscribe to a new project.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(default='self.manage')]
     
     def get_serializer_class(self):
         if self.request.method == 'POST':
@@ -204,7 +205,7 @@ class ProjectSubscriptionDetailView(generics.RetrieveUpdateDestroyAPIView):
     GET/PUT/DELETE a specific project subscription.
     """
     serializer_class = ProjectSubscriptionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(default='self.manage')]
     
     def get_queryset(self):
         return ProjectSubscription.objects.filter(user=self.request.user)
@@ -216,7 +217,7 @@ class SubscribeToProjectView(generics.CreateAPIView):
     POST /projects/{project_id}/subscribe/
     """
     serializer_class = ProjectSubscriptionCreateSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(default='self.manage')]
     
     @swagger_auto_schema(
         operation_description="Subscribe to project notifications",
@@ -269,7 +270,7 @@ class UnsubscribeFromProjectView(generics.DestroyAPIView):
     Unsubscribe current user from a project by project ID.
     DELETE /projects/{project_id}/subscribe/
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(default='self.manage')]
     
     @swagger_auto_schema(
         operation_description="Unsubscribe from project notifications",
@@ -295,7 +296,8 @@ class IssueAcknowledgeView(generics.GenericAPIView):
     POST /issues/{issue_id}/acknowledge/
     """
     serializer_class = IssueAcknowledgeSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # Acknowledging updates the issue: users and admins only.
+    permission_classes = [IsAuthenticated, Requires(POST='issue.update')]
     
     @swagger_auto_schema(
         operation_description="Acknowledge an issue",
@@ -320,14 +322,13 @@ class IssueAcknowledgeView(generics.GenericAPIView):
         # with project=None (a real cross-org leak on org-only issues).
         # Issue has a direct .organisation FK so the check is unambiguous.
         user_org = getattr(request.user, 'organisation', None)
-        if not user_org and not request.user.is_superuser:
+        if not user_org:
             return Response(
                 {'error': 'Issue not found'},
                 status=status.HTTP_404_NOT_FOUND,
             )
         qs = Issue.objects.all()
-        if not request.user.is_superuser:
-            qs = qs.filter(organisation=user_org)
+        qs = qs.filter(organisation=user_org)
         issue = qs.filter(id=issue_id).first()
         if issue is None:
             return Response(
@@ -358,7 +359,7 @@ class EscalationRuleListView(generics.ListCreateAPIView):
     from .serializers import EscalationRuleSerializer
 
     serializer_class = EscalationRuleSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(default='alerting.manage')]
     
     def get_queryset(self):
         return self.serializer_class.Meta.model.objects.filter(
@@ -379,7 +380,7 @@ class EscalationRuleDetailView(generics.RetrieveUpdateDestroyAPIView):
     from .serializers import EscalationRuleSerializer
 
     serializer_class = EscalationRuleSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(default='alerting.manage')]
     
     def get_queryset(self):
         return self.serializer_class.Meta.model.objects.filter(

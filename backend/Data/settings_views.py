@@ -2,6 +2,7 @@
 Settings API Views
 Security Settings, Audit Log, Data Usage, and Retention Policy endpoints
 """
+from Middlewares.rbac import Requires
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -15,12 +16,11 @@ import csv
 
 from .models import AuditLog, RetentionPolicy, AIAnalyzedBatch, Issue
 from Users.models import SecuritySettings
-from Users.permissions import require_role
 
 
 class SecuritySettingsView(APIView):
     """Manage organization security settings"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='settings.read', PUT='settings.manage')]
     
     def get(self, request):
         """Get current security settings"""
@@ -51,7 +51,6 @@ class SecuritySettingsView(APIView):
             }
         })
     
-    @require_role('admin')
     def put(self, request):
         """Update security settings (admin only)"""
         
@@ -94,9 +93,8 @@ class SecuritySettingsView(APIView):
 
 class AuditLogView(APIView):
     """View and filter audit logs"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='team.manage')]
     
-    @require_role('admin')
     def get(self, request):
         """List audit logs with filtering and pagination"""
         
@@ -156,9 +154,8 @@ class AuditLogView(APIView):
 
 class AuditLogExportView(APIView):
     """Export audit logs as CSV"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='team.manage')]
     
-    @require_role('admin')
     def get(self, request):
         """Export audit logs as CSV"""
         
@@ -213,7 +210,7 @@ class AuditLogExportView(APIView):
 
 class DataUsageView(APIView):
     """Get data usage statistics for the organization"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='settings.read')]
     
     def get(self, request):
         """Get data usage breakdown"""
@@ -283,7 +280,7 @@ class DataUsageView(APIView):
 
 class RetentionPolicyView(APIView):
     """Manage data retention policy"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='settings.read', PUT='settings.manage')]
     
     def get(self, request):
         """Get current retention policy"""
@@ -313,7 +310,6 @@ class RetentionPolicyView(APIView):
             'next_cleanup': policy.next_cleanup_at.isoformat() if policy.next_cleanup_at else None,
         })
     
-    @require_role('admin')
     def put(self, request):
         """Update retention policy (admin only)"""
         

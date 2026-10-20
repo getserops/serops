@@ -1,6 +1,7 @@
 """
 API Views for Organisation Settings.
 """
+from Middlewares.rbac import Requires
 
 from rest_framework import status
 from rest_framework.views import APIView
@@ -10,7 +11,6 @@ from rest_framework.decorators import api_view, permission_classes
 from django.utils import timezone
 import logging
 
-from Middlewares.rbac import IsAdminRole
 from Data.audit import log_action, log_settings_change
 from .models import (
     AIModelProvider,
@@ -45,7 +45,7 @@ class TestWebhookView(APIView):
     API endpoint to test webhook configurations.
     POST: Send a test message to Slack or Teams webhook
     """
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(POST='alerting.manage')]
     
     def post(self, request):
         """Test a webhook by sending a test message."""
@@ -75,16 +75,12 @@ class TestWebhookView(APIView):
 
 
 class AIModelProvidersView(APIView):
+    permission_classes = [IsAuthenticated, Requires(GET='org.read', POST='ai_catalogue.manage')]
     """
     API endpoint to list available AI model providers.
     GET: List all active AI providers
     """
     
-    def get_permissions(self):
-        """Allow read for authenticated, write for admin only."""
-        if self.request.method == 'GET':
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), IsAdminRole()]
 
     def get(self, request):
         """Get list of available AI providers."""
@@ -108,13 +104,13 @@ class AIModelProvidersView(APIView):
 
 
 class AIModelProviderDetailView(APIView):
+    permission_classes = [IsAuthenticated, Requires(GET='settings.manage', default='ai_catalogue.manage')]
     """
     API endpoint for managing a specific AI provider.
     GET: Retrieve details
     PATCH: Update config
     DELETE: Remove provider
     """
-    permission_classes = [IsAuthenticated, IsAdminRole]
 
     def get_object(self, pk):
         try:
@@ -172,7 +168,7 @@ class AvailableModelsView(APIView):
     API endpoint to get models available for re-analysis.
     Returns only models with active API keys for the user's organization.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='org.read')]
     
     def get(self, request):
         """Get list of models available for the current organisation."""
@@ -199,7 +195,7 @@ class AISettingsView(APIView):
     GET: Retrieve current AI settings
     PUT: Update AI settings
     """
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(default='settings.manage')]
     
     def get(self, request):
         """Get AI settings for current organisation.
@@ -277,7 +273,7 @@ class AIBudgetStatusView(APIView):
     non-sensitive within an org. Writes go through the standard
     AISettingsView PUT.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='settings.read')]
 
     def get(self, request):
         from ai_model.budget import BudgetTracker
@@ -325,7 +321,7 @@ class OllamaProbeView(APIView):
     * URL scheme restricted to http/https; localhost + internal-net
       URLs are the point of Ollama, so they're allowed.
     """
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(default='settings.manage')]
 
     def post(self, request):
         import requests
@@ -388,18 +384,25 @@ class APIKeysView(APIView):
     POST: Add or update an API key
     DELETE: Remove an API key
     """
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(default='settings.manage')]
     
-    def get(self, request):
-        """Get all API keys for current organisation (masked)."""
+    def get(self, request, provider_id=None):
+        """Get the organisation's API keys (masked), or the one for provider_id."""
         api_keys = OrganisationAPIKey.objects.filter(
             organisation=request.user.organisation
         ).select_related('provider')
+        if provider_id is not None:
+            api_key = api_keys.filter(provider_id=provider_id).first()
+            if api_key is None:
+                return Response({'error': 'API key not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(OrganisationAPIKeySerializer(api_key).data)
         serializer = OrganisationAPIKeySerializer(api_keys, many=True)
         return Response(serializer.data)
     
-    def post(self, request):
-        """Add or update an API key."""
+    def post(self, request, provider_id=None):
+        """Add or update an API key (on the list URL)."""
+        if provider_id is not None:
+            return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
         serializer = APIKeyCreateUpdateSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -477,7 +480,7 @@ class TestAIConnectionView(APIView):
     API endpoint to test AI provider connections.
     POST: Test connection to an AI provider
     """
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(default='settings.manage')]
     
     def post(self, request):
         """Test connection to an AI provider."""
@@ -566,7 +569,7 @@ class IssueSettingsView(APIView):
     GET: Retrieve current issue settings
     PUT: Update issue settings
     """
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(default='settings.manage')]
     
     def get(self, request):
         """Get issue settings for current organisation."""
@@ -614,7 +617,7 @@ class SentinelConfigView(APIView):
     GET: Retrieve current sentinel config (creates defaults on first access)
     PUT: Update sentinel config
     """
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(default='settings.manage')]
 
     def get(self, request):
         try:

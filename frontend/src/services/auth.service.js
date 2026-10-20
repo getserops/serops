@@ -116,8 +116,11 @@ AuthService.ssoExchange = () => {
  * to mirror the regular login flow (persist token + user, redirect to
  * /dash).
  */
-AuthService.demoLogin = () => {
-  return axios.post(AUTH_HOST + "/auth/demo-login");
+// `source` (optional, e.g. "landing") is sent as ?src= so the server's
+// access log can tell where demo visitors came from. The API ignores it.
+AuthService.demoLogin = (source) => {
+  const src = source && /^[a-z0-9-]{1,32}$/i.test(source) ? `?src=${source}` : "";
+  return axios.post(AUTH_HOST + "/auth/demo-login" + src);
 };
 
 /**

@@ -1,3 +1,4 @@
+from Middlewares.rbac import Requires
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -10,7 +11,6 @@ from .serializers import (
     InfraServiceSerializer, CustomServiceSerializer,
     ServiceListSerializer
 )
-from Middlewares.rbac import ReadOnlyForViewer, IsUserOrAdmin
 
 
 class ServiceViewSet(viewsets.ModelViewSet):
@@ -18,7 +18,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
     ViewSet for managing all service types.
     Supports polymorphic creation based on category.
     """
-    permission_classes = [IsAuthenticated, ReadOnlyForViewer]
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', destroy='project.delete', default='project.write')]
     
     def get_queryset(self):
         """Filter services by user organization"""
@@ -60,11 +60,11 @@ class ServiceViewSet(viewsets.ModelViewSet):
         category = request.data.get("category")
         
         if category == "scm":
-            serializer = SCMServiceSerializer(data=request.data)
+            serializer = SCMServiceSerializer(data=request.data, context={'request': request})
         elif category == "infrastructure":
-            serializer = InfraServiceSerializer(data=request.data)
+            serializer = InfraServiceSerializer(data=request.data, context={'request': request})
         elif category == "custom":
-            serializer = CustomServiceSerializer(data=request.data)
+            serializer = CustomServiceSerializer(data=request.data, context={'request': request})
         else:
             return Response(
                 {"error": "Invalid category. Must be scm, infrastructure, or custom."},
@@ -79,7 +79,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
 class SCMServiceViewSet(viewsets.ModelViewSet):
     """ViewSet specifically for SCM Services"""
     serializer_class = SCMServiceSerializer
-    permission_classes = [IsAuthenticated, ReadOnlyForViewer]
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', destroy='project.delete', default='project.write')]
     
     def get_queryset(self):
         user = self.request.user
@@ -103,7 +103,7 @@ class SCMServiceViewSet(viewsets.ModelViewSet):
 class InfraServiceViewSet(viewsets.ModelViewSet):
     """ViewSet specifically for Infrastructure Services"""
     serializer_class = InfraServiceSerializer
-    permission_classes = [IsAuthenticated, ReadOnlyForViewer]
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', destroy='project.delete', default='project.write')]
     
     def get_queryset(self):
         user = self.request.user
@@ -130,7 +130,7 @@ class InfraServiceViewSet(viewsets.ModelViewSet):
 class CustomServiceViewSet(viewsets.ModelViewSet):
     """ViewSet specifically for Custom Services"""
     serializer_class = CustomServiceSerializer
-    permission_classes = [IsAuthenticated, ReadOnlyForViewer]
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', destroy='project.delete', default='project.write')]
     
     def get_queryset(self):
         user = self.request.user

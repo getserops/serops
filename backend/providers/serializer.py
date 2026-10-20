@@ -5,6 +5,9 @@ class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = GitlabProject
         fields = ['id', 'gitlab_url','username','name', 'project_id', 'access_token','webhook']
+        # The stored token (encrypted at rest) must never be returned, even to
+        # the owning org. Input-only, like the modern integration serializer.
+        extra_kwargs = {'access_token': {'write_only': True}}
         ref_name = "GitlabProject"  # Add this line to distinguish it
 
 class PipelineSerializer(serializers.ModelSerializer):

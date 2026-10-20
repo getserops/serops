@@ -1,3 +1,4 @@
+from Middlewares.rbac import Requires
 import ast
 import json
 from rest_framework.views import APIView
@@ -18,7 +19,6 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from Projects.models import Project
 from .audit import log_batch_delete
-from Users.permissions import require_role
 
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class BatchReanalyzeView(APIView):
     Re-analyze one or more batches with a specific AI model.
     Stores results in analysis_history for comparison.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(POST='batch.analyze')]
     
     @swagger_auto_schema(
         operation_description="Re-analyze batches with a specific AI model",
@@ -66,7 +66,6 @@ class BatchReanalyzeView(APIView):
             404: 'Batch not found'
         }
     )
-    @require_role('user')  # Viewers cannot trigger analysis
     def post(self, request):
         """
         Re-analyze batches with a specified AI model.
@@ -108,8 +107,7 @@ class BatchReanalyzeView(APIView):
             batches = []
             user_org = getattr(request.user, 'organisation', None)
             qs = AIAnalyzedBatch.objects.all()
-            if not request.user.is_superuser:
-                qs = qs.filter(organisation=user_org) if user_org else qs.none()
+            qs = qs.filter(organisation=user_org) if user_org else qs.none()
 
             for batch_id in batch_ids:
                 batch = qs.filter(batch_id=batch_id).first()
@@ -157,7 +155,7 @@ class BatchAnalysisHistoryView(APIView):
     """
     Get analysis history for a batch to enable comparison between models.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
     
     def get(self, request, batch_id):
         """
@@ -166,9 +164,8 @@ class BatchAnalysisHistoryView(APIView):
         try:
             # Org-scoped fetch (filter on queryset, not post-fetch check).
             qs = AIAnalyzedBatch.objects.all()
-            if not request.user.is_superuser:
-                user_org = getattr(request.user, 'organisation', None)
-                qs = qs.filter(organisation=user_org) if user_org else qs.none()
+            user_org = getattr(request.user, 'organisation', None)
+            qs = qs.filter(organisation=user_org) if user_org else qs.none()
             batch = qs.filter(batch_id=batch_id).first()
             if batch is None:
                 return Response(
@@ -209,9 +206,8 @@ class BatchPromoteAnalysisView(APIView):
     POST /api/data/batches/<batch_id>/promote-analysis/
         {"analyzed_at": "2026-09-20T05:16:32.417Z"}
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(POST='batch.analyze')]
 
-    @require_role('user')  # Viewers cannot mutate primary analyses
     def post(self, request, batch_id):
         analyzed_at = request.data.get('analyzed_at')
         if not analyzed_at:
@@ -221,9 +217,8 @@ class BatchPromoteAnalysisView(APIView):
             )
 
         qs = AIAnalyzedBatch.objects.all()
-        if not request.user.is_superuser:
-            user_org = getattr(request.user, 'organisation', None)
-            qs = qs.filter(organisation=user_org) if user_org else qs.none()
+        user_org = getattr(request.user, 'organisation', None)
+        qs = qs.filter(organisation=user_org) if user_org else qs.none()
         batch = qs.filter(batch_id=batch_id).first()
         if batch is None:
             return Response(
@@ -261,7 +256,7 @@ class HostDiscoveryView(APIView):
     """
     Discover hosts via the configured MetricProvider for the user's organisation.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
     
     def get(self, request):
         """
@@ -330,7 +325,7 @@ class MetricCorrelationView(APIView):
     Get metric-issue correlations for a batch.
     Returns stored correlation engine results from batch.data['correlation_results'].
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
 
     def get(self, request, batch_id):
         """
@@ -346,9 +341,8 @@ class MetricCorrelationView(APIView):
             # org's batch. Superusers bypass the org filter (needed for
             # internal debugging on the demo host).
             qs = AIAnalyzedBatch.objects.all()
-            if not request.user.is_superuser:
-                user_org = getattr(request.user, 'organisation', None)
-                qs = qs.filter(organisation=user_org) if user_org else qs.none()
+            user_org = getattr(request.user, 'organisation', None)
+            qs = qs.filter(organisation=user_org) if user_org else qs.none()
             batch = qs.filter(batch_id=batch_id).first()
             if batch is None:
                 # Same 404 response whether the batch doesn't exist or
@@ -396,7 +390,7 @@ class MetricCorrelationView(APIView):
             )
 
 class FluentdLogView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
 
     def get(self, request):
         """
@@ -469,7 +463,7 @@ class LogBatchView(OrgFilterMixin, APIView):
     Retrieve log batches with their analysis.
     Requires authentication. Filters batches by user's organization.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
     
     def get(self, request):
         """
@@ -599,7 +593,7 @@ class LogBatchView(OrgFilterMixin, APIView):
         
 
 class NodeMemoryRawView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
 
     def get(self, request):
         try:
@@ -611,7 +605,10 @@ class NodeMemoryRawView(APIView):
                 )
 
             # Per-org metric provider (respects org's configured backend)
-            provider = IntegrationRegistry.get_metric_provider_for_org(user_org)
+            try:
+                provider = IntegrationRegistry.get_metric_provider_for_org(user_org)
+            except ValueError:
+                return Response({'data': [], 'warning': 'No metrics source configured'}, status=200)
 
             from datetime import timedelta
             from django.utils import timezone
@@ -683,7 +680,7 @@ class BatchDetailView(OrgFilterMixin, APIView):
     Retrieve detailed information for a specific batch.
     Requires authentication. Only returns batches from user's organization.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
     
     def get(self, request, batch_id):
         """
@@ -701,9 +698,8 @@ class BatchDetailView(OrgFilterMixin, APIView):
             # explicitly removing the .filter() call. Superusers bypass
             # (needed for internal debugging on the demo host).
             qs = AIAnalyzedBatch.objects.all()
-            if not request.user.is_superuser:
-                user_org = getattr(request.user, 'organisation', None)
-                qs = qs.filter(organisation=user_org) if user_org else qs.none()
+            user_org = getattr(request.user, 'organisation', None)
+            qs = qs.filter(organisation=user_org) if user_org else qs.none()
             batch = qs.filter(batch_id=batch_id).first()
             if batch is None:
                 # Same 404 response whether the batch doesn't exist or
@@ -759,7 +755,7 @@ class RecommendationStatsView(OrgFilterMixin, APIView):
     Calculate recommendation statistics.
     Requires authentication. Filters by user's organization for data isolation.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='issue.read')]
     
     def get(self, request):
         """
@@ -849,7 +845,7 @@ class IssueStatsView(OrgFilterMixin, APIView):
     Calculate statistics for issues by severity.
     Requires authentication. Filters by user's organization for data isolation.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='issue.read')]
     
     def get(self, request):
         """
@@ -1036,7 +1032,7 @@ class IssueListView(OrgFilterMixin, APIView):
     Retrieve all issues across batches with pagination.
     Requires authentication. Filters issues by user's organization.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='issue.read')]
 
     def get(self, request):
         """
@@ -1067,7 +1063,7 @@ class IssueListView(OrgFilterMixin, APIView):
             )
             summary['filter_applied'] = severity_filter
 
-            queryset = base_queryset.select_related('batch', 'project').defer(
+            queryset = base_queryset.select_related('batch', 'project', 'resolved_by').defer(
                 'batch__data',
                 'batch__analysis_text',
                 'batch__analysis_history',
@@ -1129,7 +1125,8 @@ class IssueListView(OrgFilterMixin, APIView):
                 has_filters = True
             component = request.query_params.get('component', '').strip()
             if component:
-                queryset = queryset.filter(component__iexact=component)
+                # A service filter also finds issues caused elsewhere that affect it.
+                queryset = queryset.filter(Q(component__iexact=component) | Q(affected_services__contains=[component]))
                 has_filters = True
             # Time range: issues seen in the last N hours.
             since_hours = request.query_params.get('since_hours', '').strip()
@@ -1191,7 +1188,7 @@ class BatchIssuesView(OrgFilterMixin, APIView):
     Retrieve all issues for a specific batch with pagination.
     Requires authentication. Only returns batches from user's organization.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='issue.read')]
     
     def get(self, request, batch_id):
         """
@@ -1213,15 +1210,14 @@ class BatchIssuesView(OrgFilterMixin, APIView):
                 # and any batch whose ``project`` was None (there are
                 # many — batches created before a project existed, or
                 # via ad-hoc analyse endpoints) fell through as 404.
-                if not request.user.is_superuser:
-                    user_org = getattr(request.user, 'organisation', None)
-                    batch_org = (
-                        getattr(batch, 'organisation', None)
-                        or (getattr(batch.project, 'organisation', None) if batch.project else None)
-                    )
-                    if user_org != batch_org:
-                        logger.warning(f"User {request.user.id} attempted to access batch {batch_id} from different org")
-                        return Response({'error': f'Batch with ID {batch_id} not found'}, status=status.HTTP_404_NOT_FOUND)
+                user_org = getattr(request.user, 'organisation', None)
+                batch_org = (
+                    getattr(batch, 'organisation', None)
+                    or (getattr(batch.project, 'organisation', None) if batch.project else None)
+                )
+                if user_org is None or user_org != batch_org:
+                    logger.warning(f"User {request.user.id} attempted to access batch {batch_id} from different org")
+                    return Response({'error': f'Batch with ID {batch_id} not found'}, status=status.HTTP_404_NOT_FOUND)
                         
             except AIAnalyzedBatch.DoesNotExist:
                 return Response({'error': f'Batch with ID {batch_id} not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -1395,7 +1391,7 @@ class IssueActionsView(OrgFilterMixin, APIView):
     Handle manual issue actions: resolve, mute, reopen.
     Requires authentication. Only allows actions on issues from user's organization.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(POST='issue.update')]
     
     def _get_issue(self, request, issue_id):
         """Get issue, org-scoped.
@@ -1405,9 +1401,8 @@ class IssueActionsView(OrgFilterMixin, APIView):
         and "wrong org" so there's no enumeration oracle.
         """
         qs = Issue.objects.all()
-        if not request.user.is_superuser:
-            user_org = getattr(request.user, 'organisation', None)
-            qs = qs.filter(organisation=user_org) if user_org else qs.none()
+        user_org = getattr(request.user, 'organisation', None)
+        qs = qs.filter(organisation=user_org) if user_org else qs.none()
         issue = qs.filter(id=issue_id).first()
         if issue is None:
             return None, Response(
@@ -1416,7 +1411,6 @@ class IssueActionsView(OrgFilterMixin, APIView):
             )
         return issue, None
     
-    @require_role('user')
     def post(self, request, issue_id, action):
         """
         Handle issue action based on URL parameter.
@@ -1434,7 +1428,16 @@ class IssueActionsView(OrgFilterMixin, APIView):
             if action == 'resolve':
                 issue.status = 'RESOLVED'
                 issue.resolved_at = timezone.now()
-                issue.save(update_fields=['status', 'resolved_at'])
+                issue.resolved_by = request.user
+                fields = ['status', 'resolved_at', 'resolved_by']
+                # Optional: what actually happened, confirmed or corrected by
+                # the person resolving. Feeds past-incident memory.
+                for key, field in (('root_cause', 'resolution_root_cause'), ('fix', 'resolution_fix')):
+                    value = request.data.get(key)
+                    if isinstance(value, str) and value.strip():
+                        setattr(issue, field, value.strip()[:2000])
+                        fields.append(field)
+                issue.save(update_fields=fields)
                 logger.info(f"Issue {issue_id} resolved by user {request.user.id}")
 
             elif action == 'mute':
@@ -1485,9 +1488,8 @@ class IssueBulkActionsView(OrgFilterMixin, APIView):
     Perform bulk actions on multiple issues at once.
     Accepts POST with { issue_ids: [...], action: "resolve"|"mute"|"reopen", days?: N }
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(POST='issue.update')]
 
-    @require_role('user')
     def post(self, request):
         issue_ids = request.data.get('issue_ids', [])
         action = request.data.get('action', '').lower()
@@ -1518,7 +1520,7 @@ class IssueBulkActionsView(OrgFilterMixin, APIView):
 
         try:
             if action == 'resolve':
-                updated = matching.update(status='RESOLVED', resolved_at=timezone.now())
+                updated = matching.update(status='RESOLVED', resolved_at=timezone.now(), resolved_by=request.user)
             elif action == 'mute':
                 muted_until = None
                 if days > 0:
@@ -1546,7 +1548,7 @@ class IssueBulkActionsView(OrgFilterMixin, APIView):
 
 # cpu metrics
 class NodeCPURawView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
 
     def get(self, request):
         try:
@@ -1563,7 +1565,10 @@ class NodeCPURawView(APIView):
             from datetime import timedelta
 
             # Per-org metric provider
-            provider = IntegrationRegistry.get_metric_provider_for_org(user_org)
+            try:
+                provider = IntegrationRegistry.get_metric_provider_for_org(user_org)
+            except ValueError:
+                return Response({'warning': 'No metrics source configured'}, status=200)
 
             time_threshold = timezone.now() - timedelta(hours=24)
 
@@ -1644,13 +1649,12 @@ class SimilarIssuesView(OrgFilterMixin, APIView):
     (still being computed, or embedding failed) — callers don't
     need to distinguish "no matches" from "no embedding".
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='issue.read')]
 
     def get(self, request, issue_id):
         qs = Issue.objects.all()
-        if not request.user.is_superuser:
-            user_org = getattr(request.user, 'organisation', None)
-            qs = qs.filter(organisation=user_org) if user_org else qs.none()
+        user_org = getattr(request.user, 'organisation', None)
+        qs = qs.filter(organisation=user_org) if user_org else qs.none()
         issue = qs.filter(pk=issue_id).first()
         if issue is None:
             return Response({'error': f'Issue {issue_id} not found'}, status=404)
@@ -1694,13 +1698,13 @@ class BatchPostmortemView(OrgFilterMixin, APIView):
     entries + question prompts the SRE fills in. Frontend renders
     it in a modal with copy-to-clipboard.
     """
-    permission_classes = [IsAuthenticated]
+    # Generating a draft calls the AI: not for viewers.
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read', POST='batch.analyze')]
 
     def post(self, request, batch_id):
         qs = AIAnalyzedBatch.objects.all()
-        if not request.user.is_superuser:
-            user_org = getattr(request.user, 'organisation', None)
-            qs = qs.filter(organisation=user_org) if user_org else qs.none()
+        user_org = getattr(request.user, 'organisation', None)
+        qs = qs.filter(organisation=user_org) if user_org else qs.none()
         batch = qs.filter(batch_id=batch_id).first()
         if batch is None:
             return Response({'error': f'Batch {batch_id} not found'}, status=404)
@@ -1733,13 +1737,12 @@ class BatchTimelineView(OrgFilterMixin, APIView):
 
     Org-scoped via the same 404-oracle pattern as BatchDetailView.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
 
     def get(self, request, batch_id):
         qs = AIAnalyzedBatch.objects.all()
-        if not request.user.is_superuser:
-            user_org = getattr(request.user, 'organisation', None)
-            qs = qs.filter(organisation=user_org) if user_org else qs.none()
+        user_org = getattr(request.user, 'organisation', None)
+        qs = qs.filter(organisation=user_org) if user_org else qs.none()
         batch = qs.filter(batch_id=batch_id).first()
         if batch is None:
             return Response(
@@ -1793,7 +1796,7 @@ class BatchTimelineView(OrgFilterMixin, APIView):
 
 class DeleteOldBatchesView(APIView):
     """Delete old batches. Admin only for security."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(DELETE='settings.manage')]
 
     @swagger_auto_schema(
         operation_description="Delete all AIAnalyzedBatch objects older than a custom number of days.",
@@ -1835,7 +1838,6 @@ class DeleteOldBatchesView(APIView):
             ),
         }
     )
-    @require_role('admin')  # Only admins can delete data
     def delete(self, request):
         """
         Delete all AIAnalyzedBatch objects older than a custom number of days.
@@ -1882,7 +1884,7 @@ class SystemHealthView(OrgFilterMixin, APIView):
     Calculate system health score (0-100) based on recent issues.
     Requires authentication. Only counts issues from user's organization.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
     
     def get(self, request):
         """
@@ -1972,7 +1974,7 @@ class ServiceReliabilityView(OrgFilterMixin, APIView):
     Return top failing services/components based on issue count.
     Requires authentication. Filters by user's organization for data isolation.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
     
     def get(self, request):
         try:
@@ -2006,7 +2008,7 @@ class TrendAnalysisView(OrgFilterMixin, APIView):
     Return daily issue counts for the last 7 days.
     Requires authentication. Filters by user's organization for data isolation.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
     
     def get(self, request):
         try:

@@ -3,6 +3,7 @@ import { Table, Pagination, Form, Button, Dropdown } from "react-bootstrap";
 import { FaExclamationCircle, FaClock, FaBrain, FaBug, FaChartLine, FaCode, FaArrowRight, FaBell, FaLink, FaFileAlt } from "react-icons/fa";
 import { toast } from "react-toastify";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
+import { StatusChip } from "./issues/IssuePanel";
 import { useTranslation } from "react-i18next";
 import DataService from "../services/data.service";
 import useCapabilities from "../hooks/useCapabilities";
@@ -447,7 +448,7 @@ const Detail = () => {
   const correlations = Array.isArray(primary?.correlation_summary) ? primary.correlation_summary : [];
   const primarySeverity = (primary?.severity || '').toUpperCase();
   const criticalCount = issues.filter((i) => (i.severity || '').toUpperCase() === 'CRITICAL').length;
-  const services = [...new Set(issues.map((i) => i.component).filter(Boolean))];
+  const services = [...new Set(issues.flatMap((i) => [i.component, ...(i.affected_services || [])]).filter(Boolean))];
   const environment = batchMeta?.data?.environment || primary?.environment || null;
   const traceCount = batchMeta?.data?.traces?.trace_count || 0;
   const codeCount = batchMeta?.data?.code_changes?.length || 0;
@@ -463,8 +464,20 @@ const Detail = () => {
     if (c.type === 'commit') return t('detail.incident.corrCommit', { value: c.value });
     if (c.type === 'metric') return t('detail.incident.corrMetric', { value: c.value });
     if (c.type === 'cicd') return t('detail.incident.corrCicd', { value: c.value });
+    if (c.type === 'trace') return t('detail.incident.corrTrace', { value: String(c.value).slice(0, 8) });
     return String(c.value || c.type);
   };
+  // Each piece of evidence opens the page that shows it in context.
+  const correlationLink = (c) => {
+    if (c.type === 'commit') return `/dash/code-changes/${batchId}?sha=${encodeURIComponent(c.value)}`;
+    if (c.type === 'metric') return `/dash/metrics/${batchId}`;
+    if (c.type === 'cicd') return `/dash/timeline/${batchId}`;
+    if (c.type === 'trace') return `/dash/traces/${encodeURIComponent(c.value)}`;
+    return null;
+  };
+  // The failing span closest to this issue, when the batch has traces.
+  const failingTrace = primary?.related_traces?.top_errors?.[0]?.trace_id;
+  const evidenceChips = failingTrace ? [...correlations, { type: 'trace', value: failingTrace }] : correlations;
 
   return (
     <div className="detail-page incident-page">
@@ -556,11 +569,14 @@ const Detail = () => {
                     </ol>
                   </>
                 )}
-                {correlations.length > 0 && (
+                {evidenceChips.length > 0 && (
                   <div className="incident-correlations">
-                    {correlations.map((c, i) => (
-                      <span key={i} className="ds-chip ds-chip-neutral">{correlationLabel(c)}</span>
-                    ))}
+                    {evidenceChips.map((c, i) => {
+                      const to = correlationLink(c);
+                      return to
+                        ? <Link key={i} to={to} className="ds-chip ds-chip-neutral incident-evidence-link">{correlationLabel(c)}</Link>
+                        : <span key={i} className="ds-chip ds-chip-neutral">{correlationLabel(c)}</span>;
+                    })}
                   </div>
                 )}
                 <div className="incident-model">
@@ -742,6 +758,7 @@ const Detail = () => {
                 <span className={`ds-chip ${severityChip(issue.severity)}`} style={{ marginTop: 2 }}>
                   {issue.severity}
                 </span>
+                {issue.status && <span style={{ marginTop: 2 }}><StatusChip status={issue.status} t={t} /></span>}
                 <div className="detail-issue-text" style={{ flexGrow: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
                     {issue.description || issue.error_target || 'Untitled issue'}
@@ -754,6 +771,9 @@ const Detail = () => {
                   {issue.component && (
                     <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
                       <span className="ds-mono">{issue.component}</span>
+                      {issue.affected_services?.length > 0 && (
+                        <span> · {t('issues.panel.alsoAffects', { services: issue.affected_services.join(', ') })}</span>
+                      )}
                       {issue.environment && <span> · {issue.environment}</span>}
                     </div>
                   )}
@@ -763,7 +783,7 @@ const Detail = () => {
                   className="ds-btn ds-btn-ghost ds-btn-sm"
                   style={{ flexShrink: 0, textDecoration: 'none' }}
                 >
-                  Open
+                  {t('detail.incident.viewIssue')} <FaArrowRight aria-hidden="true" />
                 </Link>
               </div>
             ))}

@@ -16,6 +16,7 @@ Design notes:
 * Multi-tenancy: all endpoints scoped to caller's org via the queryset.
 * Admin-role required for create / delete (matches other Settings surfaces).
 """
+from Middlewares.rbac import Requires
 
 import logging
 
@@ -23,7 +24,6 @@ from rest_framework import serializers, status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from Middlewares.rbac import IsAdminRole
 from .models import IngestKey
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ class IngestKeyCreateSerializer(serializers.ModelSerializer):
 class IngestKeyViewSet(viewsets.ViewSet):
     """CRUD (list, create, destroy) for the caller's org's IngestKeys."""
 
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(default='integration.manage')]
 
     def _queryset(self, request):
         org = getattr(request.user, 'organisation', None)

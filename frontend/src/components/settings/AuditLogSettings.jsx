@@ -4,7 +4,7 @@ import {
     FaCalendar, FaSpinner, FaChevronLeft, FaChevronRight,
     FaSignInAlt, FaSignOutAlt, FaCog, FaServer, FaTrash,
     FaUserPlus, FaRobot, FaBell, FaKey, FaTimes,
-    FaChevronDown, FaChevronUp
+    FaChevronDown, FaChevronUp, FaBan
 } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import enterpriseSettingsService from '../../services/enterpriseSettings.service';
@@ -29,6 +29,7 @@ const ACTION_ICONS = {
     'AI_MODEL_CHANGE': FaRobot,
     'NOTIFICATION_TEST': FaBell,
     'EXPORT_DATA': FaDownload,
+    'ACCESS_DENIED': FaBan,
 };
 
 const EMPTY_FILTERS = {
@@ -167,7 +168,7 @@ const AuditLogSettings = () => {
     };
 
     const getActionColor = (action) => {
-        if (action.includes('DELETE') || action.includes('REMOVE') || action === 'LOGIN_FAILED') {
+        if (action.includes('DELETE') || action.includes('REMOVE') || action === 'LOGIN_FAILED' || action === 'ACCESS_DENIED') {
             return 'danger';
         }
         if (action.includes('CREATE') || action === 'LOGIN' || action.includes('INVITE')) {

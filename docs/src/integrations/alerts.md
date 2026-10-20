@@ -145,4 +145,4 @@ can route the analysis to the right project.
   incident storm; bump in `settings.py` if you have more than that
   legitimately.
 - Raw payloads are stored on `AlertEvent.raw_payload` for support
-  debugging — inspect via the Django admin or your DB directly.
+  debugging — inspect via your DB directly, or via the Django admin if you enabled it (`DJANGO_ADMIN_ENABLED=True`).

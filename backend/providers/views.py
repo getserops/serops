@@ -1,3 +1,4 @@
+from Middlewares.rbac import Requires
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -38,8 +39,10 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,),  # Changed to AllowAny for easier testing
 )
 
-@permission_classes([IsAuthenticated])
 class ProjectList(APIView):
+    # Viewers read; users and admins add projects.
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', POST='project.write')]
+
     @swagger_auto_schema(
         operation_description="Get a list of GitLab projects for the authenticated user's organization",
         responses={200: ProjectSerializer(many=True)}
@@ -320,8 +323,10 @@ class ProjectList(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 
-@permission_classes([IsAuthenticated])
 class ProjectDetail(APIView):
+    # Viewers read; users and admins edit; only admins delete (see delete()).
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', PUT='project.write', DELETE='project.delete')]
+
     def get_object(self, pk):
         try:
             return GitlabProject.objects.get(pk=pk)
@@ -412,90 +417,9 @@ class ProjectDetail(APIView):
 
 
 
-@permission_classes([IsAuthenticated])
-class JobList(APIView):
-    @swagger_auto_schema(
-        operation_description="Get a list of jobs for a specific pipeline",
-        manual_parameters=[
-            openapi.Parameter('pk1', openapi.IN_PATH, description="Project ID", type=openapi.TYPE_INTEGER),
-            openapi.Parameter('pk2', openapi.IN_PATH, description="Pipeline ID", type=openapi.TYPE_INTEGER)
-        ],
-        responses={
-            200: JobSerializer(many=True),
-            404: "Project or workflow not found"
-        }
-    )
-    def get(self, request, pk1, pk2):
-        # BE-P1-01 (audit 2026-09-05): prior code fetched Pipeline by pk2
-        # WITHOUT scoping to pk1's project. A user with their own project
-        # could pair pk1=<own_project_id> + pk2=<victim's_pipeline_id> and
-        # receive that pipeline's jobs. Scoping the pipeline query to the
-        # project + verifying the project's organisation closes the leak.
-        try:
-            project = GitlabProject.objects.get(pk=pk1)
-        except GitlabProject.DoesNotExist:
-            return Response({"message": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        if project.organisation != request.user.organisation:
-            # Same 404 as "doesn't exist" so cross-org existence isn't
-            # observable through the response status.
-            return Response({"message": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        try:
-            pipeline = Pipeline.objects.get(pk=pk2, project=project)
-        except Pipeline.DoesNotExist:
-            return Response({"message": "Workflow not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        jobs = Job.objects.filter(pipeline=pipeline)
-        serializer = JobSerializer(jobs, many=True)
-        return Response(serializer.data)
-        
-
-@permission_classes([IsAuthenticated])
-class Gitlab_save_logs(APIView):
-    @swagger_auto_schema(
-        operation_description="Retrieve logs for a GitLab job",
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            required=['project_id', 'pipeline_id', 'job_id', 'job_name','job_status','job_time','job_owner'],
-            properties={
-                'project_id': openapi.Schema(type=openapi.TYPE_STRING, description='GitLab project ID'),
-                'pipeline_id': openapi.Schema(type=openapi.TYPE_STRING, description='GitLab pipeline ID'),
-                'job_id': openapi.Schema(type=openapi.TYPE_STRING, description='GitLab job ID'),
-                'job_name': openapi.Schema(type=openapi.TYPE_STRING, description='GitLab job name'),
-                'job_status': openapi.Schema(type=openapi.TYPE_STRING, description='Job status'),
-                'job_time': openapi.Schema(type=openapi.TYPE_STRING, description='Job time'),
-                'job_owner': openapi.Schema(type=openapi.TYPE_STRING, description='Job owner'),
-            }
-        ),
-        responses={
-            200: openapi.Schema(
-                type=openapi.TYPE_OBJECT,
-                properties={
-                    'job_logs': openapi.Schema(type=openapi.TYPE_STRING, description='Job logs content')
-                }
-            )
-        }
-    )
-    def post(self, request):
-        project_id = request.data.get('project_id')
-        pipeline_id = request.data.get('pipeline_id')
-        job_id = request.data.get('job_id')
-        job_name = request.data.get('job_name')
-        job_status = request.data.get('job_status')
-        job_time = request.data.get('job_time')
-        job_owner = request.data.get('job_owner')
-        # Vérifier que l'utilisateur appartient à l'organisation du projet
-        project_instance = GitlabProject.objects.filter(
-            project_id=project_id).first()
-        access_token = project_instance.get_access_token()
-        logs = gitlab_retrieve_job_logs(project_id, pipeline_id, job_id, job_name,job_status, job_time,job_owner)
-        return Response({'job_logs': logs})
-    
-
-
-@permission_classes([IsAuthenticated])
 class SetupGitLabWebhookView(APIView):
+    permission_classes = [IsAuthenticated, Requires(POST='project.write')]
+
     @swagger_auto_schema(
         operation_description="Setup GitLab webhook for a project",
         request_body=openapi.Schema(
@@ -527,10 +451,12 @@ class SetupGitLabWebhookView(APIView):
         job_events = request.data.get('job_events', True)
         project_id = request.data.get('project_id')
 
-        pr=GitlabProject.objects.filter(project_id=project_id).first()
+        # Only a project of the caller's own organisation: its stored token
+        # must never act on behalf of another tenant.
+        pr = GitlabProject.objects.filter(project_id=project_id, organisation=request.user.organisation).first()
         if not pr:
             logger.warning('No Project found')
-            return Response({'message': 'No Project found'})
+            return Response({'message': 'No Project found'}, status=status.HTTP_404_NOT_FOUND)
         access_token=pr.get_access_token()
         gitlab_base = get_gitlab_api_base(project=pr)
         gitlab_api_url = f"{gitlab_base}/api/v4/projects/{project_id}/hooks"
@@ -541,6 +467,7 @@ class SetupGitLabWebhookView(APIView):
             pipeline_id=str(project_id),
             integration__provider_type='gitlab',
             is_active=True,
+            project_service__project__organisation=request.user.organisation,
         ).first()
 
         if cicd_binding and cicd_binding.webhook_secret:
@@ -585,11 +512,15 @@ class SetupGitLabWebhookView(APIView):
             return Response({"message": "webhook set for this Gitlab project"})
         else :
             logger.debug('Webhook verification failed')
-            return Response({"message": " Error , webhook is not set for this Gitlab project","github_response": gitlab_response.json()},status=500)
+            # GitLab's raw error body stays in the log, not in the response.
+            logger.warning('GitLab webhook setup failed: HTTP %s', gitlab_response.status_code)
+            return Response({"message": "Error, webhook is not set for this GitLab project",
+                             "gitlab_status": gitlab_response.status_code}, status=502)
 
 
-@permission_classes([IsAuthenticated])
 class DeleteGitLabWebhookView(APIView):
+    permission_classes = [IsAuthenticated, Requires(POST='project.write')]
+
     @swagger_auto_schema(
         operation_description="Delete GitLab webhook for a project",
         request_body=openapi.Schema(
@@ -615,9 +546,9 @@ class DeleteGitLabWebhookView(APIView):
     )
     def post(self, request):
         project_id = request.data.get('project_id')
-        pr=GitlabProject.objects.filter(project_id=project_id).first()
+        pr = GitlabProject.objects.filter(project_id=project_id, organisation=request.user.organisation).first()
         if not pr:
-            return Response({'message': 'No Project found'})
+            return Response({'message': 'No Project found'}, status=status.HTTP_404_NOT_FOUND)
         access_token=pr.get_access_token()
         gitlab_base = get_gitlab_api_base(project=pr)
         # List all webhooks
@@ -649,8 +580,9 @@ class DeleteGitLabWebhookView(APIView):
 
 
 
-@permission_classes([IsAuthenticated])
 class VerifyGitLabProjectView(APIView):
+    permission_classes = [IsAuthenticated, Requires(POST='project.write')]
+
     @swagger_auto_schema(
         operation_description="Verify if a GitLab project exists and is accessible, and fetch its pipelines",
         request_body=openapi.Schema(
@@ -789,8 +721,8 @@ class VerifyGitLabProjectView(APIView):
 
 
 
-@permission_classes([IsAuthenticated])
 class PipelineLogsView(APIView):
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
     @swagger_auto_schema(
         operation_description="Get all logs for jobs in a specific pipeline",
         manual_parameters=[
@@ -895,6 +827,8 @@ class PipelineLogsView(APIView):
 
 
 class VerifyGitHubProjectView(APIView):
+    permission_classes = [IsAuthenticated, Requires(POST='project.write')]
+
     """
     Verify a GitHub repository exists and the provided token has access.
     
@@ -1026,6 +960,8 @@ class VerifyGitHubProjectView(APIView):
 
 
 class VerifyBitbucketProjectView(APIView):
+    permission_classes = [IsAuthenticated, Requires(POST='project.write')]
+
     """
     Verify a Bitbucket repository exists and the provided OAuth2 token has access.
     
@@ -1150,6 +1086,8 @@ class VerifyBitbucketProjectView(APIView):
 
 
 class VerifyAzureDevOpsProjectView(APIView):
+    permission_classes = [IsAuthenticated, Requires(POST='project.write')]
+
     """
     Verify an Azure DevOps project exists and the provided PAT has access.
     
@@ -1329,7 +1267,7 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
     Multi-tenancy: All queries are scoped to user's organisation.
     """
     serializer_class = ProviderIntegrationSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='integration.read', POST='integration.use', create='integration.manage', update='integration.manage', partial_update='integration.manage', destroy='integration.manage', test_connection='integration.manage')]
 
     def get_queryset(self):
         """Filter integrations by user's organisation."""
@@ -1825,7 +1763,7 @@ class PipelineListView(APIView):
       - ``cicd_provider``: gitlab/github/jenkins/bitbucket/azure_devops.
       - ``environment``: development/staging/production.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
 
     def get(self, request):
         from Projects.models import CICDBinding
@@ -1868,7 +1806,7 @@ class DeploymentListView(APIView):
       - ``service_id``: scope via CodeChange → GitlabProject → ProjectService.
       - ``environment``, ``status``: exact match.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
 
     def get(self, request):
         from .serializer import DeploymentListSerializer

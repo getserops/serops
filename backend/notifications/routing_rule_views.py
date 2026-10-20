@@ -6,12 +6,12 @@ set of target channels. Dispatcher walks active rules → union of
 matching targets → dedup → send.
 """
 from __future__ import annotations
+from Middlewares.rbac import Requires
 import logging
 
 from rest_framework import serializers, viewsets
 from rest_framework.permissions import IsAuthenticated
 
-from Middlewares.rbac import IsAdminRole
 from .models import IncidentNotificationChannel, NotificationRoutingRule
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ class NotificationRoutingRuleSerializer(serializers.ModelSerializer):
 class NotificationRoutingRuleViewSet(viewsets.ModelViewSet):
     """org-scoped CRUD; admin only for writes."""
     serializer_class = NotificationRoutingRuleSerializer
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(default='alerting.manage')]
 
     def get_queryset(self):
         org = getattr(self.request.user, 'organisation', None)

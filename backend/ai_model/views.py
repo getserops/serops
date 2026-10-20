@@ -1,3 +1,4 @@
+from Middlewares.rbac import Requires
 import os
 from django.shortcuts import render, get_object_or_404
 import requests
@@ -110,7 +111,7 @@ def process_ai_request(prompt, ai_model, organisation=None):
 )
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, Requires(POST='chat.use')])
 def generate_text(request):
     if request.method == 'POST':
         try:
@@ -550,7 +551,7 @@ def generate_text(request):
     tags=['Log Analysis']
 )
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, Requires(POST='batch.analyze')])
 def trigger_batch_analysis(request):
     """
     Trigger analysis for a specific batch ID
@@ -570,14 +571,13 @@ def trigger_batch_analysis(request):
         # queryset filter enforces the boundary before the Celery task
         # is dispatched.
         user_org = getattr(request.user, 'organisation', None)
-        if not user_org and not request.user.is_superuser:
+        if not user_org:
             return JsonResponse(
                 {'error': f'Batch {batch_id} not found'},
                 status=status.HTTP_404_NOT_FOUND,
             )
         qs = AIAnalyzedBatch.objects.all()
-        if not request.user.is_superuser:
-            qs = qs.filter(organisation=user_org)
+        qs = qs.filter(organisation=user_org)
         batch = qs.filter(batch_id=batch_id).first()
         if batch is None:
             # Same 404 whether the batch doesn't exist or belongs to
@@ -652,7 +652,7 @@ def trigger_batch_analysis(request):
     }
 )
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, Requires(GET='self.manage')])
 def get_chat_history(request, chat_id):
     """
     Retrieve the complete message history for a specific chat session
@@ -692,7 +692,7 @@ def get_chat_history(request, chat_id):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, Requires(GET='self.manage')])
 def list_chat_sessions(request):
     # Filter out soft-deleted sessions (delete_chat_session sets
     # is_active=False). Without this filter, "deleted" chats still
@@ -710,7 +710,7 @@ def list_chat_sessions(request):
 
 
 @api_view(['DELETE'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, Requires(DELETE='self.manage')])
 def delete_chat_session(request, chat_id):
     """Soft delete a chat session"""
     session = get_object_or_404(ChatSession, chat_id=chat_id, user=request.user)
@@ -719,7 +719,7 @@ def delete_chat_session(request, chat_id):
     return JsonResponse({'status': 'success', 'message': 'Chat session archived'})
 
 @api_view(['PATCH'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, Requires(PATCH='self.manage')])
 def update_chat_session(request, chat_id):
     """Update chat session title"""
     session = get_object_or_404(ChatSession, chat_id=chat_id, user=request.user)
@@ -763,7 +763,7 @@ def update_chat_session(request, chat_id):
     }
 )
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, Requires(GET='self.manage')])
 def get_chat_sessions(request):
     """
     Get all active chat sessions for the authenticated user

@@ -9,6 +9,7 @@ class IssueSerializer(serializers.ModelSerializer):
     error_class_display = serializers.CharField(source='get_error_class_display', read_only=True)
     confidence_display = serializers.CharField(source='get_confidence_display', read_only=True)
     project_name = serializers.CharField(source='project.name', read_only=True, default=None)
+    resolved_by_name = serializers.SerializerMethodField()
 
     # Correlation summary (computed from pre-computed model fields)
     correlation_summary = serializers.SerializerMethodField()
@@ -34,7 +35,7 @@ class IssueSerializer(serializers.ModelSerializer):
             'reasoning', 'confidence', 'confidence_display',
             'created_at',
             # v2 deduplication fields
-            'issue_type', 'issue_type_display', 'scope', 'component', 'environment',
+            'issue_type', 'issue_type_display', 'scope', 'component', 'affected_services', 'environment',
             'status', 'status_display', 'occurrence_count', 'muted_until', 'last_seen_at',
             'acknowledged_at', 'project', 'project_name',
             # v3 AI classification fields
@@ -47,9 +48,20 @@ class IssueSerializer(serializers.ModelSerializer):
             'has_cicd_correlation',
             'correlation_summary',
             'informed_by',
+            # Resolution: who, when, and what the team says happened
+            'resolved_at', 'resolved_by_name', 'resolution_root_cause', 'resolution_fix',
             'related_traces',
         ]
+        # Issues are written by the analysis pipeline, never through this
+        # serializer: their batch and project are output only.
+        read_only_fields = ['batch', 'project']
     
+    def get_resolved_by_name(self, obj):
+        user = obj.resolved_by
+        if not user:
+            return None
+        return f'{user.first_name} {user.last_name}'.strip() or user.email
+
     def get_correlation_summary(self, obj):
         """Build correlation summary from pre-computed model fields."""
         summary = []

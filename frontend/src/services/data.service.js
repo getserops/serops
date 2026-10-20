@@ -710,11 +710,13 @@ const getAvailableModels = async () => {
  * @param {number} issueId - Issue ID
  * @returns {Promise<Object>} Updated issue data
  */
-const resolveIssue = async (issueId) => {
+// `resolution` (optional): { root_cause, fix } as confirmed or corrected
+// by the person resolving.
+const resolveIssue = async (issueId, resolution = {}) => {
   try {
     const response = await apiClient.post(
       `${ISSUES_API_URL}${issueId}/resolve/`,
-      {},
+      resolution,
     );
     return response.data;
   } catch (error) {

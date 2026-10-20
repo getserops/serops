@@ -201,6 +201,7 @@ nav:
     - Multi-Tenancy: architecture/multi-tenancy.md
   - Development:
     - Testing: development/testing.md
+    - Permissions: development/permissions.md
   - API Reference:
     - Overview: api/overview.md
     - Authentication: api/authentication.md

@@ -1,399 +1,192 @@
 """
-RBAC Permission System - Option 1 (Hardcoded)
+Role-based access control: one catalogue, one check.
 
-This module provides role-based access control with a clean abstraction layer.
-Designed for easy migration to Option 2 (database-managed) in the future.
+Modelled on Airflow (action x resource, cumulative roles Viewer < User <
+Admin) and Grafana (named actions such as ``dashboards:write``, a server
+admin above organisation roles):
 
-Usage:
-    from Middlewares.rbac import has_permission, RBACPermission
-    
-    # In views:
-    class ProjectViewSet(viewsets.ModelViewSet):
-        permission_classes = [IsAuthenticated, RBACPermission('project.create')]
-    
-    # In code:
-    if has_permission(request.user, 'project.delete'):
-        project.delete()
+* ``PERMISSIONS`` names every action. ``ROLE_PERMISSIONS`` grants them to
+  the three organisation roles, cumulatively.
+* Platform permissions are not granted by an organisation role: they touch
+  state shared by every organisation on the install (see
+  ``PLATFORM_PERMISSIONS``).
+* Views declare what they need with ``Requires(...)``, per HTTP method or
+  viewset action. Anything a view doesn't declare is denied, and
+  ``Middlewares/tests/test_permission_coverage.py`` fails the build when a
+  route doesn't declare its permissions.
+* The UI gets the caller's permissions from ``/api/auth/profile`` and the
+  login response (``UserSerializer.permissions``) instead of keeping a copy
+  of this table.
+
+Object-level isolation (a user only ever sees their own organisation's
+rows) is separate: every queryset filters by ``request.user.organisation``.
 """
+import logging
 
 from rest_framework.permissions import BasePermission
-from functools import wraps
+
+logger = logging.getLogger(__name__)
 
 
-# =============================================================================
-# PERMISSION DEFINITIONS
-# =============================================================================
-
-class Permissions:
-    """All available permissions in the system.
-    
-    Naming convention: {resource}.{action}
-    """
-    # Projects
-    PROJECT_CREATE = 'project.create'
-    PROJECT_READ = 'project.read'
-    PROJECT_UPDATE = 'project.update'
-    PROJECT_DELETE = 'project.delete'
-    
-    # Services
-    SERVICE_CREATE = 'service.create'
-    SERVICE_READ = 'service.read'
-    SERVICE_UPDATE = 'service.update'
-    SERVICE_DELETE = 'service.delete'
-    SERVICE_WEBHOOK = 'service.webhook'
-    
-    # Data / Batches
-    BATCH_READ = 'batch.read'
-    BATCH_DELETE = 'batch.delete'
-    BATCH_EXPORT = 'batch.export'
-    BATCH_ANALYZE = 'batch.analyze'
-    
-    # Issues (AI-generated, not user-created)
-    ISSUE_READ = 'issue.read'
-    ISSUE_UPDATE = 'issue.update'  # Mark as resolved/acknowledged
-    ISSUE_DELETE = 'issue.delete'
-    
-    # Users
-    USER_INVITE = 'user.invite'
-    USER_READ = 'user.read'
-    USER_UPDATE = 'user.update'
-    USER_DELETE = 'user.delete'
-    USER_ROLE_CHANGE = 'user.role_change'
-    
-    # Settings
-    SETTINGS_READ = 'settings.read'
-    SETTINGS_UPDATE = 'settings.update'
-    
-    # Chat
-    CHAT_USE = 'chat.use'
-
-
-# =============================================================================
-# ROLE-PERMISSION MATRIX
-# =============================================================================
-
-ROLE_PERMISSIONS = {
-    'admin': [
-        # Projects - Full access
-        Permissions.PROJECT_CREATE,
-        Permissions.PROJECT_READ,
-        Permissions.PROJECT_UPDATE,
-        Permissions.PROJECT_DELETE,
-        
-        # Services - Full access
-        Permissions.SERVICE_CREATE,
-        Permissions.SERVICE_READ,
-        Permissions.SERVICE_UPDATE,
-        Permissions.SERVICE_DELETE,
-        Permissions.SERVICE_WEBHOOK,
-        
-        # Data - Full access
-        Permissions.BATCH_READ,
-        Permissions.BATCH_DELETE,
-        Permissions.BATCH_EXPORT,
-        Permissions.BATCH_ANALYZE,
-        
-        # Issues - Full access (AI-generated, manage only)
-        Permissions.ISSUE_READ,
-        Permissions.ISSUE_UPDATE,
-        Permissions.ISSUE_DELETE,
-        
-        # Users - Full access
-        Permissions.USER_INVITE,
-        Permissions.USER_READ,
-        Permissions.USER_UPDATE,
-        Permissions.USER_DELETE,
-        Permissions.USER_ROLE_CHANGE,
-        
-        # Settings - Full access
-        Permissions.SETTINGS_READ,
-        Permissions.SETTINGS_UPDATE,
-        
-        # Chat
-        Permissions.CHAT_USE,
-    ],
-    
-    # 'user' role: Engineers (merged devops + developer with write access)
-    'user': [
-        # Projects - Create/Read/Update (no delete)
-        Permissions.PROJECT_CREATE,
-        Permissions.PROJECT_READ,
-        Permissions.PROJECT_UPDATE,
-        
-        # Services - Full access except delete
-        Permissions.SERVICE_CREATE,
-        Permissions.SERVICE_READ,
-        Permissions.SERVICE_UPDATE,
-        Permissions.SERVICE_WEBHOOK,
-        
-        # Data - Read + Export + Analyze (no delete)
-        Permissions.BATCH_READ,
-        Permissions.BATCH_EXPORT,
-        Permissions.BATCH_ANALYZE,
-        
-        # Issues - Read + Update (acknowledge, no delete)
-        Permissions.ISSUE_READ,
-        Permissions.ISSUE_UPDATE,
-        
-        # Users - Read only (can see team members)
-        Permissions.USER_READ,
-        
-        # Settings - Read only
-        Permissions.SETTINGS_READ,
-        
-        # Chat
-        Permissions.CHAT_USE,
-    ],
-    
-    # 'viewer' role: Read-only for stakeholders, SOC analysts, auditors
-    'viewer': [
-        # Projects - Read only
-        Permissions.PROJECT_READ,
-        
-        # Services - Read only
-        Permissions.SERVICE_READ,
-        
-        # Data - Read only (no analyze, no export)
-        Permissions.BATCH_READ,
-        
-        # Issues - Read only
-        Permissions.ISSUE_READ,
-        
-        # Users - None (can only see self via profile)
-        
-        # Settings - None
-        
-        # Chat - Can use for querying (read-like operation)
-        Permissions.CHAT_USE,
-    ],
+# Every action, with what it covers. Names are ``resource.action``.
+PERMISSIONS = {
+    # Every role
+    'self.manage': 'Own profile, password, photo, account, notifications, preferences, subscriptions, chat sessions',
+    'org.read': 'Organisation name, logo, capabilities and setup status',
+    'project.read': 'Projects, services, bindings, deployments',
+    'batch.read': 'Analyses, logs, metrics, traces, timelines, code changes, dashboards',
+    'issue.read': 'Issues and their details',
+    'integration.read': 'The list of integrations, log/metric sources and clusters (no secrets)',
+    'alerting.read': 'The list of delivery channels (no secrets)',
+    'chat.use': 'Ask AI Chat about existing analyses',
+    # User and admin
+    'issue.update': 'Resolve, mute, reopen, acknowledge issues',
+    'batch.analyze': 'Run analyses, re-analyses, investigations and post-mortems (spends the AI budget)',
+    'project.write': 'Create and edit projects, services, bindings, deployments; set up webhooks; setup flow',
+    'integration.use': 'Verify, sync and health-check existing integrations',
+    'settings.read': 'Read organisation settings (security, SSO, retention, data usage, AI budget)',
+    # Admin
+    'project.delete': 'Delete projects and services',
+    'integration.manage': 'Add, edit, delete or test integrations, log/metric sources, clusters, ingest keys',
+    'alerting.manage': 'Delivery channels, routing rules, escalation rules, alert ingest secret',
+    'settings.manage': 'Organisation info and settings, AI providers and keys, Sentinel, retention, data deletion',
+    'team.manage': 'Invite and remove members, change roles, audit log',
+    # Platform (not granted by an organisation role)
+    'ai_catalogue.manage': 'The AI provider catalogue shared by every organisation',
+    'platform.manage': 'Install-wide operations (AI circuit breakers)',
 }
 
+_VIEWER = [
+    'self.manage', 'org.read', 'project.read', 'batch.read', 'issue.read',
+    'integration.read', 'alerting.read', 'chat.use',
+]
+_USER = _VIEWER + [
+    'issue.update', 'batch.analyze', 'project.write', 'integration.use', 'settings.read',
+]
+_ADMIN = _USER + [
+    'project.delete', 'integration.manage', 'alerting.manage', 'settings.manage', 'team.manage',
+]
 
-# =============================================================================
-# PERMISSION CHECKING (Abstraction Layer)
-# =============================================================================
+ROLE_PERMISSIONS = {'viewer': _VIEWER, 'user': _USER, 'admin': _ADMIN}
 
-class PermissionBackend:
-    """
-    Abstract permission backend.
-    
-    Option 1: Uses ROLE_PERMISSIONS dict (current)
-    Option 2: Would query database (future)
-    
-    To migrate to Option 2, replace this class implementation.
-    """
-    
-    @staticmethod
-    def get_permissions_for_role(role: str, organisation=None) -> list:
-        """
-        Get all permissions for a given role.
-        
-        Args:
-            role: User role ('admin', 'user', 'viewer')
-            organisation: Optional org for future per-org customization
-        
-        Returns:
-            List of permission codes
-        """
-        # Option 1: Return from dict
-        return ROLE_PERMISSIONS.get(role, [])
-        
-        # Option 2 (future): Query database
-        # return list(
-        #     RolePermission.objects
-        #     .filter(role=role, organisation=organisation)
-        #     .values_list('permission__code', flat=True)
-        # )
-    
-    @staticmethod
-    def has_permission(user, permission_code: str) -> bool:
-        """
-        Check if user has a specific permission.
-        
-        Args:
-            user: Django User instance
-            permission_code: Permission to check (e.g., 'project.create')
-        
-        Returns:
-            True if user has permission, False otherwise
-        """
-        if not user or not user.is_authenticated:
-            return False
-        
-        role = getattr(user, 'role', None)
-        if not role:
-            return False
-        
-        permissions = PermissionBackend.get_permissions_for_role(
-            role, 
-            getattr(user, 'organisation', None)
-        )
-        return permission_code in permissions
+PLATFORM_PERMISSIONS = {'ai_catalogue.manage', 'platform.manage'}
 
 
-# =============================================================================
-# PUBLIC API
-# =============================================================================
-
-def has_permission(user, permission_code: str) -> bool:
-    """
-    Check if user has a specific permission.
-    
-    Usage:
-        if has_permission(request.user, 'project.delete'):
-            project.delete()
-    """
-    return PermissionBackend.has_permission(user, permission_code)
-
-
-def get_user_permissions(user) -> list:
-    """
-    Get all permissions for a user.
-    
-    Usage:
-        permissions = get_user_permissions(request.user)
-        # ['project.read', 'batch.read', ...]
-    """
-    if not user or not user.is_authenticated:
-        return []
-    
-    role = getattr(user, 'role', None)
-    return PermissionBackend.get_permissions_for_role(
-        role,
-        getattr(user, 'organisation', None)
-    )
-
-
-# =============================================================================
-# DRF PERMISSION CLASSES
-# =============================================================================
-
-class RBACPermission(BasePermission):
-    """
-    DRF Permission class that checks for a specific permission.
-    
-    Usage:
-        class ProjectViewSet(viewsets.ModelViewSet):
-            permission_classes = [IsAuthenticated, RBACPermission('project.create')]
-    """
-    
-    def __init__(self, required_permission: str):
-        self.required_permission = required_permission
-    
-    def has_permission(self, request, view):
-        return has_permission(request.user, self.required_permission)
-    
-    def __call__(self):
-        """Allow usage as permission_classes = [RBACPermission('project.create')]"""
-        return self
-
-
-def require_permission(permission_code: str):
-    """
-    Factory function to create permission class for DRF.
-    
-    Usage:
-        permission_classes = [IsAuthenticated, require_permission('project.create')]
-    """
-    class DynamicPermission(BasePermission):
-        def has_permission(self, request, view):
-            return has_permission(request.user, permission_code)
-    
-    return DynamicPermission
-
-
-class IsAdminRole(BasePermission):
-    """Only users with admin role."""
-    
-    def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated and 
-            getattr(request.user, 'role', None) == 'admin'
-        )
-
-
-class IsUserOrAdmin(BasePermission):
-    """Users with admin or user role (excludes viewer)."""
-    
-    def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated and 
-            getattr(request.user, 'role', None) in ['admin', 'user']
-        )
-
-
-class ReadOnlyForViewer(BasePermission):
-    """
-    - Admin/User: Full access
-    - Viewer: Read-only (GET, HEAD, OPTIONS)
-    """
-    SAFE_METHODS = ('GET', 'HEAD', 'OPTIONS')
-    
-    def has_permission(self, request, view):
-        if not request.user.is_authenticated:
-            return False
-        
-        role = getattr(request.user, 'role', None)
-        
-        if role in ['admin', 'user']:
-            return True
-        
-        return request.method in self.SAFE_METHODS
-
-
-class SameOrganisation(BasePermission):
-    """
-    Ensure user can only access objects in their organisation.
-    
-    Works with objects that have either:
-    - .organisation FK
-    - .project.organisation FK
-    """
-    
-    def has_object_permission(self, request, view, obj):
-        if not request.user.is_authenticated:
-            return False
-        
-        user_org = getattr(request.user, 'organisation', None)
-        if not user_org:
-            return False
-        
-        # Direct organisation reference
-        if hasattr(obj, 'organisation'):
-            return obj.organisation == user_org
-        
-        # Via project
-        if hasattr(obj, 'project') and hasattr(obj.project, 'organisation'):
-            return obj.project.organisation == user_org
-        
-        # No org reference, allow (or deny based on your preference)
+def can_manage_shared_settings(user):
+    """Settings shared by every organisation on the install (the AI provider
+    catalogue): platform staff, or an org admin when the install has only one
+    organisation, so no other tenant is affected."""
+    if not getattr(user, 'is_authenticated', False):
+        return False
+    if getattr(user, 'is_staff', False):
         return True
+    if getattr(user, 'role', None) != 'admin':
+        return False
+    from Organisations.models import Organisations
+    return Organisations.objects.count() <= 1
 
 
-# =============================================================================
-# DECORATOR FOR FUNCTION-BASED VIEWS
-# =============================================================================
+def _platform_permission(user, code):
+    if code == 'ai_catalogue.manage':
+        return can_manage_shared_settings(user)
+    if code == 'platform.manage':
+        return bool(getattr(user, 'is_staff', False))
+    return False
 
-def permission_required(permission_code: str):
+
+def has_permission(user, code):
+    """True when ``user`` holds the permission ``code``."""
+    if code not in PERMISSIONS:
+        raise ValueError(f'Unknown permission {code!r}')
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    if code in PLATFORM_PERMISSIONS:
+        return _platform_permission(user, code)
+    return code in ROLE_PERMISSIONS.get(getattr(user, 'role', None), ())
+
+
+def get_user_permissions(user):
+    """Every permission ``user`` holds, sorted (sent to the UI)."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return []
+    granted = set(ROLE_PERMISSIONS.get(getattr(user, 'role', None), ()))
+    granted.update(code for code in PLATFORM_PERMISSIONS if _platform_permission(user, code))
+    return sorted(granted)
+
+
+_SAFE_ALIASES = {'HEAD': 'GET', 'OPTIONS': 'GET'}
+
+# One audit entry per user, method and path in this window: a page retrying
+# a forbidden call doesn't flood the audit log.
+AUDIT_DENIED_WINDOW = 600
+
+
+def audit_denied(request, code):
+    """Record a refused request in the organisation's audit log."""
+    from django.core.cache import cache
+    user = request.user
+    key = f'rbac-denied:{user.pk}:{request.method}:{request.path}'[:240]
+    try:
+        if not cache.add(key, 1, AUDIT_DENIED_WINDOW):
+            return
+        from Data.audit import log_action
+        log_action(request, 'ACCESS_DENIED', {
+            'permission': code,
+            'role': getattr(user, 'role', None),
+            'method': request.method,
+            'path': request.path,
+        })
+    except Exception:  # auditing must never turn a 403 into a 500
+        logger.exception('Could not audit a denied request')
+
+
+def Requires(default=None, **by_key):
+    """A DRF permission class requiring permissions per method or action.
+
+    Keys are HTTP methods (``GET=``, ``POST=``…) or viewset actions
+    (``list=``, ``create=``, ``destroy=``, or a custom ``@action`` name);
+    ``default`` covers the rest. A viewset action takes precedence over the
+    method. A request that matches nothing is denied.
+
+        permission_classes = [IsAuthenticated, Requires(GET='project.read', POST='project.write')]
+        permission_classes = [IsAuthenticated, Requires(list='integration.read', default='integration.manage')]
     """
-    Decorator for function-based views.
-    
-    Usage:
-        @api_view(['POST'])
-        @permission_required('project.delete')
-        def delete_project(request, project_id):
-            ...
-    """
-    def decorator(view_func):
-        @wraps(view_func)
-        def wrapped(request, *args, **kwargs):
-            if not has_permission(request.user, permission_code):
-                from rest_framework.response import Response
-                from rest_framework import status
-                return Response(
-                    {'error': 'Permission denied'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-            return view_func(request, *args, **kwargs)
-        return wrapped
-    return decorator
+    for code in [default, *by_key.values()]:
+        if code is not None and code not in PERMISSIONS:
+            raise ValueError(f'Unknown permission {code!r}')
+
+    class _Requires(BasePermission):
+        required = dict(by_key)
+        required_default = default
+
+        @classmethod
+        def permission_for(cls, method, action=None):
+            if action and action in cls.required:
+                return cls.required[action]
+            method = _SAFE_ALIASES.get(method, method)
+            return cls.required.get(method, cls.required_default)
+
+        def has_permission(self, request, view):
+            if not hasattr(view, request.method.lower()):
+                return True  # no handler: DRF answers 405, nothing to protect
+            code = self.permission_for(request.method, getattr(view, 'action', None))
+            if code is None:
+                logger.warning('No permission declared for %s %s on %s: denied',
+                               request.method, getattr(view, 'action', None), type(view).__name__)
+                return False
+            allowed = has_permission(request.user, code)
+            if not allowed:
+                logger.info('Permission denied: %s lacks %s (%s %s)',
+                            getattr(request.user, 'email', '?'), code, request.method, request.path)
+                audit_denied(request, code)
+            return allowed
+
+    _Requires.__name__ = 'Requires'
+    _Requires.__qualname__ = 'Requires(' + ', '.join(
+        [f'default={default}'] * (default is not None) + [f'{k}={v}' for k, v in by_key.items()]) + ')'
+    return _Requires
+
+
+def is_requires(permission_class):
+    """True for a class built by ``Requires`` (used by the coverage test)."""
+    return hasattr(permission_class, 'permission_for') and hasattr(permission_class, 'required')

@@ -19,11 +19,13 @@ import { NavLink, useLocation } from "react-router-dom";
 import SerOpsMark from "./SerOpsMark";
 import { useMediaQuery } from "@mui/material";
 import { useTranslation } from "react-i18next";
+import { refreshPermissions, usePermissions } from "../utils/permissions";
 
 // Full-height app sidebar, grouped by what people come to do:
 // Monitor (what's happening), Investigate (dig in), Configure (set up).
 const Sidebar = ({ isOpen, setIsOpen }) => {
   const { t } = useTranslation();
+  const can = usePermissions();
   const isSmallScreen = useMediaQuery("(max-width: 860px)");
   const location = useLocation();
   const path = location.pathname;
@@ -39,6 +41,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   );
 
   const [orgLogo, setOrgLogo] = useState(null);
+
+  // Pick up role changes made while signed in (and permissions for sessions
+  // that began before the server sent them).
+  useEffect(() => { refreshPermissions(); }, []);
 
   // Load the organisation's name and logo from the API: localStorage.user
   // can be stale or missing (token-only sessions, cookie refresh) and never
@@ -117,17 +123,19 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   // The sidebar lists tasks, not data sources: traces (like logs and
   // metrics) are reached from an analysis, from Settings → Distributed
   // Traces ("View received traces") and from ⌘K.
+  // Each page is listed for the users who can open it (the permission its
+  // API needs, from the server's list: see utils/permissions).
   const settingsItems = [
     { path: "/dash/settings", name: t("settings.general.menuLabel"), exact: true },
-    { path: "/dash/settings/team", name: t("settings.team.title") },
-    { path: "/dash/settings/ai", name: t("settings.ai.title") },
-    { path: "/dash/settings/sentinel", name: "Sentinel" },
-    { path: "/dash/settings/data", name: t("settings.data.title") },
-    { path: "/dash/settings/traces", name: t("traces.settings.menuLabel") },
+    { path: "/dash/settings/team", name: t("settings.team.title"), perm: "team.manage" },
+    { path: "/dash/settings/ai", name: t("settings.ai.title"), perm: "settings.manage" },
+    { path: "/dash/settings/sentinel", name: "Sentinel", perm: "settings.manage" },
+    { path: "/dash/settings/data", name: t("settings.data.title"), perm: "settings.read" },
+    { path: "/dash/settings/traces", name: t("traces.settings.menuLabel"), perm: "integration.manage" },
     { path: "/dash/settings/clusters", name: t("clusters.menuLabel") },
-    { path: "/dash/settings/security", name: t("settings.security.title") },
-    { path: "/dash/settings/audit", name: t("auditLog.title") },
-  ];
+    { path: "/dash/settings/security", name: t("settings.security.title"), perm: "settings.read" },
+    { path: "/dash/settings/audit", name: t("auditLog.title"), perm: "team.manage" },
+  ].filter((item) => !item.perm || can(item.perm));
 
   const isActive = (item) => {
     if (item.exact) return path === item.path;

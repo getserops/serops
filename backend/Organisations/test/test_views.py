@@ -23,7 +23,7 @@ class OrganisationViewsTest(APITestCase):
             first_name='Test',
             last_name='User',
             organisation=self.organisation,
-            # The team and member endpoints are guarded by IsAdminRole, and
+            # The team and member endpoints are guarded by team.manage (admin), and
             # User.role defaults to 'viewer'. Without this every request to
             # them returns 403.
             role='admin',

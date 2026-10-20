@@ -416,6 +416,7 @@
 .code-changes-page .cc-add { color: var(--tone-green-text); }
 .code-changes-page .cc-del { color: var(--tone-red-text); }
 .cc-list { list-style: none; margin: 0; padding: 0; }
+.cc-item-focus { background: var(--tone-brand-soft); box-shadow: inset 3px 0 0 var(--brand-fill); }
 .cc-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 14px 20px; border-top: 1px solid var(--border-default); }
 .cc-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; }
 .cc-message { font-size: 14px; font-weight: 600; color: var(--text-primary); overflow-wrap: anywhere; }

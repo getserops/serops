@@ -14,11 +14,126 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ## [Unreleased]
 
+---
+
+## [1.2.2] - 2026-10-20
+
+A security release from an internal review and penetration test of
+roles, permissions and multi-tenancy, plus confirming an issue's root
+cause when resolving it, one issue per shared cause, and logos and photos
+stored in the database. Read the [upgrade notes](deployment/upgrading.md#122-security-release):
+re-run **Setup Webhook** on each repository binding. Migrations Data
+0051–0053, Projects 0015, Organisations 0013, Users 0012.
+
 ### Added
 
+- Resolving an issue from its panel asks you to confirm or correct the
+  root cause and the fix (prefilled with the AI's). Later analyses use the
+  team's version first and see what the AI had said when it was
+  corrected; similar-incident search uses it too. The panel shows who
+  confirmed it. Migration `Data 0052`.
+- Evidence on the analysis page links to where it lives: a commit to the
+  batch's code changes (highlighted), a metric anomaly to its metrics, a
+  pipeline to the timeline, and the failing trace to the trace.
 - The organisation logo is shown next to the organisation name in the
   sidebar. Settings → General and Profile have **Remove logo** and
   **Remove photo**.
+
+### Security
+
+- Dependencies with known vulnerabilities upgraded: Django 5.1 → **5.2
+  LTS** (5.2.17; 5.1 is past end of support), Django REST framework
+  3.17.2, PyJWT 2.15, Pillow 12.3 (uploaded logos and photos go through
+  it), requests 2.33, urllib3 2.8, and others. React Router 7.18 in the
+  frontend. Two unused packages removed (`djangorestframework-simplejwt`,
+  `react-stepper-horizontal`, which pulled in React 15). `pip-audit` and
+  `npm audit` report no known vulnerabilities.
+- The Django admin (`/api/admin/`) is off by default (set
+  `DJANGO_ADMIN_ENABLED=True` to use it). It had no limit on failed
+  logins, while every install has a superuser from the quick start. When
+  enabled, its login now allows 10 failures per 10 minutes per client.
+  Login rate limits also stop trusting client-written `X-Forwarded-For`
+  entries (`TRUSTED_PROXY_COUNT`, default `1`).
+- The app's pages were served without security headers (an nginx
+  inheritance pitfall dropped them), so on Helm installs another site
+  could embed SerOps in a frame (clickjacking). Every response now
+  carries `X-Frame-Options: DENY`, `frame-ancestors 'none'`,
+  `nosniff`, a Referrer-Policy and a Permissions-Policy. Docker Compose
+  installs were covered by Caddy.
+- An admin could change another member's email (then reset their
+  password and sign in as them). The team API no longer changes emails;
+  members change their own in their profile. The last admin of an
+  organisation can no longer be demoted or removed, and an invalid role
+  returns an error instead of a server error.
+- A user of one organisation could create or delete webhooks on another
+  organisation's GitLab project, using that organisation's stored token.
+  Webhook actions now only act on the caller's own projects.
+- Only admins add, edit, delete or test SCM/CI integrations (they hold
+  credentials), as already for log/metric sources; only admins delete
+  projects and services; viewers no longer read the security and SSO
+  settings. The Integrations and Projects pages hide those controls
+  from users who can't use them.
+- Viewers are read-only again everywhere: they could trigger AI analyses
+  and post-mortem drafts, change legacy GitLab projects, run provider
+  checks, acknowledge issues and change the setup flow.
+- The AI provider list is shared by every organisation; on installs with
+  several organisations, only platform staff can change it now (an
+  organisation admin could change or delete a provider for everyone).
+- The SCM webhook receiver (`/api/webhooks/scm/<id>/`) accepted any
+  payload when a binding had no secret, so a guessed binding id let an
+  unauthenticated caller inject code-change data into a project. Every
+  SCM binding now gets a secret on creation and the receiver rejects a
+  binding without one. Existing bindings are backfilled (migration
+  `Projects 0015`); re-point the provider-side webhook via **Setup
+  Webhook** to send the new secret.
+- The legacy GitLab project list (`GET /api/providers/`) returned the
+  stored access token (encrypted, but still) to any member of the org,
+  including viewers. The token is write-only now and never returned.
+- Permissions are checked one way everywhere, modelled on Airflow and
+  Grafana: a catalogue of named permissions (`project.write`,
+  `integration.manage`, …) granted to the three roles, plus two platform
+  permissions no organisation role holds. Every API endpoint declares the
+  permission each method needs, and anything undeclared is refused. A test
+  fails the build when an endpoint declares nothing, so a new endpoint
+  can't ship open to every signed-in user. Nine overlapping role checks
+  were replaced. See [Team Management](admin/team.md#roles) and
+  [Permissions](development/permissions.md).
+- Viewers no longer read retention, data usage or the AI budget (now
+  `settings.read`, like the security settings).
+- Superusers could read and change any organisation's data through the
+  API (batches, post-mortems, issues, projects, including deleting them),
+  and this wasn't audited. The quick start creates a superuser, so on an
+  install with several organisations its operator could reach every
+  tenant. Superusers and staff are now held to their own organisation like
+  everyone else; install-wide operations use platform permissions.
+- A test now calls every API route as another organisation's admin and
+  superuser, and fails on any leak, so a new endpoint can't ship without
+  the organisation filter.
+- Ids sent in request bodies were not always checked against your
+  organisation. A member could create a service in another
+  organisation's project (`POST /api/services/…` with its id), subscribe
+  to another organisation's project and receive its incident
+  notifications, see another organisation's project names through an
+  escalation rule, and attach another organisation's environment or
+  cluster to a deployment. Every writable relation is now limited to your
+  organisation, and a test fails the build when a new one isn't.
+- A CI/CD binding could take over another organisation's GitLab project
+  (the legacy record is shared per GitLab project id): binding the same
+  pipeline id moved it, with a new token, to the binding's organisation,
+  whose legacy webhook paths then received the other organisation's CI
+  events. The record now stays with its organisation.
+- Refused requests are recorded in the audit log (**Access Denied**,
+  with the missing permission), once per user and path every 10 minutes.
+  Audit entries now record the client address seen by your proxy, not an
+  address the client wrote into `X-Forwarded-For`. Migration `Data 0053`.
+- The Helm chart no longer publishes `/metrics/` on the ingress. It has
+  no authentication by default, so on Helm installs anyone could read the
+  install's request, analysis and AI-token counters (no organisation
+  data). Prometheus scrapes it inside the cluster; see
+  [Self-metrics](admin/self-metrics.md) to publish it with basic auth.
+- The backend no longer has a `/images/` route. Nothing used it, and with
+  `DEBUG=True` it served the backend directory, `.env` included.
+  Production settings (`DEBUG` off) never served it.
 
 ### Fixed
 
@@ -31,10 +146,28 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
   uploaded again.
 - Uploading a profile photo now updates the page and the top bar
   straight away.
+- On the analysis page, each issue shows its status, and its button reads
+  **View issue** (it said "Open", which read like a status).
+- Memory and CPU metrics answered with a server error when no metrics
+  source was configured; they return an empty result now.
+  `GET /api/settings/api-keys/<provider_id>/` returned a server error; it
+  returns that provider's key (masked).
 
 ### Changed
 
+- One shared cause is one issue. When DNS, a cache, a database, a
+  certificate or one deploy breaks several services, SerOps raises one
+  issue on the component where the cause lives and lists the others as
+  "also affects", instead of one CRITICAL issue per service. Filtering
+  issues by a service includes causes elsewhere that affect it.
+  Migration `Data 0051` (new `affected_services` field).
 - The SerOps mark in the sidebar is smaller.
+- The login and profile responses list the user's `permissions`. The app
+  shows buttons and settings pages from that list instead of its own copy
+  of the role table: the Settings menu now only lists the pages a role can
+  open, and role changes apply when the app next loads.
+- Users (not only admins) can run a health check on an existing log or
+  metric source, like verifying any other integration.
 
 ---
 

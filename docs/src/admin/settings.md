@@ -48,7 +48,9 @@ Personal preferences accessible from any page:
 
 ### Provider Configuration
 
-Manage AI providers and private API keys in **Settings > AI Providers > Manage Providers**. You can now add custom providers (e.g., Local Ollama) or configure existing ones (Claude, DeepSeek).
+Manage AI providers and private API keys in **Settings > AI Providers > Manage Providers**. Each organisation's admin sets its own API key and, when needed, its own base URL (for example a local Ollama endpoint).
+
+The provider list itself (adding a provider, **Edit Config**, deleting one) is shared by every organisation on the install. It can be changed by platform staff (a Django staff user), or by the admin when the install has a single organisation.
 
 #### Adding/Editing a Provider
 1.  Click **Add Provider** or **Edit Config**.
@@ -175,11 +177,8 @@ Supported providers:
 **Location**: Settings → Team
 
 ### Roles
-| Role | Permissions |
-|------|-------------|
-| **Admin** | Full access |
-| **User** | Read + write |
-| **Viewer** | Read only |
+
+**Viewer** (read only), **User** (read, run analyses, edit projects, update issues) and **Admin** (everything in the organisation, including credentials, team and settings). The full list of permissions per role is on [Team Management](team.md#roles). The Settings menu only lists the pages your role can open.
 
 ### Actions
 - Invite user

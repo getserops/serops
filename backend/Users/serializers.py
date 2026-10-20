@@ -12,6 +12,9 @@ class UserSerializer(serializers.ModelSerializer):
     # ``last_login`` were both absent from this serializer, so the
     # frontend fell through to a hard-coded 'Pending' default.
     status = serializers.SerializerMethodField()
+    # What this user may do (Middlewares/rbac.py): the UI shows controls from
+    # this list instead of keeping its own copy of the role table.
+    permissions = serializers.SerializerMethodField()
     # Path relative to the API base (the frontend prefixes VITE_BASE_URL).
     avatar = serializers.SerializerMethodField()
     last_login = serializers.DateTimeField(read_only=True)
@@ -22,10 +25,14 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'first_name', 'last_name', 'email', 'password',
             'phone', 'role', 'avatar', 'username', 'organisation',
-            'is_active', 'last_login', 'status',
+            'is_active', 'last_login', 'status', 'is_staff', 'permissions',
         ]
         extra_kwargs = {
             'password': {'write_only': True},
+            # Platform operator flag: shown to the UI, never settable via the API.
+            'is_staff': {'read_only': True},
+            # Set by the views that create users, never from a request body.
+            'organisation': {'read_only': True},
             'first_name': {'required': False, 'allow_blank': True},
             'last_name': {'required': False, 'allow_blank': True},
             'phone': {'required': False, 'allow_blank': True, 'allow_null': True},
@@ -33,6 +40,10 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_avatar(self, obj):
         return f'/auth/avatar/{obj.avatar_key}' if obj.avatar_key else None
+
+    def get_permissions(self, obj):
+        from Middlewares.rbac import get_user_permissions
+        return get_user_permissions(obj)
 
     def get_status(self, obj):
         if not getattr(obj, 'is_active', True):

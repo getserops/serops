@@ -182,6 +182,7 @@ vi.mock('@tanstack/react-query', () => ({
           root_cause: 'Connection pool exhausted after the 2.3.4 deploy.',
           recommendation: 'Raise the pool size.',
           reasoning: '1. Saw pool timeouts\n2. Traced them to the 2.3.4 deploy',
+          affected_services: ['cart-api', 'web'],
           batch_id_str: 'shop-batch-1',
           project: 7,
           environment: 'production',
@@ -267,6 +268,13 @@ describe('Issues component', () => {
     fireEvent.click(screen.getByText('Test critical issue description'));
     const steps = [...screen.getByRole('dialog').querySelectorAll('ol li')].map((li) => li.textContent);
     expect(steps).toEqual(['Saw pool timeouts', 'Traced them to the 2.3.4 deploy']);
+  });
+
+  it('shows the other services a cause affects', () => {
+    render(<Issues />);
+    expect(screen.getByText('+2').getAttribute('title')).toBe('issues.panel.alsoAffects');
+    fireEvent.click(screen.getByText('Test critical issue description'));
+    expect(screen.getByRole('dialog').textContent).toContain('issues.panel.alsoAffects');
   });
 
   it('count tiles toggle a filter', () => {

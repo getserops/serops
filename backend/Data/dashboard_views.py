@@ -9,6 +9,7 @@ API endpoints for advanced dashboard metrics:
 5. CorrelationInsightsView - AI correlation intelligence summary
 6. RecentAnalysisFeedView - Latest AI analysis results feed
 """
+from Middlewares.rbac import Requires
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -54,7 +55,7 @@ class MTTRView(OrgFilterMixin, APIView):
 
     Cached for 15 minutes (CACHE_TTL_STATS) as MTTR changes slowly.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
     
     def get(self, request):
         try:
@@ -162,7 +163,7 @@ class ServiceHealthView(OrgFilterMixin, APIView):
 
     Cached for 5 minutes (CACHE_TTL_DASHBOARD) for frequently refreshed dashboards.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
     
     def get(self, request):
         from Services.models import Service
@@ -349,7 +350,7 @@ class RootCauseStatsView(OrgFilterMixin, APIView):
 
     Cached for 15 minutes (CACHE_TTL_STATS) as root cause stats change slowly.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
     
     def get(self, request):
         try:
@@ -453,7 +454,7 @@ class RecentDeploymentsView(OrgFilterMixin, APIView):
     Recent CI/CD deployments per service.
     Returns the latest pipelines for each service with CI/CD configured.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
     
     def get(self, request):
         from providers.models import Pipeline, GitlabProject
@@ -592,7 +593,7 @@ class CorrelationInsightsView(OrgFilterMixin, APIView):
 
     Cached for 5 minutes.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
 
     def get(self, request):
         try:
@@ -679,7 +680,7 @@ class RecentAnalysisFeedView(OrgFilterMixin, APIView):
 
     Cached for 5 minutes.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
 
     @staticmethod
     def _extract_summary(analysis_text):
@@ -809,7 +810,7 @@ class RecentAnalysisFeedView(OrgFilterMixin, APIView):
 
 class SentinelStatsView(OrgFilterMixin, APIView):
     """Sentinel decision distribution and AI savings stats."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
 
     def get(self, request):
         try:

@@ -12,6 +12,7 @@ Reveal (GET) returns metadata only — no plaintext. Once rotated, the
 old secret stops working the instant the new hash is persisted.
 """
 from __future__ import annotations
+from Middlewares.rbac import Requires
 import hashlib
 import logging
 import secrets
@@ -22,7 +23,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from Middlewares.rbac import IsAdminRole
 from Organisations.models import Organisations
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ def _hash(plaintext: str) -> str:
 
 class AlertSecretView(APIView):
     """GET metadata about the org's current alert-ingest secret."""
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(GET='alerting.manage')]
 
     def get(self, request):
         org = getattr(request.user, 'organisation', None)
@@ -58,7 +58,7 @@ class AlertSecretRotateView(APIView):
     """POST — generate a new per-org alert-ingest secret. Plaintext
     returned ONCE in the response body; only its SHA-256 hash is
     persisted."""
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(POST='alerting.manage')]
 
     def post(self, request):
         org = getattr(request.user, 'organisation', None)

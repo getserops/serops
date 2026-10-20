@@ -1,7 +1,6 @@
 from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
-from django.conf.urls.static import static
 from django.http import JsonResponse
 from django.db import connection
 from rest_framework import permissions
@@ -62,10 +61,30 @@ schema_view = get_schema_view(
    permission_classes=[permissions.AllowAny],
 )
 
+def _throttled_admin_login(request, extra_context=None, _login=admin.site.login):
+    """Django admin login with the same brute-force limit idea as the API:
+    at most 10 failed attempts per client per 10 minutes."""
+    from django.core.cache import cache
+    from django.http import HttpResponse
+    from rest_framework.throttling import BaseThrottle
+    if request.method != 'POST':
+        return _login(request, extra_context)
+    ident = BaseThrottle().get_ident(request)
+    key = f'admin-login-failures:{ident}'
+    failures = cache.get(key, 0)
+    if failures >= 10:
+        return HttpResponse('Too many login attempts. Try again later.', status=429)
+    response = _login(request, extra_context)
+    if response.status_code == 200:  # a failed login re-renders the form
+        cache.set(key, failures + 1, 600)
+    return response
+
+
+admin.site.login = _throttled_admin_login
+
 api_urlpatterns = [
     path('health/', health_check, name='health-check'),
     path('version/', version_endpoint, name='version'),
-    path('admin/', admin.site.urls),
     path('auth/', include('Users.urls')),
     path('organisation/', include('Organisations.urls')),
     path('chat/', include('ai_model.urls')),
@@ -100,10 +119,16 @@ api_urlpatterns = [
     path('docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
 ]
 
+if settings.DJANGO_ADMIN_ENABLED:
+    api_urlpatterns.append(path('admin/', admin.site.urls))
+
 urlpatterns = [
     path('api/', include(api_urlpatterns)),
     # Self-metrics — Prometheus exposition. Root URL (not under /api/)
     # to follow the SRE convention. Optional basic-auth via
     # SEROPS_METRICS_BASIC_AUTH env.
     path('metrics/', MetricsView.as_view(), name='self-metrics'),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+]
+# No media route: logos and photos are served from the database. With DEBUG
+# on, static(MEDIA_URL) served MEDIA_ROOT, which is the backend source
+# directory (.env included).

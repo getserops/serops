@@ -186,7 +186,7 @@ class TestObservabilityIntegrationViewSet(APITestCase):
     # --- Permissions ---
 
     def test_create_denied_non_admin(self):
-        """IsAdminRole blocks create for regular user."""
+        """integration.manage (admin) blocks create for regular user."""
         self._auth(self.user)
         response = self.client.post(self.list_url, {
             'provider': 'loki',

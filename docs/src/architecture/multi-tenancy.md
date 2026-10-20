@@ -50,7 +50,8 @@ ts = provider.query_range(
 |-----------|-------------|
 | User A cannot see Org B's batches | `project__organisation=user_org` filter |
 | User A cannot access Org B's integrations | `organisation` FK on ProviderIntegration |
-| Superuser bypass | Explicit `is_superuser` check, audited |
+| No bypass for operators | Superusers and staff are held to their own organisation in the API like everyone else. Install-wide operations go through platform permissions (see [Permissions](../development/permissions.md)) |
+| Every endpoint is checked | `Middlewares/tests/test_tenant_coverage.py` calls every API route as another organisation's admin and as its superuser; a new route with an id fails until it is covered |
 
 ---
 
@@ -72,5 +73,6 @@ ts = provider.query_range(
 - [Data Protection](../security/data-protection.md) -- Redaction and PII handling
 - [Compliance](../security/compliance.md) -- Compliance and auditing details
 - [Admin Team Management](../admin/team.md) -- Managing organisation members
+- [Permissions](../development/permissions.md) -- What each role may do, and how every endpoint declares it
 - [Admin Settings](../admin/settings.md) -- Organisation-level configuration
 - [Metrics](../user-guide/metrics.md) -- User-facing metrics with org-scoped data

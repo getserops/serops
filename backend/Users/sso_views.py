@@ -1,3 +1,4 @@
+from Middlewares.rbac import Requires
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -9,7 +10,6 @@ from .services.sso import SSOService
 from knox.models import AuthToken
 from django.shortcuts import redirect
 from django.core import signing
-from Users.permissions import require_role
 import logging
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ def _sso_service(sec_settings):
 
 
 class SSOConfigView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='settings.read', PUT='settings.manage')]
 
     def get(self, request):
         user = request.user
@@ -55,7 +55,6 @@ class SSOConfigView(APIView):
             "sso_redirect_uri": f"{settings.API_URL}/auth/sso/callback",
         })
 
-    @require_role('admin')
     def put(self, request):
         user = request.user
         if not user.organisation:

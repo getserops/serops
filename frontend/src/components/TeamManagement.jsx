@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
 import { FaUserPlus, FaEdit, FaTrash, FaEnvelope, FaUserShield, FaUserFriends, FaUserCog } from 'react-icons/fa';
 import { OrganisationService } from '../services/organisation.service';
-import { canManageUsers, getRoleDisplayName, getRoleColor } from '../utils/permissions';
+import { can, getRoleDisplayName, getRoleColor } from '../utils/permissions';
 import CollapsibleSection from './settings/CollapsibleSection';
 import './settings/SettingsLayout.css';
 import PageHeader from './PageHeader';
@@ -114,7 +114,7 @@ const TeamManagement = ({ embedded = false }) => {
     };
 
     // Check if current user has permission to manage users
-    if (!canManageUsers(user?.role)) {
+    if (!can('team.manage')) {
         return (
             <div className="text-center p-5">
                 <h4 className="text-muted">{t('team.accessDenied')}</h4>

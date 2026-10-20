@@ -4,180 +4,105 @@ from django.utils import timezone
 from django.contrib.auth.models import AnonymousUser
 from datetime import timedelta
 
-from Middlewares.OrganisationMiddleware import OrganisationsPermissions
 from Middlewares.rbac import (
-    Permissions, ROLE_PERMISSIONS, PermissionBackend,
-    has_permission, get_user_permissions,
-    IsAdminRole, IsUserOrAdmin, ReadOnlyForViewer, SameOrganisation, RBACPermission,
+    PERMISSIONS, PLATFORM_PERMISSIONS, ROLE_PERMISSIONS, Requires,
+    get_user_permissions, has_permission,
 )
 from Middlewares.QueryTimeoutMiddleware import QueryTimeoutMiddleware
 
 
 # =============================================================================
-# OrganisationMiddleware.OrganisationsPermissions
+# Middlewares.rbac: the permission catalogue and Requires
 # =============================================================================
 
-class TestOrganisationsPermissions(SimpleTestCase):
-    """Tests for the OrganisationsPermissions DRF permission class."""
-
-    def setUp(self):
-        self.permission = OrganisationsPermissions()
-
-    def test_admin_role_allowed(self):
-        request = MagicMock()
-        request.user.role = 'admin'
-        self.assertTrue(self.permission.has_permission(request, None))
-
-    def test_non_admin_role_denied(self):
-        request = MagicMock()
-        request.user.role = 'user'
-        self.assertFalse(self.permission.has_permission(request, None))
-
-    def test_no_role_denied(self):
-        request = MagicMock(spec=[])
-        request.user = MagicMock(spec=[])  # No role attribute
-        self.assertFalse(self.permission.has_permission(request, None))
+def _user(role, staff=False, authenticated=True):
+    user = MagicMock()
+    user.is_authenticated = authenticated
+    user.role = role
+    user.is_staff = staff
+    return user
 
 
-# =============================================================================
-# RBAC Permissions constants and ROLE_PERMISSIONS mapping
-# =============================================================================
+class TestPermissionCatalogue(SimpleTestCase):
+    def test_roles_are_cumulative(self):
+        viewer, user, admin = (set(ROLE_PERMISSIONS[r]) for r in ('viewer', 'user', 'admin'))
+        self.assertLess(viewer, user)
+        self.assertLess(user, admin)
 
-class TestRBACPermissions(SimpleTestCase):
-    """Tests for RBAC permission constants and role-permission mapping."""
+    def test_every_granted_permission_is_defined(self):
+        for role, codes in ROLE_PERMISSIONS.items():
+            for code in codes:
+                self.assertIn(code, PERMISSIONS, f'{role}: {code}')
 
-    def test_admin_has_all_permissions(self):
-        admin_perms = ROLE_PERMISSIONS['admin']
-        self.assertEqual(len(admin_perms), 24)
+    def test_platform_permissions_are_not_role_grants(self):
+        for codes in ROLE_PERMISSIONS.values():
+            self.assertFalse(PLATFORM_PERMISSIONS & set(codes))
 
-    def test_user_permissions_subset(self):
-        user_perms = ROLE_PERMISSIONS['user']
-        self.assertEqual(len(user_perms), 15)
-        # User should NOT have destructive/admin-only permissions
-        self.assertNotIn(Permissions.PROJECT_DELETE, user_perms)
-        self.assertNotIn(Permissions.SERVICE_DELETE, user_perms)
-        self.assertNotIn(Permissions.BATCH_DELETE, user_perms)
-        self.assertNotIn(Permissions.ISSUE_DELETE, user_perms)
-        self.assertNotIn(Permissions.USER_INVITE, user_perms)
-        self.assertNotIn(Permissions.USER_UPDATE, user_perms)
-        self.assertNotIn(Permissions.USER_DELETE, user_perms)
-        self.assertNotIn(Permissions.USER_ROLE_CHANGE, user_perms)
-        self.assertNotIn(Permissions.SETTINGS_UPDATE, user_perms)
+    def test_has_permission_by_role(self):
+        self.assertTrue(has_permission(_user('viewer'), 'issue.read'))
+        self.assertFalse(has_permission(_user('viewer'), 'issue.update'))
+        self.assertTrue(has_permission(_user('user'), 'issue.update'))
+        self.assertFalse(has_permission(_user('user'), 'project.delete'))
+        self.assertTrue(has_permission(_user('admin'), 'team.manage'))
 
-    def test_viewer_read_only(self):
-        viewer_perms = ROLE_PERMISSIONS['viewer']
-        self.assertEqual(len(viewer_perms), 5)
-        self.assertIn(Permissions.PROJECT_READ, viewer_perms)
-        self.assertIn(Permissions.SERVICE_READ, viewer_perms)
-        self.assertIn(Permissions.BATCH_READ, viewer_perms)
-        self.assertIn(Permissions.ISSUE_READ, viewer_perms)
-        self.assertIn(Permissions.CHAT_USE, viewer_perms)
+    def test_unauthenticated_and_unknown_role_have_nothing(self):
+        self.assertFalse(has_permission(_user('admin', authenticated=False), 'issue.read'))
+        self.assertFalse(has_permission(_user('owner'), 'issue.read'))
+        self.assertEqual(get_user_permissions(_user('admin', authenticated=False)), [])
 
-    def test_unknown_role_no_permissions(self):
-        self.assertEqual(ROLE_PERMISSIONS.get('nonexistent', []), [])
+    def test_unknown_permission_is_an_error(self):
+        with self.assertRaises(ValueError):
+            has_permission(_user('admin'), 'everything.do')
 
+    def test_platform_manage_needs_staff(self):
+        self.assertFalse(has_permission(_user('admin'), 'platform.manage'))
+        self.assertTrue(has_permission(_user('viewer', staff=True), 'platform.manage'))
 
-# =============================================================================
-# PermissionBackend and public helpers
-# =============================================================================
-
-class TestPermissionBackend(SimpleTestCase):
-    """Tests for PermissionBackend.has_permission and module-level helpers."""
-
-    def _make_user(self, role='user', is_authenticated=True):
-        user = MagicMock()
-        user.role = role
-        user.is_authenticated = is_authenticated
-        user.organisation = None
-        return user
-
-    def test_has_permission_admin_full_access(self):
-        user = self._make_user(role='admin')
-        self.assertTrue(has_permission(user, Permissions.PROJECT_DELETE))
-        self.assertTrue(has_permission(user, Permissions.USER_ROLE_CHANGE))
-        self.assertTrue(has_permission(user, Permissions.SETTINGS_UPDATE))
-
-    def test_has_permission_user_limited(self):
-        user = self._make_user(role='user')
-        self.assertTrue(has_permission(user, Permissions.PROJECT_READ))
-        self.assertTrue(has_permission(user, Permissions.SERVICE_WEBHOOK))
-        self.assertFalse(has_permission(user, Permissions.PROJECT_DELETE))
-        self.assertFalse(has_permission(user, Permissions.USER_ROLE_CHANGE))
-
-    def test_has_permission_viewer_read_only(self):
-        user = self._make_user(role='viewer')
-        self.assertTrue(has_permission(user, Permissions.PROJECT_READ))
-        self.assertFalse(has_permission(user, Permissions.PROJECT_CREATE))
-        self.assertFalse(has_permission(user, Permissions.BATCH_EXPORT))
-
-    def test_has_permission_unauthenticated(self):
-        user = self._make_user(is_authenticated=False)
-        self.assertFalse(has_permission(user, Permissions.PROJECT_READ))
-
-    def test_get_user_permissions_returns_list(self):
-        user = self._make_user(role='viewer')
-        perms = get_user_permissions(user)
-        self.assertIsInstance(perms, list)
-        self.assertEqual(len(perms), 5)
-        self.assertIn(Permissions.PROJECT_READ, perms)
+    def test_user_permissions_list_includes_platform_grants(self):
+        self.assertIn('platform.manage', get_user_permissions(_user('admin', staff=True)))
+        with patch('Organisations.models.Organisations.objects.count', return_value=2):
+            self.assertNotIn('platform.manage', get_user_permissions(_user('admin')))
 
 
-# =============================================================================
-# DRF Permission Classes
-# =============================================================================
+class TestRequires(SimpleTestCase):
+    HANDLERS = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options']
 
-class TestRBACDRFPermissionClasses(SimpleTestCase):
-    """Tests for IsAdminRole, IsUserOrAdmin, ReadOnlyForViewer, SameOrganisation, RBACPermission."""
+    def check(self, permission_class, role, method, action=None, handlers=HANDLERS):
+        request = MagicMock(method=method, user=_user(role), path='/x')
+        view = MagicMock(spec=handlers + ['action'], action=action)
+        with patch('Middlewares.rbac.audit_denied'):  # audited in test_audit_denied
+            return permission_class().has_permission(request, view)
 
-    def _make_request(self, role='admin', method='GET', is_authenticated=True):
-        request = MagicMock()
-        request.user.is_authenticated = is_authenticated
-        request.user.role = role
-        request.user.organisation = MagicMock()
-        request.method = method
-        return request
+    def test_per_method(self):
+        p = Requires(GET='project.read', POST='project.write')
+        self.assertTrue(self.check(p, 'viewer', 'GET'))
+        self.assertFalse(self.check(p, 'viewer', 'POST'))
+        self.assertTrue(self.check(p, 'user', 'POST'))
 
-    def test_is_admin_role_allows_admin(self):
-        perm = IsAdminRole()
-        request = self._make_request(role='admin')
-        self.assertTrue(perm.has_permission(request, None))
+    def test_head_and_options_follow_get(self):
+        p = Requires(GET='project.read')
+        self.assertTrue(self.check(p, 'viewer', 'HEAD'))
+        self.assertTrue(self.check(p, 'viewer', 'OPTIONS'))
 
-    def test_is_admin_role_blocks_user(self):
-        perm = IsAdminRole()
-        request = self._make_request(role='user')
-        self.assertFalse(perm.has_permission(request, None))
+    def test_undeclared_method_is_denied_even_for_admin(self):
+        self.assertFalse(self.check(Requires(GET='project.read'), 'admin', 'DELETE'))
 
-    def test_is_user_or_admin_allows_both(self):
-        perm = IsUserOrAdmin()
-        self.assertTrue(perm.has_permission(self._make_request(role='admin'), None))
-        self.assertTrue(perm.has_permission(self._make_request(role='user'), None))
-        self.assertFalse(perm.has_permission(self._make_request(role='viewer'), None))
+    def test_method_without_handler_is_left_to_405(self):
+        self.assertTrue(self.check(Requires(GET='project.read'), 'viewer', 'DELETE', handlers=['get']))
 
-    def test_read_only_for_viewer_safe_methods(self):
-        perm = ReadOnlyForViewer()
-        self.assertTrue(perm.has_permission(self._make_request(role='viewer', method='GET'), None))
-        self.assertFalse(perm.has_permission(self._make_request(role='viewer', method='POST'), None))
+    def test_action_takes_precedence_over_method(self):
+        p = Requires(GET='integration.read', POST='integration.use', create='integration.manage')
+        self.assertFalse(self.check(p, 'user', 'POST', action='create'))
+        self.assertTrue(self.check(p, 'user', 'POST', action='sync'))
 
-    def test_read_only_for_viewer_admin_all_methods(self):
-        perm = ReadOnlyForViewer()
-        self.assertTrue(perm.has_permission(self._make_request(role='admin', method='POST'), None))
-        self.assertTrue(perm.has_permission(self._make_request(role='admin', method='DELETE'), None))
+    def test_default(self):
+        p = Requires(GET='project.read', default='project.write')
+        self.assertTrue(self.check(p, 'user', 'PATCH'))
+        self.assertFalse(self.check(p, 'viewer', 'PATCH'))
 
-    def test_same_organisation_checks_obj_org(self):
-        perm = SameOrganisation()
-        org = MagicMock()
-        request = self._make_request(role='admin')
-        request.user.organisation = org
-
-        # Matching org
-        obj_match = MagicMock()
-        obj_match.organisation = org
-        self.assertTrue(perm.has_object_permission(request, None, obj_match))
-
-        # Different org
-        obj_diff = MagicMock()
-        obj_diff.organisation = MagicMock()
-        self.assertFalse(perm.has_object_permission(request, None, obj_diff))
+    def test_unknown_permission_fails_at_declaration(self):
+        with self.assertRaises(ValueError):
+            Requires(GET='nope.read')
 
 
 # =============================================================================

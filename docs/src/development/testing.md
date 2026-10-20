@@ -168,4 +168,5 @@ re-issue the read request; expect `403 / 404 / empty list`.
 
 The single most damaging regression in a multi-tenant system is a
 leaked queryset. E2e is the last checkpoint where that would surface
-before beta.
+before beta. The unit suite also walks every API route as another
+organisation (see [Permissions](permissions.md#the-tenant-coverage-test)).

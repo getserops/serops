@@ -5,6 +5,7 @@ GET  /api/data/investigations/            this organisation's runs, newest first
 GET  /api/data/investigations/options/    projects, environments, deployments, services
 GET  /api/data/investigations/<id>/       one run, with its progress
 """
+from Middlewares.rbac import Requires
 import logging
 import re
 from datetime import timedelta
@@ -17,7 +18,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from Users.permissions import require_role
 
 from .models import AIAnalyzedBatch, Investigation
 
@@ -172,7 +172,7 @@ def _last_deploy_at(org, project):
 
 
 class InvestigationListView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read', POST='batch.analyze')]
 
     def get(self, request):
         org = request.user.organisation
@@ -200,7 +200,6 @@ class InvestigationListView(APIView):
             'results': [serialize(inv, batches.get(inv.id)) for inv in page],
         })
 
-    @require_role('user')
     def post(self, request):
         org = request.user.organisation
         if org is None:
@@ -258,7 +257,7 @@ class InvestigationListView(APIView):
 
 
 class InvestigationDetailView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
 
     def get(self, request, pk):
         inv = (Investigation.objects
@@ -272,7 +271,7 @@ class InvestigationDetailView(APIView):
 
 class InvestigationOptionsView(APIView):
     """Everything the form needs, in one call, scoped to the organisation."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='project.read')]
 
     def get(self, request):
         from Projects.models import Project

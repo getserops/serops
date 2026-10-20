@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import AuthService from "../services/auth.service";
@@ -31,6 +31,7 @@ const Login = () => {
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const autoDemo = useRef(false);
 
   useEffect(() => {
     // The SSO callback sends the browser back here when sign-in fails.
@@ -168,11 +169,11 @@ const Login = () => {
   // regular login flow: persist token + user, then redirect to /dash.
   // If the backend reports demo_not_configured (404), tell the user
   // rather than leaving them staring at a spinner.
-  const handleDemoLogin = async () => {
+  const handleDemoLogin = useCallback(async (source) => {
     setDemoLoading(true);
     setError("");
     try {
-      const response = await AuthService.demoLogin();
+      const response = await AuthService.demoLogin(typeof source === "string" ? source : undefined);
       const { token, user } = response.data;
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
@@ -194,7 +195,17 @@ const Login = () => {
     } finally {
       setDemoLoading(false);
     }
-  };
+  }, [navigate, t]);
+
+  // /login?demo=1 (the landing page's "Try the live demo") opens the demo
+  // straight away instead of asking for a second click. Ignored where no
+  // demo is seeded.
+  useEffect(() => {
+    if (demoAvailable && searchParams.get("demo") === "1" && !autoDemo.current) {
+      autoDemo.current = true;
+      handleDemoLogin(searchParams.get("src"));
+    }
+  }, [demoAvailable, searchParams, handleDemoLogin]);
 
   return (
     <div className="login-page">

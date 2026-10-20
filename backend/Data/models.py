@@ -422,6 +422,10 @@ class Issue(models.Model):
     issue_type = models.CharField(max_length=30, choices=ISSUE_TYPES, default='OTHER', db_index=True)
     scope = models.CharField(max_length=20, choices=SCOPE_CHOICES, default='SERVICE', db_index=True)
     component = models.CharField(max_length=100, blank=True, default='')
+    # Other services showing symptoms of this issue's cause. One shared cause
+    # (a cache, DNS, a certificate) is one issue on the component where the
+    # cause lives, not one issue per service that noticed it.
+    affected_services = models.JSONField(default=list, blank=True)
     environment = models.CharField(max_length=50, blank=True, default='')
     fingerprint = models.CharField(max_length=70, db_index=True, blank=True, default='')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='OPEN', db_index=True)
@@ -496,6 +500,15 @@ class Issue(models.Model):
         db_index=True,
         help_text='When the issue status was changed to RESOLVED'
     )
+    resolved_by = models.ForeignKey(
+        'Users.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='resolved_issues', help_text='User who resolved the issue',
+    )
+    # What the team says actually happened, entered (or confirmed) when
+    # resolving. Past-incident memory and similar-incident search prefer
+    # these over the AI's own root_cause / recommendation.
+    resolution_root_cause = models.TextField(blank=True, null=True)
+    resolution_fix = models.TextField(blank=True, null=True)
 
     # Similar-incidents embedding (Item #27). Populated on resolve by
     # the ``embed_resolved_issue`` Celery task. JSONField list of 1536
@@ -711,7 +724,7 @@ class Issue(models.Model):
         # embedding.
         if (self.status == 'RESOLVED'
                 and not _was_resolved
-                and (self.root_cause or self.description)):
+                and (self.effective_root_cause or self.description)):
             try:
                 from Data.tasks import embed_resolved_issue
                 embed_resolved_issue.delay(self.pk)
@@ -1065,6 +1078,8 @@ class Issue(models.Model):
                 batch=batch,
                 project=project,
                 organisation=org,
+                affected_services=cls.normalize_affected_services(
+                    issue_data.get('affected_services'), component),
                 issue_type=issue_type,
                 scope=scope,
                 component=component,
@@ -1087,7 +1102,7 @@ class Issue(models.Model):
         if dedup_window_days > 0:
             cutoff = timezone.now() - timedelta(days=dedup_window_days)
 
-        return cls._find_or_create_with_retry(
+        issue, created = cls._find_or_create_with_retry(
             issue_data=issue_data,
             batch=batch,
             project=project,
@@ -1102,6 +1117,38 @@ class Issue(models.Model):
             cutoff=cutoff,
             project_name=project_name,
         )
+        # A recurring issue keeps every service it has affected so far.
+        services = cls.normalize_affected_services(
+            list(issue.affected_services or []) + cls.normalize_affected_services(
+                issue_data.get('affected_services'), issue.component),
+            issue.component)
+        if services != (issue.affected_services or []):
+            issue.affected_services = services
+            issue.save(update_fields=['affected_services'])
+        return issue, created
+
+    @property
+    def effective_root_cause(self):
+        """The team's root cause when they gave one on resolve, else the AI's."""
+        return (self.resolution_root_cause or '').strip() or (self.root_cause or '').strip()
+
+    @property
+    def effective_fix(self):
+        return (self.resolution_fix or '').strip() or (self.recommendation or '').strip()
+
+    @staticmethod
+    def normalize_affected_services(value, component=''):
+        """A sorted list of distinct service names, without ``component``.
+
+        The model sends a list of names; tolerate a comma-separated string.
+        """
+        if isinstance(value, str):
+            value = value.split(',')
+        if not isinstance(value, (list, tuple)):
+            return []
+        names = {str(v).strip()[:100] for v in value if isinstance(v, (str, int)) and str(v).strip()}
+        names.discard(component or '')
+        return sorted(names, key=str.lower)[:50]
 
     @classmethod
     def _find_or_create_with_retry(cls, *, issue_data, batch, project, environment,
@@ -1448,6 +1495,7 @@ class AuditLog(models.Model):
         ('ACCOUNT_DELETE', 'User Account Deleted (GDPR)'),
         ('ORG_DELETE', 'Organisation Deleted (GDPR)'),
         ('INVESTIGATION_RUN', 'Investigation Started'),
+        ('ACCESS_DENIED', 'Access Denied'),
     ]
     
     organisation = models.ForeignKey(

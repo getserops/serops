@@ -517,18 +517,26 @@ class TestSetPasswordView(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_set_password_mismatch(self):
-        # View raises Django ValidationError (not DRF's), which propagates as exception
-        from django.core.exceptions import ValidationError
-        with self.assertRaises(ValidationError):
-            self.client.post(self.url, {
-                'new_password': 'BrandNew123!',
-                'new_password_confirm': 'Different123!',
-            })
+        # Mismatch is a client error, not a 500 (2026-10-20 review).
+        response = self.client.post(self.url, {
+            'new_password': 'BrandNew123!',
+            'new_password_confirm': 'Different123!',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_set_password_missing_fields(self):
-        from django.core.exceptions import ValidationError
-        with self.assertRaises(ValidationError):
-            self.client.post(self.url, {})
+        response = self.client.post(self.url, {})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_set_password_rejects_weak_password(self):
+        # AUTH_PASSWORD_VALIDATORS apply on reset, as on register.
+        response = self.client.post(self.url, {
+            'new_password': '123',
+            'new_password_confirm': '123',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.check_password('123'))
 
 
 # =============================================================================

@@ -134,7 +134,7 @@ class TestProjectListView(ProjectViewTestBase):
         self.assertIn(response.status_code, [status.HTTP_400_BAD_REQUEST, status.HTTP_409_CONFLICT])
 
     def test_create_project_viewer_denied(self):
-        """ReadOnlyForViewer blocks POST."""
+        """project.write blocks a viewer's POST."""
         self._auth(self.viewer)
         response = self.client.post(self.url, {'name': 'no-way'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -182,7 +182,7 @@ class TestProjectDetailView(ProjectViewTestBase):
         self.assertIn(response.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND])
 
     def test_viewer_cannot_modify(self):
-        """ReadOnlyForViewer blocks PUT."""
+        """project.write blocks a viewer's PUT."""
         self._auth(self.viewer)
         url = reverse('project-detail', kwargs={'pk': self.project.pk})
         response = self.client.put(url, {'name': 'nope'}, format='json')

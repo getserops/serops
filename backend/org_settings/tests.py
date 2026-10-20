@@ -127,7 +127,9 @@ class AIProviderDeleteProtectionTest(TestCase):
         self.org = Organisations.objects.create(name='AI Delete Org')
         self.user = User.objects.create_user(
             username='aideluser', email='aidel@test.com',
-            password='testpass123', organisation=self.org, role='admin'
+            password='testpass123', organisation=self.org, role='admin',
+            # The catalogue is shared by every organisation: only platform staff change it.
+            is_staff=True,
         )
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
@@ -420,7 +422,7 @@ class IssueSettingsMemoryAPITest(TestCase):
         response = self.client.put(
             self.url, data={'memory_enabled': False}, format='json',
         )
-        # IsAdminRole returns 403 (Permission denied) for non-admin roles.
+        # Requires(...) returns 403 (Permission denied) for non-admin roles.
         self.assertIn(response.status_code, (403, 401))
 
 

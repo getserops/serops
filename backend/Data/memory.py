@@ -18,7 +18,8 @@ The (Issue, tier) return type is the contract — implementation is swappable
 
 from datetime import timedelta
 
-from django.db.models.functions import Length
+from django.db.models import Case, IntegerField, Q, Value, When
+from django.db.models.functions import Coalesce, Length
 from django.utils import timezone
 
 
@@ -76,13 +77,20 @@ def find_past_memories(project, environment, organisation, settings=None):
             status='RESOLVED',
             resolved_at__gte=cutoff,
         )
-        .exclude(root_cause__isnull=True)
-        .annotate(_rc_len=Length('root_cause'))
-        .filter(_rc_len__gte=MIN_ROOT_CAUSE_LENGTH)
+        # The team's root cause (given on resolve) counts as well as the AI's.
+        .annotate(
+            _rc_len=Coalesce(Length('root_cause'), 0),
+            _team_len=Coalesce(Length('resolution_root_cause'), 0),
+            # Root causes the team confirmed or corrected come first.
+            _confirmed=Case(When(Q(_team_len__gte=MIN_ROOT_CAUSE_LENGTH), then=Value(1)),
+                            default=Value(0), output_field=IntegerField()),
+        )
+        .filter(Q(_rc_len__gte=MIN_ROOT_CAUSE_LENGTH) | Q(_team_len__gte=MIN_ROOT_CAUSE_LENGTH))
     )
+    order = ('-_confirmed', '-resolved_at')
 
     exact = list(
-        base_qs.filter(environment=environment).order_by('-resolved_at')[:limit]
+        base_qs.filter(environment=environment).order_by(*order)[:limit]
     )
 
     if len(exact) >= limit:
@@ -93,7 +101,7 @@ def find_past_memories(project, environment, organisation, settings=None):
     broader = list(
         base_qs.exclude(environment=environment)
         .exclude(id__in=exact_ids)
-        .order_by('-resolved_at')[:remaining]
+        .order_by(*order)[:remaining]
     )
 
     return (
@@ -120,11 +128,21 @@ def format_memories_for_prompt(memory_tuples):
         date = issue.resolved_at.strftime('%Y-%m-%d') if issue.resolved_at else 'unknown'
         env_tag = '' if tier == 'exact' else f' [different env: {issue.environment or "unknown"}]'
         component = issue.component or 'unknown component'
-        root_cause = (issue.root_cause or '').strip()[:200]
-        recommendation = (issue.recommendation or '').strip()[:150] or 'none recorded'
+        ai_root_cause = (issue.root_cause or '').strip()
+        team_root_cause = (issue.resolution_root_cause or '').strip()
+        fix = issue.effective_fix[:150] or 'none recorded'
+        if len(team_root_cause) >= MIN_ROOT_CAUSE_LENGTH:
+            if team_root_cause == ai_root_cause:
+                cause = f'  Root cause (confirmed by the team): {team_root_cause[:200]}'
+            else:
+                # Show the correction: the AI learns what it got wrong.
+                cause = (f'  Root cause (corrected by the team): {team_root_cause[:200]}\n'
+                         f'  The AI had said: {ai_root_cause[:150] or "nothing"}')
+        else:
+            cause = f'  Root cause (AI, not confirmed): {ai_root_cause[:200]}'
         lines.append(
             f'- [{date}] {issue.issue_type} on {component}{env_tag}\n'
-            f'  Root cause: {root_cause}\n'
-            f'  Fix: {recommendation}'
+            f'{cause}\n'
+            f'  Fix: {fix}'
         )
     return '\n'.join(lines)

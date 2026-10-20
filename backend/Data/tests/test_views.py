@@ -200,7 +200,7 @@ class TestBatchReanalyzeView(DataViewTestBase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_reanalyze_denied_viewer(self):
-        """@require_role('user') blocks viewer."""
+        """batch.analyze (user) blocks viewer."""
         self._auth(self.viewer)
         response = self.client.post(self.url, {
             'batch_ids': [self.batch.batch_id],
@@ -253,7 +253,7 @@ class TestDeleteOldBatchesView(DataViewTestBase):
         self.assertIn('deleted_batches', response.data)
 
     def test_delete_denied_user(self):
-        """@require_role('admin') blocks user."""
+        """settings.manage (admin) blocks user."""
         self._auth(self.user)
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

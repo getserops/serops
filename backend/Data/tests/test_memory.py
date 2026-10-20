@@ -272,7 +272,7 @@ class TestFormatter(TestCase):
         self.assertIn('Past Incident Memory', rendered)
         self.assertIn('[different env: staging]', rendered)
         self.assertIn('CONNECTION_TIMEOUT', rendered)
-        self.assertIn('Root cause:', rendered)
+        self.assertIn('Root cause (AI, not confirmed):', rendered)
         self.assertIn('Fix:', rendered)
 
     def test_exact_tier_has_no_env_tag(self):

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Offcanvas } from "react-bootstrap";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -41,7 +41,23 @@ export function StatusChip({ status, t }) {
 const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge, onAskAI, onCopyLink }) => {
   const { t } = useTranslation();
   const demo = isDemoUser();
+  // Resolve form: the AI's root cause and fix, to confirm or correct.
+  const [resolving, setResolving] = useState(false);
+  const [rootCause, setRootCause] = useState("");
+  const [fix, setFix] = useState("");
   if (!issue) return null;
+  const startResolve = () => {
+    setRootCause(issue.root_cause || "");
+    setFix(issue.recommendation || "");
+    setResolving(true);
+  };
+  const submitResolve = (e) => {
+    e.preventDefault();
+    setResolving(false);
+    onResolve(issue, { root_cause: rootCause.trim(), fix: fix.trim() });
+  };
+  const teamCause = (issue.resolution_root_cause || "").trim();
+  const corrected = teamCause && teamCause !== (issue.root_cause || "").trim();
   const commits = Array.isArray(issue.linked_commits) ? issue.linked_commits : [];
   // The AI writes its reasoning as numbered lines ("1. …\n2. …"): one step
   // per line, numbering dropped since the list numbers them.
@@ -49,6 +65,7 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
     .map((r) => (typeof r === "string" ? r.replace(/^\s*\d+[.)]\s*/, "").trim() : JSON.stringify(r)))
     .filter(Boolean);
   const open = issue.status === "OPEN";
+  const affected = Array.isArray(issue.affected_services) ? issue.affected_services : [];
 
   return (
     <Offcanvas show placement="end" onHide={onClose} className="issue-panel" aria-labelledby="issue-panel-title">
@@ -63,6 +80,7 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
           <Offcanvas.Title as="h2" id="issue-panel-title" className="issue-panel-title">{issue.description}</Offcanvas.Title>
           <div className="issue-panel-meta">
             {issue.component && <span className="ds-mono">{issue.component}</span>}
+            {affected.length > 0 && <span>{t("issues.panel.alsoAffects", { services: affected.join(", ") })}</span>}
             {issue.project_name && <span>{issue.project_name}</span>}
             {issue.environment && <span>{issue.environment}</span>}
           </div>
@@ -77,9 +95,29 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
         </dl>
 
         <section className="issue-panel-section">
-          <h3>{t("issues.panel.rootCause")}</h3>
-          <p>{issue.root_cause || <span className="text-muted">{t("issues.panel.noRootCause")}</span>}</p>
+          {teamCause ? (
+            <>
+              <h3>{issue.resolved_by_name
+                ? t("issues.panel.confirmedRootCause", { name: issue.resolved_by_name })
+                : t("issues.panel.confirmedRootCauseTeam")}</h3>
+              <p>{teamCause}</p>
+              {corrected && issue.root_cause && (
+                <p className="issue-panel-ai-said">{t("issues.panel.aiSaid", { text: issue.root_cause })}</p>
+              )}
+            </>
+          ) : (
+            <>
+              <h3>{t("issues.panel.rootCause")}</h3>
+              <p>{issue.root_cause || <span className="text-muted">{t("issues.panel.noRootCause")}</span>}</p>
+            </>
+          )}
         </section>
+        {issue.resolution_fix && (
+          <section className="issue-panel-section">
+            <h3>{t("issues.panel.whatFixedIt")}</h3>
+            <p>{issue.resolution_fix}</p>
+          </section>
+        )}
         {issue.recommendation && (
           <section className="issue-panel-section">
             <h3>{t("issues.panel.recommendation")}</h3>
@@ -99,7 +137,15 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
               {commits.slice(0, 5).map((c, i) => {
                 const sha = typeof c === "object" ? c.sha : String(c);
                 const msg = typeof c === "object" ? c.message : "";
-                return <li key={i}><code>{(sha || "").slice(0, 8)}</code>{msg ? ` — ${msg}` : ""}</li>;
+                const code = <code>{(sha || "").slice(0, 8)}</code>;
+                return (
+                  <li key={i}>
+                    {sha && issue.batch_id_str
+                      ? <Link to={`/dash/code-changes/${issue.batch_id_str}?sha=${encodeURIComponent(sha)}`}>{code}</Link>
+                      : code}
+                    {msg ? ` — ${msg}` : ""}
+                  </li>
+                );
               })}
               {issue.metric_anomaly_type && <li>{t("issues.panel.metricAnomaly", { type: issue.metric_anomaly_type.replace(/_/g, " ") })}</li>}
             </ul>
@@ -125,10 +171,29 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
           </button>
         </div>
       </Offcanvas.Body>
+      {resolving ? (
+        <form className="issue-panel-footer issue-resolve-form" onSubmit={submitResolve}>
+          <label htmlFor="resolve-root-cause">{t("issues.panel.resolveRootCause")}</label>
+          <textarea id="resolve-root-cause" className="form-control" rows={3} value={rootCause}
+            onChange={(e) => setRootCause(e.target.value)} autoFocus />
+          <small className="issue-resolve-hint">{t("issues.panel.resolveRootCauseHint")}</small>
+          <label htmlFor="resolve-fix">{t("issues.panel.resolveFix")}</label>
+          <textarea id="resolve-fix" className="form-control" rows={2} value={fix}
+            onChange={(e) => setFix(e.target.value)} />
+          <div className="issue-resolve-actions">
+            <button type="submit" className="ds-btn ds-btn-primary ds-btn-sm">
+              <FaCheck aria-hidden="true" /> {t("issues.panel.resolveConfirm")}
+            </button>
+            <button type="button" className="ds-btn ds-btn-ghost ds-btn-sm" onClick={() => setResolving(false)}>
+              {t("common.cancel")}
+            </button>
+          </div>
+        </form>
+      ) : (
       <div className="issue-panel-footer">
         {open && (
           <>
-            <button type="button" className="ds-btn ds-btn-primary ds-btn-sm" onClick={() => onResolve(issue)}>
+            <button type="button" className="ds-btn ds-btn-primary ds-btn-sm" onClick={startResolve}>
               <FaCheck aria-hidden="true" /> {t("issues.panel.resolve")}
             </button>
             <button type="button" className="ds-btn ds-btn-secondary ds-btn-sm" onClick={() => onMute(issue.id)}>
@@ -147,6 +212,7 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
           </button>
         )}
       </div>
+      )}
     </Offcanvas>
   );
 };

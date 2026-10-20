@@ -27,6 +27,7 @@ import NeedsAttention from "./NeedsAttention";
 import CommandPalette from "./CommandPalette";
 import { OnboardingWizard, OnboardingResumeChip } from "./onboarding";
 import { isDemoUser } from '../utils/demo';
+import { usePermissions } from '../utils/permissions';
 
 
 const Dashboard = () => {
@@ -36,6 +37,8 @@ const Dashboard = () => {
   const isSmallScreen = useMediaQuery("(max-width: 860px)");
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(!isSmallScreen);
   const [showOnboarding, setShowOnboarding] = React.useState(true);
+  // Setup is for users and admins; a viewer can't change it (the API says 403).
+  const canSetUp = usePermissions()("project.write");
 
   // The composed deployment filter (cluster / region / namespace) is
   // already forwarded on every request by dash.service's withEnv(),
@@ -297,13 +300,13 @@ const Dashboard = () => {
       {/* Onboarding wizard — shows for orgs still in setup.
           When the user dismisses, we swap the wizard for a small
           persistent chip (below) so setup isn't silently forgotten. */}
-      {showOnboarding && (
+      {canSetUp && showOnboarding && (
         <OnboardingWizard
           onComplete={() => setShowOnboarding(false)}
           onSkip={() => setShowOnboarding(false)}
         />
       )}
-      {!showOnboarding && (
+      {canSetUp && !showOnboarding && (
         <OnboardingResumeChip onResume={() => setShowOnboarding(true)} />
       )}
     </div>

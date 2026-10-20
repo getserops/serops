@@ -3,6 +3,7 @@ REST Views for Observability Integration Management.
 
 Single ViewSet for all observability integrations (log + metric providers).
 """
+from Middlewares.rbac import Requires
 
 import logging
 
@@ -12,7 +13,6 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from Middlewares.rbac import IsAdminRole
 from Data.audit import log_action
 from .health import (
     MAX_SAMPLE_SIZE,
@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 class ObservabilityIntegrationViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, Requires(list='integration.read', retrieve='integration.read', available_providers='integration.read', ingest_health='integration.read', health_check='integration.use', default='integration.manage')]
     """
     CRUD + actions for per-org observability integrations.
 
@@ -51,14 +52,6 @@ class ObservabilityIntegrationViewSet(viewsets.ModelViewSet):
 
     serializer_class = ObservabilityIntegrationSerializer
 
-    def get_permissions(self):
-        # `ingest_health` samples recent data from the user's provider and
-        # returns a report on tag presence — read-only, no mutation. Any
-        # authenticated org member may run it (helps them debug their
-        # own tagging config without needing admin escalation).
-        if self.action in ('list', 'retrieve', 'available_providers', 'ingest_health'):
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), IsAdminRole()]
 
     # ------------------------------------------------------------------
     # Queryset & serializer
@@ -279,6 +272,7 @@ class ObservabilityIntegrationViewSet(viewsets.ModelViewSet):
 
 
 class ClusterViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, Requires(list='integration.read', retrieve='integration.read', workloads='integration.read', default='integration.manage')]
     """
     CRUD for Kubernetes / VM clusters (Item #17).
 
@@ -299,13 +293,6 @@ class ClusterViewSet(viewsets.ModelViewSet):
 
     serializer_class = ClusterSerializer
 
-    def get_permissions(self):
-        # Reads (list, retrieve, workloads) are open to any
-        # authenticated org member — they need this to filter
-        # the dashboard / picker. Writes stay admin-only.
-        if self.action in ('list', 'retrieve', 'workloads'):
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), IsAdminRole()]
 
     def get_queryset(self):
         user = self.request.user

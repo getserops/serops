@@ -1,10 +1,10 @@
+from Middlewares.rbac import Requires
 import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import permission_classes
-from Middlewares.rbac import ReadOnlyForViewer, SameOrganisation, has_permission, Permissions
 from django.http import Http404
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -26,7 +26,7 @@ import threading
 logger = logging.getLogger(__name__)
 
 class ProjectListView(APIView):
-    permission_classes = [IsAuthenticated, ReadOnlyForViewer]
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', POST='project.write')]
     @swagger_auto_schema(
         operation_description="Get a list of all projects for the authenticated user's organization",
         responses={200: ProjectSerializer(many=True)}
@@ -151,7 +151,7 @@ class ProjectListView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ProjectDetailView(APIView):
-    permission_classes = [IsAuthenticated, ReadOnlyForViewer]
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', PUT='project.write', DELETE='project.delete')]
 
     def get_object(self, request, pk):
         """Fetch the project scoped to the caller's organisation.
@@ -164,11 +164,10 @@ class ProjectDetailView(APIView):
         project ID was assigned to some org somewhere.
         """
         user_org = getattr(request.user, 'organisation', None)
-        if not user_org and not request.user.is_superuser:
+        if not user_org:
             return None
         qs = Project.objects.all()
-        if not request.user.is_superuser:
-            qs = qs.filter(organisation=user_org)
+        qs = qs.filter(organisation=user_org)
         return qs.filter(pk=pk).first()
 
     @swagger_auto_schema(
@@ -237,7 +236,7 @@ class ProjectDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 class ProjectServiceView(APIView):
-    permission_classes = [IsAuthenticated, ReadOnlyForViewer]
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', POST='project.write')]
     @swagger_auto_schema(
         operation_description="Get all services for a specific project",
         manual_parameters=[
@@ -249,11 +248,10 @@ class ProjectServiceView(APIView):
         # Org-scoped lookup — fetch-then-check leaked project existence
         # across orgs (attacker enumerates IDs by comparing 403 vs 404).
         user_org = getattr(request.user, 'organisation', None)
-        if not user_org and not request.user.is_superuser:
+        if not user_org:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
         qs = Project.objects.all()
-        if not request.user.is_superuser:
-            qs = qs.filter(organisation=user_org)
+        qs = qs.filter(organisation=user_org)
         project = qs.filter(pk=project_id).first()
         if project is None:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -283,11 +281,10 @@ class ProjectServiceView(APIView):
         # Org-scoped project lookup — the previous fetch-then-check
         # distinguished 403 vs 404 based on cross-org existence.
         user_org = getattr(request.user, 'organisation', None)
-        if not user_org and not request.user.is_superuser:
+        if not user_org:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
         project_qs = Project.objects.all()
-        if not request.user.is_superuser:
-            project_qs = project_qs.filter(organisation=user_org)
+        project_qs = project_qs.filter(organisation=user_org)
         project = project_qs.filter(pk=project_id).first()
         if project is None:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -301,15 +298,14 @@ class ProjectServiceView(APIView):
 
         if integration_id:
             integration_qs = ProviderIntegration.objects.all()
-            if not request.user.is_superuser:
-                integration_qs = integration_qs.filter(organisation=user_org)
+            integration_qs = integration_qs.filter(organisation=user_org)
             integration = integration_qs.filter(pk=integration_id).first()
             if integration is None:
                 return Response({"error": "Integration not found"}, status=status.HTTP_404_NOT_FOUND)
 
             data['provider_integration'] = integration.id
 
-            serializer = ProjectServiceSerializer(data=data)
+            serializer = ProjectServiceSerializer(data=data, context={'request': request})
             if serializer.is_valid():
                 service = serializer.save()
 
@@ -335,7 +331,7 @@ class ProjectServiceView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         # Fallback/Standard handling
-        serializer = ProjectServiceSerializer(data=data)
+        serializer = ProjectServiceSerializer(data=data, context={'request': request})
         if serializer.is_valid():
             service = serializer.save()
 
@@ -391,7 +387,7 @@ class ProjectServiceView(APIView):
 
 
 class ProjectServiceDetailView(APIView):
-    permission_classes = [IsAuthenticated, ReadOnlyForViewer]
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', PUT='project.write', PATCH='project.write', DELETE='project.delete')]
 
     def get_object(self, request, pk):
         """Fetch the service scoped to the caller's organisation via project FK.
@@ -401,11 +397,10 @@ class ProjectServiceDetailView(APIView):
         message, letting an attacker enumerate service IDs across orgs.
         """
         user_org = getattr(request.user, 'organisation', None)
-        if not user_org and not request.user.is_superuser:
+        if not user_org:
             return None
         qs = ProjectService.objects.all()
-        if not request.user.is_superuser:
-            qs = qs.filter(project__organisation=user_org)
+        qs = qs.filter(project__organisation=user_org)
         return qs.filter(pk=pk).first()
 
     @swagger_auto_schema(
@@ -462,7 +457,7 @@ class ProjectServiceDetailView(APIView):
                     'subtype', 'provider_config'}
         data = {k: v for k, v in request.data.items() if k in editable}
 
-        serializer = ProjectServiceSerializer(service, data=data, partial=partial)
+        serializer = ProjectServiceSerializer(service, data=data, partial=partial, context={'request': request})
         if not serializer.is_valid():
             return Response(serializer.errors,
                             status=status.HTTP_400_BAD_REQUEST)
@@ -525,7 +520,7 @@ from .models import Project, ProjectService
 from .serializers import ProjectServiceSerializer
 
 class CustomServiceView(APIView):
-    permission_classes = [IsAuthenticated, ReadOnlyForViewer]
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', POST='project.write')]
     @swagger_auto_schema(
         operation_description="Get all custom services for a specific project",
         manual_parameters=[
@@ -535,11 +530,10 @@ class CustomServiceView(APIView):
     )
     def get(self, request, project_id):
         user_org = getattr(request.user, 'organisation', None)
-        if not user_org and not request.user.is_superuser:
+        if not user_org:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
         qs = Project.objects.all()
-        if not request.user.is_superuser:
-            qs = qs.filter(organisation=user_org)
+        qs = qs.filter(organisation=user_org)
         project = qs.filter(pk=project_id).first()
         if project is None:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -563,11 +557,10 @@ class CustomServiceView(APIView):
     )
     def post(self, request, project_id):
         user_org = getattr(request.user, 'organisation', None)
-        if not user_org and not request.user.is_superuser:
+        if not user_org:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
         qs = Project.objects.all()
-        if not request.user.is_superuser:
-            qs = qs.filter(organisation=user_org)
+        qs = qs.filter(organisation=user_org)
         project = qs.filter(pk=project_id).first()
         if project is None:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -576,14 +569,14 @@ class CustomServiceView(APIView):
         data['project'] = project_id
         data['service_type'] = 'custom'
 
-        serializer = ProjectServiceSerializer(data=data)
+        serializer = ProjectServiceSerializer(data=data, context={'request': request})
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ProjectLogConfigView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='project.read')]
     @swagger_auto_schema(
         operation_description="Get log configuration for all projects (for Fluentd configuration)",
         responses={
@@ -676,7 +669,7 @@ class SCMBindingViewSet(viewsets.ModelViewSet):
     - POST   /api/scm-bindings/{id}/setup-webhook/ - Configure webhook
     """
     serializer_class = SCMBindingSerializer
-    permission_classes = [IsAuthenticated, ReadOnlyForViewer]
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', default='project.write')]
     
     def get_queryset(self):
         """Filter SCM bindings by user's organisation."""
@@ -910,7 +903,7 @@ class CICDBindingViewSet(viewsets.ModelViewSet):
     - POST   /api/cicd-bindings/{id}/trigger/        - Trigger a build
     """
     serializer_class = CICDBindingSerializer
-    permission_classes = [IsAuthenticated, ReadOnlyForViewer]
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', default='project.write')]
     
     def get_queryset(self):
         """Filter CI/CD bindings by user's organisation."""
@@ -1190,14 +1183,18 @@ class SCMWebhookReceiverView(APIView):
           - GitHub: X-Hub-Signature-256 (HMAC-SHA256)
           - Bitbucket: X-Hub-Signature (HMAC-SHA256)
 
-        Returns True if no secret is configured (backwards-compatible).
+Rejects when no secret is configured (fail closed).
         """
         import hmac
         import hashlib
 
         secret = binding.webhook_secret
         if not secret:
-            return True  # No secret configured — allow (legacy bindings)
+            # Fail closed: a binding with no secret can't authenticate any
+            # caller. New bindings always get one (see SCMBinding.save);
+            # this guards the rare legacy row until it is re-set up.
+            logger.warning("SCM binding %s has no webhook_secret — rejecting", binding.pk)
+            return False
 
         # GitLab uses a simple token header
         gitlab_token = request.headers.get('X-Gitlab-Token')
@@ -1269,7 +1266,7 @@ class ProjectDeploymentViewSet(viewsets.ModelViewSet):
     Reads: any authenticated org member.
     Writes: any authenticated org member with write role — deployments
     are per-project operational config, not global admin surface, so
-    the standard ReadOnlyForViewer + role-based rules apply.
+    project.read to list, project.write to change (Middlewares/rbac.py).
 
     Tenant isolation: get_queryset filters by
     ``project__organisation=request.user.organisation``. Serializer
@@ -1280,7 +1277,7 @@ class ProjectDeploymentViewSet(viewsets.ModelViewSet):
     from .models import ProjectDeployment as _PD
 
     serializer_class = ProjectDeploymentSerializer
-    permission_classes = [IsAuthenticated, ReadOnlyForViewer]
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', default='project.write')]
 
     def get_queryset(self):
         user_org = getattr(self.request.user, 'organisation', None)

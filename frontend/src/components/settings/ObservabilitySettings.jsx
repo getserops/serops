@@ -34,6 +34,7 @@ import {
 } from "react-icons/fa";
 import ObservabilityService from "../../services/observability.service";
 import ClusterService from "../../services/cluster.service";
+import { usePermissions } from "../../utils/permissions";
 
 /* ─── Provider Metadata ──────────────────────────────────────────────── */
 
@@ -532,18 +533,24 @@ function IntegrationRow({ integration, clusters, onEdit, onDelete }) {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                 <StatusBadge status={integration.last_health_status} />
-                <Button variant="light" size="sm" onClick={() => onEdit(integration)} title="Edit">
-                    <FaEdit size={12} />
-                </Button>
-                <Button variant="outline-danger" size="sm" onClick={() => onDelete(integration)} title="Delete">
-                    <FaTrash size={12} />
-                </Button>
+                {onEdit && (
+                    <Button variant="light" size="sm" onClick={() => onEdit(integration)} title="Edit">
+                        <FaEdit size={12} />
+                    </Button>
+                )}
+                {onDelete && (
+                    <Button variant="outline-danger" size="sm" onClick={() => onDelete(integration)} title="Delete">
+                        <FaTrash size={12} />
+                    </Button>
+                )}
             </div>
         </div>
     );
 }
 
 function ProviderPanel({ capability, integrations, onRefresh }) {
+    // Sources hold credentials: only admins add, edit or delete them (the API enforces it).
+    const canManage = usePermissions()("integration.manage");
     const [clusters, setClusters] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [editingRow, setEditingRow] = useState(null);
@@ -590,9 +597,11 @@ function ProviderPanel({ capability, integrations, onRefresh }) {
                         Ordered by priority tier. The batch pipeline tries primary first, then fallback, then tertiary.
                     </div>
                 </div>
+                {canManage && (
                 <Button variant="primary" size="sm" onClick={openCreate}>
                     <FaPlus size={12} /> Add {capability === "logs" ? "log" : "metric"} provider
                 </Button>
+                )}
             </div>
 
             {rows.length === 0 ? (
@@ -609,7 +618,7 @@ function ProviderPanel({ capability, integrations, onRefresh }) {
                 <div>
                     {rows.map((row) => (
                         <IntegrationRow key={row.id} integration={row} clusters={clusters}
-                            onEdit={openEdit} onDelete={handleDelete} />
+                            onEdit={canManage ? openEdit : undefined} onDelete={canManage ? handleDelete : undefined} />
                     ))}
                 </div>
             )}

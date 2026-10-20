@@ -13,6 +13,7 @@ import { Link } from "react-router-dom";
 import { FaPlus, FaEdit, FaTrash } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
 import { ProjectService } from "../services/project.service";
+import { can } from "../utils/permissions";
 
 const Project = () => {
   const { t } = useTranslation();
@@ -372,6 +373,8 @@ const Project = () => {
                           >
                             <FaEdit size={12} />
                           </Button>
+                          {/* Deleting a project is admin-only (the API enforces it). */}
+                          {can("project.delete") && (
                           <Button
                             variant="outline-danger"
                             size="sm"
@@ -381,6 +384,7 @@ const Project = () => {
                           >
                             <FaTrash size={12} />
                           </Button>
+                          )}
                         </td>
                       </tr>
                     ))

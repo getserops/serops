@@ -10,13 +10,25 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-10-20
+
+Permissions from the server, hidden controls and settings pages per role,
+resolve form with root cause, organisation logo in the sidebar, Access Denied
+in the audit log. Full notes in the [project changelog](https://serops.ai/docs/changelog/).
+
 ### Added
 
 - Organisation logo in the sidebar; remove logo / remove photo actions.
+- Resolve form in the issue panel (confirm or correct the root cause and fix); resolved issues show the confirmed root cause and what the AI said.
+- Clickable evidence on the analysis page (commit, metric, pipeline, failing trace) and commit links in the issue panel; Code changes highlights `?sha=`.
 
 ### Changed
 
+- Issues show the other services a cause affects ("+N" in the list, "also affects" in the panel and on the analysis page).
 - Smaller SerOps mark in the sidebar; profile photo updates without a reload.
+- Analysis page issue rows show the status chip; the link reads "View issue" (translated) instead of a hard-coded "Open".
+- Permissions come from the server (`user.permissions`, refreshed when the app loads): `utils/permissions.js` exposes `can()` / `usePermissions()` and no longer keeps a role table. The Settings menu lists only the pages a role can open; Dashboard setup, integration and source management, AI catalogue and delete controls use named permissions. The unused `RoleGuard` component was removed.
+- Audit log shows **Access Denied** entries (red, with the missing permission).
 
 ## [1.2.1] - 2026-10-19
 

@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from Utils.scoped_relations import limit_relations
 from .models import (
     Notification,
     UserNotificationPreference,
@@ -17,7 +18,9 @@ class NotificationSerializer(serializers.ModelSerializer):
             'id', 'subject', 'message', 'is_read', 'created_at',
             'notification_type', 'batch_id', 'issue'
         ]
-        read_only_fields = ['id', 'created_at']
+        # Members only mark notifications read; what they point at is set
+        # by SerOps (an issue id of another organisation must not be settable).
+        read_only_fields = ['id', 'created_at', 'subject', 'message', 'notification_type', 'batch_id', 'issue']
 
 
 class NotificationCountSerializer(serializers.Serializer):
@@ -48,6 +51,13 @@ class UserNotificationPreferenceSerializer(serializers.ModelSerializer):
 
 class ProjectSubscriptionSerializer(serializers.ModelSerializer):
     """Serializer for project notification subscriptions."""
+    # A subscription to another organisation's project would deliver its
+    # incidents: only the member's own organisation's projects.
+    def get_fields(self):
+        from Projects.models import Project
+        return limit_relations(super().get_fields(), self.context.get('request'),
+                               project=lambda u, org: Project.objects.filter(organisation=org))
+
     
     project_name = serializers.CharField(source='project.name', read_only=True)
     
@@ -63,6 +73,13 @@ class ProjectSubscriptionSerializer(serializers.ModelSerializer):
 
 class ProjectSubscriptionCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating project subscriptions."""
+    # A subscription to another organisation's project would deliver its
+    # incidents: only the member's own organisation's projects.
+    def get_fields(self):
+        from Projects.models import Project
+        return limit_relations(super().get_fields(), self.context.get('request'),
+                               project=lambda u, org: Project.objects.filter(organisation=org))
+
     
     class Meta:
         model = ProjectSubscription
@@ -90,11 +107,10 @@ class IssueAcknowledgeSerializer(serializers.Serializer):
         # FK so the check is unambiguous.
         user = self.context['request'].user
         user_org = getattr(user, 'organisation', None)
-        if not user_org and not user.is_superuser:
+        if not user_org:
             raise serializers.ValidationError("Issue not found")
         qs = Issue.objects.all()
-        if not user.is_superuser:
-            qs = qs.filter(organisation=user_org)
+        qs = qs.filter(organisation=user_org)
         if not qs.filter(id=value).exists():
             raise serializers.ValidationError("Issue not found")
 
@@ -119,6 +135,11 @@ class NotificationQueueSerializer(serializers.ModelSerializer):
 
 class EscalationRuleSerializer(serializers.ModelSerializer):
     """Serializer for escalation rules."""
+    def get_fields(self):
+        from Projects.models import Project
+        return limit_relations(super().get_fields(), self.context.get('request'),
+                               project=lambda u, org: Project.objects.filter(organisation=org))
+
     
     project_name = serializers.CharField(source='project.name', read_only=True)
     

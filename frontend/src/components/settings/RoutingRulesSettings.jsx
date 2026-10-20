@@ -7,7 +7,7 @@
  * union of matching targets -> dedup -> send.
  *
  * Under Settings -> Routing Rules. Admin-only writes (backend
- * enforces IsAdminRole).
+ * requires alerting.manage).
  */
 
 import React, { useState, useEffect, useCallback } from 'react';

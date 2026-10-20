@@ -6,7 +6,7 @@
  * Prometheus / Loki / etc. per cluster. Discoverable under
  * Settings → Clusters.
  *
- * Admin-only (backend enforces IsAdminRole on write endpoints; read
+ * Admin-only (backend requires integration.manage on write endpoints; read
  * endpoint is authenticated so we can display a read-only view for
  * non-admins if we ever want that — for now the sidebar link is
  * shown to admins).

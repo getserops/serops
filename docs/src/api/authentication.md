@@ -107,7 +107,13 @@ If registration is closed — `REGISTRATION_ENABLED=False`, or left unset on an 
 GET /api/auth/profile
 ```
 
-Returns the authenticated user's profile information.
+Returns the authenticated user's profile information. The login response's `user` has the same fields.
+
+| Field | Meaning |
+|-------|---------|
+| `role` | `viewer`, `user` or `admin` in the user's organisation. |
+| `is_staff` | Platform staff (read-only). |
+| `permissions` | Every permission the user holds, sorted, e.g. `["batch.read", "issue.read", "org.read", …]`. See [Team Management](../admin/team.md#roles) for the list. Clients should show or hide actions from this list rather than from `role`. |
 
 ## Upload Avatar
 

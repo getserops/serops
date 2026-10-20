@@ -38,6 +38,12 @@ Every significant action is logged with:
 | `TEAM_ROLE_CHANGE` | Role updated |
 | `AI_MODEL_CHANGE` | AI provider changed |
 | `EXPORT_DATA` | Data exported |
+| `INVESTIGATION_RUN` | Investigation started |
+| `ACCESS_DENIED` | A request was refused because the user's role lacks the permission. Details name the permission, role, method and path. Recorded once per user and path every 10 minutes |
+| `ACCOUNT_DELETE` | User deleted their account |
+| `ORG_DELETE` | Organisation deleted |
+
+The IP address is the client's as seen by your reverse proxy: entries a client writes into `X-Forwarded-For` are ignored (`TRUSTED_PROXY_COUNT`, default `1`).
 
 ### Viewing Audit Logs
 

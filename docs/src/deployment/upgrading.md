@@ -74,6 +74,20 @@ upgrades are safe with a brief restart.
 
 ---
 
+## Upgrade notes
+
+Releases that need something from you after upgrading. Migrations run on their own (`docker compose up` / the Helm migrate job).
+
+### 1.2.2: security release
+
+- **New migrations**: Data 0051–0053, Projects 0015, Organisations 0013, Users 0012.
+- **Re-run Setup Webhook** on each repository (SCM) binding: bindings now have a webhook secret, and the receiver refuses payloads without it. Until you do, pushes from that repository are ignored.
+- **Django admin is off** by default: set `DJANGO_ADMIN_ENABLED=True` to use `/api/admin/`.
+- **`TRUSTED_PROXY_COUNT`** (default `1`): the number of reverse proxies in front of SerOps, used for login rate limits and audit IPs. Raise it if several proxies append to `X-Forwarded-For`.
+- **Superusers no longer reach other organisations' data through the API**: sign in as a member of an organisation to work in it.
+- **Helm**: `/metrics` is no longer published on the ingress. Scrape it in the cluster (`serviceMonitor.enabled: true`), or add the path back with basic auth (see [Self-metrics](../admin/self-metrics.md)).
+- **Organisation logos** must be uploaded again (they were never stored durably before); profile photos are imported automatically.
+
 ## Automated Upgrade
 
 The simplest way to upgrade is using the included upgrade script:

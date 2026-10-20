@@ -7,13 +7,20 @@ from .models import AuditLog
 
 
 def get_client_ip(request):
-    """Extract client IP from request, handling proxies"""
+    """The client's address as seen by the trusted proxy.
+
+    Proxies append to X-Forwarded-For, so its first entries are whatever the
+    client sent. Like the login throttle (REST_FRAMEWORK NUM_PROXIES, from
+    TRUSTED_PROXY_COUNT), take the entry the outermost trusted proxy added.
+    """
+    from django.conf import settings
+    num_proxies = settings.REST_FRAMEWORK.get('NUM_PROXIES') or 0
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0].strip()
-    else:
-        ip = request.META.get('REMOTE_ADDR')
-    return ip
+    if x_forwarded_for and num_proxies > 0:
+        entries = [e.strip() for e in x_forwarded_for.split(',') if e.strip()]
+        if entries:
+            return entries[-min(num_proxies, len(entries))]
+    return request.META.get('REMOTE_ADDR')
 
 
 def get_user_agent(request):

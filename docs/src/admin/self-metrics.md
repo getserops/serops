@@ -15,8 +15,11 @@ GET /metrics/
 Content-Type: text/plain; version=0.0.4
 ```
 
-No auth by default (safe when scraped from a private network).
-Enable basic-auth via env:
+No auth by default, so it is not published to the internet: the Helm
+chart's ingress and the Docker Compose Caddy only route `/api` and the
+app. Prometheus scrapes the backend inside the cluster or network (Helm:
+`serviceMonitor.enabled: true`). To scrape from outside, add a `/metrics`
+path to `ingress.hosts[].paths` and enable basic auth via env:
 
 ```bash
 export SEROPS_METRICS_BASIC_AUTH="scraper:$(openssl rand -hex 24)"

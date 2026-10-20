@@ -178,10 +178,13 @@ def text_for_issue(issue) -> str:
     poisons similarity).
     """
     parts = []
-    root = (getattr(issue, 'root_cause', '') or '').strip()
+    # The team's confirmed root cause and fix win over the AI's.
+    root = ((getattr(issue, 'resolution_root_cause', '') or '').strip()
+            or (getattr(issue, 'root_cause', '') or '').strip())
     if root:
         parts.append(f'Root cause: {root}')
-    rec = (getattr(issue, 'recommendation', '') or '').strip()
+    rec = ((getattr(issue, 'resolution_fix', '') or '').strip()
+           or (getattr(issue, 'recommendation', '') or '').strip())
     if rec:
         parts.append(f'Recommendation: {rec}')
     desc = (getattr(issue, 'description', '') or '').strip()

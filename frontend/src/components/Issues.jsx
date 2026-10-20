@@ -548,13 +548,13 @@ const Issues = () => {
   const MEMORY_ROOT_CAUSE_MIN_LENGTH = 30;
 
   // Single action handlers
-  const handleResolve = async (issue) => {
+  const handleResolve = async (issue, resolution = {}) => {
     // Accept either an Issue object (preferred) or a raw id for backward compat.
     const issueId = typeof issue === 'object' ? issue.id : issue;
-    const rootCause = typeof issue === 'object' ? (issue.root_cause || '').trim() : '';
+    const rootCause = (resolution.root_cause || (typeof issue === 'object' ? issue.root_cause : '') || '').trim();
 
     try {
-      await dataService.resolveIssue(issueId);
+      await dataService.resolveIssue(issueId, resolution);
       queryClient.invalidateQueries({ queryKey: ["issues"] });
 
       if (rootCause.length >= MEMORY_ROOT_CAUSE_MIN_LENGTH) {
@@ -695,6 +695,7 @@ const Issues = () => {
   return (
     <div className="fade-in">
       <IssuePanel
+        key={panelIssue?.id}
         issue={panelIssue}
         onClose={() => setPanelIssueId(null)}
         onResolve={handleResolve}
@@ -983,6 +984,14 @@ const Issues = () => {
                           >
                             {abbreviateComponent(issue.component)}
                           </span>
+                          {issue.affected_services?.length > 0 && (
+                            <span
+                              className="issue-affected-more"
+                              title={t('issues.panel.alsoAffects', { services: issue.affected_services.join(', ') })}
+                            >
+                              +{issue.affected_services.length}
+                            </span>
+                          )}
                         </td>
                       )}
                       {visibleColumns.description && (

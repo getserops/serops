@@ -3,6 +3,7 @@ Utils Views
 
 API endpoints for utility services.
 """
+from Middlewares.rbac import Requires
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, Requires(POST='chat.use')])
 def scan_message(request):
     """
     Scan a message for sensitive data WITHOUT redacting.

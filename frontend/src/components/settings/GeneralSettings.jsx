@@ -19,6 +19,7 @@ import { OrganisationService } from '../../services/organisation.service';
 import CollapsibleSection from './CollapsibleSection';
 import './SettingsLayout.css';
 import PageHeader from '../PageHeader';
+import { can } from '../../utils/permissions';
 
 const GeneralSettings = () => {
     const { t } = useTranslation();
@@ -26,7 +27,6 @@ const GeneralSettings = () => {
     const [saving, setSaving] = useState(false);
     const [uploadingLogo, setUploadingLogo] = useState(false);
     const fileInputRef = useRef(null);
-    const [isAdmin, setIsAdmin] = useState(false);
     const [settings, setSettings] = useState({
         orgName: '',
         website: '',
@@ -41,7 +41,6 @@ const GeneralSettings = () => {
         try {
             setLoading(true);
             const user = JSON.parse(localStorage.getItem('user') || '{}');
-            setIsAdmin(user.role === 'admin');
 
             // Load from backend
             let orgData = {};
@@ -123,7 +122,7 @@ const GeneralSettings = () => {
                 website: settings.website
             };
 
-            if (isAdmin) {
+            if (can('settings.manage')) {
                 updateData.name = settings.orgName;
             }
 

@@ -11,6 +11,7 @@ import AddServiceWizard from "./ServiceProjects/AddServiceWizard";
 import DeploymentsPanel from "./ServiceProjects/DeploymentsPanel";
 import DeploymentService from "../services/deployment.service";
 import { ProjectService } from "../services/project.service";
+import { can } from "../utils/permissions";
 
 // Helper function to get badge color based on service type
 const getTypeBadgeClass = (type) => {
@@ -196,6 +197,7 @@ const ServiceProjects = () => {
                                     <FaEye className="me-1" size={12} />
                                     {t('services.viewDetails')}
                                   </Button>
+                                  {can("project.delete") && (
                                   <Button
                                     variant="outline-danger"
                                     size="sm"
@@ -205,6 +207,7 @@ const ServiceProjects = () => {
                                   >
                                     <FaTrash size={12} />
                                   </Button>
+                                  )}
                                 </td>
                               </tr>
                             ))

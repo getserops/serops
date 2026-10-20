@@ -15,7 +15,8 @@ Issues are problems detected by AI analysis. Each issue includes severity, root 
 | `description` | What the issue is |
 | `root_cause` | Why it happened |
 | `recommendation` | How to fix it |
-| `component` | Affected service or infrastructure |
+| `component` | Where the cause lives: a service, a shared dependency, or infrastructure |
+| `affected_services` | Other services showing symptoms of the same cause |
 | `error_class` | AI-classified error category (COMMAND_NOT_FOUND, MODULE_NOT_FOUND, etc.) |
 | `error_target` | Specific failing item (command name, module name, host:port, etc.) |
 | `status` | OPEN, MUTED, RESOLVED |
@@ -50,6 +51,12 @@ The **Component** column shows which service or infrastructure is affected:
 | **Code Changes** | `service_name` from the GitLab/GitHub commit data |
 | **CI/CD Pipelines** | Pipeline or job name |
 | **Memory/CPU Metrics** | `INFRASTRUCTURE` (node-level) |
+
+### One issue per root cause
+
+When several services fail because of one shared cause (a database, a cache, DNS, an expired certificate, a resource limit or one deploy), SerOps raises **one** issue, not one per service. Its component is where the cause lives, for example `redis-cache` or `coredns`, and the services that noticed it are listed as **also affects**: as "+3" next to the component in the list, and by name in the issue panel and on the analysis page. Filtering the list by a service also finds issues caused elsewhere that affect it.
+
+Separate issues are raised only when the causes are different.
 
 !!! note "Service Name Configuration"
     The `service_name` is set when logs are shipped via Fluentd/Filebeat. Each registered service in your project should have distinct log labels for accurate component identification.
@@ -187,12 +194,19 @@ Open the issue detail view for deeper analysis:
 ### Resolve
 
 Mark an issue as fixed:
-1. Select **Resolve** from the dropdown (OPEN issues only)
-2. Issue status changes to RESOLVED
-3. If the same issue recurs, it will be reopened automatically
+1. Click **Resolve** in the issue panel, or select it from the dropdown (OPEN issues only)
+2. In the panel, confirm or correct **What was the root cause?** and **What fixed it?** Both are prefilled with the AI's answer: leave them to confirm it, edit them if the AI got it wrong.
+3. Issue status changes to RESOLVED. The panel then shows the root cause as confirmed by you, and what the AI had said if you corrected it.
+4. If the same issue recurs, it will be reopened automatically
 
-!!! tip "Resolution quality feeds future AI analyses"
-    When **Recent Resolutions Context** is enabled (Settings → Data Management), the `root_cause` text on resolved issues is passed to the AI as diagnostic context for new batches in the same project. A descriptive root cause (a sentence or two) becomes useful institutional memory; one-word resolutions like "fixed" are filtered out. See [Recent Resolutions Context](../admin/issue-settings.md#recent-resolutions-context) for the full configuration.
+Resolving from the dropdown or in bulk skips step 2.
+
+!!! tip "Your corrections teach future analyses"
+    When **Recent Resolutions Context** is enabled (Settings → Data Management), resolved issues are passed to the AI as diagnostic context for new batches in the same project. Root causes the team confirmed or corrected come first and are labelled as such; a correction is shown next to what the AI had said, so the AI learns what it got wrong. Similar-incident search uses the team's version too. One-word root causes like "fixed" are filtered out. See [Recent Resolutions Context](../admin/issue-settings.md#recent-resolutions-context) for the full configuration.
+
+### Evidence links
+
+On the analysis page, the evidence under the root cause opens the page that shows it: a **commit** opens the batch's code changes with that commit highlighted, a **metric** anomaly opens the batch's metrics, a **pipeline** opens its timeline, and **Failing trace** opens the trace. Commit SHAs in the issue panel link to the code changes too. Only evidence SerOps verified against your data is linked.
 
 ### Mute
 

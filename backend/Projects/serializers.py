@@ -5,7 +5,7 @@ from .models import (
     ProjectDeployment,
 )
 from providers.serializer import ProjectSerializer as GitlabProjectSerializer
-from providers.models import ProviderIntegration
+from providers.models import GitlabProject, ProviderIntegration
 from providers.serializers import ProviderIntegrationListSerializer
 
 
@@ -63,6 +63,16 @@ class ProjectDeploymentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'namespace': 'A namespace can only be set when a cluster is selected.',
             })
+        # The environment must be the project's, and the cluster the
+        # organisation's: ids of another organisation's rows are refused.
+        project = attrs.get('project', getattr(self.instance, 'project', None))
+        environment = attrs.get('environment', getattr(self.instance, 'environment', None))
+        if environment is not None and project is not None and environment.project_id != project.id:
+            raise serializers.ValidationError({'environment': 'Environment not found for this project.'})
+        request = self.context.get('request')
+        org_id = getattr(getattr(request, 'user', None), 'organisation_id', None)
+        if cluster is not None and cluster.organisation_id != org_id:
+            raise serializers.ValidationError({'cluster': 'Cluster not found for your organisation.'})
         return attrs
 
     def validate_project(self, value):
@@ -230,6 +240,17 @@ class CICDBindingSerializer(OrganisationScopedBindingMixin, serializers.ModelSer
 
 
 class ProjectServiceSerializer(serializers.ModelSerializer):
+    def get_fields(self):
+        # The project, legacy GitLab project and integration must be the
+        # requester's organisation's.
+        from Utils.scoped_relations import limit_relations
+        return limit_relations(
+            super().get_fields(), self.context.get('request'),
+            project=lambda u, org: Project.objects.filter(organisation=org),
+            gitlab_project=lambda u, org: GitlabProject.objects.filter(organisation=org),
+            provider_integration=lambda u, org: ProviderIntegration.objects.filter(organisation=org),
+        )
+
     # Include GitLab project details to avoid N+1 frontend requests
     gitlab_project_details = GitlabProjectSerializer(source='gitlab_project', read_only=True)
 

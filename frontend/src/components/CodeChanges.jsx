@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Dropdown } from "react-bootstrap";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { FiGitCommit, FiUser, FiClock, FiFile } from "react-icons/fi";
 import { FaCodeBranch } from "react-icons/fa";
 import PageHeader from "./PageHeader";
@@ -11,6 +11,10 @@ import "./Data.css";
 const CodeChanges = () => {
     const { t } = useTranslation();
     const { batchId } = useParams();
+    // ?sha=<prefix>: the commit an analysis pointed at, highlighted and scrolled to.
+    const [searchParams] = useSearchParams();
+    const focusSha = (searchParams.get('sha') || '').toLowerCase();
+    const isFocused = (change) => Boolean(focusSha && change.sha && change.sha.toLowerCase().startsWith(focusSha));
     const [codeChanges, setCodeChanges] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filters, setFilters] = useState({
@@ -157,7 +161,9 @@ const CodeChanges = () => {
                         </div>
                         <ul className="cc-list">
                             {filteredChanges.map((change, index) => (
-                                <li key={change.id || index} className="cc-item">
+                                <li key={change.id || index}
+                                    className={`cc-item${isFocused(change) ? ' cc-item-focus' : ''}`}
+                                    ref={isFocused(change) ? (el) => el?.scrollIntoView({ block: 'center' }) : undefined}>
                                     <div className="cc-main">
                                         <div className="cc-message">{change.message?.split('\n')[0] || t('codeChanges.noMessage')}</div>
                                         <div className="cc-meta">

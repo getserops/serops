@@ -42,6 +42,7 @@ COPY --from=builder /serops-front/dist /usr/share/nginx/html
 
 # Copy nginx configuration for SPA routing
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY security-headers.conf /etc/nginx/snippets/security-headers.conf
 
 EXPOSE 3000
 

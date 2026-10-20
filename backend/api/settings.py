@@ -30,6 +30,8 @@ SERVER_URL = os.getenv('SERVER_URL')
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+# Only read by migration Users 0012 (imports old photos from the media
+# volume at /app/images). Nothing is served from here.
 MEDIA_ROOT = os.path.join(BASE_DIR, '')
 MEDIA_URL = '/images/'
 
@@ -266,6 +268,12 @@ REST_FRAMEWORK = {
     # spam registration, password-reset email flood, SSO enumeration). Views
     # opt in by setting throttle_classes = [ScopedRateThrottle] and
     # throttle_scope = '<name>'. Rates are anon-keyed by client IP.
+    # Clients are identified by the address the trusted proxy added to
+    # X-Forwarded-For, never by entries the client wrote itself (which would
+    # let anyone dodge the login throttle by sending a new fake IP each time
+    # behind a load balancer that appends to the header). One proxy (Caddy,
+    # ingress-nginx) by default; raise it if several sit in front.
+    'NUM_PROXIES': int(os.getenv('TRUSTED_PROXY_COUNT', '1')),
     'DEFAULT_THROTTLE_RATES': {
         'auth_login': '10/min',
         'auth_register': '5/hour',
@@ -600,3 +608,9 @@ REST_KNOX = {
     'MIN_REFRESH_INTERVAL': 3600,  # Refresh at most once per hour (saves a DB query per request)
     'AUTH_HEADER_PREFIX': 'Token',  # Keep same format as DRF authtoken
 }
+
+# The Django admin (/api/admin/) is off unless enabled: it has its own
+# login, separate from the API's throttled one, and every install has a
+# superuser (the quick start creates one). When enabled, its login is
+# throttled too (api/urls.py).
+DJANGO_ADMIN_ENABLED = os.getenv('DJANGO_ADMIN_ENABLED', 'False') == 'True'

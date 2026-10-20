@@ -18,6 +18,7 @@ Multi-tenancy: everything is scoped to ``request.user.organisation``.
 Attributes / events are user-supplied JSON so they're returned as-is
 but never interpolated into SQL or shell.
 """
+from Middlewares.rbac import Requires
 
 from datetime import datetime
 
@@ -100,7 +101,7 @@ def _parse_iso(value):
 class TraceReadViewSet(viewsets.ReadOnlyModelViewSet):
     """Org-scoped read-only access to traces."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
     pagination_class = TracePagination
     lookup_field = 'trace_id'
     # OTEL trace_id = 32 hex chars; DRF's default regex allows too much.

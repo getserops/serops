@@ -1,6 +1,10 @@
+import logging
+
 from django.db import models
 from Organisations.models import Organisations
 from providers.models import GitlabProject, ProviderIntegration, ProviderIntegration
+
+logger = logging.getLogger(__name__)
 
 class Project(models.Model):
     name = models.CharField(max_length=255)
@@ -475,6 +479,20 @@ class SCMBinding(models.Model):
         )
 
 
+    def save(self, *args, **kwargs):
+        """Give the binding a webhook secret on creation.
+
+        Security (2026-10-20 review): the SCM webhook receiver fails closed
+        when a binding has no secret, so a binding must never exist without
+        one — otherwise it would accept unauthenticated payloads. Covering
+        it here means every creation path (UI, onboarding, import) is safe.
+        """
+        if not self.webhook_secret:
+            import secrets as _secrets
+            self.webhook_secret = _secrets.token_hex(32)
+        super().save(*args, **kwargs)
+
+
 class CICDBinding(models.Model):
     """
     Links a ProjectService to a CI/CD provider.
@@ -635,11 +653,17 @@ class CICDBinding(models.Model):
                 'webhook': self.webhook_configured,
             },
         )
-        # Keep org/url/token fresh if the integration was updated.
-        dirty = False
+        # The legacy row is unique per GitLab project id across the install.
+        # If another organisation already has it, leave it alone: moving it
+        # (and replacing its token) let one organisation take over another's
+        # repository and, through the legacy webhook paths, receive its CI
+        # events. This binding still works through the new paths.
         if gp.organisation_id != org.id:
-            gp.organisation = org
-            dirty = True
+            logger.warning("CICDBinding %s: GitLab project %s belongs to another organisation; legacy row left as is",
+                           self.pk, self.pipeline_id)
+            return
+        # Keep url/token fresh if the integration was updated.
+        dirty = False
         if base_url and gp.gitlab_url != base_url:
             gp.gitlab_url = base_url
             dirty = True

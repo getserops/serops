@@ -1,3 +1,4 @@
+from Middlewares.rbac import Requires
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.core.validators import EmailValidator
@@ -16,15 +17,13 @@ from .models import Organisations
 from .serializers import OrganisationSerializer
 from Users.models import User
 from Users.serializers import UserSerializer
-from Middlewares.OrganisationMiddleware import OrganisationsPermissions
-from Middlewares.rbac import IsAdminRole
 from Utils.email_utils import send_invitation_link
 from Data.audit import log_team_action
 
 logger = logging.getLogger(__name__)
 
 class OrganisationInfoView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='org.read', PUT='settings.manage')]
 
     @swagger_auto_schema(
         operation_description="Get authenticated user's organisation information",
@@ -68,8 +67,6 @@ class OrganisationInfoView(APIView):
         security=[{'Bearer': []}]
     )
     def put(self, request):
-        if getattr(request.user, 'role', None) != 'admin':
-            return Response({"error": "Admin role required"}, status=status.HTTP_403_FORBIDDEN)
         try:
             organisation = request.user.organisation
             if not organisation:
@@ -102,7 +99,7 @@ class OrganisationInfoView(APIView):
             )
 
 class OrganisationTeamView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(default='team.manage')]
 
     @swagger_auto_schema(
         operation_description="Get all team members in the organization",
@@ -205,8 +202,14 @@ class OrganisationTeamView(APIView):
 
         return Response(serializer.errors, status=400)
 
+def _is_last_admin(user):
+    """True when ``user`` is the only admin left in their organisation."""
+    return user.role == 'admin' and not User.objects.filter(
+        organisation=user.organisation, role='admin').exclude(pk=user.pk).exists()
+
+
 class OrganisationMemberView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(default='team.manage')]
 
     @swagger_auto_schema(
         operation_description="Get details of a specific team member",
@@ -238,6 +241,9 @@ class OrganisationMemberView(APIView):
     def delete(self, request, id):
         try:
             user = User.objects.get(pk=id, organisation=request.user.organisation)
+            if _is_last_admin(user):
+                return Response({'error': 'An organisation needs at least one admin. Make someone else admin first.'},
+                                status=status.HTTP_400_BAD_REQUEST)
             email_to_remove = user.email
             user.delete()
             
@@ -271,7 +277,17 @@ class OrganisationMemberView(APIView):
     def put(self, request, id):
         try:
             user = User.objects.get(pk=id, organisation=request.user.organisation)
-            for field in ['first_name', 'last_name', 'email', 'phone', 'role']:
+            # Email is the member's login identity: an admin can't change it
+            # (that would let them reset the password and sign in as the
+            # member). Members change their own email in their profile.
+            new_role = request.data.get('role')
+            if new_role is not None:
+                if new_role not in {r[0] for r in User.ROLE}:
+                    return Response({'role': f"Invalid role '{new_role}'."}, status=status.HTTP_400_BAD_REQUEST)
+                if new_role != 'admin' and _is_last_admin(user):
+                    return Response({'error': 'An organisation needs at least one admin. Make someone else admin first.'},
+                                    status=status.HTTP_400_BAD_REQUEST)
+            for field in ['first_name', 'last_name', 'phone', 'role']:
                 if field in request.data:
                     setattr(user, field, request.data[field])
             user.save()
@@ -285,7 +301,7 @@ class OrganisationMemberView(APIView):
             return Response({'error': 'User does not exist'}, status=400)
 
 class OrganisationCreateView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(default='settings.manage')]
     
     @swagger_auto_schema(
         operation_description="Create a new organization",
@@ -316,7 +332,7 @@ class OrganisationCreateView(APIView):
             )
 
 class OrganisationUpdateView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(default='settings.manage')]
     
     @swagger_auto_schema(
         operation_description="Update an existing organization",
@@ -366,7 +382,7 @@ class OrganisationUpdateView(APIView):
             )
 
 class OrganisationDeleteView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(default='settings.manage')]
     
     @swagger_auto_schema(
         operation_description="Delete an existing organization",
@@ -404,7 +420,7 @@ class OrganisationDeleteView(APIView):
         
 
 class OrganisationListPublicView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='org.read')]
     
     @swagger_auto_schema(
         operation_description="List all organizations (public)",
@@ -432,9 +448,8 @@ class OrganisationListPublicView(APIView):
             # every org in the DB to any authenticated user — a
             # customer-enumeration leak on a multi-tenant OSS product.
             qs = Organisations.objects.all()
-            if not request.user.is_superuser:
-                user_org = getattr(request.user, 'organisation', None)
-                qs = qs.filter(id=user_org.id) if user_org else qs.none()
+            user_org = getattr(request.user, 'organisation', None)
+            qs = qs.filter(id=user_org.id) if user_org else qs.none()
             serializer = OrganisationSerializer(qs, many=True)
             return Response({"organisations": serializer.data})
         except Exception as e:
@@ -497,7 +512,7 @@ class OnboardingStatusView(APIView):
           scratchpad (e.g. remembering which provider the user
           selected in the modal so we can resume)
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='org.read', PUT='project.write')]
 
     @swagger_auto_schema(
         operation_description="Get current onboarding status (refreshed from real DB state)",
@@ -596,7 +611,7 @@ class OnboardingSkipView(APIView):
     is not an activated org) and it lets us un-hide the wizard via
     :class:`OnboardingResumeView` without lying about progress.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(POST='project.write')]
 
     @swagger_auto_schema(
         operation_description="Dismiss the onboarding wizard UI (reversible via /resume/)",
@@ -615,7 +630,7 @@ class OnboardingSkipView(APIView):
 
 class OnboardingResumeView(APIView):
     """Undo a dismiss — makes the wizard reappear."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(POST='project.write')]
 
     @swagger_auto_schema(
         operation_description="Undo a previous dismiss — makes the wizard reappear.",
@@ -635,7 +650,7 @@ class OnboardingResumeView(APIView):
 
 class OnboardingResetView(APIView):
     """Reset onboarding to start fresh (admin only)."""
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, Requires(POST='settings.manage')]
 
     @swagger_auto_schema(
         operation_description="Reset onboarding to start fresh (admin only)",
@@ -671,7 +686,7 @@ class OrganisationCapabilitiesView(APIView):
     or removed, this endpoint reflects it.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, Requires(GET='org.read')]
 
     @swagger_auto_schema(
         operation_description="List enabled data-source capabilities for the caller's org.",
