@@ -76,7 +76,7 @@ services:
 
   backend:
     # Version wiring (Batch 43, SemVer discipline):
-    #   * ``SEROPS_VERSION`` sets the tag (default 1.2.3). Matches
+    #   * ``SEROPS_VERSION`` sets the tag (default 1.2.4). Matches
     #     what deployment/upgrading.md tells users. Rollback path is
     #     just: edit .env → change SEROPS_VERSION → up -d.
     #   * ``SEROPS_BACKEND_IMAGE`` overrides the WHOLE ref (registry
@@ -84,7 +84,7 @@ services:
     #     or air-gapped registry.
     #   * Never ``:latest`` for production — a rolling latest tag
     #     defeats the point of pinning versions for rollbackability.
-    image: ${SEROPS_BACKEND_IMAGE:-ghcr.io/getserops/backend:${SEROPS_VERSION:-1.2.3}}
+    image: ${SEROPS_BACKEND_IMAGE:-ghcr.io/getserops/backend:${SEROPS_VERSION:-1.2.4}}
     # Build fallback so a fresh source clone works without published
     # images. Use ``docker compose up -d --build`` to force
     # a local build; otherwise the image ref above is used if present.
@@ -126,7 +126,7 @@ services:
     # Same version wiring pattern as backend — SEROPS_VERSION drives
     # the tag for both so they stay coordinated. Operators wanting
     # divergent FE/BE versions can override each ``_IMAGE`` var.
-    image: ${SEROPS_FRONTEND_IMAGE:-ghcr.io/getserops/frontend:${SEROPS_VERSION:-1.2.3}}
+    image: ${SEROPS_FRONTEND_IMAGE:-ghcr.io/getserops/frontend:${SEROPS_VERSION:-1.2.4}}
     # Build fallback — see backend build block above for rationale.
     build:
       context: ../../frontend

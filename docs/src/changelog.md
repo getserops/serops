@@ -16,6 +16,29 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.2.4] - 2026-10-21
+
+Integrations screens: dark mode, keyboard access and consistency. No
+migrations, frontend only: set `SEROPS_VERSION=1.2.4` or `--version 1.2.4`.
+
+### Fixed
+
+- Log and metric provider rows, badges, health status and the provider
+  dialogs ignored dark mode (white rows with light text).
+- Provider pickers were not reachable by keyboard; they are now radio
+  cards.
+- Source Control showed **Add integration** twice and offered Jenkins, a
+  CI/CD-only provider.
+- Every Integrations tab has the same header, with the add action in the
+  same place; tabs are in the URL (`?tab=cicd|logs|metrics`).
+- Integration, provider and cluster dialogs: every field is linked to its
+  label, for screen readers. All 69 provider screens pass an automated
+  accessibility check in light, dark and phone layouts.
+- A few panels (postmortem preview, metric tooltips, error panel, project
+  environments) no longer force light colours.
+
+---
+
 ## [1.2.3] - 2026-10-20
 
 Fixes a 1.2.2 regression. No migrations: set `SEROPS_VERSION=1.2.3` or

@@ -1029,7 +1029,9 @@
       "cicd": "CI/CD",
       "logs": "Fournisseurs de logs",
       "metrics": "Fournisseurs de métriques"
-    }
+    },
+    "scmDesc": "Les dépôts dont SerOps lit les commits et les diffs, pour relier les incidents aux changements de code.",
+    "cicdDesc": "Les pipelines et déploiements que SerOps met en regard des incidents."
   },
   "auditLog": {
     "title": "Journal d'Audit",

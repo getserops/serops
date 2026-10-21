@@ -1112,7 +1112,9 @@
       "cicd": "CI/CD",
       "logs": "Log Providers",
       "metrics": "Metric Providers"
-    }
+    },
+    "scmDesc": "Repositories SerOps reads commits and diffs from, to tie incidents to code changes.",
+    "cicdDesc": "Pipelines and deployments SerOps lines up with incidents."
   },
   "auditLog": {
     "title": "Audit Log",

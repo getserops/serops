@@ -327,7 +327,7 @@ const Metrics = () => {
                               tickLine={false}
                             />
                             <Tooltip
-                              contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15)' }}
+                              contentStyle={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', borderRadius: '8px', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-pop)' }}
                               formatter={(value, _name, item) => [
                                 `${value}%`,
                                 // The plotted point is the highest reading
@@ -482,7 +482,7 @@ const Metrics = () => {
                               tickLine={false}
                             />
                             <Tooltip
-                              contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15)' }}
+                              contentStyle={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', borderRadius: '8px', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-pop)' }}
                               formatter={(value, _name, item) => [
                                 `${value}%`,
                                 // The plotted point is the highest reading

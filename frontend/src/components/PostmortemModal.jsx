@@ -78,7 +78,8 @@ const PostmortemModal = ({ show, onHide, batchId }) => {
                             maxHeight: '60vh',
                             overflowY: 'auto',
                             fontSize: '0.85rem',
-                            background: '#f8f9fa',
+                            background: 'var(--bg-sunken)',
+                            color: 'var(--text-primary)',
                             padding: '12px',
                             borderRadius: '4px',
                         }}

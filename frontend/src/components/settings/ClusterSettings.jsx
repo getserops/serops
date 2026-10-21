@@ -218,7 +218,7 @@ const ClusterSettings = () => {
                         </Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
-                        <Form.Group className="mb-3">
+                        <Form.Group className="mb-3" controlId="cluster-name">
                             <Form.Label>{t('clusters.name')}</Form.Label>
                             <Form.Control
                                 type="text"
@@ -233,7 +233,7 @@ const ClusterSettings = () => {
                                 {t('clusters.nameHelp')}
                             </Form.Text>
                         </Form.Group>
-                        <Form.Group className="mb-3">
+                        <Form.Group className="mb-3" controlId="cluster-provider">
                             <Form.Label>{t('clusters.provider')}</Form.Label>
                             <Form.Select
                                 value={form.provider}
@@ -244,7 +244,7 @@ const ClusterSettings = () => {
                                 ))}
                             </Form.Select>
                         </Form.Group>
-                        <Form.Group className="mb-3">
+                        <Form.Group className="mb-3" controlId="cluster-region">
                             <Form.Label>{t('clusters.region')}</Form.Label>
                             <Form.Control
                                 type="text"
@@ -254,7 +254,7 @@ const ClusterSettings = () => {
                                 maxLength={64}
                             />
                         </Form.Group>
-                        <Form.Group className="mb-3">
+                        <Form.Group className="mb-3" controlId="cluster-context">
                             <Form.Label>{t('clusters.context')}</Form.Label>
                             <Form.Control
                                 type="text"
@@ -267,7 +267,7 @@ const ClusterSettings = () => {
                                 {t('clusters.contextHelp')}
                             </Form.Text>
                         </Form.Group>
-                        <Form.Group className="mb-3">
+                        <Form.Group className="mb-3" controlId="cluster-description">
                             <Form.Label>{t('clusters.description')}</Form.Label>
                             <Form.Control
                                 as="textarea" rows={2}
@@ -278,6 +278,7 @@ const ClusterSettings = () => {
                         <Form.Group>
                             <Form.Check
                                 type="switch"
+                                id="cluster-active"
                                 label={t('clusters.activeLabel')}
                                 checked={form.is_active}
                                 onChange={(e) => setForm({ ...form, is_active: e.target.checked })}

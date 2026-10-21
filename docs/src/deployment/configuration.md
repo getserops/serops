@@ -41,7 +41,7 @@ Complete reference for all environment variables consumed by SerOps.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SEROPS_VERSION` | No | `1.2.3` | Version tag for SerOps Docker images (backend + frontend) |
+| `SEROPS_VERSION` | No | `1.2.4` | Version tag for SerOps Docker images (backend + frontend) |
 
 ---
 

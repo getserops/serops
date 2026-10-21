@@ -17,8 +17,8 @@
  *   - default               — full ObservabilitySettings page
  */
 
-import React, { useState, useEffect, useCallback } from "react";
-import { Modal, Button, Form, Badge } from "react-bootstrap";
+import React, { useState, useEffect } from "react";
+import { Modal, Button, Form } from "react-bootstrap";
 import { toast } from "react-toastify";
 import {
     SiElasticsearch,
@@ -34,6 +34,8 @@ import {
 } from "react-icons/fa";
 import ObservabilityService from "../../services/observability.service";
 import ClusterService from "../../services/cluster.service";
+import ChoiceGroup from "./ChoiceGroup";
+import IntegrationsSectionHeader from "./IntegrationsSectionHeader";
 import { usePermissions } from "../../utils/permissions";
 
 /* ─── Provider Metadata ──────────────────────────────────────────────── */
@@ -123,10 +125,11 @@ const PROVIDERS = {
     },
 };
 
+// Chip tones from the design system (styles/design.css · Badges).
 const TIER_META = {
-    primary:  { label: "Primary",  bg: "#e3f2fd", fg: "#1565c0" },
-    fallback: { label: "Fallback", bg: "#fff3e0", fg: "#ef6c00" },
-    tertiary: { label: "Tertiary", bg: "#f5f5f5", fg: "#616161" },
+    primary:  { label: "Primary",  tone: "ds-chip-brand" },
+    fallback: { label: "Fallback", tone: "ds-chip-warn" },
+    tertiary: { label: "Tertiary", tone: "ds-chip-neutral" },
 };
 const TIER_ORDER = { primary: 0, fallback: 1, tertiary: 2 };
 
@@ -152,54 +155,38 @@ function setNestedValue(obj, path, value) {
 /* ─── Small display atoms ────────────────────────────────────────────── */
 
 function CapBadge({ cap }) {
-    const label = cap === "logs" ? "Logs" : "Metrics";
-    const bg = cap === "logs" ? "#e8f5e9" : "#e3f2fd";
-    const fg = cap === "logs" ? "#2e7d32" : "#1565c0";
     return (
-        <span style={{
-            display: "inline-block", fontSize: 11, fontWeight: 600,
-            padding: "2px 8px", borderRadius: 10, backgroundColor: bg,
-            color: fg, marginRight: 4,
-        }}>{label}</span>
+        <span className={`ds-chip ${cap === "logs" ? "ds-chip-ok" : "ds-chip-info"}`}>
+            {cap === "logs" ? "Logs" : "Metrics"}
+        </span>
     );
 }
 
 function StatusBadge({ status }) {
-    if (status === true)  return <span style={{ color: "#2e7d32", fontSize: 12 }}><FaCheck /> Healthy</span>;
-    if (status === false) return <span style={{ color: "#c62828", fontSize: 12 }}><FaTimes /> Unhealthy</span>;
-    return <span style={{ color: "#999", fontSize: 12 }}>—</span>;
+    if (status === true)  return <span className="obs-status" style={{ color: "var(--tone-green-text)" }}><FaCheck /> Healthy</span>;
+    if (status === false) return <span className="obs-status" style={{ color: "var(--tone-red-text)" }}><FaTimes /> Unhealthy</span>;
+    return <span className="obs-status" style={{ color: "var(--text-tertiary)" }}>—</span>;
 }
 
 function TierBadge({ tier }) {
     const meta = TIER_META[tier] || TIER_META.primary;
-    return (
-        <span style={{
-            display: "inline-block", fontSize: 10, fontWeight: 700,
-            letterSpacing: 0.4, textTransform: "uppercase",
-            padding: "2px 8px", borderRadius: 4,
-            backgroundColor: meta.bg, color: meta.fg,
-        }}>{meta.label}</span>
-    );
+    return <span className={`ds-chip ${meta.tone}`}>{meta.label}</span>;
 }
 
 function ScopePills({ integration, clusterName }) {
     const scope = integration.scope || {};
     const items = [];
-    if (scope.environment) items.push({ icon: <FaTag size={9} />, key: "env", val: scope.environment, bg: "#e3f2fd", fg: "#1565c0" });
-    if (clusterName)       items.push({ icon: <FaServer size={9} />, key: "cluster", val: clusterName, bg: "#e0f7fa", fg: "#00838f" });
-    if (scope.region)      items.push({ icon: <FaGlobe size={9} />, key: "region", val: scope.region, bg: "#eeeeee", fg: "#424242" });
-    if (scope.namespace)   items.push({ icon: <FaCube size={9} />, key: "ns", val: scope.namespace, bg: "#fff8e1", fg: "#ff8f00" });
+    if (scope.environment) items.push({ icon: <FaTag size={9} />, key: "env", val: scope.environment, tone: "ds-chip-brand" });
+    if (clusterName)       items.push({ icon: <FaServer size={9} />, key: "cluster", val: clusterName, tone: "ds-chip-info" });
+    if (scope.region)      items.push({ icon: <FaGlobe size={9} />, key: "region", val: scope.region, tone: "ds-chip-neutral" });
+    if (scope.namespace)   items.push({ icon: <FaCube size={9} />, key: "ns", val: scope.namespace, tone: "ds-chip-warn" });
     if (items.length === 0) {
-        return <span style={{ color: "#999", fontSize: 12, fontStyle: "italic" }}>unscoped — serves any</span>;
+        return <span className="obs-unscoped">unscoped — serves any</span>;
     }
     return (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+        <div className="obs-scope-pills">
             {items.map((p) => (
-                <span key={p.key} style={{
-                    display: "inline-flex", alignItems: "center", gap: 4,
-                    fontSize: 11, fontWeight: 500, padding: "2px 8px",
-                    borderRadius: 10, backgroundColor: p.bg, color: p.fg,
-                }}>{p.icon}{p.key}={p.val}</span>
+                <span key={p.key} className={`ds-chip ${p.tone}`}>{p.icon}{p.key}={p.val}</span>
             ))}
         </div>
     );
@@ -360,39 +347,25 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
             </Modal.Header>
             <Modal.Body>
                 {/* Provider grid — disabled when editing (provider is immutable) */}
-                <div style={{ marginBottom: 16 }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "#555", display: "block", marginBottom: 8 }}>
-                        Provider
-                    </label>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8 }}>
-                        {filteredProviders.map(([code, meta]) => {
-                            const Icon = meta.icon;
-                            const isSelected = code === selectedProvider;
-                            const disabled = isEdit && code !== integration.provider;
-                            return (
-                                <div key={code}
-                                    onClick={() => !disabled && handleSelectProvider(code)}
-                                    style={{
-                                        display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-                                        padding: "12px 8px", borderRadius: 8,
-                                        border: isSelected ? `2px solid ${meta.color}` : "2px solid #e0e0e0",
-                                        backgroundColor: isSelected ? `${meta.color}10` : "#fff",
-                                        cursor: disabled ? "not-allowed" : "pointer",
-                                        opacity: disabled ? 0.35 : 1,
-                                    }}>
-                                    <Icon size={22} color={meta.color} />
-                                    <span style={{ fontSize: 11, fontWeight: 600 }}>{meta.name}</span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
+                <ChoiceGroup
+                    variant="cards"
+                    className="mb-3"
+                    label="Provider"
+                    value={selectedProvider}
+                    onChange={handleSelectProvider}
+                    options={filteredProviders.map(([code, meta]) => ({
+                        value: code,
+                        // The provider can't change once an integration exists.
+                        disabled: isEdit && code !== integration.provider,
+                        label: <span className="d-inline-flex align-items-center gap-2">{React.createElement(meta.icon, { size: 18, color: meta.color, "aria-hidden": true })}{meta.name}</span>,
+                    }))}
+                />
 
                 {providerMeta && (
                     <>
                         {/* Priority tier + cluster + scope */}
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                            <Form.Group>
+                            <Form.Group controlId="obs-tier">
                                 <Form.Label style={{ fontSize: 12, fontWeight: 600 }}>Priority tier</Form.Label>
                                 <Form.Select value={tier} onChange={(e) => setTier(e.target.value)} size="sm">
                                     <option value="primary">Primary — tried first</option>
@@ -401,7 +374,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                                 </Form.Select>
                             </Form.Group>
                             {clusters.length > 0 && (
-                                <Form.Group>
+                                <Form.Group controlId="obs-cluster">
                                     <Form.Label style={{ fontSize: 12, fontWeight: 600 }}>
                                         <FaServer style={{ marginRight: 4 }} />Cluster scope
                                     </Form.Label>
@@ -421,27 +394,27 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                             )}
                         </div>
 
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16, padding: 12, background: "#fafafa", borderRadius: 6 }}>
-                            <Form.Group>
-                                <Form.Label style={{ fontSize: 11, fontWeight: 600, color: "#666" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16, padding: 12, background: "var(--bg-sunken)", borderRadius: 6 }}>
+                            <Form.Group controlId="obs-env">
+                                <Form.Label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}>
                                     <FaTag size={10} style={{ marginRight: 4 }} />Environment
                                 </Form.Label>
                                 <Form.Control size="sm" type="text" placeholder="production"
                                     value={scope.environment}
                                     onChange={(e) => setScope({ ...scope, environment: e.target.value })} />
                             </Form.Group>
-                            <Form.Group>
-                                <Form.Label style={{ fontSize: 11, fontWeight: 600, color: "#666" }}>
+                            <Form.Group controlId="obs-region">
+                                <Form.Label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}>
                                     <FaGlobe size={10} style={{ marginRight: 4 }} />Region
                                 </Form.Label>
                                 <Form.Control size="sm" type="text" placeholder="us-east-1"
                                     value={scope.region}
                                     onChange={(e) => setScope({ ...scope, region: e.target.value })} />
                             </Form.Group>
-                            <Form.Group>
-                                <Form.Label style={{ fontSize: 11, fontWeight: 600, color: "#666" }}>
+                            <Form.Group controlId="obs-namespace">
+                                <Form.Label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}>
                                     <FaCube size={10} style={{ marginRight: 4 }} />Namespace
-                                    {!clusterId && <span style={{ marginLeft: 4, fontSize: 9, color: "#999" }}>(needs cluster)</span>}
+                                    {!clusterId && <span style={{ marginLeft: 4, fontSize: 9, color: "var(--text-tertiary)" }}>(needs cluster)</span>}
                                 </Form.Label>
                                 <Form.Control size="sm" type="text" placeholder="payments"
                                     value={scope.namespace}
@@ -452,8 +425,8 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
 
                         {/* Capabilities toggles for dual-cap providers */}
                         {providerMeta.capabilities.length > 1 && (
-                            <div style={{ marginBottom: 14, padding: 10, backgroundColor: "#f5f5f5", borderRadius: 6 }}>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: "#555", marginRight: 10 }}>Capabilities:</span>
+                            <div style={{ marginBottom: 14, padding: 10, backgroundColor: "var(--bg-sunken)", borderRadius: 6 }}>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginRight: 10 }}>Capabilities:</span>
                                 {providerMeta.capabilities.map((cap) => (
                                     <label key={cap} style={{ marginRight: 14, cursor: "pointer", fontSize: 13 }}>
                                         <input type="checkbox" checked={enabledCaps.includes(cap)}
@@ -476,9 +449,9 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                                 ? "••••••••  (leave blank to keep)"
                                 : (field.placeholder || "");
                             return (
-                                <Form.Group key={field.name} style={{ marginBottom: 12 }}>
+                                <Form.Group key={field.name} controlId={`obs-${field.name}`} style={{ marginBottom: 12 }}>
                                     <Form.Label style={{ fontSize: 12, fontWeight: 600 }}>
-                                        {field.label} {field.required && <span style={{ color: "#c62828" }}>*</span>}
+                                        {field.label} {field.required && <span style={{ color: "var(--tone-red-text)" }}>*</span>}
                                     </Form.Label>
                                     <Form.Control type={field.type || "text"} size="sm"
                                         placeholder={placeholder}
@@ -513,33 +486,29 @@ function IntegrationRow({ integration, clusters, onEdit, onDelete }) {
     const clusterName = clusters.find((c) => c.id === integration.cluster)?.name;
 
     return (
-        <div style={{
-            display: "flex", alignItems: "center", gap: 12,
-            padding: "12px 14px", borderRadius: 8, border: "1px solid #e0e0e0",
-            backgroundColor: "#fff", marginBottom: 8,
-        }}>
-            <Icon size={22} color={meta?.color || "#666"} style={{ flexShrink: 0 }} />
+        <div className="obs-integration-row">
+            <Icon size={22} color={meta?.color || "var(--text-secondary)"} style={{ flexShrink: 0 }} aria-hidden="true" />
             <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                    <span style={{ fontWeight: 600, fontSize: 13 }}>
+                    <span className="obs-integration-name">
                         {integration.display_name || meta?.name || integration.provider}
                     </span>
                     <TierBadge tier={integration.priority_tier} />
                     {integration.capabilities?.map((c) => <CapBadge key={c} cap={c} />)}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "#666" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <ScopePills integration={integration} clusterName={clusterName} />
                 </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                 <StatusBadge status={integration.last_health_status} />
                 {onEdit && (
-                    <Button variant="light" size="sm" onClick={() => onEdit(integration)} title="Edit">
+                    <Button variant="outline-secondary" size="sm" onClick={() => onEdit(integration)} title="Edit" aria-label="Edit">
                         <FaEdit size={12} />
                     </Button>
                 )}
                 {onDelete && (
-                    <Button variant="outline-danger" size="sm" onClick={() => onDelete(integration)} title="Delete">
+                    <Button variant="outline-danger" size="sm" onClick={() => onDelete(integration)} title="Delete" aria-label="Delete">
                         <FaTrash size={12} />
                     </Button>
                 )}
@@ -587,32 +556,22 @@ function ProviderPanel({ capability, integrations, onRefresh }) {
 
     return (
         <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <div>
-                    <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
-                        {capability === "logs" ? "Log Providers" : "Metric Providers"}
-                        <Badge bg="secondary" style={{ marginLeft: 8 }}>{rows.length}</Badge>
-                    </h4>
-                    <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
-                        Ordered by priority tier. The batch pipeline tries primary first, then fallback, then tertiary.
-                    </div>
-                </div>
-                {canManage && (
-                <Button variant="primary" size="sm" onClick={openCreate}>
-                    <FaPlus size={12} /> Add {capability === "logs" ? "log" : "metric"} provider
-                </Button>
+            <IntegrationsSectionHeader
+                title={capability === "logs" ? "Log Providers" : "Metric Providers"}
+                count={rows.length}
+                description="Ordered by priority tier. The batch pipeline tries primary first, then fallback, then tertiary."
+                action={canManage && (
+                    <Button variant="primary" onClick={openCreate}>
+                        <FaPlus aria-hidden="true" /> Add {capability === "logs" ? "log" : "metric"} provider
+                    </Button>
                 )}
-            </div>
+            />
 
             {rows.length === 0 ? (
-                <div className="settings-card" style={{ textAlign: "center", color: "#888", padding: 40 }}>
-                    <FaPlug size={28} style={{ marginBottom: 8, opacity: 0.4 }} />
-                    <p style={{ margin: 0, fontSize: 14 }}>
-                        No {capability === "logs" ? "log" : "metric"} providers configured yet.
-                    </p>
-                    <p style={{ margin: "4px 0 0", fontSize: 12 }}>
-                        Using system default until you add one.
-                    </p>
+                <div className="text-center py-5 text-muted">
+                    <FaPlug size={40} className="mb-2 opacity-50" />
+                    <p>No {capability === "logs" ? "log" : "metric"} providers configured yet.</p>
+                    <p className="small">Using system default until you add one.</p>
                 </div>
             ) : (
                 <div>
@@ -642,57 +601,4 @@ export function LogProviderPanel({ integrations, onRefresh }) {
 }
 export function MetricProviderPanel({ integrations, onRefresh }) {
     return <ProviderPanel capability="metrics" integrations={integrations} onRefresh={onRefresh} />;
-}
-
-/* ─── Full Standalone Component (default export) ─────────────────────── */
-
-export default function ObservabilitySettings() {
-    const [integrations, setIntegrations] = useState([]);
-    const [activeTab, setActiveTab] = useState("logs");
-    const [loading, setLoading] = useState(true);
-
-    const fetchData = useCallback(async () => {
-        try {
-            const data = await ObservabilityService.getAll();
-            setIntegrations(Array.isArray(data) ? data : data.results || []);
-        } catch (err) {
-            console.error("Failed to load integrations:", err);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => { fetchData(); }, [fetchData]);
-
-    if (loading) {
-        return (
-            <div style={{ textAlign: "center", padding: 60 }}>
-                <FaSpinner className="spin" size={24} />
-            </div>
-        );
-    }
-
-    const tabs = [
-        { key: "logs", label: "Log Providers" },
-        { key: "metrics", label: "Metric Providers" },
-    ];
-
-    return (
-        <div>
-            <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e0e0e0", marginBottom: 20 }}>
-                {tabs.map((t) => (
-                    <button key={t.key} onClick={() => setActiveTab(t.key)}
-                        style={{
-                            padding: "10px 20px", fontSize: 13, fontWeight: 600, border: "none",
-                            borderBottom: activeTab === t.key ? "2px solid var(--primary-color, #e8734a)" : "2px solid transparent",
-                            color: activeTab === t.key ? "var(--primary-color, #e8734a)" : "#666",
-                            backgroundColor: "transparent", cursor: "pointer", marginBottom: -2,
-                        }}>{t.label}</button>
-                ))}
-            </div>
-
-            {activeTab === "logs"    && <LogProviderPanel    integrations={integrations} onRefresh={fetchData} />}
-            {activeTab === "metrics" && <MetricProviderPanel integrations={integrations} onRefresh={fetchData} />}
-        </div>
-    );
 }

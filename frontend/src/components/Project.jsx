@@ -501,7 +501,7 @@ const Project = () => {
               <p className="text-muted small mb-2">
                 {t('projects.environmentsHelp') || 'Select environments for batch creation. Edit branch patterns to match your workflow.'}
               </p>
-              <div className="border rounded" style={{ backgroundColor: '#fff' }}>
+              <div className="border rounded" style={{ backgroundColor: 'var(--bg-card)' }}>
                 {environments.map((env, index) => {
                   const isDefault = ['development', 'staging', 'production'].includes(env.name);
                   return (

@@ -1,4 +1,4 @@
-# SerOps Helm chart values — v1.2.3
+# SerOps Helm chart values — v1.2.4
 #
 # All defaults are safe for a small production deployment (~5 users,
 # 100 batches/day). Scale replicas + resources for larger tenants.

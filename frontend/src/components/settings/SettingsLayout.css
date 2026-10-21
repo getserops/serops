@@ -1575,3 +1575,42 @@
 .settings-subtabs { margin-bottom: 20px; }
 :is(html, :root[data-theme]) .settings-card.settings-card-flush,
 :is(html, :root[data-theme]) .settings-card:has(> .settings-card-body) { padding: 0; }
+
+/* Log / metric providers (ObservabilitySettings): design tokens only, so
+   the rows follow dark mode. */
+.obs-integration-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+}
+.obs-integration-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.obs-scope-pills { display: flex; flex-wrap: wrap; gap: 4px; }
+.obs-unscoped { font-size: 12px; font-style: italic; color: var(--text-tertiary); }
+.obs-status { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+
+/* Integrations: one section header per tab (IntegrationsSectionHeader) */
+.integrations-section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin-bottom: 12px;
+}
+.integrations-section-text { min-width: 0; flex: 1 1 320px; }
+.integrations-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.integrations-section-desc { margin: 2px 0 0; font-size: 13px; color: var(--text-secondary); }

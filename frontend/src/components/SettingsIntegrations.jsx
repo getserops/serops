@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
     Form,
     Button,
@@ -62,6 +63,8 @@ import axios from "axios";
 import ObservabilityService from "../services/observability.service";
 import { LogProviderPanel, MetricProviderPanel } from "./settings/ObservabilitySettings";
 import "./settings/SettingsLayout.css";
+import ChoiceGroup from "./settings/ChoiceGroup";
+import IntegrationsSectionHeader from "./settings/IntegrationsSectionHeader";
 import { usePermissions } from "../utils/permissions";
 
 // Provider configuration with specific credential fields and token URLs
@@ -186,7 +189,10 @@ const TABS = [
 
 const SettingsIntegrations = () => {
     const { t } = useTranslation();
-    const [activeTab, setActiveTab] = useState("scm");
+    // The tab is in the URL (?tab=logs) so it can be linked to and survives a reload.
+    const [searchParams, setSearchParams] = useSearchParams();
+    const activeTab = TABS.some((tb) => tb.key === searchParams.get("tab")) ? searchParams.get("tab") : "scm";
+    const setActiveTab = (key) => setSearchParams(key === "scm" ? {} : { tab: key }, { replace: true });
     const [integrations, setIntegrations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -486,7 +492,7 @@ const SettingsIntegrations = () => {
         }
     };
 
-    const getProvider = (type) => PROVIDERS[type] || { name: type, icon: FaCloud, color: "#666", caps: [], fields: [] };
+    const getProvider = (type) => PROVIDERS[type] || { name: type, icon: FaCloud, color: "var(--text-secondary)", caps: [], fields: [] };
 
     // Get token generation URL for current provider
     const getTokenUrl = useMemo(() => {
@@ -508,24 +514,24 @@ const SettingsIntegrations = () => {
             const isUrlField = field.type === "url";
 
             return (
-                <Form.Group className="mb-3" key={field.name}>
-                    <Form.Label className="d-flex align-items-center justify-content-between">
-                        <span>
+                <Form.Group className="mb-3" key={field.name} controlId={`integration-${field.name}`}>
+                    <div className="d-flex align-items-center justify-content-between">
+                        <Form.Label>
                             {field.label}
                             {!field.required && <span className="text-muted ms-1">(optional)</span>}
-                        </span>
-                        {/* Token generation link for password fields */}
+                        </Form.Label>
+                        {/* Token generation link for password fields (outside the label) */}
                         {field.type === "password" && getTokenUrl && (
                             <a
                                 href={getTokenUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="small text-decoration-none"
+                                className="small text-decoration-none mb-2"
                             >
-                                Generate token <FaExternalLinkAlt size={10} className="ms-1" />
+                                Generate token <FaExternalLinkAlt size={10} className="ms-1" aria-hidden="true" />
                             </a>
                         )}
-                    </Form.Label>
+                    </div>
                     <InputGroup>
                         <Form.Control
                             type={field.type}
@@ -620,15 +626,10 @@ const SettingsIntegrations = () => {
     return (
         <div className="settings-section">
             {/* Header */}
-            <PageHeader title={t("globalIntegrations.title", "Integrations")} subtitle={t("globalIntegrations.subtitle", "Connect your development tools and data sources")} />
-
-            {canManage && (activeTab === "scm" || activeTab === "cicd") && (
-                <div className="d-flex justify-content-end mb-3">
-                    <Button variant="primary" onClick={openAdd}>
-                        <FaPlus className="me-2" />{t("globalIntegrations.addIntegration", "Add Integration")}
-                    </Button>
-                </div>
-            )}
+            <PageHeader
+                title={t("globalIntegrations.title", "Integrations")}
+                subtitle={t("globalIntegrations.subtitle", "Connect your development tools and data sources")}
+            />
 
             {/* Tab Bar */}
             <div className="nav nav-tabs mb-4" role="tablist" data-demo-allowed>
@@ -667,17 +668,23 @@ const SettingsIntegrations = () => {
             {/* ── SCM / CI/CD Cards ── */}
             {(activeTab === "scm" || activeTab === "cicd") && (
                 <>
+                    <IntegrationsSectionHeader
+                        title={t(`globalIntegrations.tabs.${activeTab}`)}
+                        count={filteredIntegrations.length}
+                        description={t(`globalIntegrations.${activeTab}Desc`)}
+                        action={canManage && (
+                            <Button variant="primary" onClick={openAdd}>
+                                <FaPlus aria-hidden="true" />{t("globalIntegrations.addIntegration", "Add Integration")}
+                            </Button>
+                        )}
+                    />
                     {loading ? (
                         <div className="text-center py-5"><Spinner animation="border" variant="primary" /></div>
                     ) : filteredIntegrations.length === 0 ? (
-                        <Card className="text-center py-5 border-0 bg-light">
-                            <Card.Body>
-                                <FaPlug size={48} className="text-muted mb-3" />
-                                <h5>{t("globalIntegrations.noIntegrations", "No integrations yet")}</h5>
-                                <p className="text-muted mb-3">{t("globalIntegrations.getStarted", "Connect your first provider to get started")}</p>
-                                {canManage && <Button variant="primary" onClick={openAdd}><FaPlus className="me-2" />Add Integration</Button>}
-                            </Card.Body>
-                        </Card>
+                        <div className="text-center py-5 text-muted">
+                            <FaPlug size={40} className="mb-2 opacity-50" />
+                            <p>{t("globalIntegrations.noIntegrations", "No integrations yet")}</p>
+                        </div>
                     ) : (
                         <Row>
                             {filteredIntegrations.map((int) => {
@@ -698,21 +705,26 @@ const SettingsIntegrations = () => {
                                                             className="rounded-3 p-2 d-flex align-items-center justify-content-center flex-shrink-0"
                                                             style={{ backgroundColor: `${prov.color}15`, width: 48, height: 48 }}
                                                         >
-                                                            <Icon size={24} style={{ color: prov.color }} />
+                                                            <Icon size={24} style={{ color: prov.color }} aria-hidden="true" />
                                                         </div>
                                                         <div style={{ minWidth: 0 }}>
                                                             <h5 className="mb-0 fw-semibold">{int.name}</h5>
                                                             <div className="d-flex align-items-center flex-wrap gap-2 text-muted small">
-                                                                <a
-                                                                    href={int.base_url || prov.url}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="text-muted text-decoration-none"
-                                                                >
-                                                                    {(int.base_url || prov.url).replace(/^https?:\/\//, '')}
-                                                                    <FaExternalLinkAlt size={10} className="ms-1" />
-                                                                </a>
-                                                                <span>•</span>
+                                                                {/* Providers without a URL (Jenkins) have nothing to link to. */}
+                                                                {(int.base_url || prov.url) && (
+                                                                    <>
+                                                                        <a
+                                                                            href={int.base_url || prov.url}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="text-muted text-decoration-none"
+                                                                        >
+                                                                            {(int.base_url || prov.url).replace(/^https?:\/\//, '')}
+                                                                            <FaExternalLinkAlt size={10} className="ms-1" aria-hidden="true" />
+                                                                        </a>
+                                                                        <span aria-hidden="true">•</span>
+                                                                    </>
+                                                                )}
                                                                 <OverlayTrigger
                                                                     placement="top"
                                                                     overlay={<Tooltip>Created: {new Date(int.created_at).toLocaleString()}</Tooltip>}
@@ -738,8 +750,10 @@ const SettingsIntegrations = () => {
                                                                 variant="link"
                                                                 className="text-muted p-1"
                                                                 style={{ boxShadow: "none" }}
+                                                                aria-label={`Actions for ${int.name}`}
+                                                                title={`Actions for ${int.name}`}
                                                             >
-                                                                <FaEllipsisV size={14} />
+                                                                <FaEllipsisV size={14} aria-hidden="true" />
                                                             </Dropdown.Toggle>
                                                             <Dropdown.Menu>
                                                                 {canManage && (
@@ -854,40 +868,20 @@ const SettingsIntegrations = () => {
                         {/* Provider Selection Grid */}
                         {!isEditing && (
                             <>
-                                <Form.Label className="fw-medium">{t("globalIntegrations.selectProvider", "Select Provider")}</Form.Label>
-                                <Row className="g-2 mb-4">
-                                    {Object.entries(PROVIDERS).map(([k, p]) => {
-                                        const I = p.icon;
-                                        const sel = formData.provider_type === k;
-                                        return (
-                                            <Col key={k} xs={4} md={2}>
-                                                <div
-                                                    className="p-3 rounded-3 text-center position-relative"
-                                                    onClick={() => selectProvider(k)}
-                                                    style={{
-                                                        border: sel ? `2px solid ${p.color}` : "2px solid transparent",
-                                                        backgroundColor: sel ? `${p.color}10` : "#f8f9fa",
-                                                        cursor: "pointer",
-                                                        transition: "all 0.2s"
-                                                    }}
-                                                >
-                                                    {sel && (
-                                                        <div
-                                                            className="position-absolute"
-                                                            style={{ top: -8, right: -8 }}
-                                                        >
-                                                            <Badge bg="primary" className="rounded-circle p-1">
-                                                                <FaCheck size={8} />
-                                                            </Badge>
-                                                        </div>
-                                                    )}
-                                                    <I size={28} style={{ color: p.color }} />
-                                                    <div className="small mt-1 fw-medium">{p.name}</div>
-                                                </div>
-                                            </Col>
-                                        );
-                                    })}
-                                </Row>
+                                {/* Only the providers this tab is about: Jenkins is CI/CD, not source control. */}
+                                <ChoiceGroup
+                                    variant="cards"
+                                    className="mb-3"
+                                    label={t("globalIntegrations.selectProvider", "Select Provider")}
+                                    value={formData.provider_type}
+                                    onChange={selectProvider}
+                                    options={Object.entries(PROVIDERS)
+                                        .filter(([, p]) => p.caps.includes(activeTab === "cicd" ? "cicd" : "scm"))
+                                        .map(([k, p]) => ({
+                                            value: k,
+                                            label: <span className="d-inline-flex align-items-center gap-2">{React.createElement(p.icon, { size: 18, style: { color: p.color }, "aria-hidden": true })}{p.name}</span>,
+                                        }))}
+                                />
 
                                 {/* Capability Matrix (collapsible) */}
                                 <CapabilityMatrix />
@@ -898,7 +892,7 @@ const SettingsIntegrations = () => {
                         <Collapse in={isEditing || showConfigSection}>
                             <div>
                                 {/* Integration Name */}
-                                <Form.Group className="mb-3 mt-4">
+                                <Form.Group className="mb-3 mt-4" controlId="integration-name">
                                     <Form.Label>Integration Name</Form.Label>
                                     <Form.Control
                                         type="text"
@@ -943,7 +937,7 @@ const SettingsIntegrations = () => {
                                 )}
 
                                 {/* Security note */}
-                                <Alert variant="info" className="py-2 d-flex align-items-center gap-2 small border-0" style={{ backgroundColor: "#e7f3ff" }}>
+                                <Alert variant="info" className="py-2 d-flex align-items-center gap-2 small border-0">
                                     <FaLock />
                                     All credentials are encrypted at rest using AES-256 encryption.
                                 </Alert>

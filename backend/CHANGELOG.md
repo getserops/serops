@@ -7,6 +7,10 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-10-21
+
+No backend changes (frontend-only release); image rebuilt at 1.2.4 so versions match.
+
 ## [1.2.3] - 2026-10-20
 
 `UserSerializer.organisation` is the organisation's name (read-only) plus `organisation_id` for login, profile and demo-login; demo-login returns the full serializer (permissions). No migrations.

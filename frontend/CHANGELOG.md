@@ -10,6 +10,10 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-10-21
+
+Fixed: Integrations screens follow dark mode and the design system (ObservabilitySettings `.obs-*` tokens, ChoiceGroup provider pickers, shared `IntegrationsSectionHeader`, `?tab=` in the URL, labelled form controls; 0 axe violations on 69 provider screens). Removed unused `SettingsOrg` and the ObservabilitySettings default export.
+
 ## [1.2.3] - 2026-10-20
 
 Fixed: the sidebar crashed when the stored organisation was an id (after a profile save); General settings guards the same value.
