@@ -1,5 +1,5 @@
 ---
-description: "SerOps is open-source AI root cause analysis: it correlates logs, metrics, traces, deployments and code changes to explain why an incident happened. Self-hosted."
+description: "SerOps is open-source AI root cause analysis: it correlates logs, metrics, traces, deploys and code changes to explain why an incident happened. Self-hosted."
 ---
 # SerOps documentation
 
@@ -118,3 +118,10 @@ keeps analysis affordable and keeps your data out of a third party's hands:
 - [Deployment](deployment/production.md) — Self-hosted deployment guide
 - [Troubleshooting](troubleshooting.md) — Common issues and solutions
 - [Changelog](changelog.md) — What's new
+
+## How SerOps compares
+
+- [SerOps vs K8sGPT](https://serops.ai/compare/k8sgpt) — a cluster scanner vs continuous root cause analysis across your whole stack
+- [SerOps vs HolmesGPT](https://serops.ai/compare/holmesgpt) — an on-demand investigation agent vs continuous, tracked root cause analysis
+- [SerOps vs Coroot](https://serops.ai/compare/coroot) — a new observability platform vs AI analysis on the stack you already run
+- Use cases: [Kubernetes root cause analysis](https://serops.ai/use-cases/kubernetes-root-cause-analysis), [incidents without alerts](https://serops.ai/use-cases/incidents-without-alerts), [self-hosted with Ollama](https://serops.ai/use-cases/self-hosted-aiops-ollama)

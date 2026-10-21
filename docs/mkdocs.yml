@@ -8,7 +8,10 @@ repo_name: getserops/serops
 docs_dir: src
 copyright: >
   Copyright &copy; 2026 SerOps contributors —
-  <a href="/docs/license/">AGPL-3.0</a>
+  <a href="/docs/license/">AGPL-3.0</a> ·
+  <a href="https://serops.ai/">serops.ai</a> ·
+  <a href="https://serops.ai/compare">Compare</a> ·
+  <a href="https://serops.ai/use-cases">Use cases</a>
 
 theme:
   name: material
@@ -103,9 +106,6 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
-
-extra_css:
-  - assets/stylesheets/custom.css
 
 nav:
   - Home: index.md

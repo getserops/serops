@@ -6,14 +6,28 @@
   {%- set doc_title = page.meta.seo_title if page and page.meta and page.meta.seo_title else (page.title if page and page.title else "") -%}
   {%- if page and page.is_homepage %}
     <title>{{ config.site_name }}: open-source AI root cause analysis</title>
-  {%- elif doc_title %}
+  {%- elif doc_title and (doc_title | striptags | length) <= 46 %}
+    {#- Google cuts titles at about 60 characters: the suffix only when it fits. -#}
     <title>{{ doc_title | striptags }} · SerOps docs</title>
+  {%- elif doc_title %}
+    <title>{{ doc_title | striptags }}</title>
   {%- else %}
     <title>{{ config.site_name }}</title>
   {%- endif %}
 {% endblock %}
 
+{#- Material's bundle sits at the end of <body> but still blocks the first
+    paint on slow phones; defer keeps the order and runs it after parsing.
+    Filtering super() keeps Material's own (versioned) bundle name. -#}
+{% block scripts %}
+  {{ super() | replace('<script src=', '<script defer src=') }}
+{% endblock %}
+
 {% block extrahead %}
+  {#- Small site CSS inlined: one render-blocking request fewer. -#}
+  <style>{% include "partials/custom.css" %}</style>
+  {#- The header's GitHub stars/version widget calls the GitHub API. -#}
+  <link rel="preconnect" href="https://api.github.com" crossorigin>
   {#- Redirect stubs set `robots: noindex, follow` in their front matter. -#}
   {%- if page and page.meta and page.meta.robots %}
   <meta name="robots" content="{{ page.meta.robots }}">
