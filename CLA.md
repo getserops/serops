@@ -150,7 +150,7 @@ on the schedule are not covered.
 ## 9. How to accept
 
 Until the repository is public, signatures are handled by email —
-**abdelmalek.awayni@gmail.com** — with the subject `SerOps CLA` and the
+**licensing@serops.ai** — with the subject `SerOps CLA` and the
 following statement:
 
 > I have read the SerOps Contributor License Agreement and I accept it.

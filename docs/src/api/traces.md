@@ -85,7 +85,7 @@ DELETE /api/traces/keys/{id}/
   "name": "prod k8s collector",
   "key_prefix": "serops_otlp_NUku3h",
   "is_active": true,
-  "plaintext": "serops_otlp_NUku3hWkjA4YRsusm-pZAJWnA10M9RROhdAC1EKJjVE",
+  "plaintext": "serops_otlp_NUku3h…(the full key, shown once)",
   "message": "Copy this key now — SerOps will never show it again."
 }
 ```
