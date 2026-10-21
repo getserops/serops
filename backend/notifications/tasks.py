@@ -131,8 +131,7 @@ def _send_escalation_notification(user, issue, level):
             user_email=user.email,
             subject=subject,
             context=context,
-            template_name='critical_issues_notification.html',
-            organisation=issue.project.organisation
+            template_name='critical_issues_notification.html'
         )
         
         if success:
@@ -215,20 +214,12 @@ def process_digest_notifications():
                 'is_digest': True,
             }
             
-            # Resolve organisation from first entry's project
-            org = None
-            for e in entries:
-                if e.project and hasattr(e.project, 'organisation'):
-                    org = e.project.organisation
-                    break
-
             # Use a digest-specific template if available
             send_notification_email(
                 user_email=user.email,
                 subject=subject,
                 context=context,
-                template_name='notification_digest.html',
-                organisation=org
+                template_name='notification_digest.html'
             )
             
             # Mark all as sent
@@ -281,13 +272,11 @@ def retry_failed_notifications():
                 'dashboard_url': dashboard_url,
             }
             
-            org = entry.project.organisation if entry.project else None
             success = send_notification_email(
                 user_email=entry.user.email,
                 subject=entry.subject,
                 context=context,
-                template_name='critical_issues_notification.html',
-                organisation=org
+                template_name='critical_issues_notification.html'
             )
             
             if success:

@@ -38,37 +38,16 @@ def get_email_connection():
     return get_connection()
 
 
-def get_from_email(organisation=None):
-    """Build the From address, optionally with a per-org sender name.
+def get_from_email():
+    """The platform From address (``DEFAULT_FROM_EMAIL``).
 
-    Returns RFC 5322 format (``"Sender Name" <email>``) when a name is
-    available; otherwise the raw ``DEFAULT_FROM_EMAIL``.
-
-    The per-org sender name is a NotificationSettings display label,
-    not an SMTP account — it's safe to keep customer-configurable
-    even in multi-tenant deployments (the actual From-address host
-    is always the platform's).
+    Email delivery channels can override it per channel (``extra_config.from``,
+    see ``notifications.senders.email``).
     """
-    base_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@serops.ai')
-
-    sender_name = ''
-    if organisation:
-        try:
-            from org_settings.models import NotificationSettings
-            ns = NotificationSettings.objects.filter(
-                organisation=organisation
-            ).values_list('sender_name', flat=True).first()
-            if ns:
-                sender_name = ns
-        except Exception:
-            pass
-
-    if sender_name:
-        return f'"{sender_name}" <{base_email}>'
-    return base_email
+    return getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@serops.ai')
 
 
-def send_notification_email(user_email, subject, context, template_name, organisation=None):
+def send_notification_email(user_email, subject, context, template_name):
     """Send an HTML+text email using env-configured SMTP.
 
     Returns True on success, False on failure (logged but not raised —
@@ -78,7 +57,7 @@ def send_notification_email(user_email, subject, context, template_name, organis
         html_content = render_to_string(template_name, context)
         text_content = strip_tags(html_content)
 
-        from_email = get_from_email(organisation)
+        from_email = get_from_email()
         connection = get_email_connection()
 
         email = EmailMultiAlternatives(

@@ -1,15 +1,15 @@
 """
-Notification Dispatcher Service
+Personal notifications for project subscribers.
 
-Central notification decision logic for the multi-tenant email system.
-Handles:
-- Suppression checks (muting, quiet hours, subscriptions)
-- Channel routing (email, Slack, Teams, in-app)
-- Digest queueing
-- Escalation triggering
+A user who subscribes to a project (Profile → Notification preferences) gets
+its issues by email and in the app, filtered by their own severity choices,
+quiet hours and digest frequency. Team-wide delivery (Slack, Teams, PagerDuty,
+Opsgenie, shared mailboxes) is the job of Delivery Channels and Routing Rules
+in ``notifications.incident_dispatcher``; this module never sends to them.
 """
 import logging
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 from django.utils import timezone
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -57,27 +57,17 @@ class NotificationDispatcher:
             NotificationQueue,
             Notification,
         )
-        from org_settings.models import NotificationSettings
-        
         project = issue.project
         if not project:
             logger.warning(f"Issue {issue.id} has no project, skipping notifications")
             return []
-        
-        # Get org settings
-        org_settings = self._get_org_settings(project.organisation)
-        
-        # Check org-level severity filter
-        if issue.severity == 'CRITICAL' and not org_settings.notify_on_critical:
-            logger.debug(f"Org {project.organisation.name} has critical notifications disabled")
-            return []
-        if issue.severity == 'WARNING' and not org_settings.notify_on_warning:
-            logger.debug(f"Org {project.organisation.name} has warning notifications disabled")
-            return []
-        
-        # Get project subscribers (explicit opt-in)
+
+        # Explicit opt-in, and only people who still belong to the project's
+        # organisation: a deactivated or departed user keeps no feed.
         subscriptions = ProjectSubscription.objects.filter(
-            project=project
+            project=project,
+            user__is_active=True,
+            user__organisation_id=project.organisation_id,
         ).select_related('user', 'user__notification_preferences')
         
         notifications_sent = []
@@ -125,10 +115,7 @@ class NotificationDispatcher:
             if prefs.in_app_enabled:
                 result = self._create_in_app_notification(user, issue, batch)
                 notifications_sent.append(result)
-        
-        # Handle webhook notifications (org-level, not per-user)
-        self._send_webhooks(issue, batch, project, org_settings)
-        
+
         logger.info(f"Dispatched {len(notifications_sent)} notifications for issue {issue.id}")
         return notifications_sent
     
@@ -146,12 +133,18 @@ class NotificationDispatcher:
         if issue.muted_until and issue.muted_until > timezone.now():
             return SuppressionResult(True, 'muted_issue')
         
-        # 2. Check severity threshold on subscription
+        # 2. Severity: the user's own choice (Profile) and the subscription's
+        prefs = getattr(user, 'notification_preferences', None)
         if not subscription.should_notify_for_severity(issue.severity):
             return SuppressionResult(True, 'severity_filtered')
-        
+        if prefs and not {
+            'CRITICAL': prefs.notify_critical,
+            'WARNING': prefs.notify_warning,
+            'INFO': prefs.notify_info,
+        }.get((issue.severity or '').upper(), False):
+            return SuppressionResult(True, 'severity_filtered')
+
         # 3. Check quiet hours
-        prefs = getattr(user, 'notification_preferences', None)
         if prefs and prefs.is_quiet_hours_active():
             return SuppressionResult(True, 'quiet_hours')
         
@@ -167,20 +160,6 @@ class NotificationDispatcher:
             return SuppressionResult(True, 'duplicate')
         
         return SuppressionResult(False)
-    
-    def _get_org_settings(self, organisation):
-        """Get or create org notification settings."""
-        from org_settings.models import NotificationSettings
-        
-        settings_obj, _ = NotificationSettings.objects.get_or_create(
-            organisation=organisation,
-            defaults={
-                'email_enabled': True,
-                'notify_on_critical': True,
-                'notify_on_warning': False,
-            }
-        )
-        return settings_obj
     
     def _send_email(self, user, issue, batch, project):
         """Send email notification for an issue."""
@@ -221,8 +200,7 @@ class NotificationDispatcher:
                 user_email=user.email,
                 subject=subject,
                 context=context,
-                template_name='critical_issues_notification.html',
-                organisation=project.organisation
+                template_name='critical_issues_notification.html'
             )
             
             if success:
@@ -258,12 +236,7 @@ class NotificationDispatcher:
     def _queue_for_digest(self, user, issue, batch, project, prefs):
         """Queue notification for digest delivery."""
         from notifications.models import NotificationQueue
-        from org_settings.models import NotificationSettings
-        
-        # Calculate next digest time based on org settings and frequency
-        org_settings = self._get_org_settings(project.organisation)
-        scheduled_for = self._calculate_digest_time(prefs.digest_frequency, org_settings)
-        
+
         NotificationQueue.objects.create(
             user=user,
             issue=issue,
@@ -273,73 +246,34 @@ class NotificationDispatcher:
             severity=issue.severity,
             subject=f"Digest: {issue.issue_type}",
             status='queued_for_digest',
-            scheduled_for=scheduled_for
+            scheduled_for=self._calculate_digest_time(prefs.digest_frequency, prefs.timezone)
         )
-    
-    def _calculate_digest_time(self, frequency, org_settings):
-        """Calculate next digest delivery time."""
-        now = timezone.now()
-        
+
+    DIGEST_HOUR = 9  # daily and weekly digests arrive at 09:00 in the user's time zone
+
+    def _calculate_digest_time(self, frequency, tz_name='UTC', now=None):
+        """Next digest delivery time, or None for immediate delivery."""
+        now = now or timezone.now()
+
         if frequency == 'hourly':
-            # Next hour
             return now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-        elif frequency == 'daily':
-            # Org's configured daily time
-            hour, minute = map(int, org_settings.daily_digest_time.split(':'))
-            next_digest = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-            if next_digest <= now:
-                next_digest += timedelta(days=1)
-            return next_digest
-        elif frequency == 'weekly':
-            # Next Monday at org's daily time
-            hour, minute = map(int, org_settings.daily_digest_time.split(':'))
-            days_until_monday = (7 - now.weekday()) % 7 or 7
-            next_monday = now + timedelta(days=days_until_monday)
-            return next_monday.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if frequency not in ('daily', 'weekly'):
+            return None
+
+        try:
+            tz = ZoneInfo(tz_name or 'UTC')
+        except (KeyError, ValueError):
+            tz = ZoneInfo('UTC')
+        local = now.astimezone(tz)
+        nxt = local.replace(hour=self.DIGEST_HOUR, minute=0, second=0, microsecond=0)
+        if frequency == 'daily':
+            if nxt <= local:
+                nxt += timedelta(days=1)
         else:
-            return None  # immediate
-    
-    def _send_webhooks(self, issue, batch, project, org_settings):
-        """Send Slack/Teams webhook notifications."""
-        from org_settings.webhooks import (
-            send_slack_webhook, format_slack_alert,
-            send_teams_webhook, format_teams_alert
-        )
-        
-        if not batch:
-            return
-        
-        base_url = getattr(settings, 'BASE_URL', 'http://localhost:3000')
-        dashboard_url = f"{base_url}/dash/data/{batch.batch_id}"
-        severity = issue.severity.lower()
-        
-        if org_settings.slack_enabled and org_settings.slack_webhook_url:
-            try:
-                slack_message = format_slack_alert(
-                    batch_id=batch.batch_id,
-                    issues_count=1,
-                    severity=severity,
-                    dashboard_url=dashboard_url
-                )
-                success, error = send_slack_webhook(org_settings.slack_webhook_url, slack_message)
-                if not success:
-                    logger.error(f"Slack webhook failed: {error}")
-            except Exception as e:
-                logger.error(f"Slack webhook error: {e}")
-        
-        if org_settings.teams_enabled and org_settings.teams_webhook_url:
-            try:
-                teams_message = format_teams_alert(
-                    batch_id=batch.batch_id,
-                    issues_count=1,
-                    severity=severity,
-                    dashboard_url=dashboard_url
-                )
-                success, error = send_teams_webhook(org_settings.teams_webhook_url, teams_message)
-                if not success:
-                    logger.error(f"Teams webhook failed: {error}")
-            except Exception as e:
-                logger.error(f"Teams webhook error: {e}")
+            nxt += timedelta(days=(7 - local.weekday()) % 7)
+            if nxt <= local:
+                nxt += timedelta(days=7)
+        return nxt
 
 
 def dispatch_for_batch_issues(batch, issues):

@@ -10,18 +10,17 @@ SerOps provides a comprehensive notification system designed to keep you informe
 
 ```mermaid
 graph TD
-    T[Issue Detected] --> QH{Quiet Hours?}
-    QH -->|No| SEV{Severity Filter}
-    QH -->|Yes| HOLD[Hold for Summary]
-    HOLD --> QE[Quiet Hours End] --> DIGEST[Deliver Summary]
-    SEV -->|Matches Preference| CH{Digest Mode?}
-    SEV -->|Filtered Out| DROP[No Notification]
+    T[Issue Detected] --> SUB{Subscribed to the project?}
+    SUB -->|No| DROP[No Notification]
+    SUB -->|Yes| SEV{Severity Filter}
+    SEV -->|Filtered Out| DROP
+    SEV -->|Matches| QH{Quiet Hours?}
+    QH -->|Yes| DROP
+    QH -->|No| CH{Digest Mode?}
     CH -->|Immediate| SEND[Send Now]
     CH -->|Hourly/Daily/Weekly| BATCH[Queue for Digest]
     SEND --> CHAN{Channel}
     CHAN --> EMAIL[Email]
-    CHAN --> SLACK[Slack]
-    CHAN --> TEAMS[Teams]
     CHAN --> INAPP[In-App]
     SEND --> ACK{Resolved/Muted?}
     ACK -->|No, 15 min| ESC1[Escalation L1<br/>Project Admins]
@@ -38,26 +37,25 @@ Each user can fully customize how and when they receive notifications. Access yo
 ### Channels
 - **Email**: Receive alerts via your registered email address.
 - **In-App**: See notifications in the SerOps dashboard bell icon.
-- **Slack**: Receive alerts via Slack webhook integration.
-- **Microsoft Teams**: Receive alerts via Teams webhook integration.
 
 !!! note "Personal versus organisation-wide"
-    The preferences on this page control *your* delivery. The Slack and
-    Teams destinations themselves are organisation-wide and configured
+    The preferences on this page control *your* delivery. Slack, Teams,
+    PagerDuty, Opsgenie and shared mailboxes are organisation-wide and configured
     by an admin under **Alerts & routing → Delivery Channels**, with
     **Alerts & routing → Routing Rules** deciding which incidents reach them.
     See [Notifications](../admin/notifications.md).
 
 ### Severity Filters
-You can choose which types of issues trigger a notification:
+You can choose which types of issues trigger a notification. Both your
+choice here and the project subscription's must match:
 - **Critical** (Default: ON): Service-impacting outages or failures.
 - **Warning** (Default: ON): Performance degradation or potential risks.
 - **Info** (Default: OFF): General system updates and logs.
 
 ### Quiet Hours
 To prevent burnout, you can configure **Quiet Hours**:
-- Notifications generated during this window are **suppressed** (held back).
-- They will be delivered as a summary items once your quiet hours end.
+- Notifications generated during this window are **suppressed**: they are
+  not sent later. The issue stays on the dashboard and in team channels.
 - You can set your specific Timezone.
 
 ---
@@ -65,8 +63,14 @@ To prevent burnout, you can configure **Quiet Hours**:
 ## Batched Digests
 
 Instead of receiving an email for every single event, you can opt for **Digests**:
-- **Immediate**: Receive alerts as they happen (all Critical issues are always Immediate by default unless Quiet Hours apply).
-- **Hourly/Daily/Weekly**: Receive a single email summary of all non-critical events.
+- **Immediate**: Receive alerts as they happen.
+- **Hourly**: One email at the top of each hour.
+- **Daily**: One email at 09:00 in your time zone.
+- **Weekly**: One email on Monday at 09:00 in your time zone.
+
+Digest frequency applies to every severity, critical included. For on-call
+paging, use an organisation [delivery channel](../admin/notifications.md)
+(PagerDuty, Opsgenie, Slack) rather than a personal digest.
 
 Digest emails include:
 - Summary statistics (X Critical, Y Warning)
@@ -77,10 +81,10 @@ Digest emails include:
 
 ## Project Subscriptions
 
-SerOps uses an **Auto-Subscribe** model to ensure safety:
-1.  **New Users**: Automatically subscribed to all projects they have access to.
-2.  **Management**: You can **Unsubscribe** from specific projects you are not actively monitoring.
-3.  **Optimization**: Unsubscribing stops all notifications (Critical & Warning) for that specific project.
+Personal notifications are **opt-in**: you receive them only for projects you
+subscribe to. Unsubscribing stops all personal notifications for that project.
+Subscriptions stop automatically when your account is deactivated or leaves
+the organisation.
 
 To manage subscriptions:
 - Go to **Notification Preferences > Project Subscriptions**.

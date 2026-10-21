@@ -466,3 +466,140 @@ class IssueAcknowledgmentTests(TestCase):
         issue.refresh_from_db()
         self.assertIsNotNone(issue.acknowledged_at)
         self.assertEqual(issue.acknowledged_by, self.user)
+
+
+class SubscriptionDispatchTests(TestCase):
+    """End to end: a subscriber hears about a project's issues.
+
+    Regression: since the PR-N cleanup the dispatcher imported the retired
+    ``NotificationSettings`` model, so every dispatch raised and no
+    subscriber was ever notified.
+    """
+
+    def setUp(self):
+        from Organisations.models import Organisations
+        from Projects.models import Project
+        from Data.models import AIAnalyzedBatch
+        from notifications.models import ProjectSubscription, UserNotificationPreference
+
+        self.org = Organisations.objects.create(name='Sub Org')
+        self.project = Project.objects.create(name='Sub Project', organisation=self.org)
+        self.batch = AIAnalyzedBatch.objects.create(batch_id='sub_batch_001', project=self.project)
+        self.user = User.objects.create_user(
+            username='sub', email='sub@test.com', password='testpass123',
+            role='user', organisation=self.org, is_active=True,
+        )
+        ProjectSubscription.objects.create(user=self.user, project=self.project)
+        UserNotificationPreference.objects.create(user=self.user)
+
+    def _issue(self, severity='CRITICAL'):
+        from Data.models import Issue
+        return Issue.objects.create(
+            batch=self.batch, project=self.project, severity=severity,
+            status='OPEN', description='Checkout returns 500',
+        )
+
+    @patch('notifications.services.send_notification_email', return_value=True)
+    def test_subscriber_gets_email_and_in_app(self, send):
+        from notifications.dispatcher import dispatch_for_batch_issues
+        from notifications.models import Notification, NotificationQueue
+
+        results = dispatch_for_batch_issues(self.batch, [self._issue()])
+
+        self.assertEqual(
+            sorted(r['channel'] for r in results), ['email', 'in_app'])
+        send.assert_called_once()
+        self.assertEqual(send.call_args.kwargs['user_email'], 'sub@test.com')
+        self.assertEqual(Notification.objects.filter(user=self.user).count(), 1)
+        self.assertEqual(
+            NotificationQueue.objects.get(user=self.user).status, 'sent')
+
+    @patch('notifications.services.send_notification_email', return_value=True)
+    def test_user_who_left_the_organisation_is_not_notified(self, send):
+        from Organisations.models import Organisations
+        from notifications.dispatcher import dispatch_for_batch_issues
+
+        self.user.organisation = Organisations.objects.create(name='Elsewhere')
+        self.user.save()
+
+        self.assertEqual(dispatch_for_batch_issues(self.batch, [self._issue()]), [])
+        send.assert_not_called()
+
+    @patch('notifications.services.send_notification_email', return_value=True)
+    def test_deactivated_user_is_not_notified(self, send):
+        from notifications.dispatcher import dispatch_for_batch_issues
+
+        self.user.is_active = False
+        self.user.save()
+
+        self.assertEqual(dispatch_for_batch_issues(self.batch, [self._issue()]), [])
+        send.assert_not_called()
+
+    @patch('notifications.services.send_notification_email', return_value=True)
+    def test_daily_digest_is_queued_not_sent(self, send):
+        from notifications.dispatcher import dispatch_for_batch_issues
+        from notifications.models import NotificationQueue
+
+        prefs = self.user.notification_preferences
+        prefs.digest_frequency = 'daily'
+        prefs.timezone = 'Europe/Paris'
+        prefs.save()
+
+        dispatch_for_batch_issues(self.batch, [self._issue()])
+
+        send.assert_not_called()
+        entry = NotificationQueue.objects.get(user=self.user)
+        self.assertEqual(entry.status, 'queued_for_digest')
+        self.assertIsNotNone(entry.scheduled_for)
+
+
+    @patch('notifications.services.send_notification_email', return_value=True)
+    def test_warning_turned_off_in_preferences_is_suppressed(self, send):
+        from notifications.dispatcher import dispatch_for_batch_issues
+        from notifications.models import NotificationQueue
+
+        prefs = self.user.notification_preferences
+        prefs.notify_warning = False
+        prefs.save()
+
+        self.assertEqual(dispatch_for_batch_issues(self.batch, [self._issue('WARNING')]), [])
+        send.assert_not_called()
+        self.assertEqual(
+            NotificationQueue.objects.get(user=self.user).suppression_reason, 'severity_filtered')
+
+
+class DigestTimeTests(TestCase):
+    """Daily and weekly digests arrive at 09:00 in the user's time zone."""
+
+    def _at(self, frequency, tz, now):
+        from notifications.dispatcher import NotificationDispatcher
+        return NotificationDispatcher()._calculate_digest_time(frequency, tz, now=now)
+
+    def test_daily_before_nine_is_same_day(self):
+        from datetime import datetime, timezone as dt_tz
+        got = self._at('daily', 'Europe/Paris', datetime(2026, 10, 21, 5, 0, tzinfo=dt_tz.utc))
+        self.assertEqual((got.date().isoformat(), got.hour), ('2026-10-21', 9))
+        self.assertEqual(got.utcoffset().total_seconds(), 7200)  # CEST
+
+    def test_daily_after_nine_is_next_day(self):
+        from datetime import datetime, timezone as dt_tz
+        got = self._at('daily', 'UTC', datetime(2026, 10, 21, 10, 0, tzinfo=dt_tz.utc))
+        self.assertEqual((got.date().isoformat(), got.hour), ('2026-10-22', 9))
+
+    def test_weekly_is_next_monday(self):
+        from datetime import datetime, timezone as dt_tz
+        got = self._at('weekly', 'UTC', datetime(2026, 10, 21, 10, 0, tzinfo=dt_tz.utc))  # Wednesday
+        self.assertEqual((got.date().isoformat(), got.weekday(), got.hour), ('2026-10-26', 0, 9))
+
+    def test_weekly_on_monday_after_nine_is_a_week_later(self):
+        from datetime import datetime, timezone as dt_tz
+        got = self._at('weekly', 'UTC', datetime(2026, 10, 26, 10, 0, tzinfo=dt_tz.utc))
+        self.assertEqual(got.date().isoformat(), '2026-11-02')
+
+    def test_unknown_time_zone_falls_back_to_utc(self):
+        from datetime import datetime, timezone as dt_tz
+        got = self._at('daily', 'Mars/Olympus', datetime(2026, 10, 21, 5, 0, tzinfo=dt_tz.utc))
+        self.assertEqual((got.hour, got.utcoffset().total_seconds()), (9, 0))
+
+    def test_immediate_has_no_time(self):
+        self.assertIsNone(self._at('immediate', 'UTC', None))

@@ -16,6 +16,29 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.2.5] - 2026-10-21
+
+Personal notifications work again. No migrations: set
+`SEROPS_VERSION=1.2.5` or `--version 1.2.5`.
+
+### Fixed
+
+- Personal notifications for subscribed projects (email, in-app and
+  digests) were not being sent since the September 2026 notifications
+  rework. They work again, now also respect your own severity choices, and
+  daily or weekly digests arrive at 09:00 in your time zone. Deactivated
+  users and users who left the organisation no longer receive them. The
+  notifications guide now describes the real behaviour (opt-in
+  subscriptions; quiet hours suppress rather than postpone).
+
+### Changed
+
+- The frontend `.env.example` recommends the relative `VITE_BASE_URL=/api`
+  in production when the app and the API share a host (no CORS setup, one
+  build for any domain).
+
+---
+
 ## [1.2.4] - 2026-10-21
 
 Integrations screens: dark mode, keyboard access and consistency. No

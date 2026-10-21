@@ -7,6 +7,14 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.2.5] - 2026-10-21
+
+No migrations.
+
+### Fixed
+
+- Personal project-subscription notifications (email, in-app, digests) were never sent since the 2026-09 notifications cleanup: `notifications.dispatcher` still imported the retired `NotificationSettings` model and every dispatch raised. The dispatcher now uses only the user's preferences and subscription; team-wide Slack/Teams delivery stays with Delivery Channels and Routing Rules. The user's own severity choices now apply (they were ignored), deactivated users and users who left the organisation are skipped, and daily/weekly digests arrive at 09:00 in the user's time zone. Dead per-org sender-name lookup removed from `notifications.services`.
+
 ## [1.2.4] - 2026-10-21
 
 No backend changes (frontend-only release); image rebuilt at 1.2.4 so versions match.

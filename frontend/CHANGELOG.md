@@ -10,6 +10,10 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.2.5] - 2026-10-21
+
+No frontend code changes; `.env.example` recommends the relative `VITE_BASE_URL=/api` in production. Image rebuilt at 1.2.5 so versions match.
+
 ## [1.2.4] - 2026-10-21
 
 Fixed: Integrations screens follow dark mode and the design system (ObservabilitySettings `.obs-*` tokens, ChoiceGroup provider pickers, shared `IntegrationsSectionHeader`, `?tab=` in the URL, labelled form controls; 0 axe violations on 69 provider screens). Removed unused `SettingsOrg` and the ObservabilitySettings default export.
