@@ -53,7 +53,9 @@ import {
     FaCodeBranch,
     FaStream,
     FaChartLine,
+    FaProjectDiagram,
 } from "react-icons/fa";
+import { SiArgo, SiFlux } from "react-icons/si";
 import { useTranslation } from "react-i18next";
 import PageHeader from './PageHeader';
 
@@ -61,7 +63,7 @@ import { IntegrationService } from "../services/integration.service";
 import { toast } from "react-toastify";
 import axios from "axios";
 import ObservabilityService from "../services/observability.service";
-import { LogProviderPanel, MetricProviderPanel } from "./settings/ObservabilitySettings";
+import { LogProviderPanel, MetricProviderPanel, TraceProviderPanel } from "./settings/ObservabilitySettings";
 import "./settings/SettingsLayout.css";
 import ChoiceGroup from "./settings/ChoiceGroup";
 import IntegrationsSectionHeader from "./settings/IntegrationsSectionHeader";
@@ -130,7 +132,8 @@ const PROVIDERS = {
         color: "#D24939",
         caps: ["cicd", "deployments"],
         url: "",
-        tokenUrl: (baseUrl) => `${baseUrl || ''}/user/admin/configure`,
+        // Jenkins 2.x: API tokens live under the user's Security page.
+        tokenUrl: (baseUrl, _org, creds) => `${baseUrl || ''}/user/${creds?.username || 'me'}/security`,
         tokenHelp: "Create an API Token at User → Configure",
         fields: [
             { name: "base_url", label: "Jenkins URL", type: "url", required: true, placeholder: "https://jenkins.company.com", help: "Your Jenkins server URL" },
@@ -138,7 +141,29 @@ const PROVIDERS = {
             { name: "api_token", label: "API Token", type: "password", required: true, help: "Create at User → Configure → API Token" },
         ],
     },
+    // GitOps controllers send deployments to SerOps: no URL, no credentials.
+    argocd: {
+        name: "Argo CD",
+        icon: SiArgo,
+        color: "#EF7B4D",
+        caps: ["deployments"],
+        receiveOnly: true,
+        url: "",
+        fields: [],
+    },
+    flux: {
+        name: "Flux",
+        icon: SiFlux,
+        color: "#5468FF",
+        caps: ["deployments"],
+        receiveOnly: true,
+        url: "",
+        fields: [],
+    },
 };
+
+// The CI/CD tab lists build tools and the GitOps controllers that deploy.
+const inCicdTab = (p) => p.caps.includes("cicd") || !!p.receiveOnly;
 
 // URL validation regex
 const URL_REGEX = /^https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)+[^\s]*$/;
@@ -185,6 +210,7 @@ const TABS = [
     { key: "cicd", icon: FaSync },
     { key: "logs", icon: FaStream },
     { key: "metrics", icon: FaChartLine },
+    { key: "traces", icon: FaProjectDiagram },
 ];
 
 const SettingsIntegrations = () => {
@@ -249,11 +275,15 @@ const SettingsIntegrations = () => {
         }
     }, [t]);
 
+    // The spinner is for the first load only: a refresh (after Test or Save)
+    // replaced the panel with it and unmounted the open Edit dialog.
+    const obsLoaded = React.useRef(false);
     const fetchObsIntegrations = useCallback(async () => {
         try {
-            setObsLoading(true);
+            if (!obsLoaded.current) setObsLoading(true);
             const data = await ObservabilityService.getAll();
             setObsIntegrations(Array.isArray(data) ? data : data.results || []);
+            obsLoaded.current = true;
         } catch (err) {
             console.error("Failed to load observability integrations:", err);
         } finally {
@@ -501,13 +531,22 @@ const SettingsIntegrations = () => {
 
         const baseUrl = formData.credentials.base_url || provider.url;
         const org = formData.credentials.organization;
-        return provider.tokenUrl(baseUrl, org);
-    }, [formData.provider_type, formData.credentials.base_url, formData.credentials.organization]);
+        return provider.tokenUrl(baseUrl, org, formData.credentials);
+    }, [formData.provider_type, formData.credentials]);
 
     // Render provider-specific fields with enhancements
     const renderProviderFields = () => {
         const provider = PROVIDERS[formData.provider_type];
         if (!provider?.fields) return null;
+        if (provider.receiveOnly) {
+            return (
+                <p className="mb-0 small">
+                    {provider.name} sends deployments to SerOps, so there is nothing to connect to.
+                    Next, add a Deployment pipeline with this integration to the service it deploys:
+                    that gives the webhook URL and secret to put in {provider.name}.
+                </p>
+            );
+        }
 
         return provider.fields.map((field) => {
             const validation = urlValidation[field.name];
@@ -617,7 +656,7 @@ const SettingsIntegrations = () => {
         if (activeTab === "cicd") {
             return integrations.filter((int) => {
                 const prov = PROVIDERS[int.provider_type];
-                return prov && prov.caps.includes("cicd");
+                return prov && inCicdTab(prov);
             });
         }
         return [];
@@ -662,6 +701,15 @@ const SettingsIntegrations = () => {
                     <div className="text-center py-5"><Spinner animation="border" variant="primary" /></div>
                 ) : (
                     <MetricProviderPanel integrations={obsIntegrations} onRefresh={fetchObsIntegrations} />
+                )
+            )}
+
+            {/* ── Trace Providers Tab ── */}
+            {activeTab === "traces" && (
+                obsLoading ? (
+                    <div className="text-center py-5"><Spinner animation="border" variant="primary" /></div>
+                ) : (
+                    <TraceProviderPanel integrations={obsIntegrations} onRefresh={fetchObsIntegrations} />
                 )
             )}
 
@@ -876,7 +924,7 @@ const SettingsIntegrations = () => {
                                     value={formData.provider_type}
                                     onChange={selectProvider}
                                     options={Object.entries(PROVIDERS)
-                                        .filter(([, p]) => p.caps.includes(activeTab === "cicd" ? "cicd" : "scm"))
+                                        .filter(([, p]) => (activeTab === "cicd" ? inCicdTab(p) : p.caps.includes("scm")))
                                         .map(([k, p]) => ({
                                             value: k,
                                             label: <span className="d-inline-flex align-items-center gap-2">{React.createElement(p.icon, { size: 18, style: { color: p.color }, "aria-hidden": true })}{p.name}</span>,
@@ -902,10 +950,12 @@ const SettingsIntegrations = () => {
                                         onChange={handleInputChange}
                                         required
                                     />
+                                    {!PROVIDERS[formData.provider_type]?.receiveOnly && (
                                     <Form.Text className="text-muted">
                                         <FaInfoCircle size={10} className="me-1" />
                                         Tip: Enter a URL below and we'll auto-suggest a name
                                     </Form.Text>
+                                    )}
                                 </Form.Group>
 
                                 {/* Provider-specific fields */}
@@ -937,19 +987,26 @@ const SettingsIntegrations = () => {
                                 )}
 
                                 {/* Security note */}
+                                {!PROVIDERS[formData.provider_type]?.receiveOnly && (
                                 <Alert variant="info" className="py-2 d-flex align-items-center gap-2 small border-0">
                                     <FaLock />
-                                    All credentials are encrypted at rest using AES-256 encryption.
+                                    Credentials are encrypted at rest (Fernet: AES-128 with HMAC-SHA256).
                                 </Alert>
+                                )}
                             </div>
                         </Collapse>
 
                         <div className="d-flex justify-content-between gap-2 mt-4">
-                            {/* Test Connection Button */}
+                            {/* Test Connection Button (nothing to test for a GitOps controller) */}
+                            {PROVIDERS[formData.provider_type]?.receiveOnly ? <span /> : (
                             <Button
                                 variant="outline-secondary"
                                 onClick={handleTestConnection}
-                                disabled={testingConnection || !formData.credentials.access_token}
+                                // Jenkins calls its token api_token and Bitbucket app_password
+                                // (both mapped to access_token on save); checking only
+                                // access_token left the button disabled for them.
+                                disabled={testingConnection || !(formData.credentials.access_token
+                                    || formData.credentials.api_token || formData.credentials.app_password)}
                                 className="d-flex align-items-center gap-2"
                             >
                                 {testingConnection ? (
@@ -958,6 +1015,7 @@ const SettingsIntegrations = () => {
                                     <><FaFlask />Test Connection</>
                                 )}
                             </Button>
+                            )}
 
                             <div className="d-flex gap-2">
                                 <Button variant="light" onClick={() => setShowModal(false)} className="px-4">{t("common.cancel", "Cancel")}</Button>

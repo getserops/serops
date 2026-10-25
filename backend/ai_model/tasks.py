@@ -1403,21 +1403,31 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                 # === END NOTIFICATION DISPATCH ===
 
                 # Outbound incident notifications — Slack / Teams /
-                # PagerDuty / OpsGenie (Items #22 + #23). Runs after
-                # in-app dispatch, wrapped so a broken channel never
-                # fails RCA. Fires on `batch_analyzed`; alert-triggered
-                # runs additionally fire `alert_triggered` via
-                # Data.tasks.analyze_alert_ondemand.
+                # PagerDuty / OpsGenie / email (Items #22 + #23). Runs after
+                # in-app dispatch, wrapped so a broken channel never fails
+                # RCA. One analysis is one incident: every event that
+                # applies goes in one dispatch, so a channel gets one
+                # message. Alert-triggered runs used to notify from
+                # analyze_alert_ondemand before the AI had run ("INFO,
+                # 0 issues"), then again here.
                 try:
                     from notifications.incident_dispatcher import dispatch as _incident_dispatch
                     if route:
-                        _incident_dispatch(batch, event='batch_analyzed')
-                    # Only surface `critical_issue` event when there IS one.
-                    if route and any(
-                        (getattr(i, 'severity', '') or '').upper() == 'CRITICAL'
-                        for i in Issue.objects.filter(occurrences__batch=batch).distinct()
-                    ):
-                        _incident_dispatch(batch, event='critical_issue')
+                        events = ['batch_analyzed']
+                        # Only an issue that just became critical pages:
+                        # an ongoing one re-reported every batch did so
+                        # every 5 minutes.
+                        if any(
+                            i.is_newly_critical(batch)
+                            for i in Issue.objects.filter(occurrences__batch=batch).distinct()
+                        ):
+                            events.append('critical_issue')
+                        alert_event = None
+                        if batch.trigger == AIAnalyzedBatch.TRIGGER_ALERT:
+                            events.append('alert_triggered')
+                            from Data.models import AlertEvent
+                            alert_event = AlertEvent.objects.filter(triggered_batch=batch).first()
+                        _incident_dispatch(batch, event=events, alert_event=alert_event)
                 except Exception as e:
                     logger.warning(f"Incident notification dispatch failed for batch {batch_id}: {e}")
 
@@ -1777,9 +1787,16 @@ def reanalyze_batch_with_model(self, batch_id, model_name, mode='compare'):
         for log in logs[:100]:  # Limit to 100 logs
             source = log.get('_source', {})
             timestamp = source.get('@timestamp', '')
-            level = source.get('log_level', '').upper() or 'UNKNOWN'
+            level = (source.get('log_level') or source.get('level') or '').upper() or 'UNKNOWN'
             message = source.get('message', '')
-            component = source.get('service', {}).get('name', source.get('component', 'unknown'))
+            # ``service`` is an ECS object only for Elasticsearch-shaped logs; Loki,
+            # Splunk, Datadog... store a plain string (and ``level``, not
+            # ``log_level``). Reading it as a dict crashed every re-analysis.
+            service = source.get('service')
+            if isinstance(service, dict):
+                component = service.get('name') or source.get('component', 'unknown')
+            else:
+                component = source.get('service_name') or service or source.get('component', 'unknown')
             log_strings.append(f"[{timestamp}] [{level}] [{component}] {message}")
         
         # Prepare batch data for prompt

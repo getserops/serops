@@ -14,7 +14,7 @@ Elasticsearch is a distributed search and analytics engine used as a log provide
 
 ## Prerequisites
 
-- Elasticsearch 7.x or 8.x
+- Elasticsearch 7.17 or later (tested: 7.17.25, 8.15.3 — see [Compatibility](compatibility.md))
 - Network access from the SerOps backend to the Elasticsearch cluster
 - A user or API key with read permissions on the target indices
 
@@ -233,6 +233,22 @@ kubectl exec -n serops deploy/serops-backend -- \
 
 All five fields should report `ok`. Anything missing points at the filter
 that should have set it, in the order above.
+
+### Docker runtime
+
+The Fluent Bit configuration above is written for containerd. On nodes
+that use the Docker runtime (cri-dockerd, minikube's default driver), log
+files are Docker JSON; let the tail input try that parser first:
+
+```ini
+[INPUT]
+    Name              tail
+    Tag               kube.*
+    Path              /var/log/containers/*.log
+    multiline.parser  docker, cri
+```
+
+The same applies when shipping to OpenSearch or to Splunk through HEC.
 
 ## Troubleshooting
 

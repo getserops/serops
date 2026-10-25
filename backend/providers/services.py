@@ -252,6 +252,12 @@ class IntegrationHealthService:
             'details': None,
         }
 
+        if self.integration.provider_type in self.integration.GITOPS_PROVIDERS:
+            # Receive-only: healthy by definition, nothing to call.
+            result['healthy'] = True
+            result['details'] = {'receive_only': True}
+            return result
+
         try:
             from providers.scm_providers import (
                 get_provider, get_cicd_provider,

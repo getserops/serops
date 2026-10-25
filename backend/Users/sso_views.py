@@ -11,6 +11,7 @@ from knox.models import AuthToken
 from django.shortcuts import redirect
 from django.core import signing
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,40 @@ def _sso_settings_for(org_id):
     return SecuritySettings.objects.filter(
         organisation_id=org_id, sso_enabled=True, sso_provider='oidc',
     ).first()
+
+
+def _domain(email):
+    return email.rsplit('@', 1)[-1].lower() if '@' in email else ''
+
+
+def normalise_domains(value):
+    """A sorted list of distinct lower-case domains, from a list or a
+    comma-separated string; None when one is not a domain."""
+    if isinstance(value, str):
+        value = value.split(',')
+    if not isinstance(value, (list, tuple)):
+        return None
+    domains = set()
+    for item in value:
+        domain = str(item).strip().lower().lstrip('@')
+        if not domain:
+            continue
+        if not re.fullmatch(r'[a-z0-9-]+(\.[a-z0-9-]+)+', domain):
+            return None
+        domains.add(domain)
+    return sorted(domains)
+
+
+def _sso_settings_for_domain(email):
+    """The SSO settings of the one organisation that claims ``email``'s
+    domain. Two organisations claiming the same domain get neither: which
+    one a stranger belongs to cannot be guessed."""
+    domain = _domain(email)
+    if not domain:
+        return None
+    matches = [s for s in SecuritySettings.objects.filter(sso_enabled=True, sso_provider='oidc')
+               .exclude(sso_domains=[]) if domain in (s.sso_domains or [])]
+    return matches[0] if len(matches) == 1 else None
 
 
 def _sso_service(sec_settings):
@@ -50,6 +85,7 @@ class SSOConfigView(APIView):
             "sso_provider": sec_settings.sso_provider,  # 'oidc' or 'none'
             "sso_client_id": sec_settings.sso_client_id,
             "sso_discovery_url": sec_settings.sso_discovery_url,
+            "sso_domains": sec_settings.sso_domains or [],
             "sso_client_secret_configured": bool(sec_settings.sso_client_secret_encrypted),
             # What the admin registers at the identity provider.
             "sso_redirect_uri": f"{settings.API_URL}/auth/sso/callback",
@@ -71,6 +107,11 @@ class SSOConfigView(APIView):
         if sec_settings.sso_provider == 'oidc':
             sec_settings.sso_client_id = data.get('sso_client_id', sec_settings.sso_client_id)
             sec_settings.sso_discovery_url = data.get('sso_discovery_url', sec_settings.sso_discovery_url)
+            if 'sso_domains' in data:
+                domains = normalise_domains(data['sso_domains'])
+                if domains is None:
+                    return Response({"error": "sso_domains must be email domains, like example.com"}, status=400)
+                sec_settings.sso_domains = domains
             # Only update secret if provided
             if data.get('sso_client_secret'):
                 sec_settings.set_client_secret(data['sso_client_secret'])
@@ -102,18 +143,23 @@ class SSOInitView(APIView):
             return Response({"error": "Email is required"}, status=400)
 
         unavailable = Response({"error": SSO_UNAVAILABLE}, status=400)
-        user = User.objects.filter(email__iexact=email, is_active=True, is_demo=False).first()
-        if not user or not user.organisation_id:
-            return unavailable
-        sec_settings = _sso_settings_for(user.organisation_id)
+        if User.objects.filter(email__iexact=email).exists():
+            user = User.objects.filter(email__iexact=email, is_active=True, is_demo=False).first()
+            if not user or not user.organisation_id:
+                return unavailable
+            sec_settings = _sso_settings_for(user.organisation_id)
+        else:
+            # Not a user yet: the organisation that claims the domain.
+            sec_settings = _sso_settings_for_domain(email)
         if not sec_settings:
             return unavailable
+        org_id = sec_settings.organisation_id
 
         try:
-            state = signing.dumps({'org_id': user.organisation_id})
+            state = signing.dumps({'org_id': org_id})
             auth_url, _ = _sso_service(sec_settings).get_authorization_url(state=state)
         except Exception:
-            logger.exception("SSO init failed for org %s", user.organisation_id)
+            logger.exception("SSO init failed for org %s", org_id)
             return Response(
                 {"error": "Could not reach the identity provider. Ask your administrator to check the SSO settings."},
                 status=502,
@@ -163,6 +209,9 @@ class SSOCallbackView(APIView):
             return failed
 
         user = User.objects.filter(email__iexact=email).first()
+        if user is None and sec_settings.sso_domains and _domain(email) not in sec_settings.sso_domains:
+            logger.warning("SSO callback: %s is outside org %s's SSO domains", _domain(email), org_id)
+            return failed
         if user is None:
             user = User.objects.create(
                 email=email,

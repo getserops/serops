@@ -230,11 +230,14 @@ export const SettingsService = {
     /**
      * Test AI connection
      */
-    testAIConnection: async (providerName, apiKey = null) => {
+    testAIConnection: async (providerName, apiKey = null, baseUrl = null) => {
         try {
             const payload = { provider_name: providerName };
             if (apiKey) {
                 payload.api_key = apiKey;
+            }
+            if (baseUrl) {
+                payload.base_url = baseUrl;
             }
             const response = await axios.post(
                 `${API_BASE_URL}/ai/test/`,
@@ -339,7 +342,7 @@ export const SettingsService = {
      */
     saveAPIKey: async (providerId, apiKey, baseUrl = null) => {
         try {
-            const payload = { provider_id: providerId, api_key: apiKey };
+            const payload = { provider_id: providerId, api_key: apiKey || '' };
             if (baseUrl) {
                 payload.base_url = baseUrl;
             }

@@ -158,6 +158,24 @@ class ReanalyseModeCompareTest(_BatchFixture):
         self.assertEqual(entry['mode'], 'compare')
 
 
+class ReanalyseNonEcsLogsTest(_BatchFixture):
+    """Batches from Loki / Splunk / Datadog store ``service`` as a string and
+    ``level`` instead of ``log_level``; re-analysis used to crash on them."""
+
+    def test_loki_shaped_logs(self):
+        self.batch.data = {'logs': [{'_source': {
+            '@timestamp': '2026-10-23T20:00:00Z', 'level': 'ERROR', 'service': 'payments',
+            'service_name': 'payments', 'message': 'pool exhausted',
+        }}], 'metrics_summary': {}}
+        self.batch.save()
+        with _fake_ai_stack('{"correlated_issues": []}') as _, \
+                patch('ai_model.tasks.generate_text_unified',
+                      return_value=('{"correlated_issues": []}', None, 1, 1)) as gen:
+            reanalyze_batch_with_model.run(self.batch.batch_id, 'claude', mode='compare')
+        prompt = str(gen.call_args)
+        self.assertIn('[ERROR] [payments] pool exhausted', prompt)
+
+
 class ReanalyseModePrimaryTest(_BatchFixture):
     """New mode — promotes result to primary AND creates Issues."""
 

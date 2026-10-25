@@ -137,6 +137,28 @@ class DispatcherRoutingWalkTest(TestCase):
         r = self._run_dispatch()
         self.assertEqual(r['sent'], 2, r)
 
+    def test_one_message_per_incident_for_several_events(self):
+        """An alert-triggered analysis with a critical issue matches both rules;
+        the channel gets one message, not one per event."""
+        self._rule('critical', [self.email], event_types=['critical_issue'])
+        self._rule('alerts', [self.email], event_types=['alert_triggered'])
+        r = self._run_dispatch(event=['batch_analyzed', 'critical_issue', 'alert_triggered'])
+        self.assertEqual(r['sent'], 1, r)
+
+    def test_several_events_still_respect_rule_filters(self):
+        self._rule('alerts-only', [self.email], event_types=['alert_triggered'])
+        r = self._run_dispatch(event=['batch_analyzed', 'critical_issue'])
+        self.assertEqual(r['sent'], 0, r)
+
+    def test_incident_link_uses_react_url(self):
+        """The chart sets REACT_URL, never SEROPS_PUBLIC_BASE_URL."""
+        from django.test import override_settings
+        from notifications.incident_dispatcher import _incident_url
+
+        class B: batch_id = 'shop-batch-1'
+        with override_settings(REACT_URL='https://serops.example.com/'):
+            self.assertEqual(_incident_url(B()), 'https://serops.example.com/dash/data/details/shop-batch-1')
+
     def test_rule_severity_filter_excludes_channel(self):
         # LOW-severity rule against a CRITICAL payload: rule doesn't match,
         # so the channel isn't included.

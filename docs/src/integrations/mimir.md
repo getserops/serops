@@ -14,7 +14,7 @@ Grafana Mimir is a horizontally scalable, highly available, long-term storage so
 
 ## Prerequisites
 
-- Grafana Mimir 2.x or later
+- Grafana Mimir 2.x (tested: 2.14.2 — see [Compatibility](compatibility.md))
 - Network access from the SerOps backend to the Mimir endpoint
 - Valid credentials (basic auth or tenant ID)
 - Tenant ID if using multi-tenant mode

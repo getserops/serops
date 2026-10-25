@@ -25,12 +25,12 @@ class TestParallelBatchProcessing(TestCase):
             name="test-org"
         )
 
-    def _create_test_project(self, name, num_environments=3):
+    def _create_test_project(self, name, num_environments=3, es_index_name=None):
         """Helper to create a project with environments and services"""
         project = Project.objects.create(
             name=name,
             organisation=self.org,
-            es_index_name=f"ci_cd-logs-project-{name}"
+            es_index_name=f"ci_cd-logs-project-{name}" if es_index_name is None else es_index_name,
         )
 
         # Create a service to pass the "no services" check
@@ -92,6 +92,29 @@ class TestParallelBatchProcessing(TestCase):
             self.assertEqual(result['status'], 'parallel_execution_started')
             self.assertEqual(result['total_tasks'], 10)
             self.assertEqual(result['group_id'], 'test-group-id-123')
+
+    @patch('Data.tasks.IntegrationRegistry')
+    @patch('providers.tasks.sync_recent_deployments')
+    def test_project_without_es_index_is_scheduled(self, mock_sync, mock_registry):
+        """
+        A project created in the UI on a Loki/Datadog/CloudWatch install has
+        no es_index_name (that legacy field is only set when an Elasticsearch
+        index can be created). It must still get batches when its log
+        provider discovers data for it.
+        """
+        mock_provider = Mock()
+        mock_provider.get_indices.return_value = ['loki:{project_name="shop"}']
+        mock_provider.client.cat.indices.return_value = []
+        mock_registry.get_log_provider_for_org.return_value = mock_provider
+        self._create_test_project('shop', num_environments=1, es_index_name='')
+        Project.objects.filter(name='shop').update(es_index_name=None)
+
+        with patch('celery.group') as mock_group:
+            mock_group.return_value.apply_async.return_value = Mock(id='g')
+            result = create_batches_for_all_projects()
+
+        self.assertEqual(result['total_tasks'], 1)
+        self.assertEqual(len(mock_group.call_args[0][0]), 1)
 
     @patch('Data.tasks.IntegrationRegistry')
     @patch('providers.tasks.sync_recent_deployments')

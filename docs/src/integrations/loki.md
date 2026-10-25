@@ -14,7 +14,7 @@ Grafana Loki is a horizontally scalable, highly available log aggregation system
 
 ## Prerequisites
 
-- Grafana Loki 2.x or later
+- Grafana Loki 2.9 or later (tested: 2.9.10, 3.2.1 — see [Compatibility](compatibility.md))
 - Network access from the SerOps backend to the Loki endpoint
 - Valid credentials (basic auth or bearer token)
 - Tenant ID if using multi-tenant mode
@@ -167,6 +167,20 @@ The report shows whether Loki streams have `service_name` / `project_name` /
 `environment` as labels. Note that `log_level` is reported from SerOps'
 line parsing, not from a Loki label, so it reads as present even though the
 config above never sets it.
+
+### Docker runtime
+
+The configuration above is written for containerd, where the kubelet
+writes CRI-format log lines. On nodes that use the Docker runtime (cri-dockerd,
+minikube's default driver), the lines are Docker JSON and the `cri` stage
+leaves them wrapped (`{"log":"...","stream":"stdout",...}`). Add a `docker`
+stage after it, which unwraps them:
+
+```yaml
+    pipeline_stages:
+      - cri: {}
+      - docker: {}
+```
 
 ## Health Check
 

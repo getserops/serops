@@ -222,25 +222,37 @@ class LokiLogProvider(LogProvider):
 
     def get_indices(self, project) -> List[str]:
         """
-        Discover available label values for 'app' label.
-        In Loki, "indices" map to stream selectors identified by labels.
+        Discover the streams that belong to ``project``.
+
+        The scheduler skips a project when this returns nothing, so it must
+        recognise the labels our docs tell Loki users to set: canonical
+        ``project_name`` / ``service_name``. It used to look only at the
+        legacy ``app`` label, which the documented Promtail config does not
+        produce, so a docs-compliant Loki install was never analysed (found
+        by the journey suite, launch plan 9.9). Returns the project's
+        ``service_name`` values; falls back to ``app`` values for
+        pre-canonical setups. The batch query itself is built from
+        LogQuery (canonical labels), not from these values.
         """
+        name = getattr(project, 'name', None)
         try:
-            resp = self._session.get(
-                f"{self.base_url}/loki/api/v1/label/app/values",
-                timeout=self.timeout_seconds,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
-            if data.get("status") != "success":
-                return []
-
-            return data.get("data", [])
-
+            if name and name in self._label_values('project_name'):
+                selector = '{project_name="%s"}' % name.replace('"', '\\"')
+                return self._label_values('service_name', selector) or [name]
+            return self._label_values('app')
         except RequestException as exc:
             logger.warning("Loki get_indices failed: %s", exc)
             return []
+
+    def _label_values(self, label: str, selector: Optional[str] = None) -> List[str]:
+        resp = self._session.get(
+            f"{self.base_url}/loki/api/v1/label/{label}/values",
+            params={'query': selector} if selector else None,
+            timeout=self.timeout_seconds,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("data", []) if data.get("status") == "success" else []
 
     # ------------------------------------------------------------------
     # Internal helpers

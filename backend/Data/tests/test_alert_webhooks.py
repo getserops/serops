@@ -238,3 +238,16 @@ class AnalyzeAlertOndemandTest(TestCase):
         self.assertTrue(mock_pipeline.called)
         event.refresh_from_db()
         self.assertIsNotNone(event.processed_at)
+
+
+class AlertmanagerLabelTest(TestCase):
+    """Rules copy the canonical labels our metrics docs set (service_name)."""
+
+    def test_service_name_label_is_the_service(self):
+        from Data.alert_webhooks import _parse_alertmanager
+        parsed = _parse_alertmanager({'alerts': [{
+            'status': 'firing', 'fingerprint': 'f1',
+            'labels': {'alertname': 'PaymentsErrors', 'service_name': 'payments', 'environment': 'production'},
+            'annotations': {}}]})
+        self.assertEqual(parsed[0]['service'], 'payments')
+        self.assertEqual(parsed[0]['environment'], 'production')

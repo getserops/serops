@@ -107,6 +107,31 @@ class TraceContextNativeTest(TestCase):
         # Error span surfaced with message.
         self.assertEqual(summary['top_errors'][0]['status_message'], 'timeout')
 
+    def test_batch_time_range_is_the_window(self):
+        # An investigation over 12:00-12:10 analysed two hours later still
+        # reads the traces of its own window, not the interval before it.
+        batch = _fake_batch(self.project, self.window_end + timedelta(hours=2))
+        batch.data = {'statistics': {'time_range': {
+            'start': '2026-09-04T12:00:00Z', 'end': '2026-09-04T12:10:00Z'}}}
+        summary = build_trace_context(batch)
+        self.assertIsNotNone(summary)
+        self.assertEqual(summary['trace_count'], 1)
+
+    def test_a_service_that_never_roots_a_trace_gets_its_traces(self):
+        """payments is called by a frontend outside the project: its traces
+        are rooted elsewhere, and the analysis used to get none (journey suite)."""
+        from Projects.models import Project, ProjectService
+        backend = Project.objects.create(organisation=self.org, name='backend-only')
+        ProjectService.objects.create(project=backend, name='db', service_type='application')
+        Span.objects.create(
+            trace=self.trace, span_id='3' * 16, parent_span_id='1' * 16,
+            service_name='db', operation_name='SELECT',
+            start_time=self.trace.start_time, end_time=self.trace.end_time,
+            duration_ms=20, status_code='OK')
+        summary = build_trace_context(_fake_batch(backend, self.window_end))
+        self.assertIsNotNone(summary)
+        self.assertIn('db', summary['services_touched'])
+
     def test_none_batch_returns_none(self):
         self.assertIsNone(build_trace_context(None))
 

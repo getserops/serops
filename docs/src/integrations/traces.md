@@ -165,8 +165,8 @@ IDs.
 
 If you already ship traces to Jaeger, Zipkin, or Datadog APM and don't
 want to change your pipeline, SerOps can **pull** traces from them at
-RCA time instead of receiving them via OTLP. Configure a trace
-provider under *Integrations*:
+RCA time instead of receiving them via OTLP. Add one under
+**Settings → Integrations → Trace Providers → Add trace provider**:
 
 | Provider       | Host / endpoint                        | Auth                       |
 |----------------|----------------------------------------|----------------------------|

@@ -7,6 +7,11 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.2.6] - 2026-10-25
+
+See the full notes in docs/src/changelog.md (journey-suite fixes, Argo CD / Flux integrations, SSO sign-in domains).
+Migrations: providers 0015-0017, Users 0013.
+
 ## [1.2.5] - 2026-10-21
 
 No migrations.

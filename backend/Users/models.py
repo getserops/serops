@@ -151,6 +151,14 @@ class SecuritySettings(models.Model):
     sso_client_id = models.CharField(max_length=255, blank=True, null=True, help_text="OIDC Client ID")
     sso_client_secret_encrypted = models.TextField(blank=True, null=True)
     sso_discovery_url = models.URLField(blank=True, null=True, help_text="OIDC Discovery URL")
+    # Email domains whose people sign in with this organisation's SSO even
+    # before they have an account. Without them SSO started only from an
+    # existing user's email, so everyone had to be invited first (journey
+    # suite, B29).
+    sso_domains = models.JSONField(
+        default=list, blank=True,
+        help_text="Email domains (example.com) that may sign in with SSO without an invitation",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

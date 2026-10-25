@@ -139,9 +139,11 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
         try {
             const payload = {
                 provider_name: providerName,
-                // Only send the key when the provider needs one — for
-                // Ollama the backend will pull config from the DB.
+                // Only send the key when the provider needs one. The Base
+                // URL typed here is what gets tested (Ollama on another
+                // host used to be tested at localhost).
                 ...(requiresKey ? { api_key: apiKey } : {}),
+                ...(baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
             };
             const { data } = await apiClient.post('/settings/ai/test/', payload);
             setTestResult({
@@ -162,15 +164,16 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
         setError(null);
         setSaving(true);
         try {
-            if (requiresKey) {
-                // Two-step: (1) save the encrypted key, (2) set default
-                // provider so batch analysis actually uses it. Skip the
-                // key POST for Ollama (no key to store; setting the
-                // default is enough for the computed detector to flip).
+            if (requiresKey || baseUrl.trim()) {
+                // Two-step: (1) save the key and/or Base URL, (2) set the
+                // default provider so batch analysis actually uses it.
+                // Ollama has no key, but its Base URL must be stored: the
+                // wizard used to drop it, and every analysis then called
+                // localhost:11434 (journey suite, C3).
                 await apiClient.post('/settings/api-keys/', {
                     provider_id: providerId,
-                    api_key: apiKey,
-                    ...(baseUrl ? { base_url: baseUrl } : {}),
+                    ...(requiresKey ? { api_key: apiKey } : {}),
+                    ...(baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
                 });
             }
             await apiClient.put('/settings/ai/', { default_provider: providerId });

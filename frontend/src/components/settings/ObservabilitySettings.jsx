@@ -27,11 +27,15 @@ import {
     SiDatadog,
     SiAmazonwebservices,
     SiOpensearch,
+    SiSplunk,
+    SiGooglecloud,
+    SiJaeger,
 } from "react-icons/si";
 import {
     FaChartLine, FaCheck, FaTimes, FaSpinner, FaPlug, FaTrash,
-    FaServer, FaPlus, FaEdit, FaTag, FaGlobe, FaCube,
+    FaServer, FaPlus, FaEdit, FaTag, FaGlobe, FaCube, FaMicrosoft, FaProjectDiagram,
 } from "react-icons/fa";
+import { describeRequestError } from "../../utils/apiError";
 import ObservabilityService from "../../services/observability.service";
 import ClusterService from "../../services/cluster.service";
 import ChoiceGroup from "./ChoiceGroup";
@@ -67,6 +71,19 @@ const PROVIDERS = {
             { name: "extra_config.tenant_id", label: "Tenant ID", placeholder: "default" },
         ],
     },
+    // Splunk, Google Cloud and Azure Monitor were only in the onboarding
+    // wizard (journey suite, B14).
+    splunk: {
+        name: "Splunk", icon: SiSplunk, color: "#65A637",
+        capabilities: ["logs"],
+        fields: [
+            { name: "host", label: "Splunk management URL", type: "url", placeholder: "https://splunk:8089", required: true },
+            { name: "password", label: "Auth token", type: "password", placeholder: "Splunk → Settings → Tokens", required: true },
+            { name: "extra_config.index", label: "Index", placeholder: "main" },
+            // Self-signed management certificates are common on Splunk Enterprise.
+            { name: "extra_config.verify_ssl", label: "Verify TLS certificate", type: "checkbox", defaultChecked: true },
+        ],
+    },
     prometheus: {
         name: "Prometheus", icon: SiPrometheus, color: "#E6522C",
         capabilities: ["metrics"],
@@ -75,13 +92,6 @@ const PROVIDERS = {
             { name: "username", label: "Username", placeholder: "optional" },
             { name: "password", label: "Password", type: "password" },
             { name: "extra_config.bearer_token", label: "Bearer Token", type: "password", placeholder: "For Grafana Cloud, Thanos, etc." },
-        ],
-    },
-    promscale: {
-        name: "Promscale", icon: SiPrometheus, color: "#4E73DF",
-        capabilities: ["metrics"],
-        fields: [
-            { name: "host", label: "Promscale URL", type: "url", placeholder: "http://promscale:9201", required: true },
         ],
     },
     victoriametrics: {
@@ -107,7 +117,7 @@ const PROVIDERS = {
     },
     datadog: {
         name: "Datadog", icon: SiDatadog, color: "#632CA6",
-        capabilities: ["logs", "metrics"],
+        capabilities: ["logs", "metrics", "traces"],
         fields: [
             { name: "host", label: "Datadog Site", placeholder: "datadoghq.com", required: true },
             { name: "extra_config.api_key", label: "API Key", type: "password", required: true },
@@ -123,7 +133,61 @@ const PROVIDERS = {
             { name: "password", label: "Secret Access Key", type: "password", required: true },
         ],
     },
+    gcp: {
+        name: "Google Cloud", icon: SiGooglecloud, color: "#4285F4",
+        capabilities: ["logs", "metrics"],
+        fields: [
+            { name: "extra_config.project_id", label: "Project ID", placeholder: "my-project", required: true },
+            { name: "password", label: "Service account key (JSON)", type: "password", placeholder: "Paste the key file's JSON", required: true },
+        ],
+    },
+    azure: {
+        name: "Azure Monitor", icon: FaMicrosoft, color: "#0078D4",
+        capabilities: ["logs", "metrics"],
+        fields: [
+            { name: "extra_config.tenant_id", label: "Tenant ID", required: true },
+            { name: "extra_config.client_id", label: "Client ID", required: true },
+            { name: "password", label: "Client secret", type: "password", required: true },
+            { name: "extra_config.workspace_id", label: "Log Analytics workspace ID", placeholder: "For logs" },
+            { name: "extra_config.default_resource_uri", label: "Default resource URI", placeholder: "For metrics (optional)" },
+        ],
+    },
+    // Trace stores SerOps pulls from (traces.md). OTLP sent to SerOps
+    // needs no provider. There was no way to add these in Settings (B16).
+    jaeger: {
+        name: "Jaeger", icon: SiJaeger, color: "#66CFE3",
+        capabilities: ["traces"],
+        fields: [
+            { name: "host", label: "Jaeger query URL", type: "url", placeholder: "http://jaeger-query:16686", required: true },
+            { name: "username", label: "Username", placeholder: "optional" },
+            { name: "password", label: "Password", type: "password" },
+            { name: "extra_config.bearer_token", label: "Bearer Token", type: "password" },
+        ],
+    },
+    zipkin: {
+        name: "Zipkin", icon: FaProjectDiagram, color: "#FE7139",
+        capabilities: ["traces"],
+        fields: [
+            { name: "host", label: "Zipkin URL", type: "url", placeholder: "http://zipkin:9411", required: true },
+            { name: "username", label: "Username", placeholder: "optional" },
+            { name: "password", label: "Password", type: "password" },
+            { name: "extra_config.bearer_token", label: "Bearer Token", type: "password" },
+        ],
+    },
+    tempo: {
+        name: "Grafana Tempo", icon: SiGrafana, color: "#F46800",
+        capabilities: ["traces"],
+        fields: [
+            { name: "host", label: "Tempo URL", type: "url", placeholder: "http://tempo:3200", required: true },
+            { name: "extra_config.tenant_id", label: "Tenant ID", placeholder: "optional" },
+            { name: "username", label: "Username", placeholder: "optional" },
+            { name: "password", label: "Password", type: "password" },
+            { name: "extra_config.bearer_token", label: "Bearer Token", type: "password" },
+        ],
+    },
 };
+
+const CAP_LABELS = { logs: "log", metrics: "metric", traces: "trace" };
 
 // Chip tones from the design system (styles/design.css · Badges).
 const TIER_META = {
@@ -155,11 +219,8 @@ function setNestedValue(obj, path, value) {
 /* ─── Small display atoms ────────────────────────────────────────────── */
 
 function CapBadge({ cap }) {
-    return (
-        <span className={`ds-chip ${cap === "logs" ? "ds-chip-ok" : "ds-chip-info"}`}>
-            {cap === "logs" ? "Logs" : "Metrics"}
-        </span>
-    );
+    const tone = { logs: "ds-chip-ok", metrics: "ds-chip-info", traces: "ds-chip-brand" }[cap] || "ds-chip-neutral";
+    return <span className={`ds-chip ${tone}`}>{cap.charAt(0).toUpperCase() + cap.slice(1)}</span>;
 }
 
 function StatusBadge({ status }) {
@@ -201,6 +262,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
     const [enabledCaps, setEnabledCaps] = useState([capability]);
     const [clusterId, setClusterId] = useState(null);
     const [tier, setTier] = useState("primary");
+    const [topology, setTopology] = useState("vm");
     const [scope, setScope] = useState({ environment: "", region: "", namespace: "" });
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
@@ -218,6 +280,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
             setEnabledCaps(integration.capabilities || [capability]);
             setClusterId(integration.cluster ?? null);
             setTier(integration.priority_tier || "primary");
+            setTopology(integration.topology_mode || "vm");
             setScope({
                 environment: integration.scope?.environment || "",
                 region: integration.scope?.region || "",
@@ -233,6 +296,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
             setEnabledCaps([capability]);
             setClusterId(null);
             setTier("primary");
+            setTopology("vm");
             setScope({ environment: "", region: "", namespace: "" });
             setForm({});
         }
@@ -284,6 +348,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                 extra_config: form.extra_config || {},
                 cluster: clusterId,
                 priority_tier: tier,
+                topology_mode: topology,
                 scope: {
                     environment: scope.environment || "",
                     region: scope.region || "",
@@ -302,14 +367,9 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
             onSaved();
             onHide();
         } catch (err) {
-            const data = err.response?.data;
-            const msg = data?.detail
-                || data?.provider?.[0]
-                || data?.capabilities?.[0]
-                || data?.non_field_errors?.[0]
-                || data?.scope?.namespace?.[0]
-                || "Failed to save integration";
-            toast.error(msg);
+            // Any field's reason (a duplicate provider, a second primary):
+            // only a few were read, so some failures said nothing (B15).
+            toast.error(describeRequestError(err, "Failed to save integration"));
         } finally {
             setSaving(false);
         }
@@ -342,7 +402,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
             <Modal.Header closeButton>
                 <Modal.Title>
                     {isEdit ? `Edit ${PROVIDERS[integration.provider]?.name || 'integration'}`
-                            : `New ${capability === 'logs' ? 'log' : 'metric'} provider`}
+                            : `New ${CAP_LABELS[capability]} provider`}
                 </Modal.Title>
             </Modal.Header>
             <Modal.Body>
@@ -414,7 +474,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                             <Form.Group controlId="obs-namespace">
                                 <Form.Label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}>
                                     <FaCube size={10} style={{ marginRight: 4 }} />Namespace
-                                    {!clusterId && <span style={{ marginLeft: 4, fontSize: 9, color: "var(--text-tertiary)" }}>(needs cluster)</span>}
+                                    {!clusterId && <>{" "}<span style={{ fontSize: 9, color: "var(--text-tertiary)" }}>(needs cluster)</span></>}
                                 </Form.Label>
                                 <Form.Control size="sm" type="text" placeholder="payments"
                                     value={scope.namespace}
@@ -422,6 +482,18 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                                     onChange={(e) => setScope({ ...scope, namespace: e.target.value })} />
                             </Form.Group>
                         </div>
+
+                        {/* How metric queries group series (docs: Topology Mode). It
+                            was API-only although the docs point here (B3). */}
+                        {enabledCaps.includes("metrics") && (
+                            <Form.Group controlId="obs-topology" style={{ marginBottom: 12 }}>
+                                <Form.Label style={{ fontSize: 12, fontWeight: 600 }}>Topology mode</Form.Label>
+                                <Form.Select value={topology} onChange={(e) => setTopology(e.target.value)} size="sm">
+                                    <option value="vm">VM / bare metal: host-level metrics</option>
+                                    <option value="kubernetes">Kubernetes: container metrics grouped by service</option>
+                                </Form.Select>
+                            </Form.Group>
+                        )}
 
                         {/* Capabilities toggles for dual-cap providers */}
                         {providerMeta.capabilities.length > 1 && (
@@ -431,7 +503,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                                     <label key={cap} style={{ marginRight: 14, cursor: "pointer", fontSize: 13 }}>
                                         <input type="checkbox" checked={enabledCaps.includes(cap)}
                                             onChange={() => toggleCap(cap)} style={{ marginRight: 4 }} />
-                                        {cap === "logs" ? "Log Provider" : "Metric Provider"}
+                                        {{ logs: "Log Provider", metrics: "Metric Provider", traces: "Trace Provider" }[cap]}
                                     </label>
                                 ))}
                             </div>
@@ -439,6 +511,15 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
 
                         {/* Provider-specific connection fields */}
                         {providerMeta.fields.map((field) => {
+                            if (field.type === "checkbox") {
+                                const value = getNestedValue(form, field.name);
+                                return (
+                                    <Form.Check key={field.name} id={`obs-${field.name}`} type="checkbox" style={{ marginBottom: 12 }}
+                                        label={field.label}
+                                        checked={value === "" || value === undefined ? !!field.defaultChecked : !!value}
+                                        onChange={(e) => handleFieldChange(field.name, e.target.checked)} />
+                                );
+                            }
                             const isSecret = field.type === "password";
                             const hasStoredValue = isSecret && isEdit && (
                                 field.name === "password"
@@ -557,12 +638,14 @@ function ProviderPanel({ capability, integrations, onRefresh }) {
     return (
         <div>
             <IntegrationsSectionHeader
-                title={capability === "logs" ? "Log Providers" : "Metric Providers"}
+                title={{ logs: "Log Providers", metrics: "Metric Providers", traces: "Trace Providers" }[capability]}
                 count={rows.length}
-                description="Ordered by priority tier. The batch pipeline tries primary first, then fallback, then tertiary."
+                description={capability === "traces"
+                    ? "Trace stores SerOps pulls from. Traces sent to SerOps over OTLP need no provider."
+                    : "Ordered by priority tier. The batch pipeline tries primary first, then fallback, then tertiary."}
                 action={canManage && (
                     <Button variant="primary" onClick={openCreate}>
-                        <FaPlus aria-hidden="true" /> Add {capability === "logs" ? "log" : "metric"} provider
+                        <FaPlus aria-hidden="true" /> Add {CAP_LABELS[capability]} provider
                     </Button>
                 )}
             />
@@ -570,8 +653,8 @@ function ProviderPanel({ capability, integrations, onRefresh }) {
             {rows.length === 0 ? (
                 <div className="text-center py-5 text-muted">
                     <FaPlug size={40} className="mb-2 opacity-50" />
-                    <p>No {capability === "logs" ? "log" : "metric"} providers configured yet.</p>
-                    <p className="small">Using system default until you add one.</p>
+                    <p>No {CAP_LABELS[capability]} providers configured yet.</p>
+                    <p className="small">{capability === "traces" ? "Traces sent over OTLP are still used." : "Using system default until you add one."}</p>
                 </div>
             ) : (
                 <div>
@@ -601,4 +684,7 @@ export function LogProviderPanel({ integrations, onRefresh }) {
 }
 export function MetricProviderPanel({ integrations, onRefresh }) {
     return <ProviderPanel capability="metrics" integrations={integrations} onRefresh={onRefresh} />;
+}
+export function TraceProviderPanel({ integrations, onRefresh }) {
+    return <ProviderPanel capability="traces" integrations={integrations} onRefresh={onRefresh} />;
 }

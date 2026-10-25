@@ -89,9 +89,15 @@ class ArgoCDDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
         # Some ArgoCD event templates omit operationState (health-change
         # events, for example). We treat "Synced" alone as sufficient
         # when phase is absent, but reject explicit failures.
+        # A succeeded operation is the deploy, whatever the app's sync status
+        # reads by the time the notification is rendered: right after a sync
+        # it can already be OutOfSync (live drift, a mutating webhook), and
+        # with oncePer Argo CD never sends that revision again, so the deploy
+        # was lost (found by the journey suite). The status only decides
+        # when there is no operation state.
         if phase and phase != _ARGO_PHASE_OK:
             raise _PayloadError(f'Ignored: operation phase is "{phase}" (not Succeeded)')
-        if sync_status and sync_status != _ARGO_SYNC_OK:
+        if not phase and sync_status and sync_status != _ARGO_SYNC_OK:
             raise _PayloadError(f'Ignored: sync status is "{sync_status}" (not Synced)')
 
         # 2. Extract commit SHA — ArgoCD's revision is the git sha for
@@ -99,7 +105,10 @@ class ArgoCDDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
         # record git-sha deployments (7-64 hex); non-git sources
         # (Helm charts) fall through to the parent's validation and
         # 400 cleanly.
-        commit_sha = str(sync.get('revision') or '').strip()
+        # The revision the operation deployed, else the app's current one.
+        op_revision = ((op_state.get('syncResult') or {}).get('revision')
+                       or ((op_state.get('operation') or {}).get('sync') or {}).get('revision'))
+        commit_sha = str(op_revision or sync.get('revision') or '').strip()
         if not commit_sha:
             raise _PayloadError('sync.revision is empty; nothing to record')
 

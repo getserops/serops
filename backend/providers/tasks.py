@@ -595,12 +595,12 @@ def sync_recent_deployments(hours: int = 2):
                     
                     # Ensure Pipeline record exists
                     pipeline, pipeline_created = Pipeline.objects.get_or_create(
+                        organisation=gitlab_project.organisation,  # Multi-tenancy isolation
                         pipeline_id=pipeline_id,
                         defaults={
                             'project': gitlab_project,
                             'status': status,
                             'branch': branch,
-                            'organisation': gitlab_project.organisation  # Multi-tenancy isolation
                         }
                     )
                     
@@ -708,6 +708,7 @@ def sync_recent_deployments(hours: int = 2):
 
                         # Ensure Pipeline record
                         pipeline, pipeline_created = Pipeline.objects.get_or_create(
+                            organisation=binding.project_service.project.organisation,
                             pipeline_id=p_id,
                             cicd_provider=binding.provider_type,
                             defaults={
@@ -846,6 +847,7 @@ def fetch_jenkins_builds_for_binding(binding_id: int):
         pipeline_id = f"{job_name}-{build['number']}"
 
         _, created = Pipeline.objects.get_or_create(
+            organisation=binding.project_service.project.organisation,
             pipeline_id=pipeline_id,
             cicd_provider='jenkins',
             defaults={

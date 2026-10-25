@@ -10,6 +10,10 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.2.6] - 2026-10-25
+
+See the full notes in docs/src/changelog.md (journey-suite fixes, Argo CD / Flux integrations, SSO sign-in domains).
+
 ## [1.2.5] - 2026-10-21
 
 No frontend code changes; `.env.example` recommends the relative `VITE_BASE_URL=/api` in production. Image rebuilt at 1.2.5 so versions match.

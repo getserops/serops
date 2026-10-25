@@ -21,9 +21,15 @@ side.
 
 ## Prerequisites
 
-You need a `CICDBinding` on the project service you're deploying.
-See *Integrations → CI/CD* to create one. The
-binding's numeric ID goes in the webhook URL.
+1. Add an **Argo CD** or **Flux** integration in *Settings → Integrations*.
+   It needs no URL or credentials: the controller sends events to SerOps,
+   and SerOps never calls it.
+2. On the project service you deploy, add a CI/CD pipeline with that
+   integration, type **Deployment**. Setting up its webhook shows the URL
+   (with the binding's numeric ID) and the secret to use below.
+
+A binding on a GitLab, GitHub, Bitbucket, Azure DevOps or Jenkins
+integration works too, if that is where the service is built.
 
 ## ArgoCD
 
@@ -70,14 +76,26 @@ data:
     - description: Application synced successfully
       send: [app-sync-status]
       when: app.status.operationState != nil and app.status.operationState.phase in ['Succeeded']
+      oncePer: app.status.sync.revision
 
   template.app-sync-status: |
     webhook:
       serops:
         method: POST
         body: |
-          {{ toJson . }}
+          {"app": {{ toJson .app }}, "context": {{ toJson .context }}}
 ```
+
+Two lines matter here:
+
+- **`oncePer: app.status.sync.revision`** sends one notification per synced
+  revision. Without it Argo CD notifies once per Application and then logs
+  "already sent" for every later sync, so SerOps hears only about the first
+  deploy.
+- **The body sends `app` and `context`**, which is what SerOps reads.
+  `{{ toJson . }}` renders an empty body on Argo CD 2.13 (the root context
+  also holds template functions and cannot be serialised), and SerOps
+  answers `JSON parse error`.
 
 Then in each `Application` resource:
 

@@ -30,7 +30,7 @@ at your own:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.2.5 \
+  --version 1.2.6 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set database.url="postgres://serops:PASSWORD@your-pg-host:5432/serops" \
@@ -45,7 +45,7 @@ For a lab or demo cluster, let the chart run Postgres and Redis itself:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.2.5 \
+  --version 1.2.6 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set devServices.postgresql.enabled=true \
@@ -148,6 +148,9 @@ backend:
   replicaCount: 3
 celeryWorker:
   replicaCount: 5
+  # Restarts a worker that stops answering `celery inspect ping` (on by default).
+  livenessProbe:
+    enabled: true
 
 database:
   existingSecret: serops-db-secret   # key: database-url
@@ -196,6 +199,16 @@ ingress:
 alertSecrets:
   existingSecret: serops-alert-secrets
     # keys: alertmanager, grafana, datadog
+
+# Outgoing email: account activation, password reset, invitations and
+# notifications. Without a host, SerOps sends no email.
+smtp:
+  existingSecret: serops-smtp   # keys: smtp-password (smtp-user etc. optional)
+  host: smtp.company.io
+  port: 587
+  security: starttls   # starttls (587), ssl (465) or none (plain relay)
+  user: serops@company.io
+  fromEmail: serops@company.io
 
 # Auto-scrape /metrics with Prometheus Operator.
 serviceMonitor:

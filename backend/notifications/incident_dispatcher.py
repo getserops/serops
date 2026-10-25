@@ -79,7 +79,7 @@ def _is_permanent_failure(err_msg: str) -> bool:
 
 def dispatch(
     batch,
-    event: str = 'batch_analyzed',
+    event='batch_analyzed',
     alert_event=None,
 ) -> dict:
     """
@@ -87,7 +87,11 @@ def dispatch(
 
     Args:
         batch: AIAnalyzedBatch (already analyzed).
-        event: One of IncidentNotificationChannel.TRIGGER_CHOICES codes.
+        event: One of IncidentNotificationChannel.TRIGGER_CHOICES codes,
+            or several of them: a rule matches if it matches any, and each
+            channel is still contacted once. One analysis is one incident,
+            so the caller passes every event that applies in one call
+            instead of sending one message per event.
         alert_event: Optional AlertEvent (populated for
             alert-triggered analyses so the payload can link back
             to the originating alert).
@@ -138,12 +142,13 @@ def _dispatch(batch, event: str, alert_event) -> dict:
         .prefetch_related('targets')
         .order_by('priority', 'name')
     )
+    events = [event] if isinstance(event, str) else list(event)
     matched_channel_ids: set[int] = set()
     for rule in rules:
-        if rule.matches(
-            event=event, severity=top_severity,
+        if any(rule.matches(
+            event=ev, severity=top_severity,
             environment=environment, service=project_name,
-        ):
+        ) for ev in events):
             matched_channel_ids.update(rule.targets.values_list('pk', flat=True))
 
     if not matched_channel_ids:
@@ -240,6 +245,7 @@ def _build_payload(batch, alert_event) -> dict:
 
     root_cause = getattr(top_issue, 'root_cause', '') if top_issue else ''
     recommendation = getattr(top_issue, 'recommendation', '') if top_issue else ''
+    issues = _top_issues(batch)
 
     if alert_event is not None:
         title = f'Alert analyzed — {alert_event.alertname}'
@@ -257,6 +263,7 @@ def _build_payload(batch, alert_event) -> dict:
         'issue_count': issue_count,
         'root_cause': root_cause,
         'recommendation': recommendation,
+        'issues': issues,
         'incident_url': incident_url,
         'alert_event_id': getattr(alert_event, 'pk', None) if alert_event else None,
     }
@@ -264,8 +271,9 @@ def _build_payload(batch, alert_event) -> dict:
 
 def _top_issue(batch):
     try:
-        # Severity CRITICAL > HIGH > MEDIUM > LOW; then newest first.
-        return batch.issues.order_by('severity', '-created_at').first()
+        from Data.issue_order import root_cause_first
+        ordered = root_cause_first(batch.issues.all())
+        return ordered[0] if ordered else None
     except Exception:
         return None
 
@@ -277,10 +285,25 @@ def _issue_count(batch) -> int:
         return 0
 
 
+def _top_issues(batch, limit=5) -> list:
+    """The batch's issues, root cause first, as plain dicts for senders."""
+    try:
+        from Data.issue_order import root_cause_first
+        return [
+            {'severity': i.severity, 'component': i.component or '', 'description': i.description or ''}
+            for i in root_cause_first(batch.issues.all())[:limit]
+        ]
+    except Exception:
+        return []
+
+
 def _incident_url(batch) -> str:
-    """Build a UI deep-link if PUBLIC_BASE_URL is set; else empty."""
+    """UI deep link to the analysis. REACT_URL is the public URL the chart
+    already sets (activation emails use it); SEROPS_PUBLIC_BASE_URL is the
+    older name, which the chart never set, so links were always empty."""
     import os
-    base = os.getenv('SEROPS_PUBLIC_BASE_URL', '').rstrip('/')
+    from django.conf import settings
+    base = (os.getenv('SEROPS_PUBLIC_BASE_URL') or getattr(settings, 'REACT_URL', None) or '').rstrip('/')
     if not base or not getattr(batch, 'batch_id', None):
         return ''
-    return f'{base}/dash/issues/{batch.batch_id}'
+    return f'{base}/dash/data/details/{batch.batch_id}'

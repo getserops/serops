@@ -30,7 +30,7 @@
   <body>
     <h3>Account Activation</h3>
     <br />
-    <p>Hello {{user.last_name}},</p>
+    <p>Hello{% if user.first_name %} {{ user.first_name }}{% endif %},</p>
     <br />
     <p>
       Thank you for choosing SerOps! Please activate your account by clicking

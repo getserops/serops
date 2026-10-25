@@ -1,4 +1,5 @@
 import axios from "axios";
+import { describeRequestError } from "../utils/apiError";
 
 const BACKEND_HOST = import.meta.env.VITE_BASE_URL;
 const API_BASE_URL = BACKEND_HOST;
@@ -700,6 +701,25 @@ export const ProjectService = {
     }
   },
 
+  // An application service with no repository connected (B4).
+  AddApplicationService: async (projectId, serviceData) => {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/projects/${projectId}/services/`,
+        {
+          service_type: "application",
+          name: serviceData.name,
+          description: serviceData.description || "",
+          status: "Active",
+        },
+        getAuthHeader()
+      );
+      return response.data;
+    } catch (error) {
+      return { error: describeRequestError(error, "Failed to create service") };
+    }
+  },
+
   // Infrastructure Services Methods
   AddInfraService: async (projectId, serviceData) => {
     try {
@@ -743,7 +763,7 @@ export const ProjectService = {
   SyncSCMBinding: async (bindingId) => {
     try {
       const response = await axios.post(
-        `${API_BASE_URL}/scm-bindings/${bindingId}/sync/`,
+        `${API_BASE_URL}/projects/scm-bindings/${bindingId}/sync/`,
         {},
         getAuthHeader()
       );
@@ -757,7 +777,7 @@ export const ProjectService = {
   SetupSCMWebhook: async (bindingId) => {
     try {
       const response = await axios.post(
-        `${API_BASE_URL}/scm-bindings/${bindingId}/setup-webhook/`,
+        `${API_BASE_URL}/projects/scm-bindings/${bindingId}/setup-webhook/`,
         {},
         getAuthHeader()
       );
@@ -772,7 +792,7 @@ export const ProjectService = {
   addCICDBinding: async (serviceId, bindingData) => {
     try {
       const response = await axios.post(
-        `${API_BASE_URL}/cicd-bindings/`,
+        `${API_BASE_URL}/projects/cicd-bindings/`,
         {
           project_service: serviceId,
           integration: bindingData.integration_id,
@@ -793,7 +813,7 @@ export const ProjectService = {
   deleteCICDBinding: async (bindingId) => {
     try {
       const response = await axios.delete(
-        `${API_BASE_URL}/cicd-bindings/${bindingId}/`,
+        `${API_BASE_URL}/projects/cicd-bindings/${bindingId}/`,
         getAuthHeader()
       );
       return response.data;

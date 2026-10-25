@@ -277,14 +277,14 @@ class DispatcherTest(TestCase):
         b.organisation = self.org
         b.project = self.project
         b.environment = 'production'
-        # Fake .issues queryset — dispatcher only calls .order_by().first()
-        # and .count().
+        # Fake .issues queryset — dispatcher only calls .all() (ordered by
+        # Data.issue_order.root_cause_first) and .count().
         issue = MagicMock()
         issue.severity = 'HIGH'
         issue.root_cause = 'x'
         issue.recommendation = 'y'
         qs = MagicMock()
-        qs.order_by.return_value.first.return_value = issue
+        qs.all.return_value = [issue]
         qs.count.return_value = 1
         b.issues = qs
         return b

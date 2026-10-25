@@ -231,7 +231,7 @@ class CICDBindingSerializer(OrganisationScopedBindingMixin, serializers.ModelSer
         integration = data.get('integration')
         if integration:
             # CI/CD providers include both dedicated and SCM+CI providers
-            cicd_providers = ['gitlab', 'github', 'azure_devops', 'jenkins', 'bitbucket']
+            cicd_providers = ['gitlab', 'github', 'azure_devops', 'jenkins', 'bitbucket', 'argocd', 'flux']
             if integration.provider_type not in cicd_providers:
                 raise serializers.ValidationError({
                     'integration': f'Integration must support CI/CD. Got: {integration.provider_type}'

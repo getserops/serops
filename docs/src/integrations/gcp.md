@@ -28,6 +28,8 @@ Google Cloud Operations (formerly Stackdriver) covers both **Cloud Logging** and
 
 ## Configuration
 
+In the UI: **Settings → Integrations → Log Providers (or Metric Providers) → Add**, then pick the provider. The same fields through the API:
+
 ```json
 {
   "provider": "gcp",

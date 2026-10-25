@@ -41,6 +41,19 @@ import {
 
 import apiClient from '../../../services/api-client';
 
+// Each store's own address, not an Elasticsearch one for all (E5).
+const HOST_PLACEHOLDERS = {
+    elasticsearch: 'http://elasticsearch:9200',
+    opensearch: 'https://opensearch:9200',
+    loki: 'http://loki:3100',
+    splunk: 'https://splunk:8089',
+    datadog: 'datadoghq.com',
+};
+
+// What a source without logs is for, in the provider list: trace stores were
+// all labelled "metrics only" (E4).
+const notLogsLabel = (caps) => (caps.includes('metrics') ? 'metrics only' : 'traces only');
+
 const LOGS_ONLY_WARNING =
     "SerOps needs at least one logs-capable source to run AI analysis. " +
     "You can add metric-only sources later for correlation.";
@@ -261,7 +274,8 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                     setTestResult(null);
                                 }}
                             >
-                                {providers.map((p) => {
+                                {/* Promscale was discontinued in 2023 (E6). */}
+                                {providers.filter((p) => p.code !== 'promscale').map((p) => {
                                     const supportsLogs = p.capabilities.includes('logs');
                                     return (
                                         <MenuItem
@@ -270,7 +284,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                             disabled={!supportsLogs}
                                         >
                                             {p.name}
-                                            {!supportsLogs && ' (metrics only — not usable here)'}
+                                            {!supportsLogs && ` (${notLogsLabel(p.capabilities)}: add it later in Settings → Integrations)`}
                                         </MenuItem>
                                     );
                                 })}
@@ -325,7 +339,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                     label="Host URL"
                                     value={host}
                                     onChange={(e) => setHost(e.target.value)}
-                                    placeholder="https://es.example.com:9200"
+                                    placeholder={HOST_PLACEHOLDERS[providerCode] || 'https://host:port'}
                                     helperText="Provider endpoint. Not needed for AWS, Google Cloud or Azure."
                                 />
 

@@ -8,7 +8,7 @@ Connect Jenkins pipelines to SerOps for build and deployment tracking.
 
 ## Prerequisites
 
-- Jenkins Server (v2.0+)
+- Jenkins LTS (tested: 2.541.3 — see [Compatibility](compatibility.md))
 - User with API Token
 - Network access from SerOps to Jenkins URL
 
@@ -102,7 +102,8 @@ pipeline {
                     "job_name": "${env.JOB_NAME}",
                     "build_number": "${env.BUILD_NUMBER}",
                     "status": "${currentBuild.result}",
-                    "branch": "${env.GIT_BRANCH}"
+                    "branch": "${env.GIT_BRANCH ?: ''}",
+                    "environment": "production"
                 }"""
             )
         }
@@ -110,13 +111,18 @@ pipeline {
 }
 ```
 
+Set `environment` to where this job deploys (`production`, `staging`, ...).
+Without it SerOps guesses from the job and branch names (see
+[Environment Mapping](#environment-mapping)); a job that is not built from
+Git has no `GIT_BRANCH`, and its deploys were recorded as `development`.
+
 > **Note**: Set `SEROPS_BINDING_ID` and `SEROPS_WEBHOOK_TOKEN` as Jenkins credentials or environment variables from your CI/CD binding in SerOps.
 
 ---
 
 ## Environment Mapping
 
-SerOps detects environments from Jenkins job/branch names:
+When the payload has no `environment`, SerOps detects it from Jenkins job/branch names:
 
 | Pattern | Environment |
 |---------|-------------|

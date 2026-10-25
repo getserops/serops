@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { describeRequestError, NETWORK_ERROR, SERVER_ERROR } from '../apiError';
+import { describeRequestError, NETWORK_ERROR, SERVER_ERROR, RATE_LIMITED } from '../apiError';
 
 // The login form used to fall back to "Invalid credentials" for ANY axios
 // failure, so a CORS block, an unreachable backend and a genuinely wrong
@@ -42,5 +42,21 @@ describe('describeRequestError', () => {
 
   it('handles a null error without throwing', () => {
     expect(describeRequestError(null, REJECTED)).toBe(NETWORK_ERROR);
+  });
+
+  it('says when a request was rate limited, and for how long', () => {
+    const err = { response: { status: 429, data: { detail: 'Request was throttled. Expected available in 3412 seconds.' } } };
+    expect(describeRequestError(err, REJECTED)).toBe('Too many attempts. Try again in 57 minutes.');
+    expect(describeRequestError({ response: { status: 429, data: {} } }, REJECTED)).toBe(RATE_LIMITED);
+  });
+
+  it("uses the server's detail text", () => {
+    const err = { response: { status: 403, data: { detail: 'You do not have permission to perform this action.' } } };
+    expect(describeRequestError(err, REJECTED)).toBe('You do not have permission to perform this action.');
+  });
+
+  it('shows the first validation error of a 400', () => {
+    const err = { response: { status: 400, data: { user: { email: ['user with this email already exists.'] } } } };
+    expect(describeRequestError(err, REJECTED)).toBe('user with this email already exists.');
   });
 });

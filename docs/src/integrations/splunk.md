@@ -15,12 +15,14 @@ Splunk Enterprise and Splunk Cloud both work as SerOps log providers. SerOps use
 
 ## Prerequisites
 
-- Splunk Enterprise 8.x+ or Splunk Cloud
+- Splunk Enterprise 8.2 or later (tested: 8.2.12, 9.3.2), or Splunk Cloud (not yet tested) — see [Compatibility](compatibility.md)
 - Network access from the SerOps backend to your Splunk management port (default `8089`)
 - A **Splunk auth token** with search access — create one under **Settings → Tokens** and copy the token value (you only see it once)
 - Optional: a dedicated search user + role so the token can be scoped to specific indexes / apps
 
 ## Configuration
+
+In the UI: **Settings → Integrations → Log Providers → Add**, then pick the provider. The same fields through the API:
 
 ```json
 {
@@ -37,6 +39,8 @@ Splunk Enterprise and Splunk Cloud both work as SerOps log providers. SerOps use
   }
 }
 ```
+
+`verify_ssl` is **Verify TLS certificate** in the UI: turn it off only for a self-signed management port.
 
 !!! warning "Password field is the auth token"
     Store the Splunk auth token in the `password` field, not the `username` field. It is encrypted at rest with Fernet (same treatment as every other credential) and used as `Authorization: Bearer <token>` on every API request.

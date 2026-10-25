@@ -38,14 +38,18 @@ import {
 
 import apiClient from '../../../services/api-client';
 
-// Providers whose provider_type maps to CI/CD. Matches
-// CICD_PROVIDER_CHOICES in providers/models.py.
+// Integration types a CI/CD binding accepts (ProviderIntegration.provider_type,
+// as CICDBindingSerializer.validate checks it). This listed the Pipeline
+// choices (github_actions, bitbucket_pipelines), so GitHub and Bitbucket
+// integrations were never offered.
 const CICD_PROVIDER_TYPES = new Set([
     'gitlab',
-    'github_actions',
+    'github',
     'jenkins',
     'azure_devops',
-    'bitbucket_pipelines',
+    'bitbucket',
+    'argocd',
+    'flux',
 ]);
 
 const BINDING_TYPES = [

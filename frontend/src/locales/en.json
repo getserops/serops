@@ -369,6 +369,8 @@
     "inactive": "Inactive",
     "gitlabProject": "GitLab Project",
     "customService": "Custom Service",
+    "typeApplication": "Application",
+    "typeInfrastructure": "Infrastructure",
     "loadingDetails": "Loading service details...",
     "gitlabProjectDetails": "GitLab Project Details",
     "projectId": "Project ID",
@@ -386,6 +388,7 @@
     "noServiceSelected": "No service selected."
   },
   "detail": {
+    "allSources": "All",
     "searchLogs": "Search logs...",
     "service": "Service",
     "allServices": "All Services",
@@ -473,7 +476,7 @@
   "incidentChannels": {
     "menuLabel": "Incident Channels",
     "title": "Incident Notification Channels",
-    "subtitle": "Send post-RCA notifications to Slack, Teams, PagerDuty, or OpsGenie. Configure once, wire once — the AI's root-cause + recommendation lands wherever your on-call already looks.",
+    "subtitle": "Send post-RCA notifications to Slack, Teams, PagerDuty, OpsGenie or email. Configure once, wire once — the AI's root-cause + recommendation lands wherever your on-call already looks.",
     "new": "New channel",
     "edit": "Edit channel",
     "name": "Name",
@@ -499,7 +502,9 @@
     "deleteConfirm": "Delete {{name}}? Send history + rate-limit state are lost.",
     "deleteSuccess": "Channel deleted.",
     "deleteFailed": "Could not delete channel.",
-    "empty": "No incident channels yet. Add one to route SerOps analyses to Slack / Teams / PagerDuty / OpsGenie."
+    "empty": "No incident channels yet. Add one to route SerOps analyses to Slack / Teams / PagerDuty / OpsGenie / email.",
+    "recipients": "Recipients",
+    "recipientsHint": "Comma-separated email addresses. Uses the server's SMTP settings."
   },
   "clusters": {
     "menuLabel": "Clusters",
@@ -804,6 +809,7 @@
     "suspended": "Suspended"
   },
   "ai": {
+    "noKeyNeeded": "No key needed",
     "title": "AI Settings",
     "subtitle": "Configure and manage your AI model providers",
     "loading": "Loading AI settings...",
@@ -996,6 +1002,8 @@
     "realmOptional": "Realm (Optional)",
     "redirectUri": "Redirect URI",
     "redirectUriHint": "Register this exact URL as a valid redirect URI in your identity provider.",
+    "ssoDomains": "Sign-in domains (optional)",
+    "ssoDomainsHint": "People with an email at these domains can sign in with SSO before they are invited, and get the Viewer role. Leave empty to let only invited people sign in.",
     "enableSso": "Enable single sign-on",
     "enableSsoHint": "Let people sign in through your identity provider with OpenID Connect (Okta, Azure AD, Google, Keycloak).",
     "oidcConfig": "OpenID Connect configuration"
@@ -1111,7 +1119,8 @@
       "scm": "Source Control",
       "cicd": "CI/CD",
       "logs": "Log Providers",
-      "metrics": "Metric Providers"
+      "metrics": "Metric Providers",
+        "traces": "Trace Providers"
     },
     "scmDesc": "Repositories SerOps reads commits and diffs from, to tie incidents to code changes.",
     "cicdDesc": "Pipelines and deployments SerOps lines up with incidents."
@@ -1151,6 +1160,7 @@
   },
   "traces": {
     "settings": {
+      "copyKey": "Copy key",
       "menuLabel": "Distributed Traces",
       "title": "OTLP Ingest Keys",
       "subtitle": "Bearer tokens that authorise OpenTelemetry Collectors to send traces to SerOps. Each key is scoped to your organisation.",

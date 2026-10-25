@@ -204,3 +204,15 @@ class TraceReadApiTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # Only the caller's org's service names, sorted.
         self.assertEqual(response.json(), ['api', 'checkout'])
+
+    def test_a_service_that_never_starts_a_trace_can_be_filtered_on(self):
+        """payments only appears as a child span (journey suite, B12)."""
+        Span.objects.create(
+            trace=self.trace_a, span_id='3' * 16, parent_span_id='1' * 16,
+            service_name='payments', operation_name='POST /charge',
+            start_time=self.trace_a.start_time, end_time=self.trace_a.end_time,
+            duration_ms=100, status_code='ERROR')
+        self.client.force_authenticate(user=self.user)
+        self.assertEqual(self.client.get('/api/traces/traces/services/').json(), ['api', 'checkout', 'payments'])
+        results = self.client.get('/api/traces/traces/?service=payments').json()['results']
+        self.assertEqual([r['trace_id'] for r in results], ['a' * 32])

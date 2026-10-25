@@ -88,8 +88,18 @@ function renderStepBody(step, status, actions) {
     }
 }
 
+const MINIMIZED_KEY = 'serops.onboardingWizard.minimized';
+
 export default function OnboardingWizard({ onComplete, onSkip }) {
-    const [minimized, setMinimized] = React.useState(false);
+    // Remembered across pages: the panel reopened on every page and covered
+    // the page's top-right buttons (journey suite, B5).
+    const [minimized, setMinimizedState] = React.useState(() => {
+        try { return localStorage.getItem(MINIMIZED_KEY) === '1'; } catch { return false; }
+    });
+    const setMinimized = (value) => {
+        setMinimizedState(value);
+        try { localStorage.setItem(MINIMIZED_KEY, value ? '1' : '0'); } catch { /* private mode */ }
+    };
     const {
         status, loading, error,
         refresh, skipStep, storeData, dismiss,

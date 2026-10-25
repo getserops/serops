@@ -6,12 +6,15 @@
 import React from "react";
 import { Form } from "react-bootstrap";
 import { FaGitlab, FaGithub, FaJenkins, FaMicrosoft, FaRocket, FaForward } from "react-icons/fa";
+import { SiArgo, SiFlux } from "react-icons/si";
 
 const cicdProviders = [
     { id: "gitlab", name: "GitLab CI", icon: FaGitlab, color: "#FC6D26" },
     { id: "github", name: "GitHub Actions", icon: FaGithub, color: "#24292F" },
     { id: "jenkins", name: "Jenkins", icon: FaJenkins, color: "#D33833" },
     { id: "azure_devops", name: "Azure DevOps", icon: FaMicrosoft, color: "#0078D7" },
+    { id: "argocd", name: "Argo CD", icon: SiArgo, color: "#EF7B4D" },
+    { id: "flux", name: "Flux", icon: SiFlux, color: "#5468FF" },
 ];
 
 const pipelineTypes = [
@@ -66,8 +69,8 @@ const StepCICD = ({
                 <div className="optional-section mt-3">
                     {/* Provider Selection */}
                     <div className="wizard-form-section">
-                        <label className="wizard-form-label">CI/CD Provider</label>
-                        <div className="provider-buttons">
+                        <span className="wizard-form-label d-block" id="wizard-cicd-provider">CI/CD Provider</span>
+                        <div className="provider-buttons" role="group" aria-labelledby="wizard-cicd-provider">
                             {cicdProviders.map((provider) => {
                                 const Icon = provider.icon;
                                 const isActive = formData.cicdProvider === provider.id;
@@ -76,6 +79,7 @@ const StepCICD = ({
                                     <button
                                         key={provider.id}
                                         type="button"
+                                        aria-pressed={isActive}
                                         className={`provider-btn ${isActive ? 'active' : ''}`}
                                         onClick={() => updateFormData({
                                             cicdProvider: provider.id,
@@ -93,14 +97,14 @@ const StepCICD = ({
 
                     {/* Integration Selection */}
                     <div className="wizard-form-section">
-                        <label className="wizard-form-label">Integration</label>
+                        <label className="wizard-form-label" htmlFor="wizard-cicd-1">Integration</label>
                         {currentProviderIntegrations.length === 0 ? (
                             <div className="text-muted small">
                                 No {formData.cicdProvider} integrations configured.
                                 <a href="/dash/settings/integrations" className="ms-1">Add one in Settings</a>
                             </div>
                         ) : (
-                            <Form.Select
+                            <Form.Select id="wizard-cicd-1"
                                 value={formData.cicdIntegrationId || ""}
                                 onChange={(e) => updateFormData({
                                     cicdIntegrationId: parseInt(e.target.value)
@@ -119,8 +123,8 @@ const StepCICD = ({
 
                     {/* Pipeline Type */}
                     <div className="wizard-form-section">
-                        <label className="wizard-form-label">Pipeline Type</label>
-                        <Form.Select
+                        <label className="wizard-form-label" htmlFor="wizard-cicd-2">Pipeline Type</label>
+                        <Form.Select id="wizard-cicd-2"
                             value={formData.cicdType || "build"}
                             onChange={(e) => updateFormData({ cicdType: e.target.value })}
                             className="rounded-3"

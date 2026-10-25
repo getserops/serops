@@ -16,8 +16,8 @@ const StepCustomDetails = ({ formData, updateFormData }) => {
 
             {/* Service Name */}
             <div className="wizard-form-section">
-                <label className="wizard-form-label">Service Name *</label>
-                <Form.Control
+                <label className="wizard-form-label" htmlFor="wizard-customdetails-1">Service Name *</label>
+                <Form.Control id="wizard-customdetails-1"
                     type="text"
                     placeholder="e.g., Legacy Payment Gateway"
                     value={formData.serviceName || ""}
@@ -29,8 +29,8 @@ const StepCustomDetails = ({ formData, updateFormData }) => {
 
             {/* Description */}
             <div className="wizard-form-section">
-                <label className="wizard-form-label">Description</label>
-                <Form.Control
+                <label className="wizard-form-label" htmlFor="wizard-customdetails-2">Description</label>
+                <Form.Control id="wizard-customdetails-2"
                     as="textarea"
                     rows={3}
                     placeholder="What this service does and key dependencies — used by AI for analysis"

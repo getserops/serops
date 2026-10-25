@@ -28,6 +28,7 @@ be a footgun. If HEC ingest is ever needed, add a separate
 """
 from __future__ import annotations
 
+import json
 import logging
 import time
 from datetime import datetime, timedelta
@@ -143,6 +144,11 @@ class SplunkLogProvider(LogProvider):
         ``_spl_token``.
         """
         target_index = index or self._index
+        if "," in target_index:
+            # The batch code joins whatever get_indices() returned. Splunk's
+            # bareword check rejects a comma list outright ("Invalid SPL
+            # token"), and the error used to leave every analysis empty.
+            target_index = self._index
 
         # Build SPL. Accept both LogQuery and legacy dict for parity
         # with the other adapters — dict path just embeds the raw
@@ -179,11 +185,15 @@ class SplunkLogProvider(LogProvider):
             return []
 
     def get_indices(self, project) -> List[str]:
-        """List Splunk indexes visible to the token.
+        """The configured index (``extra_config.index``, default 'main'), if
+        the token can see it.
 
-        The ``project`` argument is ignored here (Splunk indexes are
-        global, not project-scoped) but kept for ABC compatibility.
-        Callers filter down to the project-relevant one via SPL.
+        Splunk indexes are global, not project-scoped; SPL filters down to
+        the project. This used to return every index visible to the token
+        (``_internal``, ``_audit``, ...), which the batch code joined into
+        one comma list that the SPL bareword check rejects, so scheduled
+        analyses and investigations never got a log (found by the journey
+        suite, launch plan 9.9).
         """
         try:
             resp = self._session.get(
@@ -193,7 +203,12 @@ class SplunkLogProvider(LogProvider):
             )
             resp.raise_for_status()
             data = resp.json()
-            return [entry.get("name", "") for entry in data.get("entry", []) if entry.get("name")]
+            visible = {entry.get("name") for entry in data.get("entry", [])}
+            if self._index in visible:
+                return [self._index]
+            logger.warning("Splunk index %r is not visible to the token (has: %s)",
+                           self._index, ", ".join(sorted(n for n in visible if n)))
+            return []
         except RequestException as exc:
             logger.warning("Splunk get_indices failed: %s", exc)
             return []
@@ -283,6 +298,10 @@ class SplunkLogProvider(LogProvider):
                     # single call which is enough for our 5–10k typical
                     # batch. Higher counts should re-page (future work).
                     "count": min(max_count, 50000),
+                    # Without a field list /results returns only Splunk's
+                    # default fields, so service_name and log_level were
+                    # missing from every row.
+                    "f": "*",
                 },
                 timeout=self.timeout_seconds,
             )
@@ -294,6 +313,7 @@ class SplunkLogProvider(LogProvider):
 
         entries: List[LogEntry] = []
         for row in data.get("results", []):
+            row = _with_json_fields(row)
             # Splunk gives us ``_time`` (epoch string or ISO), ``_raw``
             # (the log line), plus every extracted field. We map the
             # canonical fields explicitly and shove the rest into
@@ -303,7 +323,7 @@ class SplunkLogProvider(LogProvider):
             entries.append(
                 LogEntry(
                     timestamp=timestamp,
-                    message=row.get("_raw") or row.get("message", ""),
+                    message=row.get("message") or row.get("_raw", ""),
                     level=_detect_level(row.get("log_level", row.get("level", "INFO"))),
                     service=row.get("service_name", row.get("service", "")),
                     host=row.get("host", ""),
@@ -335,3 +355,31 @@ class SplunkLogProvider(LogProvider):
             self._base_url + "/",
             f"servicesNS/{self._owner}/{self._app}/search/jobs",
         )
+
+
+def _with_json_fields(row: dict) -> dict:
+    """Fill canonical fields from a JSON ``_raw`` that Splunk did not extract.
+
+    HEC shippers (Fluent Bit, the OTel collector, Vector) send each event as
+    JSON; unless the sourcetype extracts it, the canonical fields live only
+    inside ``_raw``. Without them every entry had an empty service, and the
+    batch code's registered-service filter dropped all of them, so Splunk
+    analyses came back "quiet" (found by the journey suite, launch plan 9.9).
+    Fields Splunk already returned win.
+    """
+    raw = row.get("_raw")
+    if not isinstance(raw, str) or not raw.lstrip().startswith("{"):
+        return row
+    try:
+        event = json.loads(raw)
+    except ValueError:
+        return row
+    if not isinstance(event, dict):
+        return row
+    merged = dict(row)
+    for key in ("service_name", "service", "log_level", "level", "message", "environment",
+                "project_name", "organisation_name", "host", "trace_id"):
+        value = event.get(key)
+        if value not in (None, "") and not merged.get(key):
+            merged[key] = value if isinstance(value, str) else str(value)
+    return merged

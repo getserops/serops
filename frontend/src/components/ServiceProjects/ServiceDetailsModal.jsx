@@ -10,6 +10,48 @@ import { ProjectService } from "../../services/project.service";
 import { IntegrationService } from "../../services/integration.service";
 import { FaSync, FaLink, FaGit, FaGithub, FaGitlab, FaBitbucket, FaCloud, FaPlus, FaTrash, FaCog } from "react-icons/fa";
 
+const GITOPS_PROVIDERS = ['argocd', 'flux'];
+
+// Where each sender posts, and how it authenticates (docs/src/integrations/
+// jenkins.md and gitops.md). Argo CD and Flux can report to any binding; an
+// Argo CD or Flux integration's binding is only for them.
+const webhookTargets = (id, provider) => {
+    const origin = window.location.origin;
+    const targets = [];
+    const argocd = { label: 'Argo CD', url: `${origin}/api/providers/webhook/argocd/${id}/`, auth: 'Authorization: Bearer <secret>' };
+    const flux = { label: 'Flux', url: `${origin}/api/providers/webhook/flux/${id}/`, auth: 'generic-hmac Provider, token = <secret>' };
+    if (provider === 'argocd') return [argocd];
+    if (provider === 'flux') return [flux];
+    if (provider === 'jenkins') {
+        targets.push({ label: 'Jenkins', url: `${origin}/api/webhooks/jenkins/${id}/`, auth: 'Header X-Jenkins-Token: <secret>' });
+    } else if (provider) {
+        const slug = provider === 'azure_devops' ? 'azure-devops' : provider;
+        targets.push({ label: 'Pipeline webhook', url: `${origin}/api/webhooks/${slug}/${id}/`, auth: 'Webhook secret: <secret>' });
+    }
+    targets.push(argocd, flux);
+    return targets;
+};
+
+const WebhookDetails = ({ webhook, onClose }) => (
+    <Alert variant="warning" dismissible onClose={onClose} aria-label="Webhook details">
+        <strong>Copy the webhook secret now.</strong> SerOps shows it only once.
+        <Form.Group className="mt-2" controlId="cicd-webhook-secret">
+            <Form.Label className="small mb-1">Webhook secret</Form.Label>
+            <Form.Control readOnly value={webhook.secret} onFocus={(e) => e.target.select()} />
+        </Form.Group>
+        <Table size="sm" className="mt-2 mb-0 small">
+            <tbody>
+                {webhookTargets(webhook.id, webhook.provider).map((t) => (
+                    <tr key={t.label}>
+                        <th scope="row">{t.label}</th>
+                        <td><code>{t.url}</code><div className="text-muted">{t.auth}</div></td>
+                    </tr>
+                ))}
+            </tbody>
+        </Table>
+    </Alert>
+);
+
 const ServiceDetailsModal = ({
     show,
     onHide,
@@ -33,6 +75,10 @@ const ServiceDetailsModal = ({
         auto_trigger: true,
     });
     const [addingBinding, setAddingBinding] = useState(false);
+    // Webhook details for the binding just created. The secret is returned
+    // only by the create call, so it is shown here once: without it, Jenkins,
+    // Argo CD and Flux could not be pointed at SerOps from the UI.
+    const [newWebhook, setNewWebhook] = useState(null);
 
     // Fetch integrations for CI/CD binding form
     useEffect(() => {
@@ -44,16 +90,22 @@ const ServiceDetailsModal = ({
     }, [showAddCICD]);
 
     // CI/CD provider types (must match SettingsIntegrations capability definitions)
-    const CICD_PROVIDERS = ['gitlab', 'github', 'azure_devops', 'jenkins', 'bitbucket'];
+    const CICD_PROVIDERS = ['gitlab', 'github', 'azure_devops', 'jenkins', 'bitbucket', ...GITOPS_PROVIDERS];
     const cicdIntegrations = integrations.filter(i => CICD_PROVIDERS.includes(i.provider_type) && i.is_active);
+    const newBindingIsGitOps = GITOPS_PROVIDERS.includes(
+        integrations.find((i) => String(i.id) === String(newBinding.integration_id))?.provider_type);
 
     const handleAddCICDBinding = async () => {
         if (!newBinding.integration_id || !newBinding.pipeline_id) return;
 
         setAddingBinding(true);
         try {
-            await ProjectService.addCICDBinding(service.id, newBinding);
+            const created = await ProjectService.addCICDBinding(service.id, newBinding);
             setActionResult({ type: 'success', message: 'CI/CD binding added successfully!' });
+            if (created?.id && created?.webhook_secret) {
+                const provider = integrations.find((i) => String(i.id) === String(newBinding.integration_id))?.provider_type;
+                setNewWebhook({ id: created.id, secret: created.webhook_secret, provider });
+            }
             setShowAddCICD(false);
             setNewBinding({ integration_id: '', binding_type: 'build', pipeline_id: '', pipeline_name: '', auto_trigger: true });
             if (onRefresh) onRefresh();
@@ -116,7 +168,12 @@ const ServiceDetailsModal = ({
                                     {service?.name || `Service #${service?.id}`}
                                 </h4>
                                 <span className="badge bg-primary bg-opacity-75 text-white rounded-pill px-3">
-                                    {service?.scm_binding ? t('services.gitlabProject') : t('services.customService')}
+                                    {/* Its type, not whether it has a repository: an Application
+                                        without an SCM binding read "Custom Service" (B23). */}
+                                    {{
+                                        application: t('services.typeApplication', 'Application'),
+                                        infrastructure: t('services.typeInfrastructure', 'Infrastructure'),
+                                    }[service?.service_type] || t('services.customService')}
                                 </span>
                             </div>
                             <Button variant="close" onClick={onHide}></Button>
@@ -137,6 +194,9 @@ const ServiceDetailsModal = ({
                             </Alert>
                         ) : service ? (
                             <div className="d-flex flex-column gap-4">
+                                {newWebhook && (
+                                    <WebhookDetails webhook={newWebhook} onClose={() => setNewWebhook(null)} />
+                                )}
                                 {actionResult && (
                                     <Alert variant={actionResult.type} dismissible onClose={() => setActionResult(null)}>
                                         {actionResult.message}
@@ -237,11 +297,17 @@ const ServiceDetailsModal = ({
                                         <Card.Body className="border-bottom bg-light">
                                             <Row className="g-2 align-items-end">
                                                 <Col md={3}>
-                                                    <Form.Label className="small mb-1">Integration</Form.Label>
+                                                    <Form.Label className="small mb-1" htmlFor="cicd-binding-integration">Integration</Form.Label>
                                                     <Form.Select
+                                                        id="cicd-binding-integration"
                                                         size="sm"
                                                         value={newBinding.integration_id}
-                                                        onChange={(e) => setNewBinding({ ...newBinding, integration_id: e.target.value })}
+                                                        onChange={(e) => {
+                                                            const picked = integrations.find((i) => String(i.id) === e.target.value);
+                                                            // Argo CD and Flux only deploy.
+                                                            const gitops = GITOPS_PROVIDERS.includes(picked?.provider_type);
+                                                            setNewBinding({ ...newBinding, integration_id: e.target.value, ...(gitops ? { binding_type: 'deploy' } : {}) });
+                                                        }}
                                                     >
                                                         <option value="">Select...</option>
                                                         {cicdIntegrations.map(int => (
@@ -250,8 +316,9 @@ const ServiceDetailsModal = ({
                                                     </Form.Select>
                                                 </Col>
                                                 <Col md={2}>
-                                                    <Form.Label className="small mb-1">Type</Form.Label>
+                                                    <Form.Label className="small mb-1" htmlFor="cicd-binding-type">Type</Form.Label>
                                                     <Form.Select
+                                                        id="cicd-binding-type"
                                                         size="sm"
                                                         value={newBinding.binding_type}
                                                         onChange={(e) => setNewBinding({ ...newBinding, binding_type: e.target.value })}
@@ -263,18 +330,20 @@ const ServiceDetailsModal = ({
                                                     </Form.Select>
                                                 </Col>
                                                 <Col md={3}>
-                                                    <Form.Label className="small mb-1">Pipeline ID</Form.Label>
+                                                    <Form.Label className="small mb-1" htmlFor="cicd-binding-pipeline">{newBindingIsGitOps ? 'Application' : 'Pipeline ID'}</Form.Label>
                                                     <Form.Control
+                                                        id="cicd-binding-pipeline"
                                                         size="sm"
                                                         type="text"
-                                                        placeholder="e.g., job/my-job"
+                                                        placeholder={newBindingIsGitOps ? 'e.g., payments' : 'e.g., job/my-job'}
                                                         value={newBinding.pipeline_id}
                                                         onChange={(e) => setNewBinding({ ...newBinding, pipeline_id: e.target.value })}
                                                     />
                                                 </Col>
                                                 <Col md={2}>
-                                                    <Form.Label className="small mb-1">Name</Form.Label>
+                                                    <Form.Label className="small mb-1" htmlFor="cicd-binding-name">Name</Form.Label>
                                                     <Form.Control
+                                                        id="cicd-binding-name"
                                                         size="sm"
                                                         type="text"
                                                         placeholder="Optional"

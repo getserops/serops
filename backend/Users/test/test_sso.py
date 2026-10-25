@@ -89,6 +89,28 @@ class TestSSOConfigView(APITestCase):
 # SSOInitView
 # =============================================================================
 
+class TestSSODomainsConfig(APITestCase):
+    def setUp(self):
+        org = Organisations.objects.create(name='Domains Org', website='https://domains.com')
+        admin = User.objects.create_user(
+            username='domadmin', email='domadmin@example.com', password='TestPass123!',
+            organisation=org, role='admin', is_active=True)
+        self.client.force_authenticate(admin)
+        self.url = reverse('sso-config')
+
+    def test_domains_are_saved_normalised(self):
+        response = self.client.put(self.url, {
+            'sso_enabled': True, 'sso_provider': 'oidc',
+            'sso_domains': 'Example.com, @acme.io ,example.com'}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(self.client.get(self.url).data['sso_domains'], ['acme.io', 'example.com'])
+
+    def test_a_non_domain_is_refused(self):
+        response = self.client.put(self.url, {
+            'sso_provider': 'oidc', 'sso_domains': ['not a domain']}, format='json')
+        self.assertEqual(response.status_code, 400)
+
+
 class TestSSOInitView(APITestCase):
     """Tests for SSO login initiation."""
 
@@ -172,6 +194,44 @@ class TestSSOInitView(APITestCase):
     def test_sso_init_missing_email(self):
         response = self.client.post(self.url, {}, format='json')
         self.assertEqual(response.status_code, 400)
+
+    @patch('Users.sso_views.SSOService')
+    def test_a_colleague_without_an_account_signs_in_by_domain(self, MockSSOService):
+        """Everyone had to be invited first: SSO started only from an
+        existing user's email (journey suite, B29)."""
+        MockSSOService.return_value.get_authorization_url.return_value = ('https://idp.example.com/auth', 's')
+        self.sec_settings.sso_domains = ['example.com']
+        self.sec_settings.save()
+        response = self.client.post(self.url, {'email': 'new.colleague@Example.com'}, format='json')
+        self.assertEqual(response.status_code, 200)
+        state = MockSSOService.return_value.get_authorization_url.call_args.kwargs['state']
+        self.assertEqual(signing.loads(state)['org_id'], self.org.id)
+
+    def test_unclaimed_domain_looks_like_sso_off(self):
+        self.sec_settings.sso_domains = ['example.com']
+        self.sec_settings.save()
+        self._assert_unavailable('someone@elsewhere.com')
+
+    def test_a_domain_two_organisations_claim_signs_in_nobody(self):
+        self.sec_settings.sso_domains = ['example.com']
+        self.sec_settings.save()
+        other = Organisations.objects.create(name='Squatter Org', website='https://squat.com')
+        SecuritySettings.objects.create(
+            organisation=other, sso_enabled=True, sso_provider='oidc', sso_client_id='c',
+            sso_discovery_url='https://idp.squat.com/.well-known/openid-configuration',
+            sso_domains=['example.com'])
+        self._assert_unavailable('new.colleague@example.com')
+
+    def test_an_existing_user_is_not_taken_by_a_domain(self):
+        """A known email always uses its own organisation's SSO."""
+        other = Organisations.objects.create(name='Domain Org', website='https://dom.com')
+        SecuritySettings.objects.create(
+            organisation=other, sso_enabled=True, sso_provider='oidc', sso_client_id='c',
+            sso_discovery_url='https://idp.dom.com/.well-known/openid-configuration',
+            sso_domains=['example.com'])
+        self.sec_settings.sso_enabled = False
+        self.sec_settings.save()
+        self._assert_unavailable('ssoinit@example.com')
 
 
 # =============================================================================
@@ -300,6 +360,15 @@ class TestSSOCallbackView(APITestCase):
     @patch('Users.sso_views.SSOService')
     def test_refused_on_a_demo_only_host(self, MockSSOService):
         self._assert_failed(self._callback_as(MockSSOService, email='ssocb@example.com'))
+
+    @patch('Users.sso_views.SSOService')
+    def test_new_user_outside_the_sso_domains_is_refused(self, MockSSOService):
+        self.sec_settings.sso_domains = ['example.com']
+        self.sec_settings.save()
+        self._assert_failed(self._callback_as(MockSSOService, email='stranger@elsewhere.com', email_verified=True))
+        self.assertFalse(User.objects.filter(email='stranger@elsewhere.com').exists())
+        response = self._callback_as(MockSSOService, email='colleague@example.com', email_verified=True)
+        self.assertTrue(response['Location'].endswith('/auth/callback'))
 
 
 # =============================================================================

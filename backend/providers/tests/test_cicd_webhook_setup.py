@@ -143,6 +143,16 @@ class TestSetupCICDWebhookJenkinsNoApiCall(SimpleTestCase):
         self.assertTrue(result['success'])
         self.assertTrue(result['manual_setup'])
         self.assertEqual(result['webhook_url'], 'https://api.serops.com/api/webhooks/jenkins/5/')
+        # Configured by hand, so the person needs the secret (it used to be
+        # returned only by the create call, which the UI never showed).
+        self.assertEqual(result['webhook_secret'], 's')
+
+    def test_secret_not_returned_when_serops_registers_the_webhook(self):
+        from providers.webhook_service import WebhookService
+
+        binding = _make_binding(pk=6, secret='s', provider_type='gitlab', has_create_webhook=True)
+        result = WebhookService.setup_cicd_webhook(binding, 'https://api.serops.com')
+        self.assertNotIn('webhook_secret', result)
 
 
 # ── CICDBindingViewSet.perform_create ─────────────────────────

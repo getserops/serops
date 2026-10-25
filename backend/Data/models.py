@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.db import models
 from django.utils import timezone
 import logging
@@ -993,6 +995,27 @@ class Issue(models.Model):
         ]
         return hashlib.sha256("|".join(parts).encode()).hexdigest()[:32]
     
+    #: How long a critical issue must stay quiet before it pages again.
+    CRITICAL_REPAGE_AFTER = timedelta(hours=1)
+
+    def is_newly_critical(self, batch):
+        """True when ``batch`` saw this issue as CRITICAL and it had no
+        CRITICAL sighting in the hour before: a new issue, one that just
+        escalated, or one back after going quiet.
+
+        The on-call ``critical_issue`` event uses it, so an ongoing incident
+        re-reported by every 5-minute batch pages once, not every 5 minutes
+        (found by the journey suite).
+        """
+        this = self.occurrences.filter(batch=batch).first()
+        if this is None or (this.severity or self.severity or '').upper() != 'CRITICAL':
+            return False
+        return not self.occurrences.filter(
+            severity__iexact='CRITICAL',
+            seen_at__lt=this.seen_at,
+            seen_at__gte=this.seen_at - self.CRITICAL_REPAGE_AFTER,
+        ).exclude(pk=this.pk).exists()
+
     def record_occurrence(self, batch, severity=None):
         """Record that ``batch`` reported this issue, and make it the latest.
 

@@ -121,6 +121,10 @@ export const useServiceProjects = (projectId) => {
         try {
             const data = await ProjectService.GetProjectServices(projectId);
             setServices(data);
+            // The open details dialog shows the refreshed service: a pipeline
+            // just added used to appear only after reopening it (B24).
+            const list = Array.isArray(data) ? data : data?.results || [];
+            setSelectedService((prev) => (prev ? list.find((s) => s.id === prev.id) || prev : prev));
         } catch (error) {
             console.error("Error refreshing services:", error);
         }

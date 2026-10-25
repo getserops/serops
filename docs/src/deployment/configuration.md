@@ -41,7 +41,7 @@ Complete reference for all environment variables consumed by SerOps.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SEROPS_VERSION` | No | `1.2.5` | Version tag for SerOps Docker images (backend + frontend) |
+| `SEROPS_VERSION` | No | `1.2.6` | Version tag for SerOps Docker images (backend + frontend) |
 
 ---
 
@@ -126,6 +126,7 @@ DB_PASSWORD=s3cur3-pa$$word
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
+| `INVITATION_TTL_DAYS` | No | `7` | Days an invitation link stays valid. Each link also works only once. |
 | `EMAIL_BACKEND` | No | `django.core.mail.backends.smtp.EmailBackend` | Django email backend class. The quick-start `.env.example` sets `django.core.mail.backends.console.EmailBackend`, which prints emails to the backend log instead of sending them. |
 | `EMAIL_HOST` | No | -- | SMTP server hostname (e.g., `smtp.gmail.com`) |
 | `EMAIL_HOST_USER` | No | -- | SMTP username / email address |

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { describeRequestError } from "../utils/apiError";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import AuthService from "../services/auth.service";
@@ -130,10 +131,21 @@ const Register = () => {
         if (response.data.user) {
           localStorage.setItem("user", JSON.stringify(response.data.user));
         }
-        navigate("/dash");
+        if (response.data.token) {
+          navigate("/dash");
+        } else if (response.data.email_sent !== undefined) {
+          // Activation by email: say so, and say when the email did not go
+          // out. Sign-up used to land on Login without a word (journey
+          // suite, B1 and B11).
+          navigate("/register_verif", {
+            state: { email: formData.user.email, emailSent: response.data.email_sent, message: response.data.message },
+          });
+        } else {
+          navigate("/login", { state: { message: response.data.message } });
+        }
       })
       .catch((error) => {
-        setError(error.response?.data?.message || "Registration failed");
+        setError(describeRequestError(error, "Registration failed"));
         setLoading(false);
       });
   };
@@ -158,10 +170,11 @@ const Register = () => {
               <>
                 <div className="label-row register-name-row">
                   <div className="form-group register-name-field">
-                    <label>First Name</label>
+                    <label htmlFor="register-first_name">First Name</label>
                     <div className="input-wrapper">
                       <FaUser className="input-icon" />
                       <input
+                        id="register-first_name"
                         type="text"
                         name="first_name"
                         placeholder="John"
@@ -172,9 +185,10 @@ const Register = () => {
                     </div>
                   </div>
                   <div className="form-group register-name-field">
-                    <label>Last Name</label>
+                    <label htmlFor="register-last_name">Last Name</label>
                     <div className="input-wrapper">
                       <input
+                        id="register-last_name"
                         type="text"
                         name="last_name"
                         placeholder="Doe"
@@ -189,10 +203,11 @@ const Register = () => {
                   <div className="error-text">Name is required</div>}
 
                 <div className="form-group">
-                  <label>Work Email</label>
+                  <label htmlFor="register-email">Work Email</label>
                   <div className="input-wrapper">
                     <FaEnvelope className="input-icon" />
                     <input
+                      id="register-email"
                       type="email"
                       name="email"
                       placeholder="john@company.com"
@@ -205,10 +220,11 @@ const Register = () => {
                 </div>
 
                 <div className="form-group">
-                  <label>Company Name</label>
+                  <label htmlFor="register-name">Company Name</label>
                   <div className="input-wrapper">
                     <FaBuilding className="input-icon" />
                     <input
+                      id="register-name"
                       type="text"
                       name="name"
                       placeholder="Acme Corp"
@@ -233,10 +249,11 @@ const Register = () => {
                 </button>
 
                 <div className="form-group">
-                  <label>Password</label>
+                  <label htmlFor="register-password">Password</label>
                   <div className="input-wrapper">
                     <FaLock className="input-icon" />
                     <input
+                      id="register-password"
                       type={hidePassword ? "password" : "text"}
                       name="password"
                       placeholder="Create a strong password"
@@ -248,6 +265,7 @@ const Register = () => {
                     <button
                       type="button"
                       className="toggle-password"
+                      aria-label={hidePassword ? "Show password" : "Hide password"}
                       onClick={() => setHidePassword(!hidePassword)}
                     >
                       {hidePassword ? <FaEyeSlash /> : <FaEye />}
@@ -260,10 +278,11 @@ const Register = () => {
                 </div>
 
                 <div className="form-group">
-                  <label>Confirm Password</label>
+                  <label htmlFor="register-password_confirmation">Confirm Password</label>
                   <div className="input-wrapper">
                     <FaLock className="input-icon" />
                     <input
+                      id="register-password_confirmation"
                       type="password"
                       name="password_confirmation"
                       placeholder="Repeat password"

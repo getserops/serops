@@ -773,16 +773,22 @@
   .ds-segmented .ds-choice-option { flex: 1 1 auto; padding: 0 10px; }
   .settings-select { max-width: none; }
 }
-/* The real checkbox stays in the tab order (it was display:none). */
+/* The real checkbox stays in the tab order (it was display:none), and
+   covers the whole row, invisible: a click anywhere on the row lands on the
+   real control. At 1px with pointer-events off, assistive tech and test
+   tools that click the control itself could not reach it (journey suite,
+   B30). Toggle rows hold no links or buttons. */
 :is(html, :root[data-theme]) .toggle-item { position: relative; }
 :is(html, :root[data-theme]) .toggle-item input[type="checkbox"] {
   display: block;
   position: absolute;
-  width: 1px;
-  height: 1px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   opacity: 0;
   margin: 0;
-  pointer-events: none;
+  cursor: pointer;
+  z-index: 1;
 }
 
 /* -------------------------------------------------------------

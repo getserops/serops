@@ -62,8 +62,8 @@ Providers can be configured at two levels:
 
 Each organisation must configure its own observability integrations. There is no system-wide fallback provider. Each integration is scoped to a single organisation and can be managed via API.
 
-!!! note "Uniqueness"
-    Uniqueness is sliced by `(organisation, provider, cluster, priority_tier)`. That means one Elasticsearch integration per cluster per tier — you can layer `primary` + `fallback` + `tertiary` rows of the same provider on the same cluster for HA. Two `primary` rows on the same cluster is rejected.
+!!! note "One primary per capability"
+    For a given cluster and scope (environment, region, namespace) there is one **primary** integration per capability: Loki and Elasticsearch cannot both be the primary log source, otherwise which one an analysis reads is ambiguous. Add the second one as `fallback` or `tertiary`. The same provider can also be layered `primary` + `fallback` + `tertiary` on one cluster for HA.
 
 ## Scope and Priority Tiers
 

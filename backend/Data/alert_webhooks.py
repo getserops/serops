@@ -141,7 +141,9 @@ def _parse_alertmanager(payload: dict) -> list:
             'alertname': str(labels.get('alertname') or 'unknown'),
             'state': str(alert.get('status') or 'firing'),
             'severity': str(labels.get('severity') or ''),
-            'service': str(labels.get('service') or labels.get('job') or ''),
+            # service_name / environment are the canonical labels our metrics
+            # docs put on every series; rules usually copy them into alerts.
+            'service': str(labels.get('service') or labels.get('service_name') or labels.get('job') or ''),
             'environment': str(labels.get('environment') or labels.get('env') or ''),
             'summary': str(annotations.get('summary') or annotations.get('description') or '')[:2000],
             'external_id': str(alert.get('fingerprint') or ''),

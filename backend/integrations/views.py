@@ -63,6 +63,7 @@ class ObservabilityIntegrationViewSet(viewsets.ModelViewSet):
         if org:
             return (
                 ObservabilityIntegration.objects.filter(organisation=org)
+                .select_related('scope')
                 .order_by('-created_at')
             )
         return ObservabilityIntegration.objects.none()

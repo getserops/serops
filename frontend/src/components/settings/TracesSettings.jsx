@@ -241,22 +241,27 @@ const TracesSettings = () => {
                         <span>{t('traces.settings.copyWarning')}</span>
                     </Alert>
 
-                    <Form.Label>{revealed?.name}</Form.Label>
+                    <Form.Label htmlFor="ingest-key-value">{revealed?.name}</Form.Label>
                     <div className="d-flex gap-2">
                         <Form.Control
+                            id="ingest-key-value"
                             type="text"
                             value={revealed?.plaintext || ''}
                             readOnly
                             onFocus={(e) => e.target.select()}
                             style={{ fontFamily: 'monospace' }}
                         />
-                        <Button variant="outline-primary" onClick={copyPlaintext}>
-                            <FaCopy />
+                        <Button variant="outline-primary" onClick={copyPlaintext}
+                                aria-label={t('traces.settings.copyKey', 'Copy key')} title={t('traces.settings.copyKey', 'Copy key')}>
+                            <FaCopy aria-hidden="true" />
                         </Button>
                     </div>
 
                     <Form.Text className="text-muted">
-                        {t('traces.settings.usageHint')}
+                        {/* The text marks code with backticks; it was shown raw (E7). */}
+                        {t('traces.settings.usageHint').split('`').map((part, i) => (
+                            i % 2 ? <code key={i}>{part}</code> : <React.Fragment key={i}>{part}</React.Fragment>
+                        ))}
                     </Form.Text>
                 </Modal.Body>
                 <Modal.Footer>

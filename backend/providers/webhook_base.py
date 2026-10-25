@@ -195,13 +195,15 @@ class BaseCICDWebhookHandler(APIView, ABC):
                 f"Status: {normalized.get('status')}, Env: {normalized.get('environment')}"
             )
             
-            # 4. Create pipeline record
-            pipeline = self._create_pipeline_record(normalized)
+            # 4. Create pipeline record, owned by the binding's organisation and
+            # project. Without this the row had neither, so nothing that
+            # filters by them (analyses, deploy panels) ever found the build.
+            pipeline = self._create_pipeline_record(normalized, binding=binding)
             
             # 5. Create deployments if successful
             deployments_created = 0
             if normalized.get('status') == 'success':
-                deployments_created = self._create_deployments(normalized, pipeline)
+                deployments_created = self._create_deployments(normalized, pipeline, binding=binding)
             
             # 6. Store CI/CD logs for all terminal statuses
             if normalized.get('status') in ('success', 'failed', 'error', 'canceled', 'cancelled'):
@@ -233,7 +235,7 @@ class BaseCICDWebhookHandler(APIView, ABC):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
-    def _create_pipeline_record(self, normalized: dict):
+    def _create_pipeline_record(self, normalized: dict, binding=None):
         """Create or update Pipeline record in database."""
         from .models import Pipeline
 
@@ -241,8 +243,21 @@ class BaseCICDWebhookHandler(APIView, ABC):
         env_source = normalized.get('environment_source')
         if env_source:
             metadata['environment_source'] = env_source
+        owner = {}
+        if binding is not None:
+            try:
+                svc = binding.project_service
+                # Pipeline.project is the legacy GitlabProject link, so the
+                # SerOps project goes in the metadata.
+                owner = {'organisation': svc.project.organisation}
+                metadata.setdefault('serops_project_id', svc.project.id)
+                metadata.setdefault('service_name', svc.name)
+                metadata.setdefault('binding_type', binding.binding_type)
+            except Exception:
+                owner = {}
 
         pipeline, created = Pipeline.objects.update_or_create(
+            organisation=owner.pop('organisation', None),
             pipeline_id=str(normalized['pipeline_id']),
             cicd_provider=self.provider_name,
             defaults={
@@ -251,6 +266,7 @@ class BaseCICDWebhookHandler(APIView, ABC):
                 'external_project_id': normalized.get('project_id'),
                 'environment': normalized.get('environment'),
                 'provider_metadata': metadata,
+                **owner,
             }
         )
         
@@ -259,10 +275,12 @@ class BaseCICDWebhookHandler(APIView, ABC):
         
         return pipeline
     
-    def _create_deployments(self, normalized: dict, pipeline) -> int:
+    def _create_deployments(self, normalized: dict, pipeline, binding=None) -> int:
         """Create deployment records for commits in this pipeline."""
         from .deployment_service import DeploymentService
         from .models import CodeChange
+
+        project_service = getattr(binding, 'project_service', None)
         
         commit_shas = normalized.get('commit_shas', [])
         environment = normalized.get('environment', 'development')
@@ -285,7 +303,8 @@ class BaseCICDWebhookHandler(APIView, ABC):
                         deployed_at=timezone.now(),
                         pipeline=pipeline,
                         status='success',
-                        deployed_by='CI/CD'
+                        deployed_by='CI/CD',
+                        project_service=project_service,
                     )
                     deployments_created += 1
                 else:

@@ -38,6 +38,7 @@ const SecuritySettings = () => {
                 discovery_url: ssoData.sso_discovery_url,
                 sso_client_secret_configured: ssoData.sso_client_secret_configured,
                 redirect_uri: ssoData.sso_redirect_uri,
+                domains: (ssoData.sso_domains || []).join(', '),
             } : (securityData.sso || {});
             setSettings({ ...securityData, sso });
 
@@ -71,6 +72,7 @@ const SecuritySettings = () => {
                     // OIDC
                     sso_client_id: settings.sso.client_id,
                     sso_discovery_url: settings.sso.discovery_url,
+                    sso_domains: settings.sso.domains || '',
                 };
                 // Only include client_secret if user actually entered a new one
                 if (settings.sso.client_secret) {
@@ -141,6 +143,7 @@ const SecuritySettings = () => {
                         <input
                             id="sso-enabled"
                             type="checkbox"
+                            role="switch"
                             checked={settings?.sso?.provider === 'oidc'}
                             onChange={(e) => setSettings(prev => ({
                                 ...prev,
@@ -171,8 +174,9 @@ const SecuritySettings = () => {
                             <div className="row">
                                 <div className="col-md-6">
                                     <div className="form-group mb-3">
-                                        <label>{t('security.clientId')}</label>
+                                        <label htmlFor="sso-client-id">{t('security.clientId')}</label>
                                         <input
+                                            id="sso-client-id"
                                             type="text"
                                             className="form-control"
                                             value={settings?.sso?.client_id || ''}
@@ -186,8 +190,9 @@ const SecuritySettings = () => {
                                 </div>
                                 <div className="col-md-6">
                                     <div className="form-group mb-3">
-                                        <label>{t('security.clientSecret')}</label>
+                                        <label htmlFor="sso-client-secret">{t('security.clientSecret')}</label>
                                         <input
+                                            id="sso-client-secret"
                                             type="password"
                                             className="form-control"
                                             value={settings?.sso?.client_secret || ''}
@@ -202,8 +207,9 @@ const SecuritySettings = () => {
                             </div>
 
                             <div className="form-group mb-3">
-                                <label>{t('security.discoveryUrl')}</label>
+                                <label htmlFor="sso-discovery-url">{t('security.discoveryUrl')}</label>
                                 <input
+                                    id="sso-discovery-url"
                                     type="url"
                                     className="form-control"
                                     value={settings?.sso?.discovery_url || ''}
@@ -213,6 +219,23 @@ const SecuritySettings = () => {
                                     }))}
                                     placeholder="https://idp.example.com/.well-known/openid-configuration"
                                 />
+                            </div>
+
+                            <div className="form-group mb-3">
+                                <label htmlFor="sso-domains">{t('security.ssoDomains')}</label>
+                                <input
+                                    id="sso-domains"
+                                    type="text"
+                                    className="form-control"
+                                    aria-describedby="sso-domains-hint"
+                                    value={settings?.sso?.domains || ''}
+                                    onChange={(e) => setSettings(prev => ({
+                                        ...prev,
+                                        sso: { ...(prev?.sso || {}), domains: e.target.value }
+                                    }))}
+                                    placeholder="example.com, example.org"
+                                />
+                                <small id="sso-domains-hint" className="text-muted">{t('security.ssoDomainsHint')}</small>
                             </div>
                         </div>
                     )}

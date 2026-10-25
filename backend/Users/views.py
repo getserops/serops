@@ -235,10 +235,13 @@ class RegisterView(APIView):
                 user.is_active = True
             user.save()
 
+            # A failed send used to be logged only: sign-up said "check
+            # your email" for a mail that never left (found by the journey
+            # suite with a mail server that refused STARTTLS).
+            email_sent = False
             if email_configured:
                 try:
-                    send_activation_link(user, request)
-                    logger.info(f"Activation email sent to {email}")
+                    email_sent = bool(send_activation_link(user, request))
                 except Exception as e:
                     logger.error(f"Failed to send activation email to {email}: {str(e)}")
 
@@ -246,7 +249,15 @@ class RegisterView(APIView):
 
             response_data = serializer.data
             if email_configured:
+                response_data['email_sent'] = email_sent
+            if email_configured and email_sent:
                 response_data['message'] = "Registration successful! Please check your email and click the activation link to activate your account."
+            elif email_configured:
+                response_data['message'] = (
+                    "Your account was created, but the activation email could not be sent. "
+                    "Ask your SerOps administrator to check the mail settings and "
+                    "activate your account."
+                )
             else:
                 response_data['message'] = "Registration successful! You can now log in."
             
@@ -661,7 +672,8 @@ class ResendVerificationLinkView(APIView):
         if user.is_active == True:
             logger.warning(f"Verification resend rejected: account already active for user {user.email}")
             return Response({'error': 'Account Already activated'}, status=400)
-        send_activation_link(user, request)
+        if not send_activation_link(user, request):
+            return Response({'error': 'The activation email could not be sent. Ask your SerOps administrator to check the mail settings.'}, status=502)
         logger.info(f"Verification email resent to user {user.email}")
         return Response({'success': 'Email was sent successfully'})
 
@@ -689,16 +701,16 @@ class AcceptInvitationView(APIView):
         # Never log the token itself — signed JWT grants account access
         # for its full TTL. Whoever ships logs to a SIEM gets outstanding
         # invitations for free (BE-P1-04, audit 2026-09-05).
+        from Utils.email_utils import read_invitation_token
         try:
-            decoded_token = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
-            user_id = decoded_token['user']
-            user = User.objects.get(pk=user_id)
-            serializer = UserSerializer(user)
-            logger.info("Invitation accepted for user_id=%s", user.pk)
-            return Response({"user": serializer.data}, status=200)
-        except jwt.InvalidTokenError:
-            logger.warning("Invalid invitation token presented")
-            return Response({"error": "Invalid Token"}, status=400)
+            user = read_invitation_token(token)
+        except jwt.ExpiredSignatureError:
+            return Response({"error": "This invitation has expired. Ask your admin for a new one."}, status=400)
+        except (jwt.InvalidTokenError, User.DoesNotExist):
+            logger.warning("Invalid or used invitation token presented")
+            return Response({"error": "This invitation link is not valid any more."}, status=400)
+        logger.info("Invitation accepted for user_id=%s", user.pk)
+        return Response({"user": UserSerializer(user).data}, status=200)
 
 class ForgetPasswordView(APIView):
     permission_classes = [AllowAny]
@@ -888,26 +900,20 @@ class InvitationsetPasswordView(APIView):
         if password != password_confirmation:
             return Response({"error": "Passwords do not match"}, status=400)
 
+        # Expiring, single-use: setting the password changes the fingerprint
+        # the token carries, so the same link cannot be used again.
+        from Utils.email_utils import read_invitation_token
         try:
-            decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+            user = read_invitation_token(token)
         except jwt.ExpiredSignatureError:
             logger.warning("Invitation password set: expired token presented")
             return Response({"error": "Invitation token has expired"}, status=401)
-        except jwt.InvalidTokenError:
-            logger.warning("Invitation password set: invalid token presented")
-            return Response({"error": "Invalid invitation token"}, status=401)
-
-        user_id = decoded.get('user')
-        if not user_id:
-            return Response({"error": "Invalid invitation token"}, status=401)
-
-        try:
-            user = User.objects.get(pk=user_id)
         except User.DoesNotExist:
-            # Log at info — a stale token for a deleted user is
-            # possible, doesn't warrant an error-level alarm.
-            logger.info(f"Invitation password set: token references missing user id={user_id}")
+            logger.info("Invitation password set: token references a missing user")
             return Response({"error": "User does not exist"}, status=404)
+        except jwt.InvalidTokenError:
+            logger.warning("Invitation password set: invalid or used token presented")
+            return Response({"error": "Invalid invitation token"}, status=401)
 
         user.set_password(password)
         user.save()

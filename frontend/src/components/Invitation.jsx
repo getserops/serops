@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { describeRequestError } from "../utils/apiError";
 import "./Login.css";
 import { useNavigate, useParams } from "react-router-dom";
 import { FaEnvelope } from "react-icons/fa";
@@ -25,7 +26,7 @@ function Invitation() {
         setSuccess(true);
       })
       .catch((err) => {
-        setError(err?.response?.data?.message || "Invitation failed");
+        setError(describeRequestError(err, "Invitation failed"));
       })
       .finally(() => setLoading(false));
   }, [string]);

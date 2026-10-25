@@ -1073,6 +1073,13 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                         }
 
                 cicd_logs_data = list(seen_jobs.values())
+                if not cicd_logs_data and project is not None:
+                    # The log store holds CI/CD events only when SerOps can write
+                    # to it (Elasticsearch / OpenSearch). On Loki, Splunk, Datadog
+                    # ... the webhook-recorded builds live only in the database,
+                    # and analyses never saw a failed deploy.
+                    cicd_logs_data = _cicd_from_database(
+                        project, batch_environment, batch_start_time, batch_end_time)
                 logger.info(
                     f"Found {len(cicd_logs_data)} CI/CD logs for "
                     f"{batch_environment} environment (project: {project_name})"
@@ -1362,12 +1369,15 @@ def create_batches_for_all_projects(self):
     except Exception as e:
         logger.warning(f"Pipeline sync failed (continuing with batch creation): {e}")
 
-    # Get all projects from the database that have an Elasticsearch index defined
-    # Legacy: used es_index_name. Now we use LogProvider.get_indices() for discovery.
-    projects = Project.objects.filter(
-        es_index_name__isnull=False
-    ).exclude(es_index_name='').select_related('organisation')
-    logger.info(f"Found {len(projects)} projects in database with defined Elasticsearch indices")
+    # Every project is a candidate; the loop below skips the ones with no
+    # services, no log provider or nothing discovered by
+    # LogProvider.get_indices(). This used to require the legacy
+    # es_index_name, which is only set when the backend can create an
+    # Elasticsearch index — so on a Loki, Datadog or CloudWatch install a
+    # project created in the UI was never analysed (found by the journey
+    # suite, launch plan 9.9).
+    projects = Project.objects.select_related('organisation')
+    logger.info(f"Found {len(projects)} projects in database")
 
     # ── Group projects by organisation ──
     from collections import defaultdict as _defaultdict
@@ -2071,18 +2081,9 @@ def analyze_alert_ondemand(self, alert_event_id):
     event.processed_at = timezone.now()
     event.save(update_fields=['triggered_batch', 'processed_at'])
 
-    # Outbound `alert_triggered` fan-out — PagerDuty change events +
-    # OpsGenie notes typically listen on this event only (they
-    # already know about scheduled batches from other tooling).
-    if batch is not None:
-        try:
-            from notifications.incident_dispatcher import dispatch as _incident_dispatch
-            _incident_dispatch(batch, event='alert_triggered', alert_event=event)
-        except Exception as _n_exc:
-            logger.warning(
-                'Alert-triggered incident dispatch failed for alert %s: %s',
-                event.pk, _n_exc,
-            )
+    # The `alert_triggered` notification is sent by ai_model.tasks.analyze_batch
+    # once the AI has run: sending it here, before the analysis, gave on-call
+    # an "INFO, 0 issues" message and then a second one with the result.
 
     return {
         'status': 'analysed',
@@ -2090,6 +2091,42 @@ def analyze_alert_ondemand(self, alert_event_id):
         'batch_id': batch.batch_id if batch else None,
         'result': result if isinstance(result, dict) else str(result),
     }
+
+
+def _cicd_from_database(project, environment, start, end, limit=20):
+    """CI/CD runs recorded by webhooks for ``project`` in the window, shaped
+    like the log-store entries above. A build whose environment was only
+    guessed (no branch, no pattern match: 'default') still counts: a deploy
+    job named "payments-deploy" is tagged development by default."""
+    from providers.models import Pipeline
+    out = []
+    pipelines = (Pipeline.objects
+                 .filter(organisation=project.organisation, provider_metadata__serops_project_id=project.id,
+                         created_at__gte=start, created_at__lte=end)
+                 .prefetch_related('jobs').order_by('-created_at')[:limit])
+    for p in pipelines:
+        meta = p.provider_metadata or {}
+        guessed = meta.get('environment_source') in (None, 'default')
+        if p.environment and p.environment != environment and not guessed:
+            continue
+        jobs = list(p.jobs.all()) or [None]
+        for job in jobs:
+            trace = (getattr(job, 'logs', '') or '') if job else ''
+            errors = (getattr(job, 'error_summary', '') or '') if job else ''
+            out.append({
+                'pipeline_id': p.pipeline_id,
+                'job_name': getattr(job, 'name', None) or p.external_project_id or p.pipeline_id,
+                'status': getattr(job, 'status', None) or p.status,
+                'environment': p.environment or environment,
+                'branch': p.branch if p.branch not in ('null', 'None') else '',
+                'timestamp': p.created_at.isoformat(),
+                'duration': None,
+                'message': f"{p.cicd_provider} {p.external_project_id or p.pipeline_id}: {p.status}",
+                'service_name': meta.get('service_name'),
+                'trace': trace[-2000:] or None,
+                'trace_errors': errors or None,
+            })
+    return out
 
 
 @shared_task(bind=True, max_retries=0, priority=9, queue='high_priority')

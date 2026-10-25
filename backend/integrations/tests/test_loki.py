@@ -88,21 +88,45 @@ class TestLokiLogProvider(SimpleTestCase):
 
     # ---- get_indices ----
 
-    @patch("integrations.adapters.loki.requests.Session.get")
-    def test_get_indices(self, mock_get):
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {
-            "status": "success",
-            "data": ["app1", "app2", "nginx"],
-        }
-        mock_get.return_value = mock_resp
+    @staticmethod
+    def _labels_response(values_by_label):
+        """Fake Loki label-values endpoint: label name -> values."""
+        def get(url, params=None, timeout=None):
+            label = url.rsplit('/label/', 1)[1].split('/', 1)[0]
+            resp = MagicMock()
+            resp.raise_for_status = MagicMock()
+            resp.json.return_value = {"status": "success", "data": values_by_label.get(label, [])}
+            return resp
+        return get
 
+    @patch("integrations.adapters.loki.requests.Session.get")
+    def test_get_indices_legacy_app_label(self, mock_get):
+        mock_get.side_effect = self._labels_response({"app": ["app1", "app2", "nginx"]})
         project = MagicMock()
         project.name = "test"
-        result = self.provider.get_indices(project)
+        self.assertEqual(self.provider.get_indices(project), ["app1", "app2", "nginx"])
 
-        self.assertEqual(result, ["app1", "app2", "nginx"])
+    @patch("integrations.adapters.loki.requests.Session.get")
+    def test_get_indices_canonical_labels(self, mock_get):
+        """The documented Promtail config sets project_name/service_name and no `app`."""
+        mock_get.side_effect = self._labels_response({
+            "project_name": ["shop", "other"],
+            "service_name": ["checkout", "frontend", "payments"],
+        })
+        project = MagicMock()
+        project.name = "shop"
+        self.assertEqual(self.provider.get_indices(project), ["checkout", "frontend", "payments"])
+        service_call = mock_get.call_args_list[-1]
+        self.assertIn('/label/service_name/values', service_call.args[0])
+        self.assertEqual(service_call.kwargs["params"], {"query": '{project_name="shop"}'})
+
+    @patch("integrations.adapters.loki.requests.Session.get")
+    def test_get_indices_other_projects_only(self, mock_get):
+        """Canonical labels present but not for this project, and no `app`: nothing to analyse."""
+        mock_get.side_effect = self._labels_response({"project_name": ["other"]})
+        project = MagicMock()
+        project.name = "shop"
+        self.assertEqual(self.provider.get_indices(project), [])
 
     # ---- LogQL building ----
 

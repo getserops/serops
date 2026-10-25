@@ -308,7 +308,8 @@ const Project = () => {
       <PageHeader
         title={t('projects.title')}
         subtitle={t('projects.subtitle')}
-        actions={(
+        // Viewers were offered it and got a 403 (journey suite, B6).
+        actions={can("project.write") && (
           <Button variant="primary" onClick={handleOpenModal}>
             <FaPlus size={14} aria-hidden="true" />
             <span>{t('projects.newProject')}</span>

@@ -449,3 +449,48 @@ class HasWorkingSmtpConfigTest(TestCase):
     def test_false_when_env_unset(self):
         from notifications.services import has_working_smtp_config
         self.assertFalse(has_working_smtp_config())
+
+
+class KeylessProviderTest(TestCase):
+    """Ollama and other keyless providers save and test a base URL without a key.
+    Before, every save needed a 20-character key and "Test connection" asked
+    for a saved key (found by the journey suite, launch plan 9.9)."""
+
+    def setUp(self):
+        self.org = Organisations.objects.create(name='Keyless Org')
+        self.user = User.objects.create_user(
+            username='keyless', email='keyless@test.com', password='testpass123',
+            organisation=self.org, role='admin')
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        self.ollama = AIModelProvider.objects.create(
+            name='ollama_t', display_name='Ollama', requires_api_key=False,
+            adapter_class='ai_model.adapters.openai_generic.GenericOpenAIAdapter')
+        self.openai = AIModelProvider.objects.create(
+            name='openai_t', display_name='OpenAI', requires_api_key=True,
+            adapter_class='ai_model.adapters.openai_generic.GenericOpenAIAdapter')
+
+    def test_keyless_provider_saves_a_base_url_alone(self):
+        from org_settings.models import OrganisationAPIKey
+        r = self.client.post('/api/settings/api-keys/', {
+            'provider_id': self.ollama.id, 'base_url': 'http://ollama.internal:11434/v1/'}, format='json')
+        self.assertIn(r.status_code, (200, 201), r.content)
+        row = OrganisationAPIKey.objects.get(organisation=self.org, provider=self.ollama)
+        self.assertEqual(row.base_url, 'http://ollama.internal:11434/v1/')
+
+    def test_keyless_provider_needs_a_base_url_when_no_key(self):
+        r = self.client.post('/api/settings/api-keys/', {'provider_id': self.ollama.id}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_providers_with_keys_still_need_a_real_key(self):
+        r = self.client.post('/api/settings/api-keys/', {
+            'provider_id': self.openai.id, 'api_key': 'short'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('api_key', r.json())
+
+    @patch('ai_model.ai_service.generate_text_unified', return_value=('Connection successful', None, 1, 1))
+    def test_test_connection_uses_the_typed_base_url_without_a_key(self, gen):
+        r = self.client.post('/api/settings/ai/test/', {
+            'provider_name': 'ollama_t', 'base_url': 'http://ollama.internal:11434/v1/'}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(gen.call_args.kwargs['base_url'], 'http://ollama.internal:11434/v1/')

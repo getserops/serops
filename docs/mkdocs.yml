@@ -148,6 +148,7 @@ nav:
     - OTEL-forward stacks: how-to/otel-first-setup.md
   - Integrations:
     - Overview: integrations/overview.md
+    - Compatibility: integrations/compatibility.md
     - Webhook Setup Guide: integrations/webhooks.md
     - SCM Providers:
       - GitLab: integrations/gitlab.md

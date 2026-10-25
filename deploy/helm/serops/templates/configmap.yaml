@@ -48,6 +48,12 @@ data:
   EMAIL_HOST: {{ . | quote }}
   {{- end }}
   EMAIL_PORT: {{ .Values.smtp.port | quote }}
+  {{- $security := .Values.smtp.security | default "starttls" }}
+  {{- if not (has $security (list "starttls" "ssl" "none")) }}
+  {{- fail "smtp.security must be starttls, ssl or none" }}
+  {{- end }}
+  EMAIL_USE_TLS: {{ ternary "True" "False" (eq $security "starttls") | quote }}
+  EMAIL_USE_SSL: {{ ternary "True" "False" (eq $security "ssl") | quote }}
   {{- with .Values.smtp.user }}
   EMAIL_HOST_USER: {{ . | quote }}
   {{- end }}

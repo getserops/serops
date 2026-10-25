@@ -17,7 +17,7 @@ at the bottom.
 | Token expired | Session | Tokens expire after 30 days of inactivity. Log in again. |
 | SSO login fails | Callback URL | Ensure the Redirect URI in your Identity Provider matches the one configured in **Settings > Security**. |
 | "403 Forbidden" on API calls | Permissions | Your role lacks the permission. **Settings → Audit Log** shows an *Access Denied* entry naming the missing permission; see [Team Management](admin/team.md#roles). |
-| Invitation link says "invalid or already used" | Link freshness | Invitations expire after 7 days. Ask the admin to re-invite. |
+| Invitation link says "invalid or already used" | Link freshness | Invitations work once and expire after 7 days (`INVITATION_TTL_DAYS`). Ask the admin to re-invite. |
 
 ## Integrations
 

@@ -1,4 +1,4 @@
-# SerOps Helm chart values — v1.2.5
+# SerOps Helm chart values — v1.2.6
 #
 # All defaults are safe for a small production deployment (~5 users,
 # 100 batches/day). Scale replicas + resources for larger tenants.
@@ -111,6 +111,13 @@ celeryWorker:
   # routes to (celery, high_priority, normal, background); list extra ones here.
   queues: "celery,high_priority,normal,background"
   concurrency: 4
+  # Restart a worker that stops answering `celery inspect ping`.
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 60
+    timeoutSeconds: 10
+    failureThreshold: 3
   resources:
     requests:
       cpu: 500m
@@ -268,6 +275,11 @@ smtp:
   existingSecret: ""   # keys: smtp-user, smtp-password, smtp-host, smtp-port
   host: ""
   port: 587
+  # How the connection is secured: "starttls" (port 587, the default),
+  # "ssl" (implicit TLS, port 465) or "none" (plain SMTP: a local relay or a
+  # test catcher such as Mailpit). Without it the chart always sent
+  # EMAIL_USE_TLS=True, so a port-465 or plain relay could not be used.
+  security: starttls
   user: ""
   password: ""
   fromEmail: "noreply@example.com"

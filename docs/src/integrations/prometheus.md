@@ -14,7 +14,7 @@ Prometheus is an open-source monitoring and alerting toolkit designed for reliab
 
 ## Prerequisites
 
-- Prometheus 2.x or later
+- Prometheus 2.x or 3.x (tested: 2.55.1, 3.1.0 — see [Compatibility](compatibility.md))
 - Network access from the SerOps backend to the Prometheus server
 - Valid credentials if authentication is enabled
 
@@ -163,6 +163,20 @@ differ, or you run sidecars you want folded into the parent service, join
 against `kube_pod_labels` from
 [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics)
 with a recording rule instead, and have it emit `service_name`.
+
+#### Docker runtime
+
+With the Docker runtime (cri-dockerd, minikube's default driver), cAdvisor
+reports pod-level series without a `container` label, so the
+`container → service_name` rule above sets nothing. Derive the service from
+the pod name of a Deployment instead (`name-<hash>-<suffix>`):
+
+```yaml
+      - source_labels: [container, pod]
+        regex: ;(.+?)-[a-z0-9]{6,10}-[a-z0-9]{5}
+        target_label: service_name
+        replacement: $1
+```
 
 ### With kube-prometheus-stack
 

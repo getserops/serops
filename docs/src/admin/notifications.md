@@ -130,7 +130,7 @@ Severity is compared against the batch's highest-severity issue.
 |------------|-----------|
 | `batch_analyzed` | Any batch analysis completes, scheduled or alert-triggered |
 | `alert_triggered` | Only analyses started by an inbound alert — see [Real-time Alerts](../integrations/alerts.md) |
-| `critical_issue` | The batch produced at least one `CRITICAL` issue |
+| `critical_issue` | An issue became `CRITICAL` in this analysis: new, escalated, or back after an hour without a critical sighting. An ongoing incident does not re-page on every analysis. |
 
 ### How rules are evaluated
 

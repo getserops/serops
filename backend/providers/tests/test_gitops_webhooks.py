@@ -89,12 +89,24 @@ class ArgoCDWebhookTest(GitopsWebhookBase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Deployment.objects.count(), 0)
 
-    def test_out_of_sync_is_ignored(self):
+    def test_out_of_sync_without_an_operation_is_ignored(self):
         payload = self._payload()
         payload['app']['status']['sync']['status'] = 'OutOfSync'
+        del payload['app']['status']['operationState']
         response = self.client.post(self._url(), payload, format='json')
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Deployment.objects.count(), 0)
+
+    def test_succeeded_sync_counts_even_if_already_out_of_sync(self):
+        """Argo CD 2.13 renders the notification after the sync; the app can
+        already read OutOfSync, and with oncePer the revision is never sent
+        again (journey suite). The operation's own revision is recorded."""
+        payload = self._payload()
+        payload['app']['status']['sync'] = {'status': 'OutOfSync', 'revision': 'abc123def456789'}
+        payload['app']['status']['operationState']['syncResult'] = {'revision': 'fedcba987654321'}
+        response = self.client.post(self._url(), payload, format='json')
+        self.assertEqual(response.status_code, 200, response.json())
+        self.assertEqual(Deployment.objects.get().code_change.commit_sha, 'fedcba987654321')
 
     def test_missing_revision_400(self):
         payload = self._payload()
@@ -179,6 +191,21 @@ class FluxWebhookTest(GitopsWebhookBase):
         dep = Deployment.objects.get()
         self.assertEqual(dep.deployed_by, 'kustomize-controller')
         self.assertIn('flux-kustomization=checkout', dep.notes)
+
+    def test_repeated_reconcile_events_record_one_deployment(self):
+        """Flux sends an info event on every reconcile; one revision is one deploy."""
+        for _ in range(3):
+            r = self.client.post(self._url(), self._payload(), format='json')
+            self.assertEqual(r.status_code, 200)
+        self.assertEqual(Deployment.objects.count(), 1)
+        self.assertTrue(r.json().get('deduplicated'))
+
+    def test_new_revision_and_rollback_are_recorded(self):
+        self.client.post(self._url(), self._payload(), format='json')
+        self.client.post(self._url(), self._payload(metadata={'revision': 'main@sha1:fff999eee888777'}), format='json')
+        # Roll back to the first revision: a real deployment again.
+        self.client.post(self._url(), self._payload(timestamp='2026-10-25T14:40:00Z'), format='json')
+        self.assertEqual(Deployment.objects.count(), 3)
 
     def test_error_severity_ignored(self):
         response = self.client.post(

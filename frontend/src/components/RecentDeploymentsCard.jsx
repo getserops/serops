@@ -6,6 +6,7 @@
 import React from 'react';
 import { Spinner } from 'react-bootstrap';
 import { FaRocket, FaCheckCircle, FaTimesCircle, FaSpinner, FaGitlab, FaGithub, FaMicrosoft, FaJenkins, FaBitbucket } from 'react-icons/fa';
+import { SiArgo, SiFlux } from "react-icons/si";
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { isDemoUser } from '../utils/demo';
@@ -87,6 +88,10 @@ const RecentDeploymentsCard = ({ data, loading }) => {
                 return <FaBitbucket className="provider-icon bitbucket" />;
             case 'azure_devops':
                 return <FaMicrosoft className="provider-icon azure" />;
+            case 'argocd':
+                return <SiArgo className="provider-icon" aria-hidden="true" />;
+            case 'flux':
+                return <SiFlux className="provider-icon" aria-hidden="true" />;
             default:
                 return <FaRocket className="provider-icon" />;
         }
@@ -149,9 +154,14 @@ const RecentDeploymentsCard = ({ data, loading }) => {
                             {service.latest_pipeline ? (
                                 <>
                                     <div className="deployment-meta">
-                                        <span className="branch-name">
-                                            {service.latest_pipeline.branch || 'main'}
-                                        </span>
+                                        {/* The commit or build deployed; the branch only when
+                                            known (GitOps deploys have none, and "main" was a guess). */}
+                                        {service.latest_pipeline.id && (
+                                            <code className="deploy-id">{service.latest_pipeline.id}</code>
+                                        )}
+                                        {service.latest_pipeline.branch && (
+                                            <span className="branch-name">{service.latest_pipeline.branch}</span>
+                                        )}
                                         <span className="deploy-time">
                                             {formatTimeAgo(service.latest_pipeline.created_at)}
                                         </span>

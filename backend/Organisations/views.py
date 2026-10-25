@@ -191,7 +191,7 @@ class OrganisationTeamView(APIView):
             user.is_active = True
             user.save()
 
-            send_invitation_link(user)
+            send_invitation_link(user, invited_by=request.user)
             
             # Log the team invite action
             log_team_action(request, 'TEAM_INVITE', user.email, role=user.role)

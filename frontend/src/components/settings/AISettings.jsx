@@ -173,20 +173,28 @@ const AISettings = () => {
     };
 
     const handleSaveApiKey = async (provider) => {
-        const keyValue = keyInputs[provider.name];
-        if (!keyValue || !keyValue.trim()) {
+        const keyValue = (keyInputs[provider.name] || '').trim();
+        // The URL the field shows: what was typed, else the saved one (saving
+        // an unchanged field sent no URL and was refused).
+        const shownUrl = urlInputs[provider.name] !== undefined
+            ? urlInputs[provider.name]
+            : (getExistingKey(provider.name)?.base_url || '');
+        const baseUrl = (shownUrl || '').trim() || null;
+        // Ollama and other keyless providers save their Base URL alone; they
+        // used to need a fake 20-character key (journey suite, C4).
+        if (provider.requires_api_key !== false && !keyValue) {
             toast.warning(t('ai.enterApiKey'));
             return;
         }
 
         try {
             setSavingKey(prev => ({ ...prev, [provider.name]: true }));
-            const baseUrl = urlInputs[provider.name] || null;
-            await SettingsService.saveAPIKey(provider.id, keyValue.trim(), baseUrl);
+            await SettingsService.saveAPIKey(provider.id, keyValue, baseUrl);
             toast.success(t('ai.keySaved', { provider: provider.display_name }));
 
             setKeyInputs(prev => ({ ...prev, [provider.name]: '' }));
-            setUrlInputs(prev => ({ ...prev, [provider.name]: '' }));
+            // Show the saved URL again, not an empty field.
+            setUrlInputs(prev => { const next = { ...prev }; delete next[provider.name]; return next; });
             const keysData = await SettingsService.getAPIKeys();
             setApiKeys(keysData);
         } catch (error) {
@@ -215,7 +223,10 @@ const AISettings = () => {
     const handleTestConnection = async (providerName) => {
         try {
             setTesting(prev => ({ ...prev, [providerName]: true }));
-            const result = await SettingsService.testAIConnection(providerName);
+            // Test what is typed: a key not saved yet, or a new Base URL.
+            const typedKey = (keyInputs[providerName] || '').trim() || null;
+            const typedUrl = (urlInputs[providerName] || '').trim() || null;
+            const result = await SettingsService.testAIConnection(providerName, typedKey, typedUrl);
             if (result.success) {
                 toast.success(result.message);
                 const keysData = await SettingsService.getAPIKeys();
@@ -370,7 +381,10 @@ const AISettings = () => {
                                                     <Form.Control
                                                         type="text"
                                                         placeholder={t('ai.baseUrlPlaceholder', { example: '' })}
-                                                        value={urlInputs[provider.name] !== undefined ? urlInputs[provider.name] : (provider.api_base_url || '')}
+                                                        aria-label={`${provider.display_name} Base URL`}
+                                                        // The organisation's saved URL, else the provider default
+                                                        // (the field showed the default after saving, B9).
+                                                        value={urlInputs[provider.name] !== undefined ? urlInputs[provider.name] : (keyStatus.baseUrl || provider.api_base_url || '')}
                                                         onChange={(e) => handleUrlInputChange(provider.name, e.target.value)}
                                                     />
                                                 </InputGroup>
@@ -380,7 +394,8 @@ const AISettings = () => {
                                                     <InputGroup.Text id={`key-addon-${provider.id}`} style={{ width: '60px' }}>Key</InputGroup.Text>
                                                     <Form.Control
                                                         type={isKeyVisible ? 'text' : 'password'}
-                                                        placeholder={keyStatus.hasKey ? '••••••••' : t('ai.enterApiKey')}
+                                                        aria-label={`${provider.display_name} API key`}
+                                                        placeholder={provider.requires_api_key === false ? t('ai.noKeyNeeded', 'No key needed') : (keyStatus.hasKey ? '••••••••' : t('ai.enterApiKey'))}
                                                         value={inputValue}
                                                         onChange={(e) => handleKeyInputChange(provider.name, e.target.value)}
                                                     />
@@ -391,33 +406,39 @@ const AISettings = () => {
                                                     <Button
                                                         variant="primary"
                                                         onClick={() => handleSaveApiKey(provider)}
-                                                        disabled={isSavingKey || (!inputValue && !urlInputs[provider.name])}
+                                                        disabled={isSavingKey || (!inputValue && !urlInputs[provider.name] && provider.requires_api_key !== false)}
                                                         aria-label={t('ai.saveKey')}
                                                     >
                                                         {isSavingKey ? <Spinner size="sm" animation="border" /> : <FaCheck />}
                                                     </Button>
                                                 </InputGroup>
 
-                                                {keyStatus.hasKey && (
+                                                {(keyStatus.hasKey || provider.requires_api_key === false || inputValue) && (
                                                     <div className="d-flex justify-content-between align-items-center small mt-1">
                                                         <span className="text-muted text-truncate" style={{ maxWidth: '200px' }}>
-                                                            Key: <code style={{ wordBreak: "break-all" }}>{keyStatus.maskedKey}</code>
+                                                            {keyStatus.hasKey && keyStatus.maskedKey && <>Key: <code style={{ wordBreak: "break-all" }}>{keyStatus.maskedKey}</code></>}
                                                         </span>
                                                         <div className="d-flex gap-2">
-                                                            <span
-                                                                className="text-primary cursor-pointer"
-                                                                style={{ cursor: 'pointer' }}
+                                                            {/* Before saving too (B8): it tests what is typed. */}
+                                                            <Button
+                                                                variant="link"
+                                                                size="sm"
+                                                                className="p-0"
                                                                 onClick={() => handleTestConnection(provider.name)}
+                                                                disabled={!!testing[provider.name]}
                                                             >
                                                                 {testing[provider.name] ? 'Testing...' : 'Test Connection'}
-                                                            </span>
-                                                            <span
-                                                                className="text-danger cursor-pointer"
-                                                                style={{ cursor: 'pointer' }}
+                                                            </Button>
+                                                            {keyStatus.hasKey && (
+                                                            <Button
+                                                                variant="link"
+                                                                size="sm"
+                                                                className="p-0 text-danger"
                                                                 onClick={() => { setDeleteProvider(provider); setShowDeleteModal(true); }}
                                                             >
-                                                                Delete Key
-                                                            </span>
+                                                                {provider.requires_api_key === false ? 'Delete' : 'Delete Key'}
+                                                            </Button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 )}

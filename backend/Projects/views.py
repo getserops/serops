@@ -1000,8 +1000,14 @@ class CICDBindingViewSet(viewsets.ModelViewSet):
             from datetime import datetime
             import requests as http_requests
 
-            provider = binding.get_provider()
             provider_type = binding.integration.provider_type
+            from providers.models import ProviderIntegration
+            if provider_type in ProviderIntegration.GITOPS_PROVIDERS:
+                return Response({
+                    'success': False,
+                    'error': 'Argo CD and Flux send deployments to SerOps; there is nothing to sync.',
+                }, status=400)
+            provider = binding.get_provider()
 
             # --- Jenkins ---
             if provider_type in CICD_PROVIDERS:

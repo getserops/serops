@@ -159,7 +159,9 @@ def count_spans_in_window(project, start, end):
         )
         service_names = _service_names(project)
         if service_names:
-            trace_qs = trace_qs.filter(root_service_name__in=service_names)
+            from django.db.models import Exists, OuterRef, Q
+            trace_qs = trace_qs.filter(Q(root_service_name__in=service_names) | Exists(
+                Span.objects.filter(trace=OuterRef('pk'), service_name__in=service_names)))
         trace_ids = list(trace_qs.values_list('trace_id', flat=True)[:500])
         if not trace_ids:
             return 0
@@ -235,6 +237,23 @@ def _compute_live(batch):
         pass
     window_start = window_end - timedelta(minutes=interval_min)
 
+    # The batch's own window when it has one (an investigation over the last
+    # 15 minutes, an alert's window): traces used to cover only the org's
+    # batch interval before the batch, so an investigation showed fewer
+    # traces than the window it named (found by the journey suite).
+    time_range = ((getattr(batch, 'data', None) or {}).get('statistics') or {}).get('time_range') or {}
+    try:
+        from datetime import datetime, timezone
+        if time_range.get('start') and time_range.get('end'):
+            window_start = datetime.fromisoformat(time_range['start'].replace('Z', '+00:00'))
+            window_end = datetime.fromisoformat(time_range['end'].replace('Z', '+00:00'))
+            if window_start.tzinfo is None:
+                window_start = window_start.replace(tzinfo=timezone.utc)
+            if window_end.tzinfo is None:
+                window_end = window_end.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        pass
+
     service_names = _service_names(getattr(batch, 'project', None))
 
     summary = _from_native(organisation, service_names, window_start, window_end)
@@ -285,7 +304,12 @@ def _from_native(organisation, service_names, start, end):
         start_time__lte=end,
     )
     if service_names:
-        trace_qs = trace_qs.filter(root_service_name__in=service_names)
+        # Traces the project's services take part in, not only those they
+        # start: a backend called by another project's frontend never roots
+        # a trace, and its analyses had no trace context (journey suite).
+        from django.db.models import Exists, OuterRef, Q
+        trace_qs = trace_qs.filter(Q(root_service_name__in=service_names) | Exists(
+            Span.objects.filter(trace=OuterRef('pk'), service_name__in=service_names)))
 
     trace_ids = list(trace_qs.values_list('trace_id', flat=True)[:500])
     if not trace_ids:

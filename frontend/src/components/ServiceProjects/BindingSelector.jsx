@@ -22,6 +22,8 @@ const PROVIDER_NAMES = {
     bitbucket: "Bitbucket",
     azure_devops: "Azure DevOps",
     jenkins: "Jenkins",
+    argocd: "Argo CD",
+    flux: "Flux",
 };
 
 /**
@@ -32,7 +34,7 @@ const SCM_PROVIDERS = ["gitlab", "github", "bitbucket", "azure_devops"];
 /**
  * CI/CD provider types (must match SettingsIntegrations PROVIDERS with "cicd" capability)
  */
-const CICD_PROVIDERS = ["gitlab", "github", "azure_devops", "jenkins", "bitbucket"];
+const CICD_PROVIDERS = ["gitlab", "github", "azure_devops", "jenkins", "bitbucket", "argocd", "flux"];
 
 /**
  * BindingSelector - Unified component for selecting SCM or CI/CD bindings

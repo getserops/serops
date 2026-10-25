@@ -36,10 +36,22 @@ Ideal for modern providers like **Okta**, **Azure AD**, **Google Workspace**, or
 *   **Client Secret**: From your IdP application.
 *   **Discovery URL**: The `.well-known/openid-configuration` endpoint (e.g., `https://accounts.google.com/.well-known/openid-configuration`).
 
+**Optional:**
+*   **Sign-in domains**: Email domains, such as `example.com`, whose people
+    can sign in with SSO before they have a SerOps account. Leave it empty
+    to let only invited people sign in.
+
 ### User Provisioning
-SerOps supports **Just-In-Time (JIT) Provisioning**. 
+SerOps supports **Just-In-Time (JIT) Provisioning**.
 - When a user logs in via SSO for the first time, their account is automatically created in SerOps.
-- They are assigned the default `Viewer` role.
+- Sign-in starts from the email typed on the login page. For someone without
+  an account yet, SerOps finds the organisation from the email's domain, so
+  the domain must be in **Sign-in domains**. Otherwise invite them first in
+  **Settings > Team**.
+- When sign-in domains are set, an identity provider answer for an email
+  outside them does not create an account.
+- A domain listed by two SerOps organisations signs in nobody by domain.
+- New users get the `Viewer` role.
 - Admins can upgrade their role in **Settings > Team**.
 
 ## Token Authentication

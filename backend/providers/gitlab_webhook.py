@@ -286,7 +286,7 @@ class GitLabCICDWebhookHandler(BaseCICDWebhookHandler):
 
         return pipeline
 
-    def _create_deployments(self, normalized, pipeline):
+    def _create_deployments(self, normalized, pipeline, binding=None):
         """
         Create deployments with GitLab-specific bidirectional CodeChange linking.
 

@@ -31,8 +31,8 @@ const StepInfraDetails = ({ formData, updateFormData }) => {
 
             {/* Infrastructure Type */}
             <div className="wizard-form-section">
-                <label className="wizard-form-label">Type</label>
-                <div className="infra-type-pills">
+                <span className="wizard-form-label d-block" id="wizard-infra-type">Type</span>
+                <div className="infra-type-pills" role="group" aria-labelledby="wizard-infra-type">
                     {infraTypes.map((type) => {
                         const Icon = type.icon;
                         const isActive = formData.infraType === type.id;
@@ -41,6 +41,7 @@ const StepInfraDetails = ({ formData, updateFormData }) => {
                             <button
                                 key={type.id}
                                 type="button"
+                                aria-pressed={isActive}
                                 className={`infra-pill ${isActive ? 'active' : ''}`}
                                 onClick={() => updateFormData({ infraType: type.id, infraProvider: '' })}
                             >
@@ -55,8 +56,8 @@ const StepInfraDetails = ({ formData, updateFormData }) => {
             {/* Provider Selection */}
             {formData.infraType && (
                 <div className="wizard-form-section">
-                    <label className="wizard-form-label">Provider</label>
-                    <Form.Select
+                    <label className="wizard-form-label" htmlFor="wizard-infradetails-1">Provider</label>
+                    <Form.Select id="wizard-infradetails-1"
                         value={formData.infraProvider || ""}
                         onChange={(e) => updateFormData({ infraProvider: e.target.value })}
                         className="rounded-3"
@@ -73,8 +74,8 @@ const StepInfraDetails = ({ formData, updateFormData }) => {
 
             {/* Service Name */}
             <div className="wizard-form-section">
-                <label className="wizard-form-label">Service Name *</label>
-                <Form.Control
+                <label className="wizard-form-label" htmlFor="wizard-infradetails-2">Service Name *</label>
+                <Form.Control id="wizard-infradetails-2"
                     type="text"
                     placeholder="e.g., User Database, Redis Cache"
                     value={formData.serviceName || ""}
@@ -86,8 +87,8 @@ const StepInfraDetails = ({ formData, updateFormData }) => {
 
             {/* Description */}
             <div className="wizard-form-section">
-                <label className="wizard-form-label">Description (optional)</label>
-                <Form.Control
+                <label className="wizard-form-label" htmlFor="wizard-infradetails-3">Description (optional)</label>
+                <Form.Control id="wizard-infradetails-3"
                     as="textarea"
                     rows={2}
                     placeholder="Role and connections — used by AI for analysis"

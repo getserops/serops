@@ -135,6 +135,22 @@ class TestDataRedactionService(SimpleTestCase):
             findings = self.service.scan(text)
             assert len(findings) >= 1, f"Failed to detect phone in: {text}"
     
+    def test_trace_ids_are_not_phone_numbers(self):
+        """Ten digits inside a hex trace ID used to become [PHONE]
+        (trace_id=41cce[PHONE]d0c237...), breaking log-to-trace links."""
+        for text in [
+            "trace_id=41cce4155550123d0c2378a9b1e2f3c4 span_id=00f067aa0ba902b7",
+            "span 9a1234567890ff took 1200ms",
+            "request +1234567x retried",
+        ]:
+            findings = self.service.scan(text)
+            assert not any(f.pattern_type.startswith('phone') for f in findings), text
+
+    def test_phone_next_to_punctuation_is_still_found(self):
+        for text in ["phone=555-123-4567;", "call +442071838750.", "(555) 123-4567"]:
+            findings = self.service.scan(text)
+            assert any(f.pattern_type.startswith('phone') for f in findings), text
+
     def test_detects_ssn(self):
         """Should detect social security numbers."""
         text = "SSN: 123-45-6789"

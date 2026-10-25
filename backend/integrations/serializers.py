@@ -123,9 +123,13 @@ class ObservabilityIntegrationSerializer(serializers.ModelSerializer):
                 "capabilities must be a non-empty list, e.g. ['logs'] or ['logs','metrics']."
             )
         for cap in value:
-            if cap not in ('logs', 'metrics'):
+            # 'traces' is how Jaeger / Zipkin / Tempo pull adapters are
+            # configured (ADAPTER_MAP, docs/src/integrations/traces.md); it
+            # used to be rejected here, so the documented trace pull could
+            # not be set up at all (found by the journey suite, launch plan 9.9).
+            if cap not in ('logs', 'metrics', 'traces'):
                 raise serializers.ValidationError(
-                    f"Invalid capability '{cap}'. Allowed: 'logs', 'metrics'."
+                    f"Invalid capability '{cap}'. Allowed: 'logs', 'metrics', 'traces'."
                 )
         return value
 
@@ -184,6 +188,8 @@ class ObservabilityIntegrationSerializer(serializers.ModelSerializer):
                         )
                     })
 
+        self._check_one_primary(attrs, provider, capabilities, cluster)
+
         # Namespace-requires-cluster invariant on the nested scope.
         scope_payload = attrs.get('scope')
         if scope_payload and scope_payload.get('namespace'):
@@ -195,6 +201,44 @@ class ObservabilityIntegrationSerializer(serializers.ModelSerializer):
                 })
 
         return attrs
+
+    def _check_one_primary(self, attrs, provider, capabilities, cluster):
+        """One primary per capability for the same cluster and scope.
+
+        Loki and Elasticsearch could both be primary for logs side by side,
+        and nothing said which one an analysis read (found by the journey
+        suite). A second source is a fallback or tertiary.
+        """
+        tier = attrs.get('priority_tier', getattr(self.instance, 'priority_tier', 'primary'))
+        if tier != 'primary' or not capabilities:
+            return
+        request = self.context.get('request')
+        org = getattr(request.user, 'organisation', None) if request else None
+        if not org:
+            return
+        current = getattr(self.instance, 'scope', None) if self.instance else None
+        incoming = attrs.get('scope') or {}
+        scope = {
+            key: (incoming.get(key) if key in incoming else getattr(current, key, '')) or ''
+            for key in ('environment', 'region', 'namespace')
+        }
+        others = ObservabilityIntegration.objects.filter(
+            organisation=org, cluster=cluster, priority_tier='primary',
+        ).select_related('scope')
+        if self.instance:
+            others = others.exclude(pk=self.instance.pk)
+        for other in others:
+            other_scope = getattr(other, 'scope', None)
+            if any((getattr(other_scope, key, '') or '') != value for key, value in scope.items()):
+                continue
+            shared = sorted(set(capabilities) & set(other.capabilities or []))
+            if shared:
+                raise serializers.ValidationError({
+                    'priority_tier': (
+                        f"'{other.display_name}' is already the primary {' and '.join(shared)} provider "
+                        f"for this scope. Make this one a fallback, or change the primary first."
+                    )
+                })
 
     def create(self, validated_data):
         raw_password = validated_data.pop('password', '')
@@ -260,6 +304,12 @@ class ObservabilityIntegrationListSerializer(serializers.ModelSerializer):
     )
     has_password = serializers.SerializerMethodField()
     secret_fields_set = serializers.SerializerMethodField()
+    # The Settings rows and their Edit dialog are built from this list.
+    # Without scope and cluster every row read "unscoped", the dialog showed
+    # an empty Environment, and saving it cleared the stored scope and
+    # cluster (journey suite, B2).
+    scope = IntegrationScopeSerializer(read_only=True)
+    cluster = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = ObservabilityIntegration
@@ -272,6 +322,9 @@ class ObservabilityIntegrationListSerializer(serializers.ModelSerializer):
             'is_active',
             'topology_mode',
             'priority_tier',
+            'cluster',
+            'scope',
+            'created_at',
             'host',
             'username',
             'has_password',
@@ -290,6 +343,8 @@ class ObservabilityIntegrationListSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data['extra_config'] = _public_extra_config(data.get('extra_config'))
+        if data.get('scope') is None:
+            data['scope'] = {'environment': '', 'region': '', 'namespace': ''}
         return data
 
 

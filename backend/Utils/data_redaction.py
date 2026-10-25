@@ -127,12 +127,15 @@ class DataRedactionService:
             r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}',
             SensitivityLevel.HIGH
         ),
+        # Not inside a longer run of letters and digits: ten digits in a
+        # trace or span ID (41cce4155550123d0c…) are not a phone number, and
+        # redacting them broke log-to-trace links (found by the journey suite).
         'phone_us': (
-            r'(\+?1?[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}',
+            r'(?<![0-9A-Za-z])(\+?1?[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?![0-9A-Za-z])',
             SensitivityLevel.HIGH
         ),
         'phone_international': (
-            r'\+[1-9]\d{1,14}',
+            r'(?<![0-9A-Za-z])\+[1-9]\d{1,14}(?![0-9A-Za-z])',
             SensitivityLevel.HIGH
         ),
         'ssn': (

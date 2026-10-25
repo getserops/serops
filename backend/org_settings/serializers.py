@@ -148,13 +148,10 @@ class APIKeyCreateUpdateSerializer(serializers.Serializer):
     """Serializer for creating/updating API keys."""
     
     provider_id = serializers.IntegerField()
-    api_key = serializers.CharField(max_length=500)
+    # Optional: keyless providers (Ollama) save only a base_url. The length
+    # check depends on the provider, so the view applies it.
+    api_key = serializers.CharField(max_length=500, required=False, allow_blank=True)
     base_url = serializers.URLField(required=False, allow_blank=True, allow_null=True)
-    
-    def validate_api_key(self, value):
-        if len(value) < 20:
-            raise serializers.ValidationError("API key is too short (minimum 20 characters).")
-        return value
 
 
 class WebhookTestSerializer(serializers.Serializer):
@@ -184,6 +181,8 @@ class AIConnectionTestSerializer(serializers.Serializer):
     
     provider_name = serializers.CharField(max_length=100)
     api_key = serializers.CharField(max_length=500, required=False)
+    # Test a base URL before saving it (Ollama and other self-hosted endpoints).
+    base_url = serializers.URLField(required=False, allow_blank=True)
 
 
 class IssueSettingsSerializer(serializers.ModelSerializer):

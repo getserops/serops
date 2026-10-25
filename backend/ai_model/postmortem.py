@@ -85,9 +85,8 @@ def _gather_context(batch) -> dict:
     }
 
     try:
-        issues = list(
-            batch.issues.order_by('severity', '-created_at')[:3]
-        )
+        from Data.issue_order import root_cause_first
+        issues = root_cause_first(batch.issues.all())[:3]
         ctx['top_issues'] = [
             {
                 'severity': i.severity,

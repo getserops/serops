@@ -26,6 +26,8 @@ Azure Monitor covers both **Log Analytics** (logs) and **Azure Monitor Metrics**
 
 ## Configuration
 
+In the UI: **Settings → Integrations → Log Providers (or Metric Providers) → Add**, then pick the provider. The same fields through the API:
+
 ```json
 {
   "provider": "azure",

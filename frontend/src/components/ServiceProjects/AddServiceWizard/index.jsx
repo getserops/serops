@@ -34,6 +34,7 @@ const INITIAL_STATE = {
     repositoryId: null,
     repositoryName: "",
     serviceName: "",
+    noRepo: false,
 
     // Step 2 - Infrastructure
     infraType: "database",
@@ -177,6 +178,7 @@ const AddServiceWizard = ({ show, onHide, projectId, onServiceCreated }) => {
         }
         if (currentStep === 2) {
             if (formData.serviceType === "application") {
+                if (formData.noRepo) return !!formData.serviceName?.trim();
                 return formData.integrationId && formData.repositoryId;
             }
             if (formData.serviceType === "infrastructure" || formData.serviceType === "custom") {
@@ -215,7 +217,11 @@ const AddServiceWizard = ({ show, onHide, projectId, onServiceCreated }) => {
                     name: formData.serviceName || formData.repositoryName,
                 };
 
-                if (formData.scmProvider === "gitlab") {
+                if (formData.noRepo) {
+                    result = await ProjectService.AddApplicationService(projectId, {
+                        name: formData.serviceName.trim(),
+                    });
+                } else if (formData.scmProvider === "gitlab") {
                     payload.project_id = formData.repositoryId;
                     payload.integration_id = formData.integrationId;
                     result = await ProjectService.AddGitLabProjectAsService(projectId, payload);
@@ -341,9 +347,9 @@ const AddServiceWizard = ({ show, onHide, projectId, onServiceCreated }) => {
     const isLastStep = currentStep === getTotalSteps();
 
     return (
-        <Modal show={show} onHide={onHide} size="lg" centered>
+        <Modal show={show} onHide={onHide} size="lg" centered aria-labelledby="add-service-title">
             <Modal.Header closeButton className="border-0 pb-0">
-                <Modal.Title className="fw-bold">Add New Service</Modal.Title>
+                <Modal.Title id="add-service-title" className="fw-bold">Add New Service</Modal.Title>
             </Modal.Header>
 
             <Modal.Body className="pt-3">

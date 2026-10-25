@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import AuthService from "../services/auth.service";
 import { FaEye, FaEyeSlash, FaEnvelope, FaLock, FaArrowRight, FaShieldAlt, FaCheckCircle } from "react-icons/fa";
@@ -31,6 +31,8 @@ const Login = () => {
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  // Sign-up without email activation lands here with "You can now log in".
+  const notice = useLocation().state?.message;
   const autoDemo = useRef(false);
 
   useEffect(() => {
@@ -307,6 +309,13 @@ const Login = () => {
                   </button>
                 </div>
               </div>
+
+              {notice && !resetSuccess && !error && (
+                <div className="alert-success" role="status">
+                  <FaCheckCircle />
+                  <span>{notice}</span>
+                </div>
+              )}
 
               {resetSuccess && (
                 <div className="alert-success">

@@ -417,9 +417,21 @@ class APIKeysView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
         
+        # Keyless providers (Ollama) store only a base URL. Before this a
+        # 20-character key was required for every provider, so Ollama on
+        # another host could only be configured with an invented key
+        # (found by the journey suite, launch plan 9.9).
+        raw_key = (serializer.validated_data.get('api_key') or '').strip()
+        if provider.requires_api_key and len(raw_key) < 20:
+            return Response({'api_key': ['API key is too short (minimum 20 characters).']},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if not raw_key and not serializer.validated_data.get('base_url'):
+            return Response({'base_url': ['Enter a base URL (this provider needs no key).']},
+                            status=status.HTTP_400_BAD_REQUEST)
+
         # Encrypt the API key before storing
         from .encryption import encrypt_api_key
-        encrypted_key = encrypt_api_key(serializer.validated_data['api_key'])
+        encrypted_key = encrypt_api_key(raw_key) if raw_key else ''
         
         # Build defaults dict
         defaults = {
@@ -503,7 +515,23 @@ class TestAIConnectionView(APIView):
             if custom_api_key:
                 api_key = custom_api_key
                 source = "request_param"
-            
+
+            # A base URL typed but not saved yet (Ollama in the wizard).
+            custom_base_url = (serializer.validated_data.get('base_url') or '').strip()
+            if custom_base_url:
+                from Utils.url_validator import validate_internal_url_no_metadata
+                try:
+                    validate_internal_url_no_metadata(custom_base_url)
+                except ValueError as exc:
+                    return Response({'success': False, 'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+                base_url = custom_base_url
+
+            from .models import AIModelProvider
+            provider_row = AIModelProvider.objects.filter(name=provider_name).first()
+            if not api_key and provider_row is not None and not provider_row.requires_api_key:
+                # Keyless provider: the OpenAI-compatible client still wants a string.
+                api_key = 'not-needed'
+
             logger.debug("Testing AI connection: provider=%s, source=%s", provider_name, source)
 
             if not api_key:

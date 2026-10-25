@@ -52,6 +52,30 @@ class EmailSenderTest(TestCase):
         self.assertIn('checkout', mail.outbox[0].subject)
         self.assertIn('Redis unreachable', mail.outbox[0].body)
 
+    def test_body_carries_the_rca(self):
+        """The payload as incident_dispatcher._build_payload shapes it. The
+        body used to read keys the dispatcher never sent and came out empty."""
+        from notifications.senders import send_email
+        from django.core import mail
+
+        channel = self._make_channel({'to': 'ops@example.com'})
+        ok, msg = send_email(channel, {
+            'title': 'Alert analyzed — PaymentsErrorRateHigh', 'batch_id': 'shop-alert-1',
+            'project_name': 'shop', 'environment': 'production', 'top_severity': 'CRITICAL',
+            'issue_count': 3, 'root_cause': 'payments database pool exhausted (pool_size=2)',
+            'recommendation': 'Roll back the last payments change.',
+            'issues': [{'severity': 'CRITICAL', 'component': 'payments', 'description': 'pool exhausted'},
+                       {'severity': 'WARNING', 'component': 'checkout', 'description': 'upstream failed'}],
+            'incident_url': 'https://serops.example.com/dash/data/details/shop-alert-1',
+            'alert_event_id': 7,
+        })
+        self.assertTrue(ok, msg)
+        body = mail.outbox[0].body
+        self.assertIn('payments database pool exhausted', body)
+        self.assertIn('Roll back the last payments change.', body)
+        self.assertIn('payments: pool exhausted', body)
+        self.assertIn('https://serops.example.com/dash/data/details/shop-alert-1', body)
+
     def test_send_with_list_to(self):
         from notifications.senders import send_email
         from django.core import mail

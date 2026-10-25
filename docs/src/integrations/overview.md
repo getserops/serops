@@ -63,13 +63,14 @@ Log, metric, and trace providers for fetching application data for AI analysis.
 ## Tested environments
 
 Every adapter above has unit tests. Not every one has yet run end to end
-against a live system, and this table says which have.
+against a live system, and this table says which have. Versions supported
+and tested per integration: [Compatibility](compatibility.md).
 
 | Area | Status |
 |------|--------|
 | Self-hosting | Docker Compose and the Helm chart, verified end to end. |
 | Kubernetes workloads | Verified on **single-node** clusters (minikube, KinD): Fluent Bit → Elasticsearch, Promtail → Loki, Prometheus with cAdvisor and kube-state-metrics, and OTLP traces. |
-| Live-tested backends | Elasticsearch, OpenSearch, Grafana Loki, Prometheus, VictoriaMetrics, Grafana Mimir, GitLab. |
+| Live-tested backends | Elasticsearch, OpenSearch, Grafana Loki, Splunk, Prometheus, VictoriaMetrics, Grafana Mimir, Jaeger, Zipkin, Tempo, Alertmanager, GitLab, Jenkins, Argo CD, Flux, Keycloak (versions in [Compatibility](compatibility.md)). |
 | Managed Kubernetes (EKS, GKE, AKS) | **Not yet validated.** The Kubernetes modes for CloudWatch Container Insights, Cloud Monitoring for GKE and Azure Monitor Container Insights are implemented and unit-tested, but have not run against a live managed cluster. Use the credentials each integration page describes: Google Cloud and Azure deliberately never use the host's own cloud identity (GKE Workload Identity, AKS managed identity), so one organisation on a shared instance cannot borrow it. |
 | Multi-node clusters | **Not yet validated.** All the Kubernetes testing above ran on one node. |
 | Datadog, AWS CloudWatch, Google Cloud, Azure Monitor | Implemented and unit-tested against mocked API responses; not yet run against a live account. |

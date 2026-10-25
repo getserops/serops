@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from .issue_order import root_cause_first
 from .models import AIAnalyzedBatch, Issue
 
 class IssueSerializer(serializers.ModelSerializer):
@@ -190,7 +191,13 @@ class IssueSerializer(serializers.ModelSerializer):
 
 
 class AIAnalyzedBatchSerializer(serializers.ModelSerializer):
-    issues = IssueSerializer(many=True, read_only=True)
+    # The analysis page headlines issues[0] as the root cause. With Issue's
+    # default ordering (newest first) it headlined the AI's *last* issue,
+    # usually a minor symptom (found by the journey suite, launch plan 9.9).
+    issues = serializers.SerializerMethodField()
+
+    def get_issues(self, obj):
+        return IssueSerializer(root_cause_first(obj.issues.all()), many=True, context=self.context).data
 
     class Meta:
         model = AIAnalyzedBatch

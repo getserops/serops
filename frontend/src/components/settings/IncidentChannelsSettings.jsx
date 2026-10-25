@@ -169,6 +169,8 @@ const IncidentChannelsSettings = () => {
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(null);
     const [testingId, setTestingId] = useState(null);
+    // Email recipients as typed; saved as extra_config.to (a list).
+    const [recipientsText, setRecipientsText] = useState('');
 
     const load = useCallback(async () => {
         try {
@@ -187,6 +189,7 @@ const IncidentChannelsSettings = () => {
     const openCreate = () => {
         setEditing(null);
         setForm(EMPTY_FORM);
+        setRecipientsText('');
         setShowForm(true);
     };
 
@@ -204,6 +207,8 @@ const IncidentChannelsSettings = () => {
             min_severity: channel.min_severity || '',
             is_active: channel.is_active,
         });
+        const to = channel.extra_config?.to;
+        setRecipientsText(Array.isArray(to) ? to.join(', ') : (to || ''));
         setShowForm(true);
     };
 
@@ -215,6 +220,12 @@ const IncidentChannelsSettings = () => {
             const payload = { ...form };
             if (!payload.webhook_url_input) delete payload.webhook_url_input;
             if (!payload.api_key_input) delete payload.api_key_input;
+            if (payload.kind === 'email') {
+                payload.extra_config = {
+                    ...payload.extra_config,
+                    to: recipientsText.split(/[\s,;]+/).filter(Boolean),
+                };
+            }
             if (editing) {
                 await IncidentChannelsService.update(editing.id, payload);
                 toast.success(t('incidentChannels.updateSuccess'));
@@ -455,6 +466,22 @@ const IncidentChannelsSettings = () => {
                                     </Form.Group>
                                 )}
                             </>
+                        )}
+
+                        {form.kind === 'email' && (
+                            // The email sender reads extra_config.to; without this field an
+                            // Email channel had no recipients and every send failed.
+                            <Form.Group className="mb-3" controlId="channel-recipients">
+                                <Form.Label>{t('incidentChannels.recipients')}</Form.Label>
+                                <Form.Control
+                                    type="text"
+                                    value={recipientsText}
+                                    onChange={(e) => setRecipientsText(e.target.value)}
+                                    placeholder="sre@example.com, oncall@example.com"
+                                    required
+                                />
+                                <Form.Text className="text-muted">{t('incidentChannels.recipientsHint')}</Form.Text>
+                            </Form.Group>
                         )}
 
                         <Form.Group className="mb-3">

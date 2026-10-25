@@ -117,7 +117,12 @@ class TraceReadViewSet(viewsets.ReadOnlyModelViewSet):
 
         service = params.get('service')
         if service:
-            qs = qs.filter(root_service_name=service)
+            # Any trace the service takes part in, not only those it starts:
+            # checkout and payments spans could not be filtered on (journey
+            # suite, B12).
+            from django.db.models import Exists, OuterRef, Q
+            qs = qs.filter(Q(root_service_name=service) | Exists(
+                Span.objects.filter(trace=OuterRef('pk'), service_name=service)))
 
         status = params.get('status')
         if status:
@@ -159,16 +164,13 @@ class TraceReadViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def services(self, request):
-        """Distinct root service names in the caller's org — for filter dropdowns."""
+        """Distinct service names in the caller's org's traces, root or not —
+        for filter dropdowns."""
         org = getattr(request.user, 'organisation', None)
         if org is None:
             return Response([])
-        names = (
-            Trace.objects
-            .filter(organisation=org)
-            .exclude(root_service_name='')
-            .values_list('root_service_name', flat=True)
-            .distinct()
-            .order_by('root_service_name')
-        )
-        return Response(list(names))
+        roots = (Trace.objects.filter(organisation=org).exclude(root_service_name='')
+                 .values_list('root_service_name', flat=True).distinct())
+        spans = (Span.objects.filter(trace__organisation=org).exclude(service_name='')
+                 .values_list('service_name', flat=True).distinct())
+        return Response(sorted(set(roots) | set(spans)))

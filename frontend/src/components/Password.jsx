@@ -3,6 +3,7 @@ import "./Login.css";
 import { useNavigate } from "react-router-dom";
 import { FaLock } from "react-icons/fa";
 import AuthService from "../services/auth.service";
+import { describeRequestError } from "../utils/apiError";
 import BrandMark from './BrandMark';
 
 const Password = () => {
@@ -45,7 +46,7 @@ const Password = () => {
         setTimeout(() => navigate("/login"), 2000);
       })
       .catch((err) => {
-        setError(err?.response?.data?.error || err?.response?.data?.message || "Wrong password");
+        setError(describeRequestError(err, "Wrong password"));
         setLoading(false);
       });
   };

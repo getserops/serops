@@ -135,7 +135,10 @@ class Pipeline(models.Model):
         ]
         # Pipeline IDs are only unique within the same provider (e.g.
         # GitLab "12345" and GitHub "12345" are different pipelines).
-        unique_together = [('cicd_provider', 'pipeline_id')]
+        # Per organisation: a Jenkins job "payments-deploy" build 1 exists in
+        # many tenants. Keyed without the organisation, one tenant's webhook
+        # overwrote another's row (found by the journey suite, launch plan 9.9).
+        unique_together = [('organisation', 'cicd_provider', 'pipeline_id')]
     
     def __str__(self):
         project_name = self.project.name if self.project else self.external_project_id or 'Unknown'
@@ -366,6 +369,20 @@ class Deployment(models.Model):
         help_text="Who triggered the deployment (username or 'CI/CD')"
     )
     
+    # Which SerOps service was deployed: the CI/CD binding the webhook came
+    # through. Before this a deploy reached a project only through
+    # code_change -> repository -> SCM binding, so an Argo CD, Flux or
+    # Jenkins deploy of a service without one belonged to no project (found
+    # by the journey suite).
+    project_service = models.ForeignKey(
+        'Projects.ProjectService',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recorded_deployments',
+        help_text="Service deployed, from the CI/CD binding the event came through"
+    )
+
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(
@@ -411,12 +428,21 @@ class ProviderIntegration(models.Model):
         ('bitbucket', 'Bitbucket'),
         ('azure_devops', 'Azure DevOps'),
         ('jenkins', 'Jenkins'),
+        ('argocd', 'Argo CD'),
+        ('flux', 'Flux'),
     ]
+
+    #: GitOps controllers only send events to SerOps: no credentials, nothing
+    #: to call. They used to have no integration type, so a team deploying
+    #: with Argo CD or Flux but building elsewhere could not bind a service
+    #: (journey suite, B22).
+    GITOPS_PROVIDERS = ('argocd', 'flux')
     
     CATEGORY_CHOICES = [
         ('devops', 'DevOps Platform'),  # GitLab, GitHub, Azure DevOps - has SCM + CI/CD
         ('scm', 'Source Control Only'),
         ('cicd', 'CI/CD Only'),  # Jenkins
+        ('gitops', 'GitOps'),  # Argo CD, Flux
     ]
     
     VERIFICATION_STATUS_CHOICES = [
@@ -612,6 +638,8 @@ class ProviderIntegration(models.Model):
             'azure_devops': ['scm', 'cicd', 'deployments', 'issues'],
             'bitbucket': ['scm', 'cicd'],
             'jenkins': ['cicd', 'deployments'],
+            'argocd': ['deployments'],
+            'flux': ['deployments'],
         }
         return capability_map.get(self.provider_type, ['scm'])
     

@@ -29,7 +29,8 @@ class DeploymentService:
         pipeline: Optional[Pipeline] = None,
         status: str = 'success',
         deployed_by: str = 'CI/CD',
-        notes: str = ''
+        notes: str = '',
+        project_service=None,
     ) -> Deployment:
         """
         Create a deployment record.
@@ -48,6 +49,7 @@ class DeploymentService:
             status: Deployment status (default: 'success')
             deployed_by: Who deployed (default: 'CI/CD')
             notes: Optional notes about deployment
+            project_service: The SerOps service deployed (its CI/CD binding's)
         
         Returns:
             Deployment instance (created or existing)
@@ -81,8 +83,12 @@ class DeploymentService:
                 'status': status,
                 'deployed_by': deployed_by,
                 'notes': notes,
+                'project_service': project_service,
             }
         )
+        if not created and project_service is not None and deployment.project_service_id is None:
+            deployment.project_service = project_service
+            deployment.save(update_fields=['project_service'])
         
         if created:
             logger.info(

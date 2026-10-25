@@ -14,7 +14,7 @@ OpenSearch is an open-source search and analytics engine, fully compatible with 
 
 ## Prerequisites
 
-- OpenSearch 1.x or 2.x
+- OpenSearch 1.3 or later (tested: 1.3.20, 2.17.1, 3.1.0 — see [Compatibility](compatibility.md))
 - Network access from the SerOps backend to the OpenSearch cluster
 - A user with read permissions on the target indices
 

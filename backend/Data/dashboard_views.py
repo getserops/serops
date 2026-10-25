@@ -449,6 +449,9 @@ class RootCauseStatsView(OrgFilterMixin, APIView):
 
 
 
+FLUX_CONTROLLERS = {'kustomize-controller', 'helm-controller', 'source-controller', 'flux'}
+
+
 class RecentDeploymentsView(OrgFilterMixin, APIView):
     """
     Recent CI/CD deployments per service.
@@ -457,8 +460,8 @@ class RecentDeploymentsView(OrgFilterMixin, APIView):
     permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
     
     def get(self, request):
-        from providers.models import Pipeline, GitlabProject
-        from Projects.models import ProjectService, SCMBinding
+        from providers.models import Deployment, Pipeline
+        from Projects.models import ProjectService
 
         try:
             # Use org-specific cache key
@@ -475,11 +478,17 @@ class RecentDeploymentsView(OrgFilterMixin, APIView):
             # (repository_id) — legacy field is unset on new-style
             # services. Include both paths so deployments show for
             # everyone.
+            # Services with a repository or a CI/CD binding. Binding-only
+            # services (a Jenkins job, Argo CD or Flux deploying a service
+            # with no SCM binding) used to be left out, and so were GitOps
+            # deployments, which have no pipeline (found by the journey
+            # suite).
             services = ProjectService.objects.filter(
                 project__organisation=user_org,
             ).filter(
                 Q(gitlab_project__isnull=False)
                 | Q(scm_binding__isnull=False)
+                | Q(cicd_bindings__is_active=True)
             ).select_related('gitlab_project', 'project', 'scm_binding').distinct()
 
             # Item #17 / Q1.4 — cluster filter.
@@ -491,10 +500,13 @@ class RecentDeploymentsView(OrgFilterMixin, APIView):
 
             for service in services[:10]:  # Limit to 10 services
                 gitlab_project = service.gitlab_project
-                # New-style services use SCMBinding.repository_id which
-                # matches Pipeline.external_project_id. Legacy uses
-                # ``project=gitlab_project``. Try both.
-                pipeline_q = Q()
+                # Pipelines of the service's repository (legacy GitlabProject
+                # FK or SCMBinding.repository_id = external_project_id), or
+                # that came through one of its CI/CD bindings.
+                pipeline_q = Q(
+                    provider_metadata__serops_project_id=service.project_id,
+                    provider_metadata__service_name=service.name,
+                )
                 repo_display = None
                 if gitlab_project:
                     pipeline_q |= Q(project=gitlab_project)
@@ -503,16 +515,36 @@ class RecentDeploymentsView(OrgFilterMixin, APIView):
                 if scm_binding and scm_binding.repository_id:
                     pipeline_q |= Q(external_project_id=scm_binding.repository_id)
                     repo_display = repo_display or scm_binding.repository_name or scm_binding.repository_id
-                if not pipeline_q:
-                    continue
 
-                pipelines = Pipeline.objects.filter(
-                    pipeline_q, organisation=user_org,
-                ).order_by('-created_at')[:3]
-                
-                if not pipelines.exists():
-                    # No pipelines yet, still show service — with the CI it
-                    # is bound to rather than assuming GitLab.
+                entries = [
+                    {
+                        'id': p.pipeline_id,
+                        'status': p.status,
+                        'branch': p.branch,
+                        'environment': p.environment,
+                        'created_at': p.created_at.isoformat() if p.created_at else None,
+                        'provider': p.cicd_provider,
+                    }
+                    for p in Pipeline.objects.filter(pipeline_q, organisation=user_org).order_by('-created_at')[:3]
+                ]
+                # GitOps deployments: no pipeline, recorded for the service.
+                for d in (Deployment.objects.filter(project_service=service, pipeline__isnull=True)
+                          .select_related('code_change').order_by('-deployed_at')[:3]):
+                    entries.append({
+                        'id': (d.code_change.commit_sha or '')[:8] if d.code_change else str(d.pk),
+                        'status': d.status,
+                        'branch': d.code_change.branch if d.code_change else '',
+                        'environment': d.environment,
+                        'created_at': d.deployed_at.isoformat() if d.deployed_at else None,
+                        # Flux reports as its controller (kustomize-controller).
+                        'provider': 'flux' if d.deployed_by in FLUX_CONTROLLERS else d.deployed_by,
+                    })
+                entries.sort(key=lambda e: e['created_at'] or '', reverse=True)
+                entries = entries[:3]
+
+                if not entries:
+                    # Nothing yet, still show service — with the CI it is
+                    # bound to rather than assuming GitLab.
                     binding = service.cicd_bindings.filter(
                         is_active=True,
                     ).select_related('integration').first()
@@ -527,41 +559,24 @@ class RecentDeploymentsView(OrgFilterMixin, APIView):
                         'success_rate': None
                     })
                     continue
-                
-                # Calculate success rate from recent pipelines
-                recent_list = []
-                success_count = 0
-                total_count = 0
-                
-                for p in pipelines:
-                    status_lower = p.status.lower() if p.status else 'unknown'
-                    is_success = status_lower in ['success', 'passed', 'completed']
-                    if status_lower not in ['pending', 'running', 'created']:
-                        total_count += 1
-                        if is_success:
-                            success_count += 1
-                    
-                    recent_list.append({
-                        'id': p.pipeline_id,
-                        'status': p.status,
-                        'branch': p.branch,
-                        'environment': p.environment,
-                        'created_at': p.created_at.isoformat() if p.created_at else None
-                    })
-                
-                success_rate = round((success_count / total_count) * 100) if total_count > 0 else None
-                
+
+                # Success rate over the finished ones
+                finished = [e for e in entries
+                            if (e['status'] or 'unknown').lower() not in ('pending', 'running', 'created', 'in_progress')]
+                succeeded = [e for e in finished if (e['status'] or '').lower() in ('success', 'passed', 'completed')]
+                success_rate = round(len(succeeded) / len(finished) * 100) if finished else None
+
                 deployments.append({
                     'service_id': service.id,
                     'service_name': service.name or repo_display or 'Unknown',
                     'project_id': service.project_id,
                     'project_name': service.project.name if service.project else 'Unknown',
-                    'provider': pipelines[0].cicd_provider if pipelines else 'unknown',
-                    'latest_pipeline': recent_list[0] if recent_list else None,
-                    'recent_pipelines': recent_list,
+                    'provider': entries[0]['provider'] or 'unknown',
+                    'latest_pipeline': entries[0],
+                    'recent_pipelines': entries,
                     'success_rate': success_rate
                 })
-            
+
             # Sort by most recent pipeline first
             deployments.sort(
                 key=lambda x: x['latest_pipeline']['created_at'] if x.get('latest_pipeline') else '',

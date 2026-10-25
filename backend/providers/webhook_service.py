@@ -89,6 +89,12 @@ class WebhookService:
         'azure_devops': 'azure-devops',
     }
 
+    # GitOps controllers post to the deployment webhooks (providers/urls.py).
+    GITOPS_URL_SLUGS = {
+        'argocd': 'argocd',
+        'flux': 'flux',
+    }
+
     # Provider-specific webhook events
     CICD_WEBHOOK_EVENTS = {
         'gitlab': {
@@ -120,6 +126,18 @@ class WebhookService:
 
             # Determine URL slug for provider
             provider_type = binding.integration.provider_type
+            if provider_type in WebhookService.GITOPS_URL_SLUGS:
+                # Argo CD / Flux: configured by hand on the controller.
+                binding.webhook_configured = True
+                binding.save(update_fields=['webhook_configured', 'webhook_secret'])
+                slug = WebhookService.GITOPS_URL_SLUGS[provider_type]
+                return {
+                    'success': True,
+                    'message': f"Point {binding.integration.get_provider_type_display()} at this URL",
+                    'webhook_url': f"{host_url.rstrip('/')}/api/providers/webhook/{slug}/{binding.id}/",
+                    'manual_setup': True,
+                    'webhook_secret': binding.webhook_secret,
+                }
             url_slug = WebhookService.CICD_URL_SLUGS.get(provider_type)
             if not url_slug:
                 return {
@@ -152,12 +170,19 @@ class WebhookService:
             binding.webhook_configured = True
             binding.save(update_fields=['webhook_configured', 'webhook_id', 'webhook_secret'])
 
-            return {
+            manual = not hasattr(provider, 'create_webhook')
+            result = {
                 'success': True,
                 'message': f"Webhook configured for {binding.pipeline_name or binding.pipeline_id}",
                 'webhook_url': webhook_url,
-                'manual_setup': not hasattr(provider, 'create_webhook'),
+                'manual_setup': manual,
             }
+            if manual:
+                # Jenkins / Azure DevOps (and Argo CD / Flux on the same binding)
+                # are configured by hand, so the person needs the secret. It was
+                # only ever returned by the create call, which the UI did not show.
+                result['webhook_secret'] = binding.webhook_secret
+            return result
 
         except Exception as e:
             logger.exception(f"Failed to setup CI/CD webhook for binding {binding.id}: {e}")

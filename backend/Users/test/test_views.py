@@ -134,6 +134,23 @@ class TestRegisterView(APITestCase):
         self.client.post(self.url, self.valid_data, format='json')
         mock_send.assert_called_once()
 
+    @override_settings(EMAIL_HOST='smtp.example.test')
+    @patch('Users.views.send_activation_link', return_value=True)
+    def test_register_says_the_email_was_sent(self, mock_send):
+        response = self.client.post(self.url, self.valid_data, format='json')
+        self.assertIs(response.data['email_sent'], True)
+        self.assertIn('check your email', response.data['message'])
+
+    @override_settings(EMAIL_HOST='smtp.example.test')
+    @patch('Users.views.send_activation_link', return_value=False)
+    def test_register_says_when_the_email_failed(self, mock_send):
+        """A mail server that refuses the message used to show up only in
+        the backend log while sign-up said "check your email"."""
+        response = self.client.post(self.url, self.valid_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIs(response.data['email_sent'], False)
+        self.assertIn('could not be sent', response.data['message'])
+
 
 # =============================================================================
 # LoginView
@@ -568,12 +585,9 @@ class TestInvitationSetPasswordView(APITestCase):
             role='user',
             is_active=True,
         )
-        # Real invitation JWT — mirrors send_invitation_link's payload.
-        self.token = jwt.encode(
-            {'user': self.user.id, 'organisation': self.org.id, 'role': self.user.role},
-            django_settings.SECRET_KEY,
-            algorithm='HS256',
-        )
+        # The token send_invitation_link puts in the email.
+        from Utils.email_utils import make_invitation_token
+        self.token = make_invitation_token(self.user)
 
     @patch('Users.views.log_action')
     def test_set_invitation_password_success(self, mock_log):
@@ -590,8 +604,9 @@ class TestInvitationSetPasswordView(APITestCase):
         """Valid JWT for a user who no longer exists → 404."""
         from django.conf import settings as django_settings
         import jwt
+        import time
         stale_token = jwt.encode(
-            {'user': 99999, 'organisation': self.org.id, 'role': 'user'},
+            {'user': 99999, 'organisation': self.org.id, 'role': 'user', 'exp': int(time.time()) + 600},
             django_settings.SECRET_KEY,
             algorithm='HS256',
         )
@@ -601,6 +616,38 @@ class TestInvitationSetPasswordView(APITestCase):
             'password_confirmation': 'NewInvite123!',
         })
         self.assertEqual(response.status_code, 404)
+
+    @patch('Users.views.log_action')
+    def test_invitation_link_works_once(self, mock_log):
+        """An old invitation email must not reset the password again."""
+        body = {'token': self.token, 'password': 'NewInvite123!', 'password_confirmation': 'NewInvite123!'}
+        self.assertEqual(self.client.post(self.url, body).status_code, 200)
+        again = dict(body, password='Attacker123!', password_confirmation='Attacker123!')
+        self.assertEqual(self.client.post(self.url, again).status_code, 401)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('NewInvite123!'))
+        # The accept endpoint refuses the used link too.
+        self.assertEqual(self.client.get(reverse('accept-invitation', args=[self.token])).status_code, 400)
+
+    def test_invitation_link_expires(self):
+        from unittest.mock import patch as _patch
+        from Utils.email_utils import make_invitation_token
+        with _patch('Utils.email_utils.INVITATION_TTL_DAYS', -1):
+            expired = make_invitation_token(self.user)
+        response = self.client.post(self.url, {
+            'token': expired, 'password': 'NewInvite123!', 'password_confirmation': 'NewInvite123!'})
+        self.assertEqual(response.status_code, 401)
+        self.assertIn('expired', response.json()['error'])
+
+    def test_token_without_expiry_is_refused(self):
+        """Links sent before the fix carried no exp: they must not be accepted."""
+        from django.conf import settings as django_settings
+        import jwt
+        legacy = jwt.encode({'user': self.user.id, 'organisation': self.org.id, 'role': 'user'},
+                            django_settings.SECRET_KEY, algorithm='HS256')
+        response = self.client.post(self.url, {
+            'token': legacy, 'password': 'NewInvite123!', 'password_confirmation': 'NewInvite123!'})
+        self.assertEqual(response.status_code, 401)
 
     def test_set_invitation_password_mismatch(self):
         response = self.client.post(self.url, {
@@ -714,3 +761,24 @@ class TestProfileAvatarView(APITestCase):
     def test_upload_avatar_no_data(self):
         response = self.client.put(self.url, {}, format='multipart')
         self.assertEqual(response.status_code, 400)
+
+
+class InvitationEmailTest(APITestCase):
+    """The invitation said "Hello ," and "Join your Team on Serops!", without
+    the organisation or who invited (journey suite, E1-E3)."""
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend', EMAIL_HOST='')
+    def test_names_the_organisation_and_the_inviter(self):
+        from django.core import mail
+        from Utils.email_utils import send_invitation_link
+        org = Organisations.objects.create(name='Acme')
+        admin = User.objects.create_user(username='ada', email='ada@acme.test', password='x',
+                                         first_name='Ada', last_name='Admin', organisation=org)
+        invitee = User.objects.create_user(username='bob', email='bob@acme.test', password='x', organisation=org)
+        with patch('Utils.email_utils._get_connection_and_from', return_value=(None, 'serops@acme.test')):
+            send_invitation_link(invitee, invited_by=admin)
+        message = mail.outbox[-1]
+        self.assertEqual(message.subject, "You're invited to join Acme on SerOps")
+        self.assertIn('Ada Admin has invited you', message.body)
+        self.assertIn('<strong>Acme</strong>', message.body)
+        self.assertIn('Hello,', message.body)

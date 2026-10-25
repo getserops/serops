@@ -368,6 +368,8 @@
     "inactive": "Inactif",
     "gitlabProject": "Projet GitLab",
     "customService": "Service Personnalisé",
+    "typeApplication": "Application",
+    "typeInfrastructure": "Infrastructure",
     "loadingDetails": "Chargement des détails du service...",
     "gitlabProjectDetails": "Détails du Projet GitLab",
     "projectId": "ID du Projet",
@@ -386,6 +388,7 @@
     "subtitle": "Gérez les services et intégrations connectés"
   },
   "detail": {
+    "allSources": "Tout",
     "searchLogs": "Rechercher dans les journaux...",
     "service": "Service",
     "allServices": "Tous les Services",
@@ -499,7 +502,9 @@
     "deleteConfirm": "Supprimer {{name}} ?",
     "deleteSuccess": "Canal supprimé.",
     "deleteFailed": "Échec de la suppression.",
-    "empty": "Aucun canal pour l'instant."
+    "empty": "Aucun canal pour l'instant.",
+    "recipients": "Destinataires",
+    "recipientsHint": "Adresses e-mail séparées par des virgules. Utilise la configuration SMTP du serveur."
   },
   "clusters": {
     "menuLabel": "Clusters",
@@ -804,6 +809,7 @@
     "suspended": "Suspendu"
   },
   "ai": {
+    "noKeyNeeded": "Aucune clé requise",
     "title": "Paramètres IA",
     "subtitle": "Configurer et gérer vos fournisseurs de modèles IA",
     "loading": "Chargement des paramètres IA...",
@@ -912,6 +918,8 @@
     "realmOptional": "Realm (Optionnel)",
     "redirectUri": "URI de redirection",
     "redirectUriHint": "Enregistrez exactement cette URL comme URI de redirection valide dans votre fournisseur d'identité.",
+    "ssoDomains": "Domaines de connexion (facultatif)",
+    "ssoDomainsHint": "Les personnes dont l'e-mail est sur ces domaines peuvent se connecter par SSO sans invitation, avec le rôle Lecteur. Laissez vide pour n'autoriser que les personnes invitées.",
     "authenticationProtocol": "Protocole d'authentification",
     "enableSso": "Activer l'authentification unique",
     "enableSsoHint": "Permet de se connecter via votre fournisseur d'identité avec OpenID Connect (Okta, Azure AD, Google, Keycloak).",
@@ -1028,7 +1036,8 @@
       "scm": "Gestion du code",
       "cicd": "CI/CD",
       "logs": "Fournisseurs de logs",
-      "metrics": "Fournisseurs de métriques"
+      "metrics": "Fournisseurs de métriques",
+        "traces": "Fournisseurs de traces"
     },
     "scmDesc": "Les dépôts dont SerOps lit les commits et les diffs, pour relier les incidents aux changements de code.",
     "cicdDesc": "Les pipelines et déploiements que SerOps met en regard des incidents."
@@ -1068,6 +1077,7 @@
   },
   "traces": {
     "settings": {
+      "copyKey": "Copier la clé",
       "menuLabel": "Traces distribuées",
       "title": "Clés d'ingestion OTLP",
       "subtitle": "Jetons Bearer autorisant les collecteurs OpenTelemetry à envoyer des traces à SerOps. Chaque clé est limitée à votre organisation.",

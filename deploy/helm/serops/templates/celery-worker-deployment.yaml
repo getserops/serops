@@ -71,5 +71,22 @@ spec:
                   key: openai-api-key
                   optional: true
             {{- end }}
+          {{- with .Values.celeryWorker.livenessProbe }}
+          {{- if .enabled }}
+          # A worker that is up but consumes nothing (seen on a fresh
+          # install: 14 minutes idle, no error) fails the ping and is
+          # restarted. $HOSTNAME is the worker's node name.
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - celery -A api inspect ping -d celery@$HOSTNAME --timeout {{ .timeoutSeconds }}
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ add .timeoutSeconds 20 }}
+            failureThreshold: {{ .failureThreshold }}
+          {{- end }}
+          {{- end }}
           resources:
             {{- toYaml .Values.celeryWorker.resources | nindent 12 }}

@@ -164,15 +164,14 @@ class ArgoCDWebhookE2ETest(E2ETestCase):
         self.assertEqual(resp.data['environment'], 'staging')
 
     def test_out_of_sync_is_rejected_no_deployment(self):
-        """ArgoCD fires notifications on health-changes and mid-sync
-        transitions too. Only a completed Synced sync is a deployment."""
+        """ArgoCD fires notifications on health-changes too. Without a
+        succeeded operation, an OutOfSync app is not a deployment. (With
+        one, it is: the app can read OutOfSync right after its sync.)"""
         self._as_argocd()
 
-        resp = self.client.post(
-            self._url(),
-            data=self._payload(sync_status='OutOfSync'),
-            format='json',
-        )
+        payload = self._payload(sync_status='OutOfSync')
+        payload['app']['status'].pop('operationState', None)
+        resp = self.client.post(self._url(), data=payload, format='json')
         self.assertEqual(resp.status_code, 400, resp.content)
         self.assertEqual(Deployment.objects.count(), 0)
         self.assertEqual(CodeChange.objects.count(), 0)

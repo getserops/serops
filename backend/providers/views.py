@@ -2,7 +2,7 @@ from Middlewares.rbac import Requires
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import GitlabProject, Pipeline, Job, Deployment
+from .models import GitlabProject, Pipeline, Job, Deployment, ProviderIntegration
 from .serializer import ProjectSerializer, PipelineSerializer, JobSerializer
 from .utils import gitlab_retrieve_job_logs, gitlab_update_pipeline_status, extract_gitlab_info, trigger_pipeline_run, cancel_pipeline_run, get_gitlab_api_base
 import json
@@ -1286,9 +1286,13 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Automatically set organisation and created_by."""
         if hasattr(self.request.user, 'organisation'):
+            extra = {}
+            if serializer.validated_data.get('provider_type') in ProviderIntegration.GITOPS_PROVIDERS:
+                extra = {'category': 'gitops', 'verification_status': 'verified'}
             serializer.save(
                 organisation=self.request.user.organisation,
                 created_by=self.request.user,
+                **extra,
             )
         else:
             raise serializers.ValidationError("User must belong to an organisation")
@@ -1316,6 +1320,16 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
                 'success': True,
                 'message': 'OK (demo)',
                 'user_info': {'demo': True, 'note': 'seeded record'},
+            })
+
+        if integration.provider_type in ProviderIntegration.GITOPS_PROVIDERS:
+            # Nothing to connect to: the controller sends events to SerOps.
+            integration.mark_verified(success=True)
+            return Response({
+                'success': True,
+                'message': f'{integration.get_provider_type_display()} sends deployments to SerOps; '
+                           'bind a service to get its webhook URL.',
+                'user_info': {},
             })
 
         try:
@@ -1382,6 +1396,12 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
                 {'success': False, 'message': 'Provider type is required'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if provider_type in ProviderIntegration.GITOPS_PROVIDERS:
+            return Response({
+                'success': True,
+                'message': 'Nothing to connect to: the controller sends deployments to SerOps.',
+                'user_info': {},
+            })
         if not access_token:
             return Response(
                 {'success': False, 'message': 'Access token is required'},

@@ -110,7 +110,26 @@ class GenericDeploymentWebhookHandler(APIView):
         # 4. Get-or-create CodeChange for the commit
         code_change, created = self._get_or_create_code_change(payload, binding)
 
-        # 5. Create Deployment via the shared service
+        # 5. Same revision already the newest deploy in this environment: Flux
+        # sends an info event on every reconcile (and Argo CD can resend), so
+        # without this one sync became a new "deployment" every 30 s (found by
+        # the journey suite, launch plan 9.9). Rolling back and forward again
+        # still records, because the newest deploy differs in between.
+        from .models import Deployment
+        org = getattr(getattr(binding.project_service, 'project', None), 'organisation', None)
+        latest = (Deployment.objects
+                  .filter(environment=payload['environment'], code_change__organisation=org)
+                  .select_related('code_change').order_by('-deployed_at', '-pk').first())
+        if latest is not None and latest.code_change_id == code_change.pk:
+            return Response({
+                'message': 'deployment already recorded',
+                'deployment_id': latest.id,
+                'commit_sha': code_change.commit_sha,
+                'environment': latest.environment,
+                'deduplicated': True,
+            })
+
+        # 6. Create Deployment via the shared service
         from .deployment_service import DeploymentService
         try:
             deployment = DeploymentService.create_deployment(
@@ -121,6 +140,7 @@ class GenericDeploymentWebhookHandler(APIView):
                 status='success',
                 deployed_by=payload['actor'],
                 notes=payload['notes'],
+                project_service=binding.project_service,
             )
         except Exception as e:
             logger.exception(

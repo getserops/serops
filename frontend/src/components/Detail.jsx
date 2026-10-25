@@ -6,7 +6,6 @@ import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { StatusChip } from "./issues/IssuePanel";
 import { useTranslation } from "react-i18next";
 import DataService from "../services/data.service";
-import useCapabilities from "../hooks/useCapabilities";
 import { PostOnboardingUpsells } from "./onboarding";
 import { isDemoUser } from "../utils/demo";
 import notificationService from "../services/notification.service";
@@ -95,7 +94,6 @@ const Detail = () => {
   const { batchId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { has } = useCapabilities();
 
   const [data, setData] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -105,7 +103,9 @@ const Detail = () => {
   const pageSize = 9;
 
   const [selectedService, setSelectedService] = useState("All");
-  const [selectedData, setSelectedData] = useState("Logs");
+  // Logs and CI/CD runs together by default: a failed build that is part of
+  // the analysis was hidden behind the Source menu (journey suite, B25).
+  const [selectedData, setSelectedData] = useState("All");
   // PR-D: also carry the batch header (analysis / issues / metadata)
   // so this page renders the RCA hero, not just a log dump.
   const [batchMeta, setBatchMeta] = useState(null);
@@ -956,10 +956,10 @@ const Detail = () => {
                   offer 5 options where 4 just navigated away (Metrics,
                   Code Changes, Traces, Timeline all have their own tab
                   in the action bar above). Reduced to the actual
-                  in-page choice: raw logs vs CI/CD logs. Kept only if
-                  the org has CI/CD capability — otherwise there's
-                  nothing to toggle. */}
-              {has('cicd') && (
+                  in-page choice: raw logs vs CI/CD logs. Shown when the
+                  batch has CI/CD runs — otherwise there's nothing to
+                  toggle. */}
+              {data.some((item) => item.index.startsWith("ci_cd-logs-project-")) && (
                 <Dropdown>
                   <Dropdown.Toggle
                     variant="outline-secondary"
@@ -972,10 +972,16 @@ const Detail = () => {
                     }}
                   >
                     <span className="text-nowrap">
-                      {t('detail.logSource', 'Source')}: {selectedData === "CI/CD Logs" ? t('detail.cicdLogs') : t('detail.logs')}
+                      {t('detail.logSource', 'Source')}: {{ "CI/CD Logs": t('detail.cicdLogs'), Logs: t('detail.logs') }[selectedData] || t('detail.allSources', 'All')}
                     </span>
                   </Dropdown.Toggle>
                   <Dropdown.Menu>
+                    <Dropdown.Item
+                      onClick={() => handleDataChange("All")}
+                      style={{ fontSize: "14px" }}
+                    >
+                      {t('detail.allSources', 'All')}
+                    </Dropdown.Item>
                     <Dropdown.Item
                       onClick={() => handleDataChange("Logs")}
                       style={{ fontSize: "14px" }}

@@ -154,20 +154,30 @@ def _validate(data, org):
 
 
 def _last_deploy_at(org, project):
-    """When the project's newest pipeline ran, for the "since the last deploy" preset."""
+    """When the project was last deployed, for the "since the last deploy" preset.
+
+    The newest of: a pipeline of one of its repositories, a pipeline that
+    came through one of its services' CI/CD bindings, and a deployment
+    recorded for one of its services (Argo CD, Flux). Only the first used to
+    count, so a project deployed by GitOps or a Jenkins job without an SCM
+    binding never had a last deploy (found by the journey suite).
+    """
     from django.db.models import Q
-    from providers.models import Pipeline
-    query = Q()
+    from providers.models import Deployment, Pipeline
+    query = Q(provider_metadata__serops_project_id=project.id)
     for service in project.services.all():
         binding = getattr(service, 'scm_binding', None)
         if binding is not None and binding.repository_id:
             query |= Q(external_project_id=binding.repository_id)
         if service.gitlab_project_id:
             query |= Q(project_id=service.gitlab_project_id)
-    if not query:
-        return None
-    latest = (Pipeline.objects.filter(query, organisation=org)
-              .order_by('-created_at').values_list('created_at', flat=True).first())
+    candidates = [
+        Pipeline.objects.filter(query, organisation=org)
+        .order_by('-created_at').values_list('created_at', flat=True).first(),
+        Deployment.objects.filter(project_service__project=project, project_service__project__organisation=org)
+        .order_by('-deployed_at').values_list('deployed_at', flat=True).first(),
+    ]
+    latest = max((c for c in candidates if c), default=None)
     return latest.isoformat() if latest else None
 
 

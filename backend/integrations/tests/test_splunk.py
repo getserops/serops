@@ -199,6 +199,42 @@ class TestSplunkSearchFlow(SimpleTestCase):
         r.raise_for_status = MagicMock()
         return r
 
+    def test_json_events_from_hec_shippers(self):
+        """Fluent Bit / OTel / Vector send JSON events; unless the sourcetype
+        extracts them the canonical fields are only inside _raw."""
+        self._mock_start_ok()
+        raw = ('{"service_name":"payments","log_level":"ERROR","environment":"production",'
+               '"message":"pool exhausted","kubernetes":{"pod_name":"payments-1"}}')
+        self.session.get.side_effect = [self._mock_poll_done(), self._mock_results([
+            {"_time": "2026-08-26T12:00:00Z", "_raw": raw},
+        ])]
+        (e,) = self.provider.search(index="main", query=LogQuery(severity=["error"]),
+                                    time_range=(datetime(2026, 8, 26, 11), datetime(2026, 8, 26, 12)))
+        self.assertEqual(e.service, "payments")
+        self.assertEqual(e.level, "ERROR")
+        self.assertEqual(e.message, "pool exhausted")
+        # ...and every field is requested from /results (only defaults otherwise).
+        self.assertEqual(self.session.get.call_args.kwargs["params"]["f"], "*")
+
+    def test_extracted_fields_win_over_raw(self):
+        self._mock_start_ok()
+        self.session.get.side_effect = [self._mock_poll_done(), self._mock_results([
+            {"_time": "2026-08-26T12:00:00Z", "_raw": '{"service_name":"old"}', "service_name": "checkout"},
+        ])]
+        (e,) = self.provider.search(index="main", query=LogQuery(),
+                                    time_range=(datetime(2026, 8, 26, 11), datetime(2026, 8, 26, 12)))
+        self.assertEqual(e.service, "checkout")
+
+    def test_comma_list_falls_back_to_configured_index(self):
+        """The batch code passes ','.join(get_indices()); never send that to Splunk."""
+        self._mock_start_ok()
+        self.session.get.side_effect = [self._mock_poll_done(), self._mock_results([])]
+        self.provider.search(index="_internal,main,summary", query=LogQuery(severity=["error"]),
+                             time_range=(datetime(2026, 8, 26, 11), datetime(2026, 8, 26, 12)))
+        spl = self.session.post.call_args.kwargs["data"]["search"]
+        self.assertIn("index=main", spl)
+        self.assertNotIn(",", spl.split("index=", 1)[1].split()[0])
+
     def test_happy_path_returns_normalised_entries(self):
         self._mock_start_ok()
         results_resp = self._mock_results([
@@ -302,19 +338,26 @@ class TestSplunkGetIndices(SimpleTestCase):
         self.session.headers = self.provider._session.headers
         self.provider._session = self.session
 
-    def test_lists_index_names(self):
+    def _visible(self, *names):
         r = MagicMock(status_code=200)
-        r.json.return_value = {
-            "entry": [
-                {"name": "main"},
-                {"name": "acme-logs"},
-                {"name": ""},  # should be skipped
-            ]
-        }
+        r.json.return_value = {"entry": [{"name": n} for n in names]}
         r.raise_for_status = MagicMock()
         self.session.get.return_value = r
-        result = self.provider.get_indices(project=MagicMock(name="Any"))
-        self.assertEqual(result, ["main", "acme-logs"])
+
+    def test_returns_only_the_configured_index(self):
+        """Every visible index used to be returned; the batch code joined
+        them into a comma list that the SPL bareword check rejects."""
+        self._visible("_audit", "_internal", "main", "acme-logs", "")
+        self.assertEqual(self.provider.get_indices(project=MagicMock(name="Any")), ["main"])
+
+    def test_configured_index_from_extra_config(self):
+        self.provider._index = "acme-logs"
+        self._visible("main", "acme-logs")
+        self.assertEqual(self.provider.get_indices(project=None), ["acme-logs"])
+
+    def test_configured_index_not_visible(self):
+        self._visible("_internal", "other")
+        self.assertEqual(self.provider.get_indices(project=None), [])
 
     def test_get_indices_swallows_failure(self):
         from requests.exceptions import ConnectionError as ReqConnErr

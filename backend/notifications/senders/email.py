@@ -46,9 +46,20 @@ def _format_body(payload: dict) -> str:
         payload.get('title') or 'SerOps analysis',
         '',
     ]
-    for issue in (payload.get('issues') or [])[:5]:
-        lines.append(f"  • [{issue.get('severity', 'INFO')}] {issue.get('description', '')}")
-    link = payload.get('batch_url')
+    # Keys as built by incident_dispatcher._build_payload. The body used to
+    # read 'issues' and 'batch_url', which the payload did not carry, so
+    # every incident email was a header and nothing else.
+    if payload.get('root_cause'):
+        lines += ['Root cause:', f"  {payload['root_cause']}", '']
+    if payload.get('recommendation'):
+        lines += ['Recommended action:', f"  {payload['recommendation']}", '']
+    issues = payload.get('issues') or []
+    if issues:
+        lines.append(f"Issues ({payload.get('issue_count', len(issues))}):")
+        for issue in issues[:5]:
+            where = f"{issue.get('component')}: " if issue.get('component') else ''
+            lines.append(f"  • [{issue.get('severity', 'INFO')}] {where}{issue.get('description', '')}")
+    link = payload.get('incident_url')
     if link:
         lines += ['', f'View full analysis: {link}']
     return '\n'.join(lines)

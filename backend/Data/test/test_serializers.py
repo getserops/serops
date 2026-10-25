@@ -225,7 +225,7 @@ class TestAIAnalyzedBatchSerializer(TestCase):
         
         self.assertIn('issues', data)
         self.assertEqual(len(data['issues']), 2)
-        self.assertEqual(data['issues'][0]['severity'], 'WARNING')  # Ordered by created_at desc
+        self.assertEqual(data['issues'][0]['severity'], 'CRITICAL')  # Most severe first (root cause headline)
 
     def test_batch_read_only_fields(self):
         """Test read-only fields cannot be updated."""

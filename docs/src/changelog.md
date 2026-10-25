@@ -16,6 +16,66 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.2.6] - 2026-10-25
+
+Fixes from the end-to-end journey suite (Helm install to root-cause
+analysis, every integration that runs locally), plus Argo CD / Flux
+integrations and SSO sign-in domains.
+
+**Upgrade:** migrations run automatically (`providers` 0015-0017, `Users`
+0013). Pending invitation links stop working: they had no expiry. Re-send
+them. The Celery worker now has a liveness probe
+(`celeryWorker.livenessProbe.enabled`).
+
+### Security
+
+- Invitation links expire after 7 days (`INVITATION_TTL_DAYS`) and work
+  once.
+- CI/CD builds are kept per organisation: two organisations with the same
+  Jenkins job name and build number no longer share a record.
+
+### Added
+
+- **Argo CD and Flux integrations** (no credentials). Bind a service to
+  one and SerOps shows the webhook URL and secret to configure.
+- **SSO sign-in domains**: people at your email domains can sign in with
+  SSO before they are invited (Viewer role).
+- Settings → Integrations: a **Trace Providers** tab (Jaeger, Zipkin,
+  Tempo, Datadog APM); Splunk, Google Cloud and Azure Monitor as log
+  providers; **Topology mode** in the provider form.
+- An application service can be added without a repository.
+- Recent Deployments and "Since the last deploy" include Argo CD, Flux and
+  Jenkins deploys of services without a source-control binding.
+
+### Changed
+
+- One **primary** provider per capability and scope. Make the second one a
+  fallback.
+- The `critical_issue` notification fires when an issue becomes critical
+  (new, escalated, or back after an hour), not on every analysis of an
+  ongoing incident.
+
+### Fixed
+
+- A fresh Helm install could leave the Celery worker idle without error
+  (liveness probe).
+- Ollama: the Base URL is saved from the wizard and Settings, with no key.
+- Sign-up says when the activation email could not be sent, and points to
+  the inbox when it was.
+- Saving a provider's Edit dialog no longer clears its environment and
+  cluster.
+- Argo CD deploys are recorded when the app already reads OutOfSync right
+  after the sync.
+- Analyses get traces for services that never start a trace, and for the
+  investigation's own time window.
+- Alertmanager alerts labelled `service_name` keep their service; trace
+  IDs are no longer redacted as phone numbers.
+- The Traces service filter lists and matches every service in a trace.
+- Docs: Argo CD notification template (`oncePer`, body) and the Jenkinsfile
+  environment.
+
+---
+
 ## [1.2.5] - 2026-10-21
 
 Personal notifications work again. No migrations: set

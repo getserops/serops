@@ -105,6 +105,32 @@ class TestObservabilityIntegrationViewSet(APITestCase):
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    def test_create_trace_pull_providers(self):
+        """Jaeger / Zipkin / Tempo are configured with capabilities ['traces']
+        (docs: integrations/traces.md); the API used to reject 'traces'."""
+        from integrations.models import ObservabilityIntegration
+        from integrations.registry import IntegrationRegistry
+        self._auth(self.admin)
+        for provider, host in (('jaeger', 'http://jaeger:16686'), ('zipkin', 'http://zipkin:9411'),
+                               ('tempo', 'http://tempo:3200')):
+            response = self.client.post(self.list_url, {
+                'provider': provider, 'display_name': provider, 'capabilities': ['traces'], 'host': host,
+            }, format='json')
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.content)
+            row = ObservabilityIntegration.objects.get(pk=response.data['id'])
+            self.assertTrue(row.trace_adapter_class, provider)
+            # ...and analyses can find it.
+            self.assertIsNotNone(IntegrationRegistry.get_trace_provider_for_org(row.organisation))
+            row.delete()
+
+    def test_traces_rejected_for_a_provider_without_traces(self):
+        self._auth(self.admin)
+        response = self.client.post(self.list_url, {
+            'provider': 'prometheus', 'display_name': 'Prom', 'capabilities': ['traces'],
+            'host': 'http://prom:9090',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_create_datadog_dual(self):
         """Dual-capability (log+metric) created."""
         self._auth(self.admin)
@@ -113,8 +139,37 @@ class TestObservabilityIntegrationViewSet(APITestCase):
             'display_name': 'DD',
             'capabilities': ['logs', 'metrics'],
             'host': 'https://api.datadoghq.com',
+            # setUp's Elasticsearch is already the primary log provider.
+            'priority_tier': 'fallback',
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_second_primary_for_the_same_capability_is_refused(self):
+        """Loki and Elasticsearch could both be primary for logs, and
+        nothing said which one an analysis read."""
+        self._auth(self.admin)
+        response = self.client.post(self.list_url, {
+            'provider': 'loki', 'display_name': 'Loki', 'capabilities': ['logs'],
+            'host': 'http://loki:3100',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('already the primary logs provider', str(response.data['priority_tier']))
+
+    def test_primary_for_another_capability_is_fine(self):
+        self._auth(self.admin)
+        response = self.client.post(self.list_url, {
+            'provider': 'prometheus', 'display_name': 'Prom', 'capabilities': ['metrics'],
+            'host': 'http://prometheus:9090',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_primary_for_another_environment_is_fine(self):
+        self._auth(self.admin)
+        response = self.client.post(self.list_url, {
+            'provider': 'loki', 'display_name': 'Loki staging', 'capabilities': ['logs'],
+            'host': 'http://loki:3100', 'scope': {'environment': 'staging'},
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_create_duplicate_provider(self):
         """unique_together (org, provider) enforced — only one per org."""

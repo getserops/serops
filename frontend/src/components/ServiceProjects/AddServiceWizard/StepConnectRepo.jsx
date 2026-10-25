@@ -97,10 +97,42 @@ const StepConnectRepo = ({
                 Select your code repository to connect to this service.
             </p>
 
+            {/* An application whose code is elsewhere (or deployed by Argo CD,
+                Flux or Jenkins only) can be added without a repository, as in
+                the onboarding wizard (journey suite, B4). */}
+            <Form.Check
+                type="switch"
+                role="switch"
+                id="wizard-no-repo"
+                className="mb-3"
+                label="No repository in SerOps for this service"
+                checked={!!formData.noRepo}
+                onChange={(e) => updateFormData({
+                    noRepo: e.target.checked, integrationId: null, repositoryId: null, repositoryName: '',
+                })}
+            />
+
+            {formData.noRepo && (
+                <div className="wizard-form-section">
+                    <label className="wizard-form-label" htmlFor="wizard-no-repo-name">Service Name *</label>
+                    <Form.Control id="wizard-no-repo-name"
+                        type="text"
+                        placeholder="payments"
+                        value={formData.serviceName || ""}
+                        onChange={(e) => updateFormData({ serviceName: e.target.value })}
+                        className="rounded-3"
+                    />
+                    <Form.Text className="text-muted">
+                        The name its logs and metrics use. You can connect a repository later.
+                    </Form.Text>
+                </div>
+            )}
+
+            {!formData.noRepo && (<>
             {/* Provider Selection */}
             <div className="wizard-form-section">
-                <label className="wizard-form-label">Code Repository Provider</label>
-                <div className="provider-buttons">
+                <span className="wizard-form-label d-block" id="wizard-scm-provider">Code Repository Provider</span>
+                <div className="provider-buttons" role="group" aria-labelledby="wizard-scm-provider">
                     {scmProviders.map((provider) => {
                         const Icon = provider.icon;
                         const isActive = formData.scmProvider === provider.id;
@@ -109,6 +141,7 @@ const StepConnectRepo = ({
                             <button
                                 key={provider.id}
                                 type="button"
+                                aria-pressed={isActive}
                                 className={`provider-btn ${isActive ? 'active' : ''}`}
                                 onClick={() => updateFormData({
                                     scmProvider: provider.id,
@@ -128,7 +161,7 @@ const StepConnectRepo = ({
 
             {/* Integration Selection */}
             <div className="wizard-form-section">
-                <label className="wizard-form-label">Integration</label>
+                <label className="wizard-form-label" htmlFor="wizard-connectrepo-1">Integration</label>
                 {providerIntegrations.length === 0 ? (
                     <Alert variant="warning" className="d-flex align-items-center">
                         <FaExclamationTriangle className="me-2" />
@@ -136,7 +169,7 @@ const StepConnectRepo = ({
                         <a href="/dash/settings/integrations" className="ms-1">Add one in Settings</a>
                     </Alert>
                 ) : (
-                    <Form.Select
+                    <Form.Select id="wizard-connectrepo-1"
                         value={formData.integrationId || ""}
                         onChange={(e) => updateFormData({
                             integrationId: parseInt(e.target.value),
@@ -158,7 +191,7 @@ const StepConnectRepo = ({
             {/* Repository Selection */}
             {formData.integrationId && (
                 <div className="wizard-form-section">
-                    <label className="wizard-form-label">Repository</label>
+                    <label className="wizard-form-label" htmlFor="wizard-connectrepo-2">Repository</label>
                     {loadingRepos ? (
                         <div className="d-flex align-items-center text-muted">
                             <Spinner size="sm" className="me-2" />
@@ -167,7 +200,7 @@ const StepConnectRepo = ({
                     ) : repoError ? (
                         <Alert variant="danger">{repoError}</Alert>
                     ) : repos.length > 0 ? (
-                        <Form.Select
+                        <Form.Select id="wizard-connectrepo-2"
                             value={formData.repositoryId || ""}
                             onChange={(e) => {
                                 const val = e.target.value;
@@ -211,8 +244,8 @@ const StepConnectRepo = ({
             {/* Service Name */}
             {formData.repositoryId && (
                 <div className="wizard-form-section">
-                    <label className="wizard-form-label">Service Name (optional)</label>
-                    <Form.Control
+                    <label className="wizard-form-label" htmlFor="wizard-connectrepo-3">Service Name (optional)</label>
+                    <Form.Control id="wizard-connectrepo-3"
                         type="text"
                         placeholder="Auto-filled from repository"
                         value={formData.serviceName || ""}
@@ -225,8 +258,10 @@ const StepConnectRepo = ({
                 </div>
             )}
 
+            </>)}
+
             {/* Verification Status */}
-            {formData.repositoryId && (
+            {formData.repositoryId && !formData.noRepo && (
                 <div className="wizard-form-section">
                     {verifying ? (
                         <div className="verification-badge loading">
