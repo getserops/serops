@@ -16,6 +16,18 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.2.7] - 2026-10-25
+
+Security fix. No migrations: set `SEROPS_VERSION=1.2.7` or
+`--version 1.2.7`.
+
+### Security
+
+- On installs with several organisations, cached dashboard panels (analysis
+  feed, MTTR, root causes, service health, correlations) could show one
+  organisation's figures to another for up to 5 minutes. Each user now has
+  their own cached copy. Single-organisation installs were not exposed.
+
 ## [1.2.6] - 2026-10-25
 
 Fixes from the end-to-end journey suite (Helm install to root-cause

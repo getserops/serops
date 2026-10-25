@@ -7,6 +7,10 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.2.7] - 2026-10-25
+
+Security: cached dashboard views vary on Authorization and Cookie (`cache_per_user`), so one organisation's cached response is never served to another. No migrations.
+
 ## [1.2.6] - 2026-10-25
 
 See the full notes in docs/src/changelog.md (journey-suite fixes, Argo CD / Flux integrations, SSO sign-in domains).

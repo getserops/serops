@@ -10,6 +10,10 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.2.7] - 2026-10-25
+
+No frontend changes; image rebuilt at 1.2.7 so versions match.
+
 ## [1.2.6] - 2026-10-25
 
 See the full notes in docs/src/changelog.md (journey-suite fixes, Argo CD / Flux integrations, SSO sign-in domains).

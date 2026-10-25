@@ -18,6 +18,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
+from django.views.decorators.vary import vary_on_headers
 from django.db.models import Count, Avg, Q, F, ExpressionWrapper, fields
 from django.core.cache import cache
 from datetime import timedelta
@@ -47,7 +48,19 @@ CACHE_TTL_CONFIG = 60 * 60     # 1 hour for org/project configs (rarely change)
 from .mixins import OrgFilterMixin  # noqa: E402,F401 — public re-export
 
 
-@method_decorator(cache_page(CACHE_TTL_STATS), name='dispatch')
+def cache_per_user(timeout):
+    """cache_page, per signed-in user.
+
+    cache_page keys on the URL and on the headers the response varies on.
+    The token is in the Authorization header, which nothing varied on, so
+    the first organisation to open a dashboard had its response served to
+    every other organisation for the cache timeout. Varying on the
+    credentials gives each user their own entry.
+    """
+    return [cache_page(timeout), vary_on_headers('Authorization', 'Cookie')]
+
+
+@method_decorator(cache_per_user(CACHE_TTL_STATS), name='dispatch')
 class MTTRView(OrgFilterMixin, APIView):
     """
     Calculate Mean Time To Resolution for issues.
@@ -152,7 +165,7 @@ class MTTRView(OrgFilterMixin, APIView):
 
 
 
-@method_decorator(cache_page(CACHE_TTL_DASHBOARD), name='dispatch')
+@method_decorator(cache_per_user(CACHE_TTL_DASHBOARD), name='dispatch')
 class ServiceHealthView(OrgFilterMixin, APIView):
     """
     Service health heatmap data.
@@ -341,7 +354,7 @@ class ServiceHealthView(OrgFilterMixin, APIView):
 
 
 
-@method_decorator(cache_page(CACHE_TTL_STATS), name='dispatch')
+@method_decorator(cache_per_user(CACHE_TTL_STATS), name='dispatch')
 class RootCauseStatsView(OrgFilterMixin, APIView):
     """
     Root cause category breakdown.
@@ -599,7 +612,7 @@ class RecentDeploymentsView(OrgFilterMixin, APIView):
             })
 
 
-@method_decorator(cache_page(CACHE_TTL_DASHBOARD), name='dispatch')
+@method_decorator(cache_per_user(CACHE_TTL_DASHBOARD), name='dispatch')
 class CorrelationInsightsView(OrgFilterMixin, APIView):
     """
     AI Correlation Intelligence summary.
@@ -686,7 +699,7 @@ class CorrelationInsightsView(OrgFilterMixin, APIView):
             })
 
 
-@method_decorator(cache_page(CACHE_TTL_DASHBOARD), name='dispatch')
+@method_decorator(cache_per_user(CACHE_TTL_DASHBOARD), name='dispatch')
 class RecentAnalysisFeedView(OrgFilterMixin, APIView):
     """
     Latest AI analysis results feed.
