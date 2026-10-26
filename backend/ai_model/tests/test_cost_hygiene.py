@@ -71,6 +71,17 @@ class FilterLogsForAITest(SimpleTestCase):
         _filter_logs_for_ai(original)
         self.assertEqual(original, original_ref)
 
+    def test_keeps_the_recovery_of_a_failure(self):
+        """A failed-then-retried request must reach the AI with its recovery,
+        or a transient blip reads as an incident (RCA benchmark h09)."""
+        failed = self._log('WARN', 'request to pricing-svc failed (connection reset), retrying (1/3)')
+        healed = self._log('INFO', 'request to pricing-svc succeeded on retry 1')
+        self.assertEqual(_filter_logs_for_ai([failed, healed, self._log('INFO', 'cache warmed')]), [failed, healed])
+
+    def test_recovery_chatter_of_a_quiet_service_still_drops(self):
+        noisy = {'level': 'INFO', 'message': 'reconnected to broker', 'component': 'other', 'timestamp': ''}
+        self.assertEqual(_filter_logs_for_ai([self._log('ERROR', 'boom'), noisy]), [self._log('ERROR', 'boom')])
+
     def test_missing_level_defaults_dropped(self):
         """A log without a ``level`` key shouldn't crash; treated as low-severity."""
         logs = [{'message': 'no-level log'}]

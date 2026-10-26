@@ -7,6 +7,23 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.2.8] - 2026-10-26
+
+Security release. No migrations.
+
+### Fixed
+
+- A failure that recovered ("request failed, retrying" then "succeeded on retry 1") reached the AI without its recovery line, which the severity filter dropped as INFO, so a transient blip on a healthy deploy was reported as a warning. The filter now keeps recovery lines for services that already have an error or warning line. Found by the RCA benchmark (h09).
+
+### Added
+
+- `manage.py rca_benchmark`: incidents with a known root cause, run through the real analysis with your own AI key and scored by fixed rules (`backend/rca_benchmark/`).
+
+### Security
+
+- Dependencies with known vulnerabilities, found by an image scan (Trivy) of the published 1.2.7 images: certifi 2026.10.23 (drops emSign roots with compromised intermediates), Django REST Framework 3.18.3 (denial-of-service and an authorization fix), Pillow 13.0.0 (image-decoder memory-safety fixes). The backend image now applies Debian security updates and upgrades setuptools and wheel at build time, and removes pip once requirements are installed (it vendors old urllib3 and msgpack). The frontend and docs images apply Alpine updates (brotli, expat, libX11).
+- `POST /api/providers/verify-project/` (GitLab project check, open to members with `project.write`) could be pointed at any URL: it now refuses cloud-metadata addresses, keeps the project id inside `/api/v4/projects/<id>` (no `../`, `?` or `#` escape), doesn't follow redirects, sets a timeout, returns only known project and pipeline fields instead of the server's raw reply, and no longer reads or writes another organisation's GitLab project with the same id. Private addresses stay allowed for self-hosted GitLab.
+
 ## [1.2.7] - 2026-10-25
 
 Security: cached dashboard views vary on Authorization and Cookie (`cache_per_user`), so one organisation's cached response is never served to another. No migrations.

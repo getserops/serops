@@ -16,6 +16,36 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.2.8] - 2026-10-26
+
+Security release. No migrations: set `SEROPS_VERSION=1.2.8` or
+`--version 1.2.8`. Upgrade if members you don't fully trust can create
+services, or if your images are scanned.
+
+### Security
+
+- The GitLab project check used when adding a service could be pointed at
+  any address by a member allowed to edit projects, and returned what it
+  fetched. It now refuses cloud-metadata addresses, stays on GitLab's
+  project API, doesn't follow redirects and returns only known fields.
+  Self-hosted GitLab on a private network still works.
+- Dependencies with published vulnerabilities updated: Django REST
+  Framework 3.18.3, Pillow 13.0.0, certifi 2026.10.23. The images now
+  apply operating-system security updates when they are built, and the
+  backend image no longer contains pip.
+
+### Fixed
+
+- A request that failed once and then succeeded on retry could be reported
+  as a warning, because the success line never reached the AI. Recovery
+  lines are now part of the analysis.
+
+### Added
+
+- [RCA benchmark](development/rca-benchmark.md): incidents with a known
+  root cause, run through the real analysis with your own AI key and scored
+  by fixed rules, with failures reported.
+
 ## [1.2.7] - 2026-10-25
 
 Security fix. No migrations: set `SEROPS_VERSION=1.2.7` or

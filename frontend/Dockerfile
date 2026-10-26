@@ -37,6 +37,9 @@ RUN NODE_OPTIONS="--max-old-space-size=1536" npm run build
 # Stage 2: Serve with nginx
 FROM nginx:alpine
 
+# The base image is rebuilt less often than Alpine ships fixes.
+RUN apk upgrade --no-cache
+
 # Copy built assets from builder stage
 COPY --from=builder /serops-front/dist /usr/share/nginx/html
 

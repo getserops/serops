@@ -8,7 +8,7 @@ type: application
 # Chart version — bumped per chart change independent of the app.
 version: 0.1.0
 # App version — mirrors the SerOps release cut.
-appVersion: "1.2.7"
+appVersion: "1.2.8"
 kubeVersion: ">= 1.25.0"
 keywords:
   - observability

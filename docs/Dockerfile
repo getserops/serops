@@ -21,6 +21,9 @@ RUN mkdocs build --strict
 # Stage 2: Serve with nginx
 FROM nginx:alpine
 
+# The base image is rebuilt less often than Alpine ships fixes.
+RUN apk upgrade --no-cache
+
 # Copy built site from builder
 COPY --from=builder /docs/site /usr/share/nginx/html
 

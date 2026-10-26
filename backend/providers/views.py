@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import GitlabProject, Pipeline, Job, Deployment, ProviderIntegration
 from .serializer import ProjectSerializer, PipelineSerializer, JobSerializer
+from Utils.url_validator import validate_internal_url_no_metadata
 from .utils import gitlab_retrieve_job_logs, gitlab_update_pipeline_status, extract_gitlab_info, trigger_pipeline_run, cancel_pipeline_run, get_gitlab_api_base
 import json
 from django.http import Http404, JsonResponse
@@ -580,6 +581,20 @@ class DeleteGitLabWebhookView(APIView):
 
 
 
+_GITLAB_PIPELINE_FIELDS = ('id', 'iid', 'status', 'ref', 'sha', 'source', 'web_url', 'created_at', 'updated_at')
+
+
+def _gitlab_project_ref(project_id):
+    """GitLab's id for a project in a URL path: a number, or the
+    ``group/project`` path encoded as one segment. None when it is not one,
+    so it can never reach another path of the server."""
+    from urllib.parse import quote, unquote
+    raw = unquote(str(project_id or '')).strip()
+    if not raw or len(raw) > 255 or any(seg in ('', '.', '..') for seg in raw.split('/')):
+        return None
+    return quote(raw, safe='')
+
+
 class VerifyGitLabProjectView(APIView):
     permission_classes = [IsAuthenticated, Requires(POST='project.write')]
 
@@ -639,48 +654,59 @@ class VerifyGitLabProjectView(APIView):
                 'error': 'Project ID and access token are required'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Build GitLab API URL to get project details
+        # The caller chooses the GitLab server: only its /api/v4/projects/<id>
+        # routes are called, without following redirects, never a cloud
+        # metadata address, and GitLab's raw replies aren't echoed back.
+        # Private addresses stay allowed: self-hosted GitLab is often internal.
+        project_ref = _gitlab_project_ref(project_id)
+        if project_ref is None:
+            return Response({'exists': False, 'error': 'Invalid project ID'}, status=status.HTTP_400_BAD_REQUEST)
         gitlab_url = request.data.get('gitlab_url')
-        gitlab_base = get_gitlab_api_base(url_hint=gitlab_url, project_id=project_id)
-        gitlab_api_url = f"{gitlab_base}/api/v4/projects/{project_id}"
-        
-        headers = {
-            "PRIVATE-TOKEN": access_token
-        }
-        
+        if gitlab_url:
+            try:
+                validate_internal_url_no_metadata(gitlab_url)
+            except ValueError as e:
+                return Response({'exists': False, 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            gitlab_base = get_gitlab_api_base(url_hint=gitlab_url)
+        else:
+            known = GitlabProject.objects.filter(project_id=str(project_id),
+                                                 organisation=request.user.organisation).first()
+            gitlab_base = get_gitlab_api_base(project=known)
+        gitlab_api_url = f"{gitlab_base}/api/v4/projects/{project_ref}"
+        headers = {"PRIVATE-TOKEN": access_token}
+        fetch = dict(headers=headers, timeout=30, allow_redirects=False)
+
         try:
-            # Try to get project details from GitLab
-            response = requests.get(gitlab_api_url, headers=headers)
-            
+            response = requests.get(gitlab_api_url, **fetch)
+
             if response.status_code == 200:
                 project_data = response.json()
-                
-                # Now fetch the pipelines for this project
-                pipelines_url = f"{gitlab_base}/api/v4/projects/{project_id}/pipelines"
-                pipelines_response = requests.get(pipelines_url, headers=headers)
-                
+                if not isinstance(project_data, dict):
+                    return Response({'exists': False, 'error': 'Not a GitLab project'},
+                                    status=status.HTTP_502_BAD_GATEWAY)
+
+                pipelines_response = requests.get(f"{gitlab_api_url}/pipelines", **fetch)
                 pipelines = []
-                if pipelines_response.status_code == 200:
-                    pipelines = pipelines_response.json()
-                    
-                    # Create or update pipelines in our database
-                    for pipeline_data in pipelines:
-                        # Check if project exists in our database
-                        project_obj = GitlabProject.objects.filter(project_id=str(project_id)).first()
-                        
-                        # If project exists in our database, store the pipeline
-                        if project_obj:
+                if pipelines_response.status_code == 200 and isinstance(pipelines_response.json(), list):
+                    pipelines = [{k: p.get(k) for k in _GITLAB_PIPELINE_FIELDS}
+                                 for p in pipelines_response.json() if isinstance(p, dict)]
+                    # Stored only on the caller's own organisation's project.
+                    project_obj = GitlabProject.objects.filter(
+                        project_id=str(project_id), organisation=request.user.organisation).first()
+                    if project_obj:
+                        for pipeline_data in pipelines:
+                            if pipeline_data.get('id') is None:
+                                continue
                             Pipeline.objects.update_or_create(
                                 project=project_obj,
                                 pipeline_id=str(pipeline_data['id']),
                                 defaults={
-                                    'status': pipeline_data.get('status', 'unknown'),
-                                    'branch': pipeline_data.get('ref', 'unknown'),
-                                    'organisation': project_obj.organisation  # Multi-tenancy isolation
+                                    'status': pipeline_data.get('status') or 'unknown',
+                                    'branch': pipeline_data.get('ref') or 'unknown',
+                                    'organisation': project_obj.organisation,
                                 }
                             )
-                
-                # Return success with project details and pipelines
+
                 return Response({
                     'exists': True,
                     'project_details': {
@@ -694,30 +720,27 @@ class VerifyGitLabProjectView(APIView):
                     'pipelines': pipelines
                 })
             elif response.status_code == 401 or response.status_code == 403:
-                # Authentication failed
                 return Response({
                     'exists': False,
                     'error': 'Authentication failed. Invalid access token.'
                 }, status=status.HTTP_401_UNAUTHORIZED)
             elif response.status_code == 404:
-                # Project doesn't exist
                 return Response({
                     'exists': False,
                     'error': f"Project with ID {project_id} does not exist or you don't have permission to access it"
                 }, status=status.HTTP_404_NOT_FOUND)
             else:
-                # Other errors
                 return Response({
                     'exists': False,
-                    'error': f"GitLab API error: {response.status_code} - {response.text}"
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                
-        except requests.exceptions.RequestException as e:
-            # Network or connection error
+                    'error': f"GitLab API error: HTTP {response.status_code}"
+                }, status=status.HTTP_502_BAD_GATEWAY)
+
+        except (requests.exceptions.RequestException, ValueError) as e:
+            logger.warning("GitLab project verification failed: %s", e)
             return Response({
                 'exists': False,
-                'error': f"Error connecting to GitLab API: {str(e)}"
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                'error': 'Could not reach the GitLab API'
+            }, status=status.HTTP_502_BAD_GATEWAY)
 
 
 

@@ -203,6 +203,7 @@ nav:
   - Development:
     - Testing: development/testing.md
     - Permissions: development/permissions.md
+    - RCA benchmark: development/rca-benchmark.md
   - API Reference:
     - Overview: api/overview.md
     - Authentication: api/authentication.md

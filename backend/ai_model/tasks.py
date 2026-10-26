@@ -275,6 +275,16 @@ _HIGH_SIGNAL_MESSAGE_KEYWORDS = (
     'STACK OVERFLOW', 'ASSERTION', 'SEGFAULT',
 )
 
+# Lines saying a failure recovered. Usually INFO, so the severity rule
+# drops them, and the AI is left with "request failed, retrying" and no
+# sign that the retry worked: a transient blip read as an incident. Kept
+# only for services that already have a high-signal line, so a healthy
+# service's routine "reconnected" chatter still costs nothing.
+_RECOVERY_MESSAGE_KEYWORDS = (
+    'SUCCEEDED ON RETRY', 'SUCCEEDED AFTER', 'SUCCEEDED ON ATTEMPT', 'RETRY SUCCEEDED',
+    'RECOVERED', 'RECONNECTED', 'CONNECTION RESTORED', 'BACK ONLINE', 'BACK TO NORMAL',
+)
+
 
 def _filter_logs_for_ai(formatted_logs):
     """Return the subset of logs worth spending AI tokens on.
@@ -286,8 +296,9 @@ def _filter_logs_for_ai(formatted_logs):
 
     Signal rule: keep any log whose level is high-severity, OR whose
     message body contains an error-shaped keyword (catches shippers
-    that mis-tag exceptions as INFO). Everything else drops out of
-    the prompt.
+    that mis-tag exceptions as INFO), OR that reports a recovery on a
+    service with a kept line (so a failure that healed reads as one).
+    Everything else drops out of the prompt.
 
     Replaces the standalone ``preprocess_logs`` task, which destroyed
     ``batch.data['logs']`` in-place and was only wired to the manual
@@ -295,16 +306,18 @@ def _filter_logs_for_ai(formatted_logs):
     """
     if not formatted_logs:
         return []
-    kept = []
-    for log in formatted_logs:
-        level = (log.get('level') or '').upper()
-        if level.startswith(_HIGH_SIGNAL_LEVELS):
-            kept.append(log)
-            continue
+
+    def high_signal(log):
+        if (log.get('level') or '').upper().startswith(_HIGH_SIGNAL_LEVELS):
+            return True
         message_upper = (log.get('message') or '').upper()
-        if any(kw in message_upper for kw in _HIGH_SIGNAL_MESSAGE_KEYWORDS):
-            kept.append(log)
-    return kept
+        return any(kw in message_upper for kw in _HIGH_SIGNAL_MESSAGE_KEYWORDS)
+
+    signal = [high_signal(log) for log in formatted_logs]
+    troubled = {log.get('component') for log, keep in zip(formatted_logs, signal) if keep}
+    return [log for log, keep in zip(formatted_logs, signal)
+            if keep or (log.get('component') in troubled
+                        and any(kw in (log.get('message') or '').upper() for kw in _RECOVERY_MESSAGE_KEYWORDS))]
 
 
 # Patterns used to strip volatile fragments from log messages before

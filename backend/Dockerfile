@@ -2,11 +2,18 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN mkdir -p /app/logs
+# Debian security fixes released since the base image was built.
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /app/logs
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# pip, setuptools and wheel ship with the base image and lag behind their
+# security fixes; upgrade them with the rest. pip itself is removed once
+# the requirements are in: nothing runs it, and it vendors its own copies
+# of urllib3 and msgpack that image scanners report.
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip uninstall -y pip
 
 COPY . .
 
