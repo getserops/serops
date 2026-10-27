@@ -93,7 +93,8 @@ const AlertIngestSecretButton = () => {
                     <Alert variant="warning">
                         <strong>Copy this now.</strong> SerOps will never show it
                         again. Use it as the Bearer token in your Alertmanager /
-                        Grafana / Datadog webhook Authorization header.
+                        Grafana / Datadog webhook Authorization header. Sentry
+                        signs its webhooks instead: see the Real-time Alerts docs.
                     </Alert>
                     {rotated && (
                         <>

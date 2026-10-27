@@ -24,10 +24,12 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      {{- include "serops.backendPodSecurity" . | nindent 6 }}
       containers:
         - name: backend
           image: {{ include "serops.image" (dict "repository" .Values.backend.image.repository "tag" .Values.backend.image.tag "root" .) }}
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          {{- include "serops.backendContainerSecurity" . | nindent 10 }}
           # gunicorn with 4 workers per pod — DB conn count = replicas × 4.
           command: ["gunicorn", "api.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "60"]
           ports:
@@ -79,7 +81,7 @@ spec:
                   key: openai-api-key
                   optional: true
             {{- end }}
-            {{- if or .Values.alertSecrets.existingSecret .Values.alertSecrets.alertmanager }}
+            {{- if or .Values.alertSecrets.existingSecret .Values.alertSecrets.alertmanager .Values.alertSecrets.grafana .Values.alertSecrets.datadog .Values.alertSecrets.sentry }}
             - name: SEROPS_ALERTMANAGER_SECRET
               valueFrom:
                 secretKeyRef:
@@ -97,6 +99,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.alertSecrets.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
                   key: datadog
+                  optional: true
+            - name: SEROPS_SENTRY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.alertSecrets.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
+                  key: sentry
                   optional: true
             {{- end }}
             {{- if .Values.selfMetrics.basicAuth }}

@@ -29,9 +29,12 @@ spec:
       labels:
         {{- include "serops.selectorLabels" (dict "Chart" .Chart "Release" .Release "Values" .Values "component" "dev-postgres") | nindent 8 }}
     spec:
+      securityContext:
+        {{- toYaml .Values.devServices.postgresql.podSecurityContext | nindent 8 }}
       containers:
         - name: postgres
           image: {{ .Values.devServices.postgresql.image | quote }}
+          {{- include "serops.devContainerSecurity" . | nindent 10 }}
           env:
             - name: POSTGRES_USER
               value: {{ .Values.devServices.postgresql.user | quote }}
@@ -92,9 +95,12 @@ spec:
       labels:
         {{- include "serops.selectorLabels" (dict "Chart" .Chart "Release" .Release "Values" .Values "component" "dev-redis") | nindent 8 }}
     spec:
+      securityContext:
+        {{- toYaml .Values.devServices.redis.podSecurityContext | nindent 8 }}
       containers:
         - name: redis
           image: {{ .Values.devServices.redis.image | quote }}
+          {{- include "serops.devContainerSecurity" . | nindent 10 }}
           ports:
             - name: redis
               containerPort: 6379

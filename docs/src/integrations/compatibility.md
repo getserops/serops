@@ -77,6 +77,7 @@ and Splunk through HEC).
 | [Prometheus Alertmanager](alerts.md) | Webhook payload v4 | 0.27.0 | Live-tested |
 | [Grafana alerts](alerts.md) | Grafana 9 and later (documented) | — | Unit-tested |
 | [Datadog monitors](alerts.md) | Webhook integration | — | Unit-tested |
+| [Sentry](alerts.md#sentry) | Internal integration webhooks (signed) | — | Unit-tested |
 
 ## Source control and CI/CD
 

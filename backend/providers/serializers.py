@@ -65,6 +65,17 @@ class ProviderIntegrationSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
     
+    def validate_base_url(self, value):
+        """Self-hosted servers on private networks are allowed; cloud
+        metadata endpoints are not (the server calls this URL)."""
+        if value:
+            from Utils.url_validator import validate_internal_url_no_metadata
+            try:
+                validate_internal_url_no_metadata(value)
+            except ValueError as e:
+                raise serializers.ValidationError(str(e))
+        return value
+
     def get_token_masked(self, obj) -> str:
         """Return masked version of token for display (no decryption needed)."""
         return obj.token_hint or ''

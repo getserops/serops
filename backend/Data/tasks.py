@@ -370,6 +370,21 @@ def create_log_batch(self):
     finally:
         _release_task_lock(lock_key)
 
+def _triggering_alert(alert_event_id):
+    """The alert fields the prompt shows, or None. Already redacted on
+    receipt (Data.alert_webhooks)."""
+    if not alert_event_id:
+        return None
+    from Data.models import AlertEvent
+    event = AlertEvent.objects.filter(pk=alert_event_id).first()
+    if event is None:
+        return None
+    return {'source': event.source, 'alertname': event.alertname, 'state': event.state,
+            'severity': event.severity, 'service': event.service, 'environment': event.environment,
+            'summary': (event.summary or '')[:2000],
+            'received_at': event.received_at.isoformat() if event.received_at else ''}
+
+
 @shared_task(
     bind=True,
     max_retries=3,
@@ -377,7 +392,7 @@ def create_log_batch(self):
     priority=8,  # Phase 2: High priority (scale 0-10)
     queue='high_priority'
 )
-def create_log_batch_with_project_name(self, index_name=None, project_name=None, project=None, environment=None, deployment=None, interval_minutes=None, window_start_iso=None, window_end_iso=None, trigger=AIAnalyzedBatch.TRIGGER_SCHEDULED, batch_id=None, investigation_id=None):
+def create_log_batch_with_project_name(self, index_name=None, project_name=None, project=None, environment=None, deployment=None, interval_minutes=None, window_start_iso=None, window_end_iso=None, trigger=AIAnalyzedBatch.TRIGGER_SCHEDULED, batch_id=None, investigation_id=None, alert_event_id=None):
     """
     Create a log batch scoped to a specific project + environment (+ deployment).
 
@@ -455,6 +470,14 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         window_start_iso = investigation.window_start.isoformat()
         window_end_iso = investigation.window_end.isoformat()
     manual = trigger == AIAnalyzedBatch.TRIGGER_MANUAL
+    # The alert that triggered this batch, as evidence for the analysis. An
+    # alert can carry what no other source has (a Sentry stack trace), so a
+    # window with nothing else in it is still analysed.
+    triggering_alert = _triggering_alert(alert_event_id)
+    # Set before the log search, which can fail before assigning it (no log
+    # integration): the batch record reads it, and an org with only traces,
+    # metrics or an alert crashed here instead of getting its batch.
+    index_pattern = index_name
 
     # The batch belongs to the project the caller passed. It used to be
     # looked up again by name across every organisation, and project names
@@ -941,7 +964,7 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
 
         # An investigation goes on to count code changes and CI/CD runs too:
         # "analyze this deploy" may have nothing else to show.
-        if not filtered_hits and metrics_count == 0 and trace_span_count == 0 and not manual:
+        if not filtered_hits and metrics_count == 0 and trace_span_count == 0 and not manual and not triggering_alert:
             logger.info(f"No new unique logs, metrics or traces found for project {project_name}. Batch will not be created.")
             return f"No new logs or metrics found to create batch for project {project_name}"
         if trace_span_count:
@@ -1099,7 +1122,7 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         # was computed by the earlier gate, which runs only on the same
         # logs-and-metrics-empty path that reaches this branch.
         total_data_points = (len(filtered_hits) + metrics_count + len(code_changes_data)
-                             + len(cicd_logs_data) + trace_span_count)
+                             + len(cicd_logs_data) + trace_span_count + (1 if triggering_alert else 0))
         if investigation is not None:
             investigation.counts = {
                 'logs': len(filtered_hits), 'metrics': metrics_count, 'traces': trace_span_count,
@@ -1153,6 +1176,8 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         if investigation is not None and investigation.hint:
             # What the engineer saw; the prompt quotes it as a report.
             batch_data['operator_context'] = investigation.hint
+        if triggering_alert:
+            batch_data['triggering_alert'] = triggering_alert
         cleaned_data = clean_json(batch_data)
 
         project_instance = project
@@ -2064,6 +2089,7 @@ def analyze_alert_ondemand(self, alert_event_id):
             window_end_iso=_win_end,
             trigger=AIAnalyzedBatch.TRIGGER_ALERT,
             batch_id=alert_batch_id,
+            alert_event_id=event.pk,
         )
     except Exception as exc:
         logger.error(

@@ -102,7 +102,9 @@ def send(channel, payload: dict):
     }
 
     try:
-        resp = requests.post(url, json=body, timeout=_TIMEOUT_SECONDS)
+        # No redirects: validate_public_url checked this URL, not wherever
+        # a redirect would send the payload.
+        resp = requests.post(url, json=body, timeout=_TIMEOUT_SECONDS, allow_redirects=False)
     except RequestException as exc:
         return False, f'Network error: {exc}'
 

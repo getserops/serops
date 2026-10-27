@@ -498,7 +498,8 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                                     if isinstance(v, (int, float)))
 
         total_data_items = (len(logs) + len(cicd_logs) + len(code_changes)
-                            + metric_points + trace_span_count)
+                            + metric_points + trace_span_count
+                            + (1 if batch.data.get('triggering_alert') else 0))
         if total_data_items == 0:
             logger.info(
                 f"⏭️ Skipping AI for batch {batch_id}: no data to analyze "
@@ -1045,6 +1046,7 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
             project_context=project_context,
             sentinel_context=sentinel_context,
             operator_context=batch.data.get('operator_context') if isinstance(batch.data, dict) else None,
+            triggering_alert=batch.data.get('triggering_alert') if isinstance(batch.data, dict) else None,
             cicd_summary=cicd_summary,
             past_memories=past_memories_text,
             traces_summary=traces_summary,

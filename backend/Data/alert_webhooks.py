@@ -38,6 +38,11 @@ Payload notes per provider:
   Alertmanager (they use the Alertmanager format). Parser is shared.
 * **Datadog Monitors** sends one alert per webhook; ``event_type``
   tells us the state.
+* **Sentry** (an internal integration) can't send a bearer token: it signs
+  the body with HMAC-SHA256 under the integration's client secret, in the
+  ``Sentry-Hook-Signature`` header, and names the payload kind in
+  ``Sentry-Hook-Resource``. Issue alerts carry the event, so the summary
+  holds the exception, culprit, release and top in-app frames.
 """
 
 import hmac
@@ -81,6 +86,19 @@ def _secret_for(source: str, organisation) -> str:
     """
     secrets = getattr(settings, 'ALERT_WEBHOOK_SECRETS', {}) or {}
     return str(secrets.get(source, ''))
+
+
+def _authenticate_sentry(request) -> bool:
+    """Sentry-Hook-Signature = hex HMAC-SHA256(client secret, raw body)."""
+    import hashlib
+    secret = _secret_for('sentry', None)
+    signature = request.META.get('HTTP_SENTRY_HOOK_SIGNATURE', '')
+    if not secret or not signature:
+        if not secret:
+            logger.warning('Sentry webhook rejected: SEROPS_SENTRY_CLIENT_SECRET is not set.')
+        return False
+    expected = hmac.new(secret.encode('utf-8'), request.body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature.strip())
 
 
 def _authenticate(request, source: str, organisation) -> bool:
@@ -182,10 +200,101 @@ def _parse_datadog(payload: dict) -> list:
     }]
 
 
+def _sentry_tag(tags, key):
+    """Sentry sends tags as [[key, value], …] or [{key, value}, …]."""
+    for t in tags or []:
+        if isinstance(t, (list, tuple)) and len(t) == 2 and t[0] == key:
+            return str(t[1])
+        if isinstance(t, dict) and t.get('key') == key:
+            return str(t.get('value') or '')
+    return ''
+
+
+def _sentry_frames(event):
+    """'Type: value' plus the innermost in-app frames, innermost first."""
+    lines = []
+    for exc in ((event.get('exception') or {}).get('values') or [])[-2:]:
+        if not isinstance(exc, dict):
+            continue
+        lines.append(f"{exc.get('type') or 'Error'}: {str(exc.get('value') or '')[:300]}")
+        frames = [f for f in ((exc.get('stacktrace') or {}).get('frames') or []) if isinstance(f, dict)]
+        in_app = [f for f in frames if f.get('in_app')] or frames
+        for f in reversed(in_app[-5:]):
+            lines.append(f"  at {f.get('function') or '?'} ({f.get('filename') or f.get('module') or '?'}"
+                         f":{f.get('lineno') or '?'})")
+    return lines
+
+
+def _parse_sentry(payload: dict, resource: str = '') -> list:
+    """Sentry internal-integration webhooks: issue alerts (event_alert),
+    metric alerts, and new issues. Other resources are acknowledged and
+    ignored."""
+    data = payload.get('data') or {}
+    action = str(payload.get('action') or '')
+    if resource == 'event_alert' or 'event' in data:
+        event = data.get('event') or {}
+        tags = event.get('tags') or []
+        lines = [str(event.get('title') or '')[:300]]
+        if event.get('culprit'):
+            lines.append(f"Culprit: {str(event['culprit'])[:200]}")
+        release = event.get('release') or _sentry_tag(tags, 'release')
+        if release:
+            lines.append(f"Release: {str(release)[:100]}")
+        lines += _sentry_frames(event)
+        if data.get('triggered_rule'):
+            lines.append(f"Alert rule: {str(data['triggered_rule'])[:200]}")
+        if event.get('web_url'):
+            lines.append(f"Sentry: {str(event['web_url'])[:300]}")
+        return [{
+            'alertname': str(event.get('title') or data.get('triggered_rule') or 'sentry-alert')[:250],
+            'state': 'firing',
+            'severity': str(event.get('level') or ''),
+            'service': _sentry_tag(tags, 'service') or str(event.get('project_slug') or ''),
+            'environment': str(event.get('environment') or _sentry_tag(tags, 'environment')),
+            'summary': '\n'.join(lines)[:2000],
+            'external_id': str(event.get('event_id') or event.get('id') or ''),
+        }]
+    if resource == 'metric_alert' or 'metric_alert' in data:
+        alert = data.get('metric_alert') or {}
+        rule = alert.get('alert_rule') or {}
+        desc = data.get('description_text') or data.get('description_title') or ''
+        return [{
+            'alertname': str(rule.get('name') or data.get('description_title') or 'sentry-metric-alert')[:250],
+            'state': 'resolved' if action == 'resolved' else 'firing',
+            'severity': action if action in ('critical', 'warning') else '',
+            'service': '',
+            'environment': str(rule.get('environment') or ''),
+            'summary': str(desc)[:2000],
+            'external_id': str(alert.get('id') or ''),
+        }]
+    if (resource == 'issue' or 'issue' in data) and action == 'created':
+        issue = data.get('issue') or {}
+        project = issue.get('project') or {}
+        meta = issue.get('metadata') or {}
+        lines = [str(issue.get('title') or '')[:300]]
+        if issue.get('culprit'):
+            lines.append(f"Culprit: {str(issue['culprit'])[:200]}")
+        if meta.get('filename'):
+            lines.append(f"File: {str(meta['filename'])[:200]}")
+        if issue.get('web_url') or issue.get('permalink'):
+            lines.append(f"Sentry: {str(issue.get('web_url') or issue.get('permalink'))[:300]}")
+        return [{
+            'alertname': str(issue.get('title') or 'sentry-issue')[:250],
+            'state': 'firing',
+            'severity': str(issue.get('level') or ''),
+            'service': str(project.get('slug') or ''),
+            'environment': '',
+            'summary': '\n'.join(lines)[:2000],
+            'external_id': str(issue.get('id') or ''),
+        }]
+    return []
+
+
 PARSER_BY_SOURCE = {
     'alertmanager': _parse_alertmanager,
     'grafana': _parse_alertmanager,   # same format
     'datadog': _parse_datadog,
+    'sentry': _parse_sentry,
 }
 
 
@@ -226,7 +335,7 @@ class AlertWebhookView(APIView):
     """
     POST /api/webhooks/alerts/<source>/<org_id>/
 
-    ``source`` ∈ {alertmanager, grafana, datadog}. Any other value
+    ``source`` ∈ {alertmanager, grafana, datadog, sentry}. Any other value
     returns 400 without hitting the parser — safe URL routing.
     """
 
@@ -248,7 +357,9 @@ class AlertWebhookView(APIView):
                 {'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND,
             )
 
-        if not _authenticate(request, source, organisation):
+        authenticated = (_authenticate_sentry(request) if source == 'sentry'
+                         else _authenticate(request, source, organisation))
+        if not authenticated:
             return Response(
                 {'error': 'Missing or invalid Authorization: Bearer <secret>'},
                 status=status.HTTP_401_UNAUTHORIZED,
@@ -256,7 +367,10 @@ class AlertWebhookView(APIView):
 
         payload = request.data if isinstance(request.data, dict) else {}
         try:
-            alerts = PARSER_BY_SOURCE[source](payload)
+            if source == 'sentry':
+                alerts = _parse_sentry(payload, request.META.get('HTTP_SENTRY_HOOK_RESOURCE', ''))
+            else:
+                alerts = PARSER_BY_SOURCE[source](payload)
         except Exception as exc:
             logger.warning('Alert parse failed source=%s: %s', source, exc)
             return Response(

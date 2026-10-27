@@ -1775,6 +1775,7 @@ class AlertEvent(models.Model):
         ('alertmanager', 'Prometheus Alertmanager'),
         ('grafana', 'Grafana Alerts'),
         ('datadog', 'Datadog Monitors'),
+        ('sentry', 'Sentry'),
     ]
 
     STATE_CHOICES = [

@@ -92,3 +92,38 @@ upgraded with --reuse-values, which keep the old value.
 {{- end -}}
 
 
+
+{{/* Pod-level security and scratch volumes for pods running the backend
+     image (backend, Celery worker and beat, migrations). The root
+     filesystem is read-only, so /tmp (gunicorn heartbeats, beat schedule)
+     and /app/logs get an emptyDir each. */}}
+{{- define "serops.backendPodSecurity" -}}
+securityContext:
+  {{- toYaml .Values.podSecurityContext | nindent 2 }}
+volumes:
+  - name: tmp
+    emptyDir: {}
+  - name: logs
+    emptyDir: {}
+{{- end -}}
+
+{{/* Container-level counterpart of serops.backendPodSecurity. */}}
+{{- define "serops.backendContainerSecurity" -}}
+securityContext:
+  {{- toYaml .Values.containerSecurityContext | nindent 2 }}
+volumeMounts:
+  - name: tmp
+    mountPath: /tmp
+  - name: logs
+    mountPath: /app/logs
+{{- end -}}
+
+{{/* Restricted container settings for the bundled dev services (their
+     entrypoints write outside a volume, so the root filesystem stays
+     writable; the data lives in an emptyDir anyway). */}}
+{{- define "serops.devContainerSecurity" -}}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+{{- end -}}

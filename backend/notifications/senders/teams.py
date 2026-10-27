@@ -79,8 +79,10 @@ def send(channel, payload: dict):
         return False, f'Refused webhook URL: {exc}'
 
     try:
+        # No redirects: validate_public_url checked this URL, not wherever
+        # a redirect would send the payload.
         resp = requests.post(
-            url, json=_build_message_card(payload), timeout=_TIMEOUT_SECONDS,
+            url, json=_build_message_card(payload), timeout=_TIMEOUT_SECONDS, allow_redirects=False,
         )
     except RequestException as exc:
         return False, f'Network error: {exc}'

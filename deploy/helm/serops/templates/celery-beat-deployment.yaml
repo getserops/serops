@@ -26,16 +26,20 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
     spec:
+      {{- include "serops.backendPodSecurity" . | nindent 6 }}
       containers:
         - name: beat
           image: {{ include "serops.image" (dict "repository" .Values.celeryBeat.image.repository "tag" .Values.celeryBeat.image.tag "root" .) }}
           imagePullPolicy: {{ .Values.celeryBeat.image.pullPolicy }}
+          {{- include "serops.backendContainerSecurity" . | nindent 10 }}
           command:
             - celery
             - -A
             - api
             - beat
             - --loglevel=INFO
+            # The image's root filesystem is read-only: keep the schedule in /tmp.
+            - --schedule=/tmp/celerybeat-schedule
           envFrom:
             - configMapRef:
                 name: {{ include "serops.fullname" . }}-config

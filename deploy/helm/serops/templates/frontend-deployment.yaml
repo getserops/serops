@@ -16,10 +16,21 @@ spec:
       labels:
         {{- include "serops.selectorLabels" (dict "Chart" .Chart "Release" .Release "Values" .Values "component" $comp) | nindent 8 }}
     spec:
+      securityContext:
+        {{- toYaml .Values.frontend.podSecurityContext | nindent 8 }}
+      volumes:
+        # nginx writes its pid and temp files under /tmp; the rest is read-only.
+        - name: tmp
+          emptyDir: {}
       containers:
         - name: frontend
           image: {{ include "serops.image" (dict "repository" .Values.frontend.image.repository "tag" .Values.frontend.image.tag "root" .) }}
           imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.frontend.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           ports:
             # nginx in the frontend image listens on 3000 (see the frontend
             # Dockerfile: EXPOSE 3000). This declared 80, as did the Service's

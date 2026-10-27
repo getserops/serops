@@ -21,10 +21,12 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
     spec:
+      {{- include "serops.backendPodSecurity" . | nindent 6 }}
       containers:
         - name: worker
           image: {{ include "serops.image" (dict "repository" .Values.celeryWorker.image.repository "tag" .Values.celeryWorker.image.tag "root" .) }}
           imagePullPolicy: {{ .Values.celeryWorker.image.pullPolicy }}
+          {{- include "serops.backendContainerSecurity" . | nindent 10 }}
           command:
             - celery
             - -A

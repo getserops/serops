@@ -118,14 +118,29 @@ class ProjectList(APIView):
                 'error': 'Project ID and access token are required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Verify project with GitLab API
-        gitlab_base = get_gitlab_api_base(url_hint=gitlab_url, project_id=project_id)
-        gitlab_api_url = f"{gitlab_base}/api/v4/projects/{project_id}"
+        # Same rules as VerifyGitLabProjectView: the caller picks the server,
+        # so only GitLab's project routes, no metadata address, no redirects,
+        # and the server's raw replies are not echoed.
+        project_ref = _gitlab_project_ref(project_id)
+        if project_ref is None:
+            return Response({'error': 'Invalid project ID'}, status=status.HTTP_400_BAD_REQUEST)
+        org = request.user.organisation
+        if gitlab_url:
+            try:
+                validate_internal_url_no_metadata(gitlab_url)
+            except ValueError as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            gitlab_base = get_gitlab_api_base(url_hint=gitlab_url)
+        else:
+            gitlab_base = get_gitlab_api_base(
+                project=GitlabProject.objects.filter(project_id=str(project_id), organisation=org).first())
+        gitlab_api_url = f"{gitlab_base}/api/v4/projects/{project_ref}"
         headers = {"PRIVATE-TOKEN": access_token}
-        
+        fetch = dict(headers=headers, timeout=30, allow_redirects=False)
+
         try:
             # Verify project exists in GitLab
-            response = requests.get(gitlab_api_url, headers=headers)
+            response = requests.get(gitlab_api_url, **fetch)
             
             if response.status_code == 401 or response.status_code == 403:
                 logger.error(f"GitLab authentication failed for user {request.user}, project_id: {project_id}")
@@ -141,8 +156,8 @@ class ProjectList(APIView):
                 
             elif response.status_code != 200:
                 return Response({
-                    'error': f"GitLab API error: {response.status_code} - {response.text}"
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    'error': f"GitLab API error: HTTP {response.status_code}"
+                }, status=status.HTTP_502_BAD_GATEWAY)
             
             # Project verification successful, now save the project
             project_data = response.json()
@@ -153,8 +168,15 @@ class ProjectList(APIView):
             if not data.get('username') and '/' in project_data.get('path_with_namespace', ''):
                 data['username'] = project_data.get('path_with_namespace').split('/')[0]
             
-            # Check if this GitLab project already exists
-            existing_project = GitlabProject.objects.filter(project_id=project_id).first()
+            # Check if this GitLab project already exists in the caller's
+            # organisation. A project id is unique across the install, so one
+            # registered by another organisation is refused without saying
+            # anything about it (no name, no id, and above all not its webhook
+            # secret, which the code below sends to the caller's server).
+            existing_project = GitlabProject.objects.filter(project_id=str(project_id), organisation=org).first()
+            if not existing_project and GitlabProject.objects.filter(project_id=str(project_id)).exists():
+                return Response({'error': 'This GitLab project is already registered on this SerOps instance.'},
+                                status=status.HTTP_409_CONFLICT)
             if existing_project:
                 # Project already exists - but check if webhook needs to be configured
                 logger.info(f"GitLab project {project_id} already exists, reusing it")
@@ -162,7 +184,7 @@ class ProjectList(APIView):
                 # If webhook is not configured, set it up now
                 if not existing_project.webhook:
                     webhook_name = "Logs_webhook"
-                    gitlab_webhook_url = f"{gitlab_base}/api/v4/projects/{project_id}/hooks"
+                    gitlab_webhook_url = f"{gitlab_base}/api/v4/projects/{project_ref}/hooks"
 
                     # Try to find CICDBinding for binding-based URL + token
                     from Projects.models import CICDBinding as CICDBindingModel
@@ -170,6 +192,7 @@ class ProjectList(APIView):
                         pipeline_id=str(project_id),
                         integration__provider_type='gitlab',
                         is_active=True,
+                        project_service__project__organisation=org,
                     ).first()
 
                     if cicd_binding and cicd_binding.webhook_secret:
@@ -199,11 +222,7 @@ class ProjectList(APIView):
 
                     try:
                         logger.info(f"Creating webhook for project {project_id} with URL: {url}")
-                        webhook_response = requests.post(
-                            gitlab_webhook_url,
-                            headers=headers,
-                            json=gitlab_webhook_data
-                        )
+                        webhook_response = requests.post(gitlab_webhook_url, json=gitlab_webhook_data, **fetch)
 
                         if webhook_response.status_code == 201:
                             existing_project.webhook = True
@@ -214,7 +233,7 @@ class ProjectList(APIView):
                                 cicd_binding.save(update_fields=['webhook_configured', 'webhook_id'])
                             logger.info(f"Webhook configured for existing GitLab project {project_id}")
                         else:
-                            logger.warning(f"Failed to create webhook for existing project: status={webhook_response.status_code}, response={webhook_response.text}")
+                            logger.warning(f"Failed to create webhook for existing project: status={webhook_response.status_code}")
                     except Exception as e:
                         logger.error(f"Error creating webhook for existing project: {e}")
                 
@@ -235,12 +254,12 @@ class ProjectList(APIView):
                 # Removed Elasticsearch index creation - now related to project index name
                 
                 # Fetch initial pipelines for this project
-                pipelines_url = f"{gitlab_base}/api/v4/projects/{project_id}/pipelines"
-                pipelines_response = requests.get(pipelines_url, headers=headers)
-                
-                if pipelines_response.status_code == 200:
-                    pipelines = pipelines_response.json()
-                    
+                pipelines_url = f"{gitlab_api_url}/pipelines"
+                pipelines_response = requests.get(pipelines_url, **fetch)
+
+                if pipelines_response.status_code == 200 and isinstance(pipelines_response.json(), list):
+                    pipelines = [p for p in pipelines_response.json() if isinstance(p, dict) and p.get('id') is not None]
+
                     # Create pipelines in our database
                     for pipeline_data in pipelines:
                         Pipeline.objects.update_or_create(
@@ -255,7 +274,7 @@ class ProjectList(APIView):
                 
                 # Setup webhook automatically
                 webhook_name = "Logs_webhook"
-                gitlab_webhook_url = f"{gitlab_base}/api/v4/projects/{project_id}/hooks"
+                gitlab_webhook_url = f"{gitlab_api_url}/hooks"
 
                 # Try to find CICDBinding for binding-based URL + token
                 from Projects.models import CICDBinding as CICDBindingNew
@@ -263,6 +282,7 @@ class ProjectList(APIView):
                     pipeline_id=str(project_id),
                     integration__provider_type='gitlab',
                     is_active=True,
+                    project_service__project__organisation=org,
                 ).first()
 
                 if cicd_binding_new and cicd_binding_new.webhook_secret:
@@ -290,11 +310,7 @@ class ProjectList(APIView):
                 if token:
                     gitlab_webhook_data["token"] = token
 
-                webhook_response = requests.post(
-                    gitlab_webhook_url,
-                    headers=headers,
-                    json=gitlab_webhook_data
-                )
+                webhook_response = requests.post(gitlab_webhook_url, json=gitlab_webhook_data, **fetch)
 
                 if webhook_response.status_code == 201:
                     project.webhook = True
@@ -318,11 +334,12 @@ class ProjectList(APIView):
                 }, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
                 
-        except requests.exceptions.RequestException as e:
+        except (requests.exceptions.RequestException, ValueError) as e:
+            logger.warning("GitLab project registration failed: %s", e)
             return Response({
-                'error': f"Error connecting to GitLab API: {str(e)}"
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+                'error': 'Could not reach the GitLab API'
+            }, status=status.HTTP_502_BAD_GATEWAY)
+
 
 class ProjectDetail(APIView):
     # Viewers read; users and admins edit; only admins delete (see delete()).
@@ -500,7 +517,8 @@ class SetupGitLabWebhookView(APIView):
         gitlab_headers = {
             "PRIVATE-TOKEN": access_token
         }
-        gitlab_response = requests.post(gitlab_api_url, headers=gitlab_headers, json=gitlab_data)
+        gitlab_response = requests.post(gitlab_api_url, headers=gitlab_headers, json=gitlab_data, timeout=30,
+                                        allow_redirects=False)
         logger.debug(f'GitLab response: {gitlab_response.content}')
         if gitlab_response.status_code == 201:
             pr.webhook=True
@@ -555,7 +573,7 @@ class DeleteGitLabWebhookView(APIView):
         # List all webhooks
         response = requests.get(
             f"{gitlab_base}/api/v4/projects/{project_id}/hooks",
-            headers={"PRIVATE-TOKEN": access_token}
+            headers={"PRIVATE-TOKEN": access_token}, timeout=30, allow_redirects=False,
         )
         webhooks = response.json()
 
@@ -794,12 +812,14 @@ class PipelineLogsView(APIView):
             gitlab_api_url = f"{gitlab_base}/api/v4/projects/{gitlab_project_id}/pipelines/{pipeline.pipeline_id}/jobs"
             headers = {"PRIVATE-TOKEN": access_token}
             
-            response = requests.get(gitlab_api_url, headers=headers)
-            
+            response = requests.get(gitlab_api_url, headers=headers, timeout=30, allow_redirects=False)
+
             if response.status_code != 200:
+                # GitLab's raw reply is not echoed (it can carry internal
+                # details of a self-hosted server).
                 return Response({
-                    "message": f"Failed to fetch jobs from GitLab: {response.text}"
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    "message": f"Failed to fetch jobs from GitLab: HTTP {response.status_code}"
+                }, status=status.HTTP_502_BAD_GATEWAY)
             
             jobs_data = response.json()
             jobs_with_logs = []
@@ -814,7 +834,7 @@ class PipelineLogsView(APIView):
                     continue  # Only process failed jobs
 
                 logs_url = f"{gitlab_base}/api/v4/projects/{gitlab_project_id}/jobs/{job_id}/trace"
-                logs_response = requests.get(logs_url, headers=headers)
+                logs_response = requests.get(logs_url, headers=headers, timeout=30, allow_redirects=False)
                 logs = ""
                 if logs_response.status_code == 200:
                     logs = logs_response.text
@@ -1430,6 +1450,11 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
                 {'success': False, 'message': 'Access token is required'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if base_url:
+            try:
+                validate_internal_url_no_metadata(base_url)
+            except ValueError as e:
+                return Response({'success': False, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             from .scm_providers import (

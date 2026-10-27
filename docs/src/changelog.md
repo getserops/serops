@@ -16,6 +16,47 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.2.9] - 2026-10-27
+
+Security and integrations release. One migration (Data 0054, runs on its
+own). Set `SEROPS_VERSION=1.2.9` or `--version 1.2.9`.
+
+**Upgrading with Docker Compose:** the containers now run as non-root
+users. A logs volume created by an earlier release belongs to root, so the
+backend logs to standard output until you give it the volume once; see
+[Upgrading](deployment/upgrading.md#129-containers-run-as-non-root).
+
+### Security
+
+- **Containers run as non-root**: the backend as uid 10001, unable to
+  change its own code; the frontend's nginx as uid 101. The Helm chart
+  runs every pod under the Kubernetes *restricted* Pod Security Standard
+  (no privilege escalation, capabilities dropped, seccomp, read-only root
+  filesystem). See [Helm → Security context](deployment/helm.md#security-context).
+- The legacy GitLab project registration had the same flaw as the project
+  check fixed in 1.2.8, and on installs with several organisations could
+  send another organisation's webhook secret to the caller's server. Fixed;
+  a project registered by another organisation is now refused.
+- Integration URLs refuse cloud-metadata addresses (private addresses still
+  work for self-hosted backends). GitLab pipeline logs no longer echo
+  GitLab's raw errors. Slack and Teams deliveries no longer follow
+  redirects.
+
+### Added
+
+- **Sentry alerts**: a Sentry internal integration can start an analysis,
+  verified by its signature. See [Real-time Alerts → Sentry](integrations/alerts.md#sentry).
+- The alert that triggered an analysis, from any source, is now part of
+  the evidence: for Sentry that includes the exception, release and stack
+  frames. An alert alone is enough for an analysis.
+
+### Fixed
+
+- An organisation with no log integration (only traces, metrics or alerts)
+  got no batch: batch creation crashed.
+- Helm: alert secrets set in values (`alertSecrets.*`) never reached the
+  backend; only `existingSecret` worked.
+
 ## [1.2.8] - 2026-10-26
 
 Security release. No migrations: set `SEROPS_VERSION=1.2.8` or

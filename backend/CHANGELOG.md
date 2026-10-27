@@ -7,6 +7,26 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.2.9] - 2026-10-27
+
+Security and Sentry release. Migration: Data 0054 (choice only). Containers now run as non-root: see the upgrade note.
+
+### Added
+
+- Sentry alerts: `POST /api/webhooks/alerts/sentry/<org_id>/` receives a Sentry internal integration's webhooks (issue alerts, metric alerts, new issues), verifies the `Sentry-Hook-Signature` HMAC against `SEROPS_SENTRY_CLIENT_SECRET`, and starts an analysis. Migration Data 0054 (choice only).
+- The alert that triggered an analysis (any source) is now part of the prompt, fenced as reported evidence: title, state, severity, service and summary, which for Sentry holds the exception, culprit, release and top in-app frames. An alert alone is enough for an analysis.
+
+### Fixed
+
+- Batch creation crashed (`index_pattern` unset) for organisations with no log integration, so a window with only traces, metrics or an alert produced no batch.
+- Helm: alert secrets set inline in values (`alertSecrets.*`) were stored under keys the backend didn't read, so they never took effect; only `existingSecret` worked.
+
+### Security
+
+- The legacy GitLab project registration (`POST /api/providers/`, members with `project.write`) had the same flaw as the project check fixed in 1.2.8 (any URL, raw replies echoed) and, on installs with several organisations, answered with another organisation's project and sent that organisation's webhook secret to the caller's GitLab URL. It now applies the same URL rules and refuses a project registered by another organisation (409) without revealing it.
+- Integration URLs (`base_url`, observability `host`, connection test) refuse cloud-metadata addresses; private addresses stay allowed. GitLab pipeline logs no longer echo GitLab's raw error. Slack and Teams deliveries no longer follow redirects past the URL check.
+- The backend image runs as an unprivileged user (uid 10001) and cannot modify its own code. If the logs directory isn't writable (a volume created by an earlier, root-run release), logging falls back to standard output instead of failing at startup. Celery beat keeps its schedule in `/tmp`. The Helm chart runs every pod under the restricted Pod Security Standard (non-root, no privilege escalation, capabilities dropped, seccomp, read-only root with `emptyDir` scratch space).
+
 ## [1.2.8] - 2026-10-26
 
 Security release. No migrations.

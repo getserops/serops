@@ -318,6 +318,8 @@ ALERT_WEBHOOK_SECRETS = {
     'alertmanager': os.getenv('SEROPS_ALERTMANAGER_SECRET', ''),
     'grafana': os.getenv('SEROPS_GRAFANA_ALERT_SECRET', ''),
     'datadog': os.getenv('SEROPS_DATADOG_MONITOR_SECRET', ''),
+    # Sentry signs its webhooks (HMAC) with its integration's client secret.
+    'sentry': os.getenv('SEROPS_SENTRY_CLIENT_SECRET', ''),
 }
 
 
@@ -395,6 +397,13 @@ LOGGING = {
         },
     },
 }
+
+# The image runs as a non-root user. A logs volume created by an older
+# release, which ran as root, isn't writable by it: log to stdout instead
+# of failing at startup (FileHandler raises when it can't open its file).
+if not os.access(os.path.join(BASE_DIR, 'logs'), os.W_OK):
+    for _handler in ('file', 'user_actions'):
+        LOGGING['handlers'][_handler] = {'level': 'DEBUG', 'class': 'logging.StreamHandler', 'formatter': 'json'}
 
 WSGI_APPLICATION = 'api.wsgi.application'
 

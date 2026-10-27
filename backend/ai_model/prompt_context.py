@@ -63,6 +63,8 @@ class DataSourceContext:
     past_memories: str | None = None
     # What the engineer who requested an investigation reported seeing.
     operator_context: str | None = None
+    # The alert that triggered this analysis (source, name, summary…).
+    triggering_alert: dict[str, Any] | None = None
 
     # ----- capability gating (#29) -----
     # None = legacy/all-on behaviour; empty list = no data sources

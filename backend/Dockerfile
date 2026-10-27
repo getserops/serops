@@ -2,9 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Debian security fixes released since the base image was built.
+# Debian security fixes released since the base image was built. The app
+# runs as an unprivileged user (uid 10001); the code stays root-owned, so
+# that user can read it but not change it.
 RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/* && \
-    mkdir -p /app/logs
+    groupadd --system --gid 10001 serops && \
+    useradd --system --uid 10001 --gid serops --home-dir /app --no-create-home --shell /usr/sbin/nologin serops
 
 COPY requirements.txt .
 # pip, setuptools and wheel ship with the base image and lag behind their
@@ -16,6 +19,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip uninstall -y pip
 
 COPY . .
+RUN mkdir -p /app/logs /app/images && chown serops:serops /app/logs /app/images
 
 # Version metadata baked in at build time (Batch 44, SemVer discipline).
 # CI passes these via ``--build-arg`` from the docker/metadata-action
@@ -29,6 +33,8 @@ ARG SEROPS_BUILT_AT=""
 ENV SEROPS_VERSION=$SEROPS_VERSION \
     SEROPS_GIT_SHA=$SEROPS_GIT_SHA \
     SEROPS_BUILT_AT=$SEROPS_BUILT_AT
+
+USER 10001
 
 EXPOSE 8000
 

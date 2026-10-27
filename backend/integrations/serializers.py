@@ -109,6 +109,18 @@ class ObservabilityIntegrationSerializer(serializers.ModelSerializer):
     def get_secret_fields_set(self, obj):
         return obj.secret_fields_set()
 
+    def validate_host(self, value):
+        """Private addresses are fine (most backends are in-cluster), cloud
+        metadata endpoints are not: the host is fetched by the server."""
+        if value:
+            from Utils.url_validator import validate_internal_url_no_metadata
+            url = value if '://' in value else f'http://{value}'
+            try:
+                validate_internal_url_no_metadata(url)
+            except ValueError as e:
+                raise serializers.ValidationError(str(e))
+        return value
+
     def validate_provider(self, value):
         if value not in ADAPTER_MAP:
             raise serializers.ValidationError(

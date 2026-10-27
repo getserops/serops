@@ -35,10 +35,14 @@ RUN echo "VITE_BASE_URL=${VITE_BASE_URL}" > .env
 RUN NODE_OPTIONS="--max-old-space-size=1536" npm run build
 
 # Stage 2: Serve with nginx
-FROM nginx:alpine
+# nginx's official unprivileged image: runs as uid 101, pid and temp files
+# in /tmp, so the container never needs root (port 3000 needs no privilege).
+FROM nginxinc/nginx-unprivileged:alpine
 
 # The base image is rebuilt less often than Alpine ships fixes.
+USER root
 RUN apk upgrade --no-cache
+USER 101
 
 # Copy built assets from builder stage
 COPY --from=builder /serops-front/dist /usr/share/nginx/html

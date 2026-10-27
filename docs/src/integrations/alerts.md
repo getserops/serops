@@ -1,6 +1,6 @@
 ---
-seo_title: "Alertmanager, Grafana and Datadog alerts: instant RCA"
-description: "Forward Alertmanager, Grafana or Datadog alerts to SerOps and get an AI root cause for the affected service within about 30 seconds."
+seo_title: "Alertmanager, Grafana, Datadog and Sentry alerts: instant RCA"
+description: "Forward Alertmanager, Grafana, Datadog or Sentry alerts to SerOps and get an AI root cause for the affected service within about 30 seconds."
 ---
 # Real-time Alerts
 
@@ -9,13 +9,19 @@ Root Cause Analysis on-demand — the alert fires, SerOps immediately
 opens a batch analysis for the impacted service, and the RCA
 recommendation lands in your dashboard within ~30 seconds.
 
-Three sources are supported:
+Four sources are supported:
 
 | Source | Protocol | Format |
 |---|---|---|
 | Prometheus Alertmanager | HTTP POST | Alertmanager webhook v4 |
 | Grafana Alerts (v9+) | HTTP POST | Alertmanager-compatible |
 | Datadog Monitors | HTTP POST | Datadog Monitor webhook |
+| Sentry | HTTP POST, signed | Internal integration webhooks (issue alerts, metric alerts, new issues) |
+
+The alert itself is part of the evidence: its title, summary and, for
+Sentry, the exception, release and stack frames go into the analysis
+alongside the logs, metrics and traces of the window. An alert alone is
+enough for an analysis, so a team that only has Sentry still gets one.
 
 ## 1. Get a webhook secret
 
@@ -121,12 +127,41 @@ create the webhook integration:
 Add `service:<name>` and `env:<name>` tags to the monitor so SerOps
 can route the analysis to the right project.
 
+### Sentry
+
+Sentry can't add a bearer token to a webhook; it signs each one with the
+client secret of an **internal integration**, and SerOps checks that
+signature.
+
+1. In Sentry: *Settings → Developer Settings → Custom Integrations →
+   Create New Integration → Internal Integration*.
+2. **Webhook URL**: `https://your-serops-host/api/webhooks/alerts/sentry/42/`
+   (your organisation id in place of 42).
+3. Turn on **Alert Rule Action**, and under **Webhooks** subscribe to
+   **issue** if you also want new issues to trigger an analysis.
+   Permissions can stay at *No Access*: SerOps doesn't call Sentry.
+4. Save, then copy the integration's **Client Secret** into SerOps:
+   `SEROPS_SENTRY_CLIENT_SECRET` in `.env` (Docker Compose) or
+   `alertSecrets.sentry` (Helm), and restart the backend.
+5. In an alert rule (*Alerts → Create Alert*, issue or metric), add the
+   action **Send a notification via** your integration.
+
+Routing: SerOps matches the event's `service` tag, then the Sentry
+project slug, against your services' names. Set a `service` tag in your
+SDK (`sentry_sdk.set_tag("service", "checkout-api")`) or name the Sentry
+project like the service. The environment comes from the event's
+`environment`.
+
+The secret is install-wide: every organisation on the install uses the
+same Sentry integration. Pulling Sentry errors into scheduled analyses
+(without an alert) is not available yet.
+
 ## 3. What happens when an alert fires
 
-1. Webhook lands, secret is verified (constant-time compare).
+1. Webhook lands, secret or Sentry signature is verified (constant-time compare).
 2. Payload is parsed → `(alertname, service, environment, severity, summary)`.
 3. **Idempotency:** duplicates within 5 minutes (same fingerprint
-   for Alertmanager, same event ID for Datadog) return `200
+   for Alertmanager, same event ID for Datadog and Sentry) return `200
    deduplicated` — no re-analysis. Handles Alertmanager retries
    safely.
 4. `AlertEvent` row is created (audit trail).

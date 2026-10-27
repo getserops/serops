@@ -10,6 +10,12 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.2.9] - 2026-10-27
+
+### Security
+
+- The image is built on nginx's official unprivileged image and runs as uid 101 (port 3000 unchanged).
+
 ## [1.2.8] - 2026-10-26
 
 ### Security

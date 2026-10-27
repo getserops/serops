@@ -97,7 +97,7 @@ Secrets are encrypted at rest and never returned by the API.
 
 This page also holds **Rotate ingest secret**, the per-organisation
 bearer token that inbound Alertmanager, Grafana, and Datadog webhooks
-authenticate with. The plaintext is displayed once only.
+authenticate with. The plaintext is displayed once only. Sentry signs its webhooks with its own client secret instead (see [Real-time Alerts](../integrations/alerts.md#sentry)).
 
 See [Notifications](notifications.md) for the full guide.
 

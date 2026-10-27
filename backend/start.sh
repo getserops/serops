@@ -21,7 +21,7 @@ if [ "${SEROPS_DEV:-0}" = "1" ]; then
 
     echo "[DEV] Starting Celery Beat (auto-reload)..."
     watchmedo auto-restart --directory=./ --pattern='*.py' --recursive -- \
-        celery -A api beat --loglevel=info &
+        celery -A api beat --loglevel=info --schedule=/tmp/celerybeat-schedule &
     BEAT_PID=$!
 
     echo "[DEV] Starting Django runserver..."
@@ -50,7 +50,7 @@ celery -A api worker \
 CELERY_PID=$!
 
 echo "Starting Celery Beat..."
-celery -A api beat --loglevel=info &
+celery -A api beat --loglevel=info --schedule=/tmp/celerybeat-schedule &
 BEAT_PID=$!
 
 echo "Starting Gunicorn (workers=$WORKERS, threads=$THREADS)..."

@@ -30,7 +30,7 @@ at your own:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.2.8 \
+  --version 1.2.9 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set database.url="postgres://serops:PASSWORD@your-pg-host:5432/serops" \
@@ -45,7 +45,7 @@ For a lab or demo cluster, let the chart run Postgres and Redis itself:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.2.8 \
+  --version 1.2.9 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set devServices.postgresql.enabled=true \
@@ -233,6 +233,12 @@ helm upgrade --install serops deploy/helm/serops \
 | `serops-frontend` | ≥ 2 | Vite build served by nginx. |
 | `serops-celery-worker` | ≥ 2 | Two queues: `high_priority` + `celery`. Alert-triggered batches jump ahead. |
 | `serops-celery-beat` | **exactly 1** | Scheduler — multiple copies double-fire tasks. |
+
+## Security context
+
+Every pod meets the Kubernetes **restricted** Pod Security Standard: a non-root user (the backend image runs as uid 10001, the frontend's nginx as uid 101), no privilege escalation, all Linux capabilities dropped, the runtime's default seccomp profile, and a read-only root filesystem. The backend pods write only to two `emptyDir` volumes, `/tmp` and `/app/logs`; the frontend writes only to `/tmp`.
+
+The settings are `podSecurityContext` and `containerSecurityContext` (backend, Celery and migrations) and `frontend.podSecurityContext` / `frontend.containerSecurityContext`. On a platform that assigns user ids itself, such as OpenShift, remove `runAsUser`, `runAsGroup` and `fsGroup`.
 
 ## Verifying the install
 

@@ -78,6 +78,12 @@ upgrades are safe with a brief restart.
 
 Releases that need something from you after upgrading. Migrations run on their own (`docker compose up` / the Helm migrate job).
 
+### 1.2.9: containers run as non-root
+
+- The images no longer run as root: the backend as uid 10001, the frontend's nginx as uid 101 (listening on 3000 as before).
+- **Docker Compose**: a `backend_logs` volume created by an earlier release belongs to root, so the backend can't write its log files there and logs to standard output instead (`docker compose logs backend`). To keep file logs, give the volume to the new user once: `docker compose run --rm --no-deps --user root --entrypoint chown backend -R 10001:10001 /app/logs`.
+- **Helm**: pods now run with the restricted security context described in [Helm → Security context](helm.md#security-context). Nothing to migrate.
+
 ### 1.2.2: security release
 
 - **New migrations**: Data 0051–0053, Projects 0015, Organisations 0013, Users 0012.

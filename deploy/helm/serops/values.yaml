@@ -1,4 +1,4 @@
-# SerOps Helm chart values — v1.2.8
+# SerOps Helm chart values — v1.2.9
 #
 # All defaults are safe for a small production deployment (~5 users,
 # 100 batches/day). Scale replicas + resources for larger tenants.
@@ -15,6 +15,29 @@ global:
   # Prefixed to all resource names when nameOverride is empty.
   nameOverride: ""
   fullnameOverride: ""
+
+# ============================================================================
+# Security context
+# ============================================================================
+# Every SerOps pod runs as a non-root user with no privilege escalation, no
+# Linux capabilities, the runtime's default seccomp profile and a read-only
+# root filesystem: the Kubernetes "restricted" Pod Security Standard. These
+# apply to the backend, Celery and migration pods (the backend image's user
+# is uid 10001); writable scratch space is an emptyDir at /tmp and /app/logs.
+# The frontend has its own block below. Change the ids only if a cluster
+# policy assigns them (OpenShift: remove runAsUser, runAsGroup and fsGroup).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
 
 # ============================================================================
 # Backend (Django + gunicorn)
@@ -72,6 +95,19 @@ backend:
 # ============================================================================
 frontend:
   replicaCount: 2
+  # nginx's unprivileged image: uid 101, pid and temp files under /tmp.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    runAsGroup: 101
+    fsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
   image:
     repository: ghcr.io/getserops/frontend
     tag: ""  # defaults to appVersion
@@ -234,6 +270,14 @@ devServices:
   postgresql:
     enabled: false
     image: postgres:16-alpine
+    # The Alpine postgres image's own user (uid 70).
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 70
+      runAsGroup: 70
+      fsGroup: 70
+      seccompProfile:
+        type: RuntimeDefault
     user: serops
     password: serops-dev-password
     database: serops
@@ -243,6 +287,14 @@ devServices:
   redis:
     enabled: false
     image: redis:7-alpine
+    # The redis image's own user (uid 999).
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 999
+      runAsGroup: 999
+      fsGroup: 999
+      seccompProfile:
+        type: RuntimeDefault
     resources:
       requests: {cpu: 50m, memory: 64Mi}
       limits: {cpu: 500m, memory: 256Mi}
@@ -289,10 +341,13 @@ smtp:
 # ============================================================================
 alertSecrets:
   # Same env-only pattern. Empty = source rejects all webhooks.
-  existingSecret: ""   # keys: alertmanager, grafana, datadog
+  existingSecret: ""   # keys: alertmanager, grafana, datadog, sentry
   alertmanager: ""
   grafana: ""
   datadog: ""
+  # The client secret of your Sentry internal integration (Sentry signs
+  # its webhooks with it). See docs: Integrations → Real-time Alerts.
+  sentry: ""
 
 # ============================================================================
 # Self-metrics

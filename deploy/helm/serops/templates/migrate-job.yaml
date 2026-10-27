@@ -33,6 +33,7 @@ spec:
         {{- include "serops.selectorLabels" (dict "Chart" .Chart "Release" .Release "Values" .Values "component" "migrate") | nindent 8 }}
     spec:
       restartPolicy: Never
+      {{- include "serops.backendPodSecurity" $ | nindent 6 }}
       initContainers:
         # Wait for the database to accept connections before migrating.
         # Without this the Job's first attempt reliably loses the race with a
@@ -45,6 +46,7 @@ spec:
         - name: wait-for-db
           image: {{ include "serops.image" (dict "repository" .Values.backend.image.repository "tag" .Values.backend.image.tag "root" $) }}
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          {{- include "serops.backendContainerSecurity" $ | nindent 10 }}
           env:
             - name: DATABASE_URL
               valueFrom:
@@ -80,6 +82,7 @@ spec:
         - name: migrate
           image: {{ include "serops.image" (dict "repository" .Values.backend.image.repository "tag" .Values.backend.image.tag "root" $) }}
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          {{- include "serops.backendContainerSecurity" $ | nindent 10 }}
           command: ["python", "manage.py", "migrate", "--noinput"]
           envFrom:
             - configMapRef:
