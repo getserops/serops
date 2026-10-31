@@ -1400,3 +1400,60 @@ class ProjectDeploymentViewSet(viewsets.ModelViewSet):
             'cluster_id': int(cluster_id),
             'suggestions': suggestions,
         })
+
+
+class ProjectDataCheckView(APIView):
+    """"Check my data" for a project.
+
+    GET  — what the last scheduled run of each environment did, and why it
+           made no analysis when it made none.
+    POST — run the check now: ``{"environment": <id>, "minutes": 60}``.
+    """
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', POST='integration.use')]
+
+    def _project(self, request, project_id):
+        org = getattr(request.user, 'organisation', None)
+        return Project.objects.filter(organisation=org, pk=project_id).first() if org else None
+
+    def get(self, request, project_id):
+        from Data.models import DataRunStatus
+        project = self._project(request, project_id)
+        if project is None:
+            return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
+        runs = DataRunStatus.objects.filter(project=project).order_by('-ran_at')
+        return Response({'runs': [r.to_dict() for r in runs]})
+
+    def post(self, request, project_id):
+        from Data.data_check import check_project_data
+        from .models import ProjectEnvironment
+        project = self._project(request, project_id)
+        if project is None:
+            return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
+        environment = None
+        env_id = request.data.get('environment')
+        if env_id not in (None, ''):
+            environment = ProjectEnvironment.objects.filter(project=project, pk=env_id).first()
+            if environment is None:
+                return Response({"error": "Environment not found"}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            minutes = int(request.data.get('minutes') or 60)
+        except (TypeError, ValueError):
+            return Response({"error": "minutes must be a number"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(check_project_data(project, environment, minutes))
+
+
+class ProjectDataFixView(APIView):
+    """Apply a fix offered by "Check my data": list services seen in the
+    logs, or accept an environment value the logs carry."""
+    permission_classes = [IsAuthenticated, Requires(POST='project.write')]
+    _project = ProjectDataCheckView._project
+
+    def post(self, request, project_id):
+        from Data.data_check import apply_fix
+        project = self._project(request, project_id)
+        if project is None:
+            return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            return Response(apply_fix(project, request.data, request=request))
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

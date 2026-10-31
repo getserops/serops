@@ -37,11 +37,22 @@ Complete reference for all environment variables consumed by SerOps.
 
 ---
 
+## Log files
+
+The backend writes `django.log` and `user_actions.log` in `/app/logs` (the `backend_logs` volume in Docker Compose, an `emptyDir` in Helm) and rotates them by size. Everything also goes to standard output when the folder isn't writable.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SEROPS_LOG_FILE_MAX_MB` | No | `50` | Size at which a log file is rotated. |
+| `SEROPS_LOG_FILE_BACKUPS` | No | `5` | Rotated copies kept per file (`django.log.1` … `.5`); older ones are deleted. At the defaults the folder stays under about 600 MB. |
+
+---
+
 ## Image Registry
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SEROPS_VERSION` | No | `1.2.9` | Version tag for SerOps Docker images (backend + frontend) |
+| `SEROPS_VERSION` | No | `1.2.10` | Version tag for SerOps Docker images (backend + frontend) |
 
 ---
 

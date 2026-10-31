@@ -12,6 +12,7 @@ from typing import List, Tuple, Optional
 from django.conf import settings
 
 from integrations.base import LogProvider, LogProviderCapabilities
+from integrations.adapters.elasticsearch import discover_log_indices, parse_index_patterns
 from integrations.schemas import LogEntry, LogStream, LogQuery
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,7 @@ class OpenSearchLogProvider(LogProvider):
                 effective_config.setdefault("password", os_settings.get("PASSWORD", ""))
         self.client = _get_opensearch_client(effective_config)
         self.default_index = effective_config.get("default_index", "_all")
+        self.index_patterns = parse_index_patterns(effective_config.get("index_pattern"))
 
     # ------------------------------------------------------------------
     # LogProvider ABC
@@ -177,6 +179,8 @@ class OpenSearchLogProvider(LogProvider):
                 index=target_index,
                 body=final_query,
                 size=size,
+                ignore_unavailable=True,
+                allow_no_indices=True,
             )
             hits = response.get("hits", {}).get("hits", [])
             return [LogEntry.from_es_hit(hit) for hit in hits]
@@ -185,20 +189,8 @@ class OpenSearchLogProvider(LogProvider):
             return []
 
     def get_indices(self, project) -> List[str]:
-        """
-        Get available indices for a project.
-        Uses the same naming convention as Elasticsearch.
-        """
-        try:
-            raw_name = project.name if hasattr(project, "name") else str(project)
-            clean_name = raw_name.lower().strip()
-            clean_name = re.sub(r"[^a-z0-9]+", "-", clean_name).strip("-")
-            pattern = f"application-logs-{clean_name}*"
-            indices = self.client.cat.indices(index=pattern, format="json", h="index")
-            return [i["index"] for i in indices]
-        except Exception as exc:
-            logger.warning("Failed to discover indices for project %s: %s", project, exc)
-            return []
+        """Indices to search for a project (same rules as Elasticsearch)."""
+        return discover_log_indices(self.client, project, self.index_patterns)
 
     def health_check(self) -> bool:
         """Check if OpenSearch cluster is reachable."""

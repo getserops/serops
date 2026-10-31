@@ -16,6 +16,9 @@ loads the provider, samples recent records, and runs the analyzer.
 Security notes:
   * Analyzer only reads FIELD NAMES from sampled records, not values.
     Real log messages / metric values never appear in the report.
+    (The project-level "Check my data", ``Data/data_check.py``, does show
+    the project / environment / service VALUES: identifiers, still never
+    messages.)
   * ``collect_ingest_health`` clamps the sample window and size so a
     misconfigured caller can't DoS the user's own provider.
   * The API endpoint is admin-only (see ``views.py``).
@@ -27,6 +30,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from integrations.field_aliases import (
+    lookup,
     ENVIRONMENT_ALIASES,
     LOG_LEVEL_ALIASES,
     ORGANISATION_NAME_ALIASES,
@@ -219,9 +223,11 @@ def analyze_records(
 
 
 def _has_nonempty(record: Dict[str, Any], key: str) -> bool:
-    """True if ``record[key]`` is present AND non-empty (skips '', None, 0-len)."""
-    val = record.get(key)
-    return bool(val)
+    """True if ``key`` holds a non-empty value, stored flat or nested
+    (``service.name`` in an Elastic Common Schema record is an object path).
+    A nested object is not a value."""
+    val = lookup(record, key)
+    return bool(val) and not isinstance(val, (dict, list))
 
 
 # ---------------------------------------------------------------------------

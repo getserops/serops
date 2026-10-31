@@ -11,10 +11,69 @@ from Data.models import AIAnalyzedBatch
 import logging
 from django.utils import timezone
 import json
+from collections import defaultdict
 from datetime import datetime
 
 
 logger = logging.getLogger(__name__)
+
+
+def _prompt_log_line(log):
+    """One log as the AI reads it: ``[time] [level] [service] [host] message``.
+
+    The host (node, machine, pod) used to be left out, so a failure
+    confined to one node read like a service-wide one (RCA benchmark h04:
+    clock skew on node-c).
+    """
+    host = log.get('host') or ''
+    where = f" [{host}]" if host and host != 'unknown' else ''
+    return f"[{log.get('timestamp', '')}] [{log.get('level', '')}] [{log.get('component', '')}]{where} {log.get('message', '')}"
+
+
+def _hosts_note(hosts):
+    """Where a repeated log came from, e.g. ``on node-c`` or ``on 3 hosts: a (5), b (2), c (1)``."""
+    named = {h: n for h, n in hosts.items() if h and h != 'unknown'}
+    if not named:
+        return ''
+    if len(named) == 1:
+        return f" on {next(iter(named))}"
+    top = sorted(named.items(), key=lambda kv: -kv[1])
+    listed = ', '.join(f'{h} ({n})' for h, n in top[:5])
+    return f" on {len(named)} hosts: {listed}" + (', ...' if len(top) > 5 else '')
+
+
+def _demote_side_code_findings(parsed_result):
+    """During an incident, a finding from reviewing the code is a note, not a suspect.
+
+    The prompt asks the AI to review every diff even without runtime
+    evidence. In a quiet window that is the whole point; during an incident
+    a second WARNING naming a commit ("unused import in 2aa7d19c") reads as a
+    second suspect, notifies on-call and sends them to an innocent commit
+    (RCA benchmark h01/h04, Claude). So when the batch has a runtime issue
+    (any scope but CODE, WARNING or worse), CODE findings that cite no
+    runtime evidence become INFO and link no commit; their text still says
+    where the code is.
+
+    Returns the number demoted.
+    """
+    issues = [i for i in parsed_result.get('correlated_issues') or [] if isinstance(i, dict)]
+    incident = any(str(i.get('scope', 'SERVICE')).upper() != 'CODE'
+                   and str(i.get('severity', '')).upper() in ('WARNING', 'CRITICAL') for i in issues)
+    if not incident:
+        return 0
+    def cites_runtime(issue):
+        # A CODE issue citing logs, metrics or traces is tied to the incident
+        # (possibly its cause, labelled CODE by the model): never demoted.
+        evidence = issue.get('evidence_sources') or {}
+        return isinstance(evidence, dict) and any(evidence.get(k) for k in ('logs', 'metrics', 'traces'))
+
+    demoted = 0
+    for issue in issues:
+        if str(issue.get('scope', '')).upper() == 'CODE' and not cites_runtime(issue):
+            issue['severity'] = 'INFO'
+            issue['caused_by_commits'] = []
+            demoted += 1
+    return demoted
 
 
 def _populate_issue_correlations(issue, correlations_data, metrics_summary):
@@ -263,7 +322,10 @@ def _build_past_memories(batch):
 # with one of these keeps its slot in the AI prompt; everything else
 # is dropped from the prompt only — batch.data still holds every
 # original entry so audit and debug views see the full stream.
-_HIGH_SIGNAL_LEVELS = ('ERROR', 'WARNING', 'CRITICAL', 'FATAL', 'ALERT', 'EMERG', 'SEVERE')
+# 'WARN' also covers 'WARNING': the pipeline normalises every warning to
+# WARN (integrations.schemas._detect_level), so a 'WARNING' prefix alone
+# dropped every warning from every provider.
+_HIGH_SIGNAL_LEVELS = ('ERROR', 'WARN', 'CRITICAL', 'FATAL', 'ALERT', 'EMERG', 'SEVERE')
 
 # Substrings hinting at severity even when the level field is generic
 # (some log shippers ship 'INFO' with an error message body). Matched
@@ -550,10 +612,11 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
         
         for entry in ai_log_context.logs:
             level = entry.level.upper() if entry.level else "UNKNOWN"
-            
-            # Update summaries
-            if level in log_summaries["severity_counts"]:
-                log_summaries["severity_counts"][level] += 1
+
+            # Update summaries (warnings arrive as WARN; the summary key is WARNING)
+            counted = 'WARNING' if level == 'WARN' else level
+            if counted in log_summaries["severity_counts"]:
+                log_summaries["severity_counts"][counted] += 1
             else:
                 log_summaries["severity_counts"]["UNKNOWN"] += 1
                 
@@ -662,7 +725,7 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
         }
         
         # Prepare log list and truncate if too many to avoid quota/token limits
-        log_strings = [f"[{log.get('timestamp', '')}] [{log.get('level', '')}] [{log.get('component', '')}] {log.get('message', '')}" for log in analysis_data['logs']]
+        log_strings = [_prompt_log_line(log) for log in analysis_data['logs']]
         
         # Limit to 100 logs if there are too many, prioritizing the EARLIEST and LATEST to catch start and end of issues
         # Intelligent Truncation: Prioritize ERROR/WARNING/CRITICAL logs
@@ -697,11 +760,13 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                         'first_seen': log.get('timestamp'),
                         'last_seen': log.get('timestamp'),
                         'sample_log': log,
-                        'level': lvl
+                        'level': lvl,
+                        'hosts': defaultdict(int),
                     }
                 
                 group = grouped_logs[signature]
                 group['count'] += 1
+                group['hosts'][log.get('host') or ''] += 1
                 # Update timestamps (assuming ISO format sorting matches string sorting roughly)
                 if log.get('timestamp', '') > group['last_seen']:
                     group['last_seen'] = log.get('timestamp')
@@ -717,7 +782,7 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                 score = 0
                 if item['level'] in ['ERROR', 'CRITICAL', 'FATAL', 'EXCEPTION']:
                     score += 10000
-                elif item['level'] == 'WARNING':
+                elif item['level'] in ('WARN', 'WARNING'):
                     score += 5000
                 score += item['count'] # Tie-breaker: frequency
                 return score
@@ -737,14 +802,14 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                     break
 
                 log = group['sample_log']
-                base_msg = f"[{log.get('timestamp', '')}] [{log.get('level', '')}] [{log.get('component', '')}] {log.get('message', '')}"
-
                 if group['count'] > 1:
-                    # Append aggregation info
-                    agg_msg = f"{base_msg} ... [Repeated {group['count']} times between {group['first_seen']} and {group['last_seen']}]"
+                    # The hosts are said once for the group, not per line.
+                    base_msg = _prompt_log_line({**log, 'host': ''})
+                    agg_msg = (f"{base_msg} ... [Repeated {group['count']} times between {group['first_seen']} "
+                               f"and {group['last_seen']}{_hosts_note(group['hosts'])}]")
                     log_strings.append(agg_msg)
                 else:
-                    log_strings.append(base_msg)
+                    log_strings.append(_prompt_log_line(log))
 
                 slots_used += 1
 
@@ -754,7 +819,7 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
             # No truncation needed — each surviving log is one "pattern"
             # from the aggregation-stats standpoint, even though we
             # didn't run the grouping algorithm.
-            log_strings = [f"[{log.get('timestamp', '')}] [{log.get('level', '')}] [{log.get('component', '')}] {log.get('message', '')}" for log in analysis_data['logs']]
+            log_strings = [_prompt_log_line(log) for log in analysis_data['logs']]
             logs_unique_patterns = len(analysis_data['logs'])
 
         # Persist the aggregation stats on the batch — powers the
@@ -1266,6 +1331,7 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                     valid_issue_types = [t[0] for t in Issue.ISSUE_TYPES]
                     valid_scopes = [s[0] for s in Issue.SCOPE_CHOICES]
                     
+                    _demote_side_code_findings(parsed_result)
                     for issue_data in parsed_result.get('correlated_issues', []):
                         if not isinstance(issue_data, dict):
                             continue
@@ -1613,6 +1679,7 @@ def _apply_primary_analysis_to_batch(batch, parsed_result, model_name):
     issues_created = 0
     issues_updated = 0
 
+    _demote_side_code_findings(parsed_result)
     for issue_data in parsed_result.get('correlated_issues', []) or []:
         if not isinstance(issue_data, dict):
             continue
@@ -1812,7 +1879,8 @@ def reanalyze_batch_with_model(self, batch_id, model_name, mode='compare'):
                 component = service.get('name') or source.get('component', 'unknown')
             else:
                 component = source.get('service_name') or service or source.get('component', 'unknown')
-            log_strings.append(f"[{timestamp}] [{level}] [{component}] {message}")
+            log_strings.append(_prompt_log_line({'timestamp': timestamp, 'level': level, 'component': component,
+                                                 'host': source.get('host', ''), 'message': message}))
         
         # Prepare batch data for prompt
         batch_data = {

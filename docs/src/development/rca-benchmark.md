@@ -10,8 +10,8 @@ How well does SerOps name the cause of an incident? The benchmark answers it wit
 
 | Set | Count | What it is for |
 |---|---|---|
-| **Held-out** | 11 (10 incidents, 1 healthy window) | The measure. Written and committed before any model saw them; no prompt rule was changed for them. If one ever is, it moves to the tuned set and the commit says so. |
-| **Tuned** | 13 (11 incidents, 2 healthy windows) | Regression guard. The product was changed while some of these failed, so passing them is expected and is not evidence. One came from the held-out set: `h09`, a clean deploy with one retried request, raised a warning on its first run, and the log filter now keeps recovery lines because of it. |
+| **Held-out** | 9 (8 incidents, 1 healthy window) | The measure. Written and committed before any model saw them; no prompt rule was changed for them. If one ever is, it moves to the tuned set and the commit says so. |
+| **Tuned** | 15 (13 incidents, 2 healthy windows) | Regression guard. The product was changed while some of these failed, so passing them is expected and is not evidence. Three came from the held-out set: `h09`, a clean deploy with one retried request, raised a warning on its first run, and the log filter now keeps recovery lines because of it; `h04`, clock skew on one node, showed that warnings never reached the AI (the filter wanted `WARNING`, the pipeline writes `WARN`), and that filter was fixed because of it; `h07`, a feature-flag rollout, had Claude name a commit only to clear it while the issue still linked it, and commit links now come from the analysis' explicit list. |
 
 They cover bad deploys (a connection leak on an error path, a retry storm, a dropped index), configuration (an autoscaler cap, a Kafka poll size, a feature-flag rollout with no deploy), infrastructure (clock skew on one node, a full disk, an Elasticsearch watermark, expired certificates, DNS), third parties (an outage, a rate limit), dependencies, healthy windows that must stay quiet, and a red herring next to old unrelated noise. Most incidents include a distractor commit that must not be blamed.
 

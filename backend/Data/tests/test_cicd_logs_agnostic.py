@@ -75,11 +75,12 @@ class TestCicdLogQueryTranslation(SimpleTestCase):
 
         terms = list(flat_terms(filters))
 
-        # Environment=production must appear (under `environment` canonical key)
-        self.assertTrue(
-            any(t.get('environment') == 'production' for t in terms),
-            "environment=production should be in the ES filters",
-        )
+        # Environment=production must appear (under `environment` canonical
+        # key), with its other spellings: logs tagged `prod` belong to it.
+        env_values = [s['terms']['environment'] for c in filters if 'bool' in c
+                      for s in c['bool'].get('should', []) if 'environment' in s.get('terms', {})]
+        self.assertEqual(env_values, [['production', 'prod', 'prd']],
+                         "environment=production should be in the ES filters")
 
         # Category has no ALIASES (no alternative field names), but it is
         # still wrapped in a bool.should so the E9-1 `.keyword` variant can
@@ -100,27 +101,27 @@ class TestCicdLogQueryTranslation(SimpleTestCase):
         # Alias smoke: the ENV bool.should should include `env` as an alias
         env_clause = next(
             (f for f in filters if 'bool' in f and any(
-                'environment' in s.get('term', {}) for s in f['bool'].get('should', [])
+                'environment' in s.get('terms', {}) for s in f['bool'].get('should', [])
             )),
             None,
         )
         self.assertIsNotNone(env_clause, "environment filter should be a bool.should over aliases")
         env_aliases_used = {
-            list(s['term'].keys())[0] for s in env_clause['bool']['should'] if 'term' in s
+            list(s['terms'].keys())[0] for s in env_clause['bool']['should'] if 'terms' in s
         }
         self.assertIn('env', env_aliases_used, "Datadog USM `env` should be a queried alias")
 
     def test_logql_translation(self):
         query = LogQuery(environment='production', category='cicd', project='demo')
         logql = query.to_logql()
-        self.assertIn('environment="production"', logql)
+        self.assertIn('environment=~"production|prod|prd"', logql)
         self.assertIn('category="cicd"', logql)
         self.assertIn('project_name="demo"', logql)
 
     def test_datadog_query_translation(self):
         query = LogQuery(environment='staging', category='cicd')
         dd = query.to_datadog_query()
-        self.assertIn('@environment:staging', dd)
+        self.assertIn('@environment:(staging OR stage OR stg OR preprod)', dd)
         self.assertIn('@category:cicd', dd)
 
 

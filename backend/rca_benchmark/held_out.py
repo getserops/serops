@@ -143,7 +143,11 @@ def h04_clock_skew():
     logs.append(log(2, 'chronyd', 'WARN', 'System clock wrong by -94.018 seconds, adjustment started; '
                     'no selectable sources', host='node-c'))
     return {
-        'id': 'h04_clock_skew', 'set': SET, 'category': 'infrastructure',
+        # Moved to the tuned set on 2026-10-28: reading its prompt showed the
+        # chronyd WARN line naming node-c never reached the AI (the filter
+        # wanted WARNING, the pipeline writes WARN), and that filter was fixed
+        # because of it. It passed all three held-out rounds before the fix.
+        'id': 'h04_clock_skew', 'set': 'tuned', 'category': 'infrastructure',
         'name': 'Clock skew on one node rejects valid tokens',
         'data': {'logs': logs,
                  'code_changes': [commit('2aa7d19c', -30, 'eva', 'chore(auth): structured logging for token checks',
@@ -233,7 +237,10 @@ def h07_feature_flag():
              for k in range(12)]
     logs += [log(22 + k * 3, 'tax-svc', 'INFO', 'tax computed (engine=v1, region=CA-QC)') for k in range(4)]
     return {
-        'id': 'h07_feature_flag', 'set': SET, 'category': 'config',
+        # Moved to the tuned set on 2026-10-28: Claude named commit 8a9b0c1d
+        # only to clear it, the issue still linked it, and commit links now
+        # come from the analysis' caused_by_commits because of it.
+        'id': 'h07_feature_flag', 'set': 'tuned', 'category': 'config',
         'name': 'Feature-flag rollout with no deploy',
         'data': {'logs': logs,
                  'code_changes': [commit('8a9b0c1d', -45, 'jo', 'test(tax): more fixtures',
@@ -341,8 +348,8 @@ def h12_es_watermark():
                          wrong_shas=['f1e2d3c4'])}
 
 
-SCENARIOS = [h01_connection_leak, h02_retry_storm, h03_kafka_rebalance, h04_clock_skew, h05_hpa_cap,
-             h06_migration_lock, h07_feature_flag, h08_rate_limited, h10_benign_spike,
+SCENARIOS = [h01_connection_leak, h02_retry_storm, h03_kafka_rebalance, h05_hpa_cap,
+             h06_migration_lock, h08_rate_limited, h10_benign_spike,
              h11_red_herring, h12_es_watermark]
 # Written here, then tuned on: see tuned.MOVED.
-MOVED_TO_TUNED = [h09_benign_deploy]
+MOVED_TO_TUNED = [h04_clock_skew, h07_feature_flag, h09_benign_deploy]

@@ -154,8 +154,12 @@ class LogQueryEsDslAliasesTest(SimpleTestCase):
     def test_environment_includes_datadog_usm_env_alias(self):
         filters = self._filters(environment='prod')
         env_clause = next(f for f in filters if 'bool' in f)
-        aliases = {list(s['term'].keys())[0] for s in env_clause['bool']['should']}
+        aliases = {list(s['terms'].keys())[0] for s in env_clause['bool']['should']}
         self.assertIn('env', aliases)  # Datadog USM
+        self.assertIn('service.environment', aliases)  # ECS
+        # every spelling of the environment, not just the one asked for
+        values = env_clause['bool']['should'][0]['terms']['environment']
+        self.assertEqual(values, ['prod', 'production', 'prd'])
 
     def test_services_includes_otel_and_k8s_aliases(self):
         filters = self._filters(services=['checkout'])
@@ -164,16 +168,19 @@ class LogQueryEsDslAliasesTest(SimpleTestCase):
         self.assertIn('service.name', aliases)   # OTEL
         self.assertIn('app', aliases)            # K8s
 
-    def test_severity_keeps_es_keyword_variant(self):
-        filters = self._filters(severity=['ERROR'])
+    def test_severity_matches_every_spelling_on_every_level_field(self):
+        filters = self._filters(severity=['ERROR', 'WARNING'])
         sev_clause = next(f for f in filters if 'bool' in f)
-        keyword_matcher = next(
-            (s for s in sev_clause['bool']['should']
-             if 'log_level.keyword' in s.get('terms', {})),
-            None,
-        )
-        self.assertIsNotNone(keyword_matcher)
-        self.assertEqual(keyword_matcher['terms']['log_level.keyword'], ['ERROR'])
+        levels, words = sev_clause['bool']['should']
+        qs = levels['query_string']
+        for field in ('log_level.keyword', 'level', 'log.level', 'severity_text'):
+            self.assertIn(field, qs['fields'])
+        for spelling in ('"WARN"', '"warn"', '"Warning"', '"ERROR"', '"error"', '50', '40'):
+            self.assertIn(spelling, qs['query'].split(' OR '))
+        self.assertTrue(qs['lenient'])  # a numeric level field must not fail the search
+        # unstructured logs: no level field, reached through the message
+        self.assertEqual(words['query_string']['fields'], ['message'])
+        self.assertIn('exception', words['query_string']['query'])
 
     def test_minimum_should_match_is_1(self):
         # Any single alias hit is enough — never require ALL.
@@ -187,20 +194,23 @@ class LogQueryDatadogAliasesTest(SimpleTestCase):
     def test_service_includes_usm_service_alias(self):
         dd = LogQuery(services=['checkout']).to_datadog_query()
         # Canonical AND USM alias both present in the OR expression
-        self.assertIn('@service_name:(checkout)', dd)
-        self.assertIn('@service:(checkout)', dd)
-        self.assertIn(' OR ', dd)
+        self.assertIn('@service_name:checkout', dd)
+        self.assertIn(' service:checkout', dd)   # USM reserved attribute / tag
+        self.assertIn('app.kubernetes.io\\/name:checkout', dd)  # '/' escaped
 
     def test_environment_includes_env_alias(self):
         dd = LogQuery(environment='prod').to_datadog_query()
-        self.assertIn('@environment:prod', dd)
-        self.assertIn('@env:prod', dd)
+        # tags (what DD_TAGS / the agent's tags: produce) and attributes
+        self.assertIn(' env:(prod OR production OR prd)', dd)
+        self.assertIn('@env:(prod OR production OR prd)', dd)
+        self.assertIn('(environment:(prod OR production OR prd)', dd)
 
     def test_severity_uses_status_and_aliases(self):
         dd = LogQuery(severity=['error']).to_datadog_query()
         # `status:` (Datadog native, no @) plus @log_level etc.
-        self.assertIn('status:(error)', dd)
-        self.assertIn('@level:(error)', dd)
+        self.assertIn('status:(error OR err OR alert OR emerg OR emergency)', dd)
+        self.assertIn('@level:(ERROR OR error OR Error', dd)
+        self.assertIn('exception', dd)  # unstructured logs default to status info
 
 
 class LogQueryCloudWatchAliasesTest(SimpleTestCase):
@@ -214,8 +224,8 @@ class LogQueryCloudWatchAliasesTest(SimpleTestCase):
 
     def test_environment_includes_env_alias(self):
         cw = LogQuery(environment='prod').to_cloudwatch_insights()
-        self.assertIn("environment = 'prod'", cw)
-        self.assertIn("env = 'prod'", cw)
+        self.assertIn("environment in ['prod', 'production', 'prd']", cw)
+        self.assertIn("env in ['prod', 'production', 'prd']", cw)
 
 
 class LogQueryLokiUnchangedTest(SimpleTestCase):

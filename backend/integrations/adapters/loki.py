@@ -4,6 +4,8 @@ Grafana Loki Adapter for LogProvider.
 Implements the LogProvider ABC using the Loki HTTP API.
 Translates generic query dicts into LogQL stream selectors + line filters.
 """
+import json
+import re
 import logging
 from datetime import datetime, timezone
 from typing import List, Tuple, Optional
@@ -20,6 +22,10 @@ from integrations.schemas import (
     _parse_timestamp,
     _detect_level,
     _detect_level_from_line,
+)
+from integrations.schemas import level_from_value, level_of
+from integrations.field_aliases import (
+    LOG_LEVEL_ALIASES, SERVICE_NAME_ALIASES, first_present, first_present_with_key,
 )
 
 logger = logging.getLogger(__name__)
@@ -162,13 +168,29 @@ class LokiLogProvider(LogProvider):
 
         # Translate LogQuery → LogQL if needed
         if isinstance(query, LogQuery):
-            logql = query.to_logql()
             size = query.max_results
             # Extract time range from LogQuery if not passed explicitly
             if not time_range and query.time_range:
                 time_range = query.time_range
+            alternatives = query.to_logql_alternatives()
+            if len(alternatives) > 1:
+                # The project's logs are tagged several ways (Project.log_rules):
+                # one query each, merged, newest first, each log once.
+                merged, seen = [], set()
+                for logql in alternatives:
+                    for entry in self._query_range(logql, size, time_range, index):
+                        key = (entry.timestamp, entry.message, entry.service)
+                        if key not in seen:
+                            seen.add(key)
+                            merged.append(entry)
+                merged.sort(key=lambda e: e.timestamp, reverse=True)
+                return merged[:size]
+            logql = alternatives[0]
         else:
             logql = self._build_logql(index, query)
+        return self._query_range(logql, size, time_range, index)
+
+    def _query_range(self, logql, size, time_range, index) -> List[LogEntry]:
 
         # An unfiltered LogQuery renders as "{}", which Loki rejects
         # outright: "queries require at least one regexp or equality
@@ -235,10 +257,17 @@ class LokiLogProvider(LogProvider):
         LogQuery (canonical labels), not from these values.
         """
         name = getattr(project, 'name', None)
+        rules = project.log_rules_clean() if hasattr(project, 'log_rules_clean') else []
         try:
             if name and name in self._label_values('project_name'):
                 selector = '{project_name="%s"}' % name.replace('"', '\\"')
                 return self._label_values('service_name', selector) or [name]
+            # The project's own log rules (Project.log_rules), as Loki labels.
+            for field, value in rules:
+                label = re.sub(r'[^A-Za-z0-9_]', '_', field)
+                if value in self._label_values(label):
+                    selector = '{%s="%s"}' % (label, value.replace('"', '\\"'))
+                    return self._label_values('service_name', selector) or [value]
             return self._label_values('app')
         except RequestException as exc:
             logger.warning("Loki get_indices failed: %s", exc)
@@ -389,17 +418,14 @@ class LokiLogProvider(LogProvider):
                         # cluster of ERROR lines reached the AI flattened
                         # to INFO, and the ingest validator reported
                         # log_level as 100% covered.
-                        level=(
-                            _detect_level(stream_labels["log_level"])
-                            if stream_labels.get("log_level")
-                            else _detect_level(stream_labels["level"])
-                            if stream_labels.get("level")
-                            else _detect_level_from_line(line)
-                        ),
-                        service=(
-                            stream_labels.get("service_name")
-                            or stream_labels.get("app", "")
-                        ),
+                        # Level: a level label (Loki 3 adds detected_level),
+                        # else the JSON line's level field (Pino's numbers
+                        # included), else the line text. Loki users almost
+                        # never promote severity to a stream label (it
+                        # multiplies label cardinality).
+                        level=_loki_level(stream_labels, line),
+                        service=str(first_present(
+                            stream_labels, SERVICE_NAME_ALIASES + ["container"], default="")),
                         host=stream_labels.get("host", stream_labels.get("hostname", "")),
                         labels={
                             **stream_labels,
@@ -415,3 +441,17 @@ class LokiLogProvider(LogProvider):
                     )
                 )
         return entries
+
+
+def _loki_level(stream_labels: dict, line: str) -> str:
+    key, value = first_present_with_key(stream_labels, LOG_LEVEL_ALIASES + ["detected_level"])
+    if key:
+        return level_from_value(key, value)
+    if line.lstrip().startswith("{"):
+        try:
+            record = json.loads(line)
+        except ValueError:
+            record = None
+        if isinstance(record, dict):
+            return level_of(record, line)
+    return _detect_level_from_line(line)

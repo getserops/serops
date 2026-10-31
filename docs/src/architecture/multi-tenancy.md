@@ -13,10 +13,10 @@ SerOps enforces strict data isolation between organisations. This page details t
 | Layer | Mechanism | Implementation |
 |-------|-----------|----------------|
 | **API Queries** | `OrgFilterMixin` | All batch/issue queries filter by `project__organisation` |
-| **Logs** | LogStream | Routing via `org_slug` to provider-specific isolation (Index/Label/Tag) |
-| **Metrics** | Series ID Filter | Prometheus labels include `org_id` |
+| **Logs** | Per-organisation integration | Each organisation queries its own log provider with its own credentials; records are filtered by `project_name` and `environment` |
+| **Metrics** | Label filter | Queries select `organisation_name` (the organisation's name), `project_name` and `environment` |
 | **Code Changes** | Direct FK | `CodeChange` has a direct `organisation` FK for multi-tenancy filtering |
-| **CI/CD Logs** | Enriched Event | `serops_meta.org_id` + `serops_meta.project_id` in event document |
+| **CI/CD Logs** | Enriched Event | Flat `organisation_name` + `project_name` fields, and `serops_meta.org_id` + `serops_meta.project_id`, in the event document |
 
 ## OrgFilterMixin Pattern
 
@@ -33,13 +33,13 @@ class LogBatchView(OrgFilterMixin, APIView):
 
 Metrics are fetched from the organisation's configured MetricProvider with label-based filtering:
 
-> **Note:** Label keys (e.g., `org_id`, `environment`) are provider-dependent. The example below uses Prometheus-style labels; other providers (Datadog, CloudWatch, etc.) may use different key conventions.
+> **Note:** Label keys (e.g., `organisation_name`, `environment`) are provider-dependent. The example below uses Prometheus-style labels; other providers (Datadog, CloudWatch, etc.) may use different key conventions.
 
 ```python
 provider = IntegrationRegistry.get_metric_provider_for_org(organisation)
 ts = provider.query_range(
     'node_memory_MemTotal_bytes',
-    labels={'org_id': 'acme-corp', 'environment': 'production', 'project_id': 'demo'},
+    labels={'organisation_name': 'Acme Corp', 'environment': 'production', 'project_name': 'demo'},
     start=start_time, end=end_time,
 )
 ```

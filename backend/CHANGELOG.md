@@ -7,6 +7,51 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.2.10] - 2026-10-31
+
+Data collection release: logs as real shippers write them reach the analysis,
+**Check my data** says why a project gets none, and a project can be mapped
+onto how its logs are already grouped. Two migrations (Data 0055, Projects
+0016) run on their own. Set `SEROPS_VERSION=1.2.10` or `--version 1.2.10`.
+
+After upgrading, SerOps finds logs it used to miss: expect more analyses and
+issues for a few batches, until Sentinel's baseline catches up.
+
+### Added
+
+- **Project log rules**: a project's logs no longer need a `project_name` field. Map the project onto how your services are already grouped (`service.namespace = shop`, a Kubernetes namespace, an `app.kubernetes.io/part-of` or `team` label); logs carrying the project name or matching any rule belong to the project, in every log store. **Check my data** lists how untagged logs are grouped and sets a rule in one click.
+- **Check my data** (**Projects → [project] → Data**): sends the query the scheduled analysis sends to your log store, one filter at a time (logs found → tagged with the project → in the environment → errors and warnings → from listed services), and says at the first empty step what to change. It lists the project, environment and service values your logs carry, and fixes two things in one click: list a service seen in your errors, or accept the environment value your logs carry (offered also when only some logs carry it, e.g. one team tags `live` and another `prod`; a value another environment of the project uses is never offered). It shows values such as service names, never log messages.
+- The project page says what the last scheduled run of each environment did and why it made no analysis: no services, no log integration, nowhere to read logs from, no errors in the window, errors only from unlisted services, the log store refused the query.
+- The onboarding wizard shows Check my data when the first analysis has not arrived after two minutes, or when the scheduler already found nothing to analyse, instead of a spinner that never ends.
+- An environment's **log label value** (stored before, never used) is now queried: logs tagged with it count for that environment in every provider.
+
+### Fixed
+
+- Log files (`django.log`, `user_actions.log`) grew without limit: they now rotate at `SEROPS_LOG_FILE_MAX_MB` (default 50) and keep `SEROPS_LOG_FILE_BACKUPS` copies (default 5).
+- Log warnings never reached the AI. Every provider's warnings are stored as `WARN`, but the prompt filter only kept levels starting with `WARNING`, so warnings were dropped unless their text contained an error keyword. They now reach the analysis and count in the batch's warning total. Found by the RCA benchmark: the decisive `chronyd` clock warning in its clock-skew scenario never reached the model.
+- Log redaction blanked ordinary error text. The password and generic-secret patterns treated a plain space after words like `token`, `auth`, `password` or `credential` as the start of a secret, so `token rejected: issued in the future` reached the AI as `[SECRET]: issued in the future` and `password reset failed` as `***** failed`. A secret now needs `:` or `=`, or a value after the space that looks like one (it contains a digit).
+- On Kubernetes, the host of a log was often the log shipper (Filebeat, Fluent Bit and the OpenTelemetry Collector write their own name to `host.name`), not where the container ran. The Kubernetes node is preferred now, so "fails on one node only" is visible to the analysis.
+- The onboarding wizard showed the whole Check my data panel while waiting for the first analysis: the floating wizard grew taller than the screen, its Minimize button went off-screen and a new customer could not get it out of the way. It now says why nothing was analysed and links to Check my data on the project page.
+- During an incident, a finding from reviewing the code (an unused import, a lowered timeout) came out as a second WARNING naming a commit: it read as a second suspect, notified on-call and pointed to an innocent commit. Such findings are now code review notes: INFO, no commit linked, left out of notifications and the incident summary, and shown apart on the analysis page. Outside an incident, code review works as before.
+- The logs table of an analysis showed "—" as the service of every log whose shipper did not write `service_name` (Pino, Elastic Common Schema, OpenTelemetry), and the service filter left them out. It reads the service SerOps parsed.
+- A batch stored an Elastic Common Schema record's whole `service` object (`{"name": "checkout-api", ...}`) as the service, in place of the name. The parsed name is kept, and the environment is kept wherever the record carried it.
+- Errors that differ only by a duration ("failed after 1003ms", "1004ms") were not grouped, so one recurring error could fill the analysis with near-identical lines. Durations are now ignored when grouping, like ids and timestamps.
+- Logs written by the OpenTelemetry Collector's Elasticsearch exporter in `otel` mode (the setup Elastic recommends) had no message, service or environment in SerOps: they sit in `body_text` and under `resource.attributes`. Both are read now.
+- An issue linked every commit its root cause named, including a commit the analysis named only to clear it ("commit 8a9b0c1d only added a test fixture"), so an innocent commit was shown as the cause. The analysis now lists the commits at fault (`caused_by_commits`), and only those are linked.
+- The AI never saw which host a log came from, so a failure confined to one node read like a service-wide one. Log lines now carry the host, and a repeated line says which hosts it came from.
+
+Logs as real shippers write them now reach the analysis. Before, many standard setups silently got no data:
+
+- Elasticsearch and OpenSearch only searched indices named `application-logs-<project>*`, so logs in `logs-*` (Elastic Agent, the OpenTelemetry Collector, our own Elasticsearch guide), `filebeat-*` or `logstash-*` were never read and the project was skipped. SerOps now falls back to those patterns, and a new **Index pattern** setting on the integration names them explicitly.
+- Providers were asked for exactly `ERROR`/`WARNING`/`CRITICAL`, so `WARN`, lowercase levels, numeric levels (Pino, Bunyan) and logs with no level field were never fetched from Elasticsearch, OpenSearch, CloudWatch, Splunk or Datadog. Every spelling and case is now queried, numeric levels are read on their own scale, and lines without a level field are reached through their text. A numeric `level` field in one index no longer makes the whole search fail.
+- Records in Elastic Common Schema (Filebeat, Elastic Agent) crashed the batch (`service` is an object) or lost their level (`log.level` was not read), and Pino's numeric levels crashed it too. One alias list now serves both querying and reading, flat or nested, with the Elastic Common Schema and OpenTelemetry names added.
+- Datadog matched only log attributes (`@env`), not tags (`env:`), so logs tagged through the Agent or Unified Service Tagging were never found. Both are matched now.
+- Logs tagged `prod` never matched an environment named `production` (and the reverse), although the guide said they would. Every spelling is queried.
+- CloudWatch read every event as INFO with no service, discovered only `/aws/<project>` log groups and passed several groups as one name. Events are now read field by field (JSON) or from the line (text), groups containing the project name are found too, a new **Log groups** setting names them explicitly, and several groups are queried together.
+- The first batch of a project queried no time range, so Elasticsearch returned an arbitrary 5000 records and the first analysis was usually empty. It now queries its own window, newest records first.
+- `system-*` indices found on one organisation's cluster were added to every organisation's query.
+- The metric examples in the data collection guide still used the old `org_id` / `project_id` labels.
+
 ## [1.2.9] - 2026-10-27
 
 Security and Sentry release. Migration: Data 0054 (choice only). Containers now run as non-root: see the upgrade note.

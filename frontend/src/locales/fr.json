@@ -456,6 +456,11 @@
       "analysed": "Analysé",
       "related": "Liens",
       "allIssues": "Problèmes"
+    },
+    "codeNotes": {
+      "title_one": "{{count}} note de revue de code",
+      "title_other": "{{count}} notes de revue de code",
+      "hint": "Relevées en lisant les changements de code de cette période. Pas la cause de cet incident ; à regarder plus tard."
     }
   },
   "timeline": {
@@ -1037,7 +1042,7 @@
       "cicd": "CI/CD",
       "logs": "Fournisseurs de logs",
       "metrics": "Fournisseurs de métriques",
-        "traces": "Fournisseurs de traces"
+      "traces": "Fournisseurs de traces"
     },
     "scmDesc": "Les dépôts dont SerOps lit les commits et les diffs, pour relier les incidents aux changements de code.",
     "cicdDesc": "Les pipelines et déploiements que SerOps met en regard des incidents."
@@ -1187,7 +1192,8 @@
     "optional": "(facultatif)",
     "active": "Actif",
     "inactive": "Inactif",
-    "breadcrumb": "Fil d'Ariane"
+    "breadcrumb": "Fil d'Ariane",
+    "remove": "Supprimer"
   },
   "languages": {
     "en": "English",
@@ -1578,5 +1584,98 @@
     "label": "Densité",
     "comfortable": "Confortable",
     "compact": "Compacte"
+  },
+  "dataCheck": {
+    "title": "Vérifier mes données",
+    "description": "Exécute la requête de l’analyse planifiée, un filtre après l’autre, sur votre stockage de logs, et montre où les logs disparaissent.",
+    "lastRuns": "Dernières exécutions planifiées",
+    "environment": "Environnement",
+    "result": "Résultat",
+    "why": "Détails",
+    "wholeProject": "Tout le projet",
+    "window": "Période",
+    "windows": {
+      "15": "15 dernières minutes",
+      "60": "Dernière heure",
+      "1440": "Dernières 24 heures"
+    },
+    "run": "Vérifier mes données",
+    "checking": "Vérification…",
+    "failed": "La vérification n’a pas pu s’exécuter.",
+    "fixFailed": "La modification n’a pas pu être enregistrée.",
+    "noPermission": "Demandez à une personne autorisée à utiliser les intégrations de lancer la vérification.",
+    "steps": "Ce que l’analyse planifiée trouverait ({{minutes}} dernières min)",
+    "logs": "Logs",
+    "value": "Valeur",
+    "field": "Champ",
+    "listed": "Listé dans ce projet",
+    "step": {
+      "title": "Étape",
+      "found": "Logs dans {{locations}}",
+      "project": "Étiquetés avec le projet « {{project}} »",
+      "environment": "Dans l’environnement {{values}}",
+      "level": "Erreurs et avertissements",
+      "services": "Venant des services listés dans ce projet"
+    },
+    "outcome": {
+      "batch": "Analyse créée",
+      "empty": "Rien à analyser",
+      "skipped": "Ignoré",
+      "error": "Échec"
+    },
+    "reason": {
+      "no_services": "Le projet ne liste aucun service, donc aucun log n’est analysé. Ajoutez un service.",
+      "no_log_provider": "Aucune intégration de logs active. Connectez-en une dans Paramètres → Observabilité.",
+      "no_log_location": "Aucun index, groupe de logs ou flux contenant des logs de ce projet n’a été trouvé. Indiquez où sont vos logs dans l’intégration de logs, ou lancez Vérifier mes données.",
+      "no_matching_logs": "Le stockage de logs n’a renvoyé aucune erreur ni aucun avertissement pour ce projet et cet environnement. Bonne nouvelle si rien n’a échoué ; si vos services ont bien journalisé des erreurs, lancez Vérifier mes données.",
+      "already_analysed": "Tous les logs trouvés faisaient déjà partie d’une analyse précédente.",
+      "outside_window": "Les logs trouvés ont des horodatages hors de la fenêtre d’analyse.",
+      "not_important": "Les logs trouvés n’étaient ni des erreurs ni des avertissements.",
+      "other_environment": "Les logs trouvés appartiennent à un autre environnement.",
+      "quiet": "Les erreurs et avertissements étaient à leur niveau habituel, aucune analyse n’était nécessaire."
+    },
+    "diagnosis": {
+      "no_log_provider": "Aucune intégration de logs active. Connectez-en une dans Paramètres → Observabilité.",
+      "no_log_location": "SerOps n’a trouvé aucun index, groupe de logs ou flux contenant des logs de ce projet. Indiquez où sont vos logs dans l’intégration de logs (motif d’index ou groupes de logs).",
+      "no_logs": "Le stockage de logs ne contient aucun log sur les {{minutes}} dernières minutes aux emplacements lus par ce projet. Vérifiez que votre agent tourne et envoie vers ce stockage.",
+      "project_not_tagged": "Des logs arrivent, mais aucun ne porte project_name = « {{project}} ». Ajoutez ce champ (ou label, ou tag) à vos logs dans l’agent ; les valeurs que portent vos logs aujourd’hui sont listées ci-dessous.",
+      "environment_not_tagged": "Des logs de ce projet arrivent, mais aucun ne porte l’environnement « {{environment}} » ni une de ses variantes. Utilisez une valeur que portent vos logs, ou étiquetez les logs avec cet environnement.",
+      "no_errors": "Les logs arrivent et sont bien étiquetés. Aucune erreur ni aucun avertissement sur les {{minutes}} dernières minutes, donc rien à analyser. Bonne nouvelle.",
+      "no_services": "Des erreurs et avertissements arrivent, mais le projet ne liste encore aucun service. Listez les services ci-dessous pour les analyser.",
+      "unregistered_services": "Des erreurs et avertissements arrivent, mais seulement de services que ce projet ne liste pas. Listez-les pour les analyser.",
+      "ok": "Tout est en place : {{count}} erreurs et avertissements seraient analysés maintenant."
+    },
+    "caseHint": "Vos logs indiquent « {{value}} » : les noms de projet sont comparés exactement, majuscules et minuscules comprises.",
+    "fixEnvironment": "Utiliser l’environnement que portent vos logs",
+    "useValue": "Utiliser « {{value}} » pour {{environment}}",
+    "useValueHint": "Les logs portant cette valeur comptent alors pour cet environnement, dans la vérification et dans chaque analyse planifiée.",
+    "envFixed": "Les logs étiquetés « {{value}} » comptent maintenant pour cet environnement.",
+    "fixServices": "Services vus dans vos erreurs et avertissements, non listés dans ce projet",
+    "addServices_one": "Lister {{count}} service",
+    "addServices_other": "Lister {{count}} services",
+    "servicesAdded_one": "{{count}} service listé.",
+    "servicesAdded_other": "{{count}} services listés.",
+    "seen": {
+      "project": "Valeurs de projet dans vos logs",
+      "environment": "Valeurs d’environnement dans vos logs",
+      "service": "Services dans vos logs"
+    },
+    "privacy": "Lit jusqu’à {{size}} logs par étape et affiche des valeurs de champs comme les noms de services, jamais le contenu des logs.",
+    "tab": "Données",
+    "waitingTitle": "Pas encore d’analyse ? Vérifiez vos données",
+    "waitingIntro": "La première analyse a besoin d’erreurs ou d’avertissements venant d’un service que vous avez listé. Cette vérification montre ce que SerOps trouve dans vos logs en ce moment.",
+    "more": "et {{count}} de plus",
+    "rules": {
+      "title": "Ce projet lit aussi les logs où",
+      "hint": "En plus des logs étiquetés project_name = « {{project}} ». Chaque stockage de logs est interrogé ainsi, dans la vérification et dans chaque analyse planifiée.",
+      "removed": "Règle supprimée."
+    },
+    "groupings": {
+      "title": "Comment vos autres logs sont regroupés",
+      "hint": "Les logs sans champ projet, selon les champs par lesquels les équipes regroupent habituellement leurs services. Utilisez-en un pour « {{project}} » et ces logs lui appartiennent, sans rien réétiqueter.",
+      "sameName": "même nom",
+      "use": "Utiliser pour ce projet",
+      "added": "Les logs où {{field}} = {{value}} appartiennent maintenant à ce projet."
+    }
   }
 }

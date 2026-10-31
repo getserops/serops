@@ -740,6 +740,40 @@ class Issue(models.Model):
         # Phase 2: Invalidate dashboard caches when issues change
         self._invalidate_dashboard_caches()
     
+    def _commit_links(self, shas):
+        """linked_commits entries for these SHAs, with the project's SCM provider."""
+        provider, project_id = 'unknown', None
+        if self.project:
+            if getattr(self.project, 'gitlab_project_id', None):
+                provider, project_id = 'gitlab', self.project.gitlab_project_id
+            elif getattr(self.project, 'github_repo_id', None):
+                provider, project_id = 'github', self.project.github_repo_id
+        return [{'sha': sha, 'provider': provider, 'project_id': project_id} for sha in shas]
+
+    def apply_caused_by_commits(self, issue_data):
+        """Link the commits the analysis says caused this issue.
+
+        Scanning the root cause for "commit <sha>" also caught commits the
+        AI named only to clear them ("commit 8a9b0c1d only added a test
+        fixture"), and the issue then blamed an innocent commit (RCA
+        benchmark h07). An analysis that fills ``caused_by_commits`` is
+        taken at its word, including an empty list; one that leaves it
+        out keeps the text scan.
+        """
+        import re
+        caused = issue_data.get('caused_by_commits')
+        if not isinstance(caused, list):
+            return False
+        shas = []
+        for value in caused:
+            value = str(value).strip().strip('`"\'')
+            if re.fullmatch(r'[0-9a-fA-F]{6,40}', value) and value.lower() not in shas:
+                shas.append(value.lower())
+        self.linked_commits = self._commit_links(shas)
+        self.has_commit_correlation = bool(shas)
+        self.save(update_fields=['linked_commits', 'has_commit_correlation'])
+        return True
+
     def _compute_correlations(self):
         """
         Pre-compute correlation fields for scalable querying.
@@ -756,28 +790,7 @@ class Issue(models.Model):
         commit_matches = re.findall(pattern, text, re.IGNORECASE)
         unique_commits = list(set(commit_matches))
         
-        # Build linked_commits with provider context
-        self.linked_commits = []
-        if unique_commits:
-            # Try to get provider info from project
-            provider = 'unknown'
-            project_id = None
-            if self.project:
-                # Check for GitLab or GitHub integration
-                if hasattr(self.project, 'gitlab_project_id') and self.project.gitlab_project_id:
-                    provider = 'gitlab'
-                    project_id = self.project.gitlab_project_id
-                elif hasattr(self.project, 'github_repo_id') and self.project.github_repo_id:
-                    provider = 'github'
-                    project_id = self.project.github_repo_id
-            
-            for sha in unique_commits:
-                self.linked_commits.append({
-                    'sha': sha,
-                    'provider': provider,
-                    'project_id': project_id
-                })
-        
+        self.linked_commits = self._commit_links(unique_commits)
         self.has_commit_correlation = len(unique_commits) > 0
         
         # Detect metric correlation keywords using word boundaries to avoid false positives
@@ -1118,6 +1131,7 @@ class Issue(models.Model):
                 error_target=error_target,
                 status='OPEN'
             )
+            issue.apply_caused_by_commits(issue_data)
             return issue, True
 
         # Dedup window cutoff
@@ -1304,6 +1318,7 @@ class Issue(models.Model):
                 # brand-new issue is attributable to its batch on exactly the
                 # same basis as a recurrence.
                 issue.record_occurrence(batch, severity)
+                issue.apply_caused_by_commits(issue_data)
                 return issue, True
 
         except IntegrityError:
@@ -1931,3 +1946,57 @@ class Investigation(models.Model):
         if since and timezone.now() - since > timezone.timedelta(minutes=self.ANALYSIS_TIMEOUT_MINUTES):
             self.finish(self.STATUS_FAILED, 'timeout',
                         'The investigation did not finish. Try again, or check the worker logs.')
+
+
+class DataRunStatus(models.Model):
+    """What the last scheduled analysis run of a project environment did,
+    and why it made no batch when it made none. Shown on the project page,
+    so a project that never gets an analysis says why instead of nothing.
+
+    ``environment`` is empty for a run stopped before any environment was
+    looked at (no services, no log provider, nowhere to read logs from).
+    """
+    OUTCOME_BATCH = 'batch'
+    OUTCOME_EMPTY = 'empty'
+    OUTCOME_SKIPPED = 'skipped'
+    OUTCOME_ERROR = 'error'
+    OUTCOMES = [
+        (OUTCOME_BATCH, 'Batch created'),
+        (OUTCOME_EMPTY, 'Nothing to analyse'),
+        (OUTCOME_SKIPPED, 'Skipped'),
+        (OUTCOME_ERROR, 'Failed'),
+    ]
+
+    project = models.ForeignKey('Projects.Project', on_delete=models.CASCADE, related_name='data_runs')
+    environment = models.ForeignKey('Projects.ProjectEnvironment', on_delete=models.CASCADE,
+                                    null=True, blank=True, related_name='data_runs')
+    ran_at = models.DateTimeField()
+    outcome = models.CharField(max_length=10, choices=OUTCOMES)
+    reason = models.CharField(max_length=40, blank=True, default='')
+    detail = models.TextField(blank=True, default='')
+    # Logs left after each filter, in order (fetched, new, in_window, ...)
+    counts = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['project', 'environment'])]
+
+    @classmethod
+    def record(cls, project, environment, outcome, reason='', detail='', counts=None):
+        try:
+            cls.objects.update_or_create(
+                project=project, environment=environment,
+                defaults={'ran_at': timezone.now(), 'outcome': outcome, 'reason': reason,
+                          'detail': detail[:2000], 'counts': counts or {}},
+            )
+        except Exception:
+            logger.warning('Could not record the data run of %s', project, exc_info=True)
+
+    def to_dict(self):
+        return {
+            'environment': self.environment_id,
+            'ran_at': self.ran_at.isoformat(),
+            'outcome': self.outcome,
+            'reason': self.reason,
+            'detail': self.detail,
+            'counts': self.counts,
+        }

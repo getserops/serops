@@ -418,3 +418,33 @@ class TestCustomPatternsAreScopedToTheirInstance(SimpleTestCase):
         })
         types = {f.pattern_type for f in service.scan('COMP-123456 password=abcdefgh1')}
         self.assertEqual(types, {'company_id', 'password'})
+
+
+class TestGenericSecretLeavesProseAlone(SimpleTestCase):
+    """The catch-all accepted a bare space as the separator, so error text
+    that merely mentioned a token or auth was blanked before the AI saw it."""
+
+    def setUp(self):
+        self.service = DataRedactionService()
+
+    def test_error_prose_is_kept(self):
+        for text in ('token rejected: issued in the future',
+                     'auth service unavailable, retrying',
+                     'secret manager request timed out',
+                     'refresh token expired for session',
+                     'password reset failed for user',
+                     'credential expired, re-authenticating'):
+            with self.subTest(text=text):
+                redacted, _ = self.service.redact(text)
+                self.assertEqual(redacted, text)
+
+    def test_secrets_are_still_redacted(self):
+        for text, secret in (('token=abcdef123456', 'abcdef123456'),
+                             ('AUTH_TOKEN: "s3cr3tvalue99"', 's3cr3tvalue99'),
+                             ('secret_key = x9f8e7d6c5b4', 'x9f8e7d6c5b4'),
+                             ('using auth token 9a8b7c6d5e4f3a2b1c0d', '9a8b7c6d5e4f3a2b1c0d'),
+                             ('password: hunter2', 'hunter2'),
+                             ('login with password Winter2026!', 'Winter2026!')):
+            with self.subTest(text=text):
+                redacted, _ = self.service.redact(text)
+                self.assertNotIn(secret, redacted)

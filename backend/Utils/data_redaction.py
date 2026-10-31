@@ -71,8 +71,12 @@ class DataRedactionService:
         # ==========================================
         # CREDENTIALS (CRITICAL)
         # ==========================================
+        # Same separator rule as generic_secret below: ``:`` or ``=``, or a
+        # bare space only before a value with a digit (``password reset
+        # failed`` is prose, not a password).
         'password': (
-            r'(?i)(password|passwd|pwd|secret|credential|pass)["\']?\s*[:=\s]\s*["\']?([^\s"\'<>]{4,})',
+            r'(?i)(?:password|passwd|pwd|secret|credential|pass)["\']?'
+            r'(?:\s*[:=]\s*["\']?[^\s"\'<>]{4,}|\s+(?=[^\s"\'<>]*\d)[^\s"\'<>]{8,})',
             SensitivityLevel.CRITICAL
         ),
         'api_key': (
@@ -115,8 +119,13 @@ class DataRedactionService:
             r'xox[baprs]-[0-9]{10,}-[a-zA-Z0-9]{10,}',
             SensitivityLevel.CRITICAL
         ),
+        # ``token=value`` / ``secret: value``, or a key word followed by a
+        # secret-shaped value (16+ characters with a digit). A bare space
+        # used to be enough, so prose like ``token rejected`` or ``auth
+        # service unavailable`` was blanked and the AI lost the error.
         'generic_secret': (
-            r'(?i)(secret|token|auth)[_-]?(key|token)?["\']?\s*[:=\s]\s*["\']?([a-zA-Z0-9_\-]{8,})',
+            r'(?i)(?:secret|token|auth)(?:[_-]?(?:key|token))?["\']?'
+            r'(?:\s*[:=]\s*["\']?[a-zA-Z0-9_\-]{8,}|\s+(?=[a-zA-Z_\-]*\d)[a-zA-Z0-9_\-]{16,})',
             SensitivityLevel.CRITICAL
         ),
         

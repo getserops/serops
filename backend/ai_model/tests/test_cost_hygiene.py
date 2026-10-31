@@ -37,7 +37,7 @@ class FilterLogsForAITest(SimpleTestCase):
         self.assertEqual(_filter_logs_for_ai(logs), logs)
 
     def test_keeps_warning_critical_fatal_alert(self):
-        for lvl in ('WARNING', 'CRITICAL', 'FATAL', 'ALERT', 'EMERG', 'SEVERE'):
+        for lvl in ('WARN', 'WARNING', 'CRITICAL', 'FATAL', 'ALERT', 'EMERG', 'SEVERE'):
             with self.subTest(level=lvl):
                 logs = [self._log(lvl, 'x')]
                 self.assertEqual(len(_filter_logs_for_ai(logs)), 1, f"{lvl} should be kept")
@@ -86,6 +86,49 @@ class FilterLogsForAITest(SimpleTestCase):
         """A log without a ``level`` key shouldn't crash; treated as low-severity."""
         logs = [{'message': 'no-level log'}]
         self.assertEqual(_filter_logs_for_ai(logs), [])
+
+    def test_warnings_survive_the_pipeline_level_normaliser(self):
+        """Every provider's level goes through _detect_level first, which
+        turns both spellings into WARN. The filter must keep that."""
+        from integrations.schemas import _detect_level
+        for raw in ('warn', 'WARNING', 'Warning'):
+            with self.subTest(level=raw):
+                logs = [self._log(_detect_level(raw), 'System clock wrong by -94 seconds')]
+                self.assertEqual(len(_filter_logs_for_ai(logs)), 1)
+
+
+class WarningsReachThePromptTest(TestCase):
+    """End to end: a warning stored on a batch reaches the AI prompt."""
+
+    @patch('ai_model.tasks.generate_for_organisation')
+    def test_warning_line_is_in_the_prompt_and_info_is_not(self, generate):
+        import json
+        from ai_model.tasks import analyze_batch
+        from Data.models import AIAnalyzedBatch
+        from Organisations.models import Organisations
+        from Projects.models import Project
+
+        org = Organisations.objects.create(name='Warn org')
+        AIAnalyzedBatch.objects.create(
+            batch_id='warn-reaches-prompt', organisation=org, environment='production',
+            project=Project.objects.create(name='p', organisation=org),
+            data={'logs': [
+                {'_source': {'message': 'System clock wrong by -94.018 seconds', 'log_level': 'warn',
+                             'component': 'chronyd'}},
+                {'_source': {'message': 'JWT not valid yet: issued in the future', 'log_level': 'error',
+                             'component': 'auth-api'}},
+                {'_source': {'message': 'GET /healthz 200', 'log_level': 'info', 'component': 'auth-api'}},
+            ], 'metrics': {}, 'metrics_summary': {}, 'code_changes': [], 'cicd_logs': [],
+                'statistics': {'total_logs': 3, 'total_metrics': 0, 'total_code_changes': 0,
+                               'total_cicd_logs': 0}})
+        generate.return_value = (json.dumps({'summary': {'overall_health': 'HEALTHY'},
+                                             'correlated_issues': [], 'recommendations': []}),
+                                 'gemini', None, 10, 5)
+        analyze_batch('warn-reaches-prompt')
+        prompt = generate.call_args.args[0]
+        self.assertIn('System clock wrong by -94.018 seconds', prompt)
+        self.assertIn('JWT not valid yet', prompt)
+        self.assertNotIn('GET /healthz', prompt)
 
 
 class PricingResolutionTest(TestCase):

@@ -75,17 +75,23 @@ class TestLogQueryToSPL(SimpleTestCase):
     def test_project_and_env_filters(self):
         q = LogQuery(project="acme-checkout", environment="production")
         spl = q.to_splunk_spl()
-        self.assertIn('project_name="acme-checkout"', spl)
-        self.assertIn('environment="production"', spl)
+        self.assertIn('(project_name IN ("acme-checkout") OR project IN ("acme-checkout"))', spl)
+        self.assertIn('environment IN ("production", "prod", "prd")', spl)
+        self.assertIn('env IN ("production", "prod", "prd")', spl)
 
     def test_severity_list_becomes_or_join(self):
         spl = LogQuery(severity=["error", "warning"]).to_splunk_spl()
-        # Uppercased + quoted + OR-joined + parenthesised
-        self.assertIn('(log_level="ERROR" OR log_level="WARNING")', spl)
+        # Every spelling (values match case-insensitively in SPL), on every
+        # level field, or a message word for raw events without one.
+        self.assertIn('log_level IN ("ERROR", "ERR", "WARNING", "WARN", "50", "40")', spl)
+        self.assertIn('log.level IN (', spl)
+        self.assertIn(' OR exception OR ', spl)
 
     def test_services_becomes_in_clause(self):
         spl = LogQuery(services=["api", "worker"]).to_splunk_spl()
         self.assertIn('service_name IN ("api", "worker")', spl)
+        self.assertIn('kubernetes.labels.app IN ("api", "worker")', spl)
+        self.assertNotIn('app.kubernetes.io/name', spl)  # search cannot quote a field name
 
     def test_text_search_quoted_phrase(self):
         spl = LogQuery(text_search="timeout on payment").to_splunk_spl()
@@ -106,7 +112,7 @@ class TestLogQueryToSPL(SimpleTestCase):
         spl = LogQuery(project='foo" OR index=* OR "').to_splunk_spl()
         # The escaped form should appear once, and no unescaped OR
         # from the payload should exist outside the quotes.
-        self.assertIn('project_name="foo\\" OR index=* OR \\""', spl)
+        self.assertIn('project_name IN ("foo\\" OR index=* OR \\"")', spl)
 
     def test_injection_attempt_in_index_raises(self):
         # Values that go into a bareword position (like index=) must

@@ -5,7 +5,7 @@ from celery import shared_task
 import logging
 from django.utils import timezone
 from integrations.registry import IntegrationRegistry
-from integrations.schemas import LogEntry, LogQuery
+from integrations.schemas import LogEntry, LogQuery, _detect_level_from_line, level_of
 from .models import (
     AIAnalyzedBatch,
     RetentionPolicy, AuditLog
@@ -16,6 +16,10 @@ from datetime import datetime
 from .serializers import serialize_metrics
 from Projects.models import Project
 from .audit import log_batch_delete
+from .log_filters import (
+    IMPORTANT_MESSAGE_WORDS, SEVERITIES, is_important_log, log_service,
+    project_log_locations, registered_service_names, system_indices,
+)
 
 # ── Phase 4: Re-exported from integrations/ingestion.py ──
 from integrations.ingestion import (  # noqa: F401
@@ -64,6 +68,11 @@ def _acquire_task_lock(lock_key, ttl=None, interval_minutes=None):
         ttl = (interval_minutes or Metrics_interval) * 60 + 120
     # cache.add returns True only if the key didn't exist (atomic set-if-not-exists)
     return cache.add(lock_key, True, timeout=ttl)
+
+
+# Message words that make an INFO-tagged line worth analysing (shippers
+# that tag exceptions as INFO).
+_IMPORTANT_MESSAGE_WORDS = IMPORTANT_MESSAGE_WORDS
 
 
 def _release_task_lock(lock_key):
@@ -214,7 +223,7 @@ def create_log_batch(self):
             
             # Check both fields for important severity levels
             # Added INFO to ensure we capture operational logs even if no errors occur
-            if level in ['INFO', 'WARNING', 'ERROR', 'CRITICAL'] or alt_level in ['INFO', 'WARNING', 'ERROR', 'CRITICAL']:
+            if level in ['INFO', 'WARN', 'WARNING', 'ERROR', 'CRITICAL'] or alt_level in ['INFO', 'WARN', 'WARNING', 'ERROR', 'CRITICAL']:
                 return True
                 
             # If not, try to extract severity from message content
@@ -593,6 +602,7 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         # Create query with current timestamp
         # 3. Fetch logs via Provider
         logs = []
+        search_error = None
         try:
             # Item #17 / Q1.4: prefer the cluster-scoped integration
             # when the project is assigned to a cluster. Falls through
@@ -609,11 +619,17 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             # empty stream selector and get 400 back. Also protects
             # against multi-tenant leak in shared Loki setups where the
             # only tenant boundary in the query would be the org label.
+            # Always the batch's own window. The first batch of a project
+            # used to send none: Elasticsearch then returned an arbitrary
+            # 5000 records from all time, nearly none inside the window,
+            # and the first analysis a new user waits for came up empty.
             log_query = LogQuery(
-                time_range=(batch_start_time, batch_end_time) if last_batch_time else None,
-                severity=['ERROR', 'WARNING', 'CRITICAL'],
+                time_range=(batch_start_time, batch_end_time),
+                severity=SEVERITIES,
                 environment=environment.name if environment else None,
+                environment_labels=environment.log_labels() if environment else None,
                 project=project_name,
+                project_rules=project.log_rules_clean() if project else None,
             )
 
             # Get index pattern — prefer caller-provided index_name (already resolved by scheduler)
@@ -630,7 +646,10 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             
         except Exception as e:
             logger.error(f"Error searching logs for project {project_name}: {e}")
-            logs = []      
+            search_error = str(e)
+            logs = []
+        # Logs left after each filter, kept for the project page (scheduled runs)
+        run_counts = {'fetched': len(logs)}
         
         # Add timestamp debugging for first few log entries
         for i, log_entry in enumerate(logs[:3]):
@@ -649,6 +668,7 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             logs, time_window, project_name, organisation=org, history=not manual,
         )
         logger.info(f"After filtering unique logs for project {project_name}: {len(unique_hits)} logs")
+        run_counts['new'] = len(unique_hits)
 
         # Debug the in_batch_window function
         def in_batch_window(log):
@@ -675,6 +695,7 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
 
         logs_in_window = [log for log in unique_hits if in_batch_window(log)]
         logger.info(f"Logs in batch window for project {project_name}: {len(logs_in_window)}")
+        run_counts['in_window'] = len(logs_in_window)
         
         # ADD THIS DEBUG SECTION:
         logger.info(f"DEBUG - Analyzing log severity levels for project {project_name}:")
@@ -697,71 +718,42 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                 logger.info(f"Sample log {i}: level={source.get('log_level')}, message={source.get('message', '')[:100]}")
 
         # Exclude info-level and debug-level logs from batch creation
-        def is_important_log(log):
-            if hasattr(log, 'message'):
-                message = log.message or ''
-                level = (log.level or '').upper()
-            else:
-                source = log.get('_source', {})
-                message = source.get('message', '')
-                level = source.get('log_level', source.get('level', '')).upper()
-
-            if level in ['WARNING', 'WARN', 'ERROR', 'CRITICAL', 'ERR', 'FATAL']:
-                return True
-
-            # Try to extract severity from message content
-            msg_upper = message.upper()
-            if ' ERROR ' in msg_upper or ' CRITICAL ' in msg_upper or ' WARNING ' in msg_upper or 'INVALID USER' in msg_upper or 'AUTHENTICATION FAILURE' in msg_upper or 'FAILED' in msg_upper:
-                return True
-
-            # Additionally check for security related messages
-            if 'sshd' in message and ('invalid user' in message.lower() or 'authentication failure' in message.lower()):
-                return True
-
-            return False
-        
         filtered_hits = [log for log in logs_in_window if is_important_log(log)]
         
         # USE ALL LOGS WITHOUT FILTERING
         # filtered_hits = logs_in_window
         logger.info(f"Filtered to {len(filtered_hits)} important logs for project {project_name} (out of {len(logs_in_window)})")
+        run_counts['important'] = len(filtered_hits)
+        unregistered_services = defaultdict(int)
 
         # === SERVICE-LEVEL FILTERING (STRICT MODE) ===
         # Only include logs from registered services
         logger.info(f"DEBUG: project object = {project}, project_name = {project_name}")
         if project:
-            from Projects.models import ProjectService
-            services = ProjectService.objects.filter(project=project)
-            registered_service_names = set()
-            for s in services:
-                if s.name:
-                    registered_service_names.add(s.name.lower())
-            
-            logger.info(f"DEBUG: Registered services = {registered_service_names}")
-            
-            if registered_service_names:
-                logger.info(f"Project '{project_name}' has {len(registered_service_names)} registered services: {registered_service_names}")
-                
-                def is_from_registered_service(log):
-                    if hasattr(log, 'service'):
-                         service_name = log.service.lower()
-                    else:
-                         source = log.get('_source', {})
-                         service_name = source.get('service_name', '').lower()
-                    return service_name in registered_service_names
-                
+            registered = registered_service_names(project)
+            logger.info(f"DEBUG: Registered services = {registered}")
+
+            if registered:
+                logger.info(f"Project '{project_name}' has {len(registered)} registered services: {registered}")
                 pre_filter_count = len(filtered_hits)
-                filtered_hits = [log for log in filtered_hits if is_from_registered_service(log)]
+                kept = []
+                for log in filtered_hits:
+                    if log_service(log) in registered:
+                        kept.append(log)
+                    else:
+                        unregistered_services[log_service(log) or '(none)'] += 1
+                filtered_hits = kept
                 logger.info(f"Service filter: {pre_filter_count} → {len(filtered_hits)} logs (kept only registered services)")
                 if investigation is not None and investigation.services:
-                    registered_service_names &= {name.lower() for name in investigation.services}
-                    filtered_hits = [log for log in filtered_hits if is_from_registered_service(log)]
-                    logger.info(f"Investigation service scope {sorted(registered_service_names)}: {len(filtered_hits)} logs")
+                    registered &= {name.lower() for name in investigation.services}
+                    filtered_hits = [log for log in filtered_hits if log_service(log) in registered]
+                    logger.info(f"Investigation service scope {sorted(registered)}: {len(filtered_hits)} logs")
             else:
                 # STRICT MODE: No services = no logs
                 logger.warning(f"Project '{project_name}' has no registered services. No logs will be included (strict mode).")
                 filtered_hits = []
-        
+        run_counts['registered_services'] = len(filtered_hits)
+
         # Apply log deduplication to reduce AI token costs
         original_count = len(filtered_hits)
         filtered_hits = deduplicate_logs(filtered_hits)
@@ -817,9 +809,10 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             logger.info(f"Applying strict environment isolation for '{batch_environment}'")
             pre_env_filter_count = len(filtered_hits)
             
+            env_labels = environment.log_labels() if environment else ()
             filtered_hits = [
-                log for log in filtered_hits 
-                if is_log_matching_environment(log, batch_environment)
+                log for log in filtered_hits
+                if is_log_matching_environment(log, batch_environment, env_labels)
             ]
             
             dropped_count = pre_env_filter_count - len(filtered_hits)
@@ -831,7 +824,26 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                 )
             else:
                 logger.info(f"Environment filter: All {len(filtered_hits)} logs matched '{batch_environment}'")
-        
+
+        run_counts['environment'] = len(filtered_hits)
+
+        def record_run(outcome):
+            if trigger != AIAnalyzedBatch.TRIGGER_SCHEDULED or not project:
+                return
+            from .models import DataRunStatus
+            if outcome == 'quiet':
+                DataRunStatus.record(project, environment, DataRunStatus.OUTCOME_SKIPPED, 'quiet',
+                                     'Errors and warnings were at their usual level, so no analysis was needed.',
+                                     run_counts)
+                return
+            if outcome != DataRunStatus.OUTCOME_EMPTY:
+                DataRunStatus.record(project, environment, outcome, counts=run_counts)
+                return
+            reason, detail = _empty_run_reason(run_counts, search_error, unregistered_services)
+            if search_error:
+                outcome = DataRunStatus.OUTCOME_ERROR
+            DataRunStatus.record(project, environment, outcome, reason, detail, run_counts)
+
         # Fetch metrics for the exact batch window
         if not METRICS_ENABLED:
             # `metrics` must be bound on BOTH branches. It is read
@@ -966,6 +978,7 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         # "analyze this deploy" may have nothing else to show.
         if not filtered_hits and metrics_count == 0 and trace_span_count == 0 and not manual and not triggering_alert:
             logger.info(f"No new unique logs, metrics or traces found for project {project_name}. Batch will not be created.")
+            record_run('empty')
             return f"No new logs or metrics found to create batch for project {project_name}"
         if trace_span_count:
             logger.info(
@@ -1221,6 +1234,7 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                         f"{project_name}/{batch_environment} — decision={decision} "
                         f"(no persist, no AI, ProjectEnvironmentState still updated)"
                     )
+                    record_run('quiet')
                     return f"Skipped: quiet window ({project_name}/{batch_environment})"
         except Exception as _gate_exc:
             # Fail-open: gate check must NEVER block batch creation.
@@ -1343,6 +1357,7 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                 logger.error(f"Failed to queue analysis: {str(e)}")
 
         logger.info(f"Successfully created batch {batch.batch_id} for project {project_name} with {len(filtered_hits)} new logs and {batch.token_count} tokens")
+        record_run('batch')
         if investigation is not None:
             investigation.status = investigation.STATUS_ANALYZING
             investigation.save(update_fields=['status'])
@@ -1358,10 +1373,40 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                                  'Collecting data failed. Check the integration settings, then try again.')
             return {'status': 'error', 'reason': 'collection_failed'}
         logger.error(f"Error creating log batch with project name {project_name} (attempt {self.request.retries + 1}/3): {str(e)}", exc_info=True)
+        if trigger == AIAnalyzedBatch.TRIGGER_SCHEDULED and isinstance(project, Project):
+            from .models import DataRunStatus
+            DataRunStatus.record(project, environment if not isinstance(environment, int) else None,
+                                 DataRunStatus.OUTCOME_ERROR, 'run_failed', str(e))
         # Retry with exponential backoff (10s, 20s, 40s)
         raise self.retry(exc=e, countdown=10 * (2 ** self.request.retries))
     finally:
         _release_task_lock(lock_key)
+
+def _empty_run_reason(counts, search_error, unregistered_services):
+    """Why a scheduled run found no logs to analyse: the first filter that
+    left nothing, in words for the project page."""
+    if search_error:
+        return 'search_failed', f'The log store refused the query: {search_error}'
+    if not counts.get('fetched'):
+        return 'no_matching_logs', ('The log store returned no error or warning logs for this project '
+                                    'and environment in the window. That is good news if nothing failed; '
+                                    'if your services did log errors, run "Check my data".')
+    if not counts.get('new'):
+        return 'already_analysed', 'Every log found was already part of an earlier analysis.'
+    if not counts.get('in_window'):
+        return 'outside_window', 'The logs found carry timestamps outside the analysis window.'
+    if not counts.get('important'):
+        return 'not_important', 'The logs found were not errors or warnings.'
+    if not counts.get('registered_services'):
+        seen = ', '.join(f'{name} ({n})' for name, n in
+                         sorted(unregistered_services.items(), key=lambda kv: -kv[1])[:5])
+        return 'no_registered_service', (f'Errors and warnings came only from services this project does '
+                                         f'not list: {seen}. Add them as services to analyse them.'
+                                         if seen else 'None of the logs named a service this project lists.')
+    if not counts.get('environment'):
+        return 'other_environment', 'The logs found belong to another environment.'
+    return 'no_data', ''
+
 
 @shared_task(
     bind=True,
@@ -1456,23 +1501,24 @@ def create_batches_for_all_projects(self):
                 _provider_cache[org_id] = None
         return _provider_cache[org_id]
 
-    # Get system indices via the first eligible project's provider (system indices are shared)
-    eligible_projects = [p for oid in eligible_orgs for p in org_projects[oid]]
-    first_provider = _get_provider_for_project(eligible_projects[0]) if eligible_projects else None
-    system_indices = []
-    try:
-        if first_provider and hasattr(first_provider, 'client'):
-            indices_response = first_provider.client.cat.indices(index="system-*", h="index", format="json")
-            system_indices = [index['index'] for index in indices_response]
-            logger.info(f"Found {len(system_indices)} system indices: {system_indices}")
-    except Exception as e:
-        logger.error(f"Error getting system indices: {str(e)}")
+    # system-* indices, per organisation's own provider. They used to be
+    # read once from the first organisation's cluster and added to every
+    # organisation's query: names from another tenant's cluster, which on
+    # a different cluster failed the whole search.
+    _system_indices_cache = {}
+
+    def _system_indices_for(project, provider):
+        org_id = getattr(project, 'organisation_id', None)
+        if org_id not in _system_indices_cache:
+            _system_indices_cache[org_id] = system_indices(provider)
+        return _system_indices_cache[org_id]
 
     # === PARALLEL BATCH PROCESSING ===
     # Instead of sequential processing, collect all batch tasks and execute in parallel
     # This reduces total processing time from 25+ minutes to 3-5 minutes
     from celery import group
     from Projects.models import ProjectService, ProjectEnvironment
+    from .models import DataRunStatus
 
     batch_tasks = []
     skipped_projects = []
@@ -1486,53 +1532,35 @@ def create_batches_for_all_projects(self):
                 if service_count == 0:
                     logger.info(f"Skipping project '{project.name}': no services registered")
                     skipped_projects.append({project.name: "skipped_no_services"})
+                    DataRunStatus.record(project, None, DataRunStatus.OUTCOME_SKIPPED, 'no_services',
+                                         'The project lists no services, so no logs are analysed. Add a service.')
                     continue
 
-                # Collect all indices for this project via LogProvider
-                project_indices = []
                 log_provider = _get_provider_for_project(project)
                 if log_provider is None:
                     logger.error(f"No log provider available for project '{project.name}' (org: {getattr(project, 'organisation', None)})")
                     skipped_projects.append({project.name: "no_log_provider"})
+                    DataRunStatus.record(project, None, DataRunStatus.OUTCOME_SKIPPED, 'no_log_provider',
+                                         'No active log integration. Connect one in Settings → Observability.')
                     continue
 
-                # Use LogProvider.get_indices() for application logs discovery
-                try:
-                    discovered_indices = log_provider.get_indices(project)
-                    if discovered_indices:
-                        project_indices.extend(discovered_indices)
-                        logger.info(f"Discovered {len(discovered_indices)} indices for project '{project.name}': {discovered_indices}")
-                except Exception as e:
-                    logger.warning(f"Failed to discover indices via provider for project '{project.name}': {e}")
-
-                # Fallback: check legacy es_index_name if provider didn't find anything
-                if not project_indices and project.es_index_name:
-                    try:
-                        if hasattr(log_provider, 'client') and log_provider.client.indices.exists(index=project.es_index_name):
-                            project_indices.append(project.es_index_name)
-                            logger.info(f"Fallback: Found CI/CD index: {project.es_index_name}")
-                        else:
-                            logger.warning(f"CI/CD index {project.es_index_name} doesn't exist")
-                    except Exception as e:
-                        logger.warning(f"Error checking legacy index: {e}")
-
-                # Check app_logs_index_name fallback
-                if hasattr(project, 'app_logs_index_name') and project.app_logs_index_name:
-                    try:
-                        if hasattr(log_provider, 'client') and log_provider.client.indices.exists(index=project.app_logs_index_name):
-                            project_indices.append(project.app_logs_index_name)
-                            logger.info(f"Found application logs index: {project.app_logs_index_name}")
-                    except Exception as e:
-                        logger.warning(f"Error checking app logs index: {e}")
-
-                # If no project indices exist, skip this project
-                if not project_indices:
+                project_indices = project_log_locations(project, log_provider)
+                if project_indices:
+                    logger.info(f"Discovered {len(project_indices)} log locations for project '{project.name}': {project_indices}")
+                else:
                     logger.warning(f"No valid indices found for project '{project.name}'")
                     skipped_projects.append({project.name: "No valid indices found"})
+                    DataRunStatus.record(project, None, DataRunStatus.OUTCOME_SKIPPED, 'no_log_location',
+                                         'No index, log group or stream with logs for this project was found. '
+                                         'Set where your logs are in the log integration (index pattern or '
+                                         'log groups), or run "Check my data".')
                     continue
 
+                # Past the project-wide checks: an earlier "skipped" note is stale
+                DataRunStatus.objects.filter(project=project, environment__isnull=True).delete()
+
                 # Combine project's indices with all system indices
-                indices_for_project = project_indices + system_indices
+                indices_for_project = project_indices + _system_indices_for(project, log_provider)
                 combined_indices = ",".join(indices_for_project)
 
                 # Extract project name — prefer project.name over index parsing

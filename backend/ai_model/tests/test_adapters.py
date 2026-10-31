@@ -243,7 +243,8 @@ class IssueCountOnDedupFailureTest(TestCase):
         # Make find_or_create_deduplicated raise on every call
         with patch.object(Issue, 'find_or_create_deduplicated', side_effect=Exception('DB lock timeout')):
             from ai_model.tasks import analyze_batch
-            result = analyze_batch(None, 'test-dedup-failure')
+            analyze_batch('test-dedup-failure')
+        mock_generate.assert_called_once()  # the analysis really ran
 
         batch.refresh_from_db()
         actual_issues = Issue.objects.filter(batch=batch).count()
@@ -292,7 +293,8 @@ class IssueCountOnDedupFailureTest(TestCase):
         # Make dedup fail — no Issue records should be created
         with patch.object(Issue, 'find_or_create_deduplicated', side_effect=RuntimeError('simulated')):
             from ai_model.tasks import analyze_batch
-            analyze_batch(None, 'test-inflate-check')
+            analyze_batch('test-inflate-check')
+        mock_generate.assert_called_once()
 
         batch.refresh_from_db()
         # Old buggy code would set issue_count=5 from AI response; fix sets it from DB count=0

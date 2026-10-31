@@ -4,13 +4,17 @@ AWS CloudWatch Logs Adapter for LogProvider.
 Implements the LogProvider ABC using boto3 CloudWatch Logs client.
 Uses CloudWatch Logs Insights for querying (async start_query → poll get_query_results).
 """
+import json
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import List, Tuple, Optional
 
 from integrations.base import LogProvider, LogProviderCapabilities
-from integrations.schemas import LogEntry, LogStream, LogQuery, _parse_timestamp, _detect_level
+from integrations.field_aliases import first_present
+from integrations.schemas import (
+    MESSAGE_FIELDS, LogEntry, LogStream, LogQuery, _parse_timestamp, _detect_level, level_of,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +79,11 @@ class CloudWatchLogProvider(LogProvider):
         self.default_log_group = self._config.get(
             "default_log_group", "/aws/application"
         )
+        # Integration setting: log groups to search (comma-separated or a list).
+        groups = self._config.get("log_groups") or []
+        if isinstance(groups, str):
+            groups = groups.split(",")
+        self.log_groups = [g.strip() for g in groups if g and g.strip()]
 
     def index(self, documents: list, stream: LogStream) -> int:
         """
@@ -152,7 +161,11 @@ class CloudWatchLogProvider(LogProvider):
         Run a CloudWatch Logs Insights query.
         Accepts both legacy dict queries and LogQuery DTOs.
         """
-        log_group = index if index else self.default_log_group
+        # The scheduler passes every discovered group joined by commas;
+        # Insights takes them as a list (at most 50 per query).
+        log_groups = [g.strip() for g in (index or self.default_log_group).split(",") if g.strip()]
+        log_groups = log_groups[:50]
+        log_group = log_groups[0] if log_groups else self.default_log_group
 
         # Translate LogQuery → Insights query if needed
         if isinstance(query, LogQuery):
@@ -164,16 +177,15 @@ class CloudWatchLogProvider(LogProvider):
             insights_query = self._build_query(query)
 
         # Time range defaults to last 1 hour
-        now = datetime.utcnow()
         if time_range:
             start_dt, end_dt = time_range
         else:
-            start_dt = datetime(now.year, now.month, now.day, now.hour - 1)
-            end_dt = now
+            end_dt = datetime.now(timezone.utc)
+            start_dt = end_dt - timedelta(hours=1)
 
         try:
             response = self.client.start_query(
-                logGroupName=log_group,
+                logGroupNames=log_groups,
                 startTime=int(start_dt.timestamp()),
                 endTime=int(end_dt.timestamp()),
                 queryString=insights_query,
@@ -187,20 +199,27 @@ class CloudWatchLogProvider(LogProvider):
             return []
 
     def get_indices(self, project) -> List[str]:
-        """List CloudWatch log groups (analogous to indices)."""
-        try:
-            raw_name = project.name if hasattr(project, "name") else str(project)
-            prefix = f"/aws/{raw_name.lower()}"
+        """Log groups to search for a project.
 
-            result = self.client.describe_log_groups(
-                logGroupNamePrefix=prefix, limit=50
-            )
-            return [
-                g["logGroupName"] for g in result.get("logGroups", [])
-            ]
-        except Exception as exc:
-            logger.warning("CloudWatch get_indices failed: %s", exc)
-            return []
+        The integration's ``log_groups`` setting when set; otherwise groups
+        whose name starts with ``/aws/<project>`` or contains the project
+        name (``/ecs/shop-api``, ``/serops/application/shop``, ...).
+        Records are still filtered by project and environment fields.
+        """
+        if self.log_groups:
+            return list(self.log_groups)
+        raw_name = project.name if hasattr(project, "name") else str(project)
+        name = raw_name.lower().strip()
+        found = []
+        for kwargs in ({"logGroupNamePrefix": f"/aws/{name}"}, {"logGroupNamePattern": name}):
+            try:
+                result = self.client.describe_log_groups(limit=50, **kwargs)
+            except Exception as exc:
+                logger.warning("CloudWatch describe_log_groups %s failed: %s", kwargs, exc)
+                continue
+            found += [g["logGroupName"] for g in result.get("logGroups", [])
+                      if g["logGroupName"] not in found]
+        return found[:50]
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -260,25 +279,32 @@ class CloudWatchLogProvider(LogProvider):
         entries: List[LogEntry] = []
         for row in results:
             fields = {item["field"]: item["value"] for item in row}
-
-            # Skip the @ptr field (internal pointer)
             message = fields.get("@message", "")
-            timestamp_str = fields.get("@timestamp", "")
             log_stream = fields.get("@logStream", "")
-
-            entries.append(
-                LogEntry(
-                    timestamp=_parse_timestamp(timestamp_str),
-                    message=message,
-                    level=_detect_level(fields.get("@log.level", "INFO")),
-                    service=log_stream.split("/")[0] if "/" in log_stream else log_stream,
-                    host=fields.get("@logStream", ""),
-                    labels={
-                        "_index": log_group,
-                        "log_group": log_group,
-                        "log_stream": log_stream,
-                    },
-                    raw_id=fields.get("@ptr", ""),
-                )
+            group = fields.get("@log", "").split(":", 1)[-1] or log_group
+            # Structured events: the fields live in the JSON body. Plain
+            # lines: the level is read from the line, the service from the
+            # stream name (ECS / EKS name streams after the container).
+            record = {}
+            if message.lstrip().startswith("{"):
+                try:
+                    parsed = json.loads(message)
+                    record = parsed if isinstance(parsed, dict) else {}
+                except ValueError:
+                    record = {}
+            body = first_present(record, MESSAGE_FIELDS, default="") if record else ""
+            text = body if isinstance(body, str) and body else message
+            entry = LogEntry.from_record(
+                record,
+                raw_id=fields.get("@ptr", ""),
+                timestamp=_parse_timestamp(fields.get("@timestamp", "")),
+                message=text,
+                level=level_of(record, text),
+                labels={**record, "_index": group, "log_group": group, "log_stream": log_stream},
             )
+            if not entry.service:
+                entry.service = log_stream.split("/")[0] if "/" in log_stream else log_stream
+            if not entry.host:
+                entry.host = log_stream
+            entries.append(entry)
         return entries

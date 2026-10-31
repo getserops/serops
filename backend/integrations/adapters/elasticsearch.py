@@ -39,6 +39,7 @@ class ElasticsearchLogProvider(LogProvider):
         super().__init__(config)
         self.client = self._create_client()
         self.default_index = '_all'
+        self.index_patterns = parse_index_patterns(self._config.get('index_pattern'))
 
     def _create_client(self) -> Elasticsearch:
         """
@@ -182,6 +183,10 @@ class ElasticsearchLogProvider(LogProvider):
                 index=target_index,
                 body=final_query,
                 size=effective_size,
+                # One missing pattern (a project with no system-* index,
+                # say) must not fail the whole search.
+                ignore_unavailable=True,
+                allow_no_indices=True,
             )
 
             hits = response.get('hits', {}).get('hits', [])
@@ -207,46 +212,8 @@ class ElasticsearchLogProvider(LogProvider):
             raise
 
     def get_indices(self, project) -> List[str]:
-        """
-        Get available indices for a project.
-
-        Searches multiple naming conventions:
-        - Legacy: application-logs-{project_name}*
-        - Per-project: serops-*-{project_name}*
-        - Per-org: serops-application-{org_slug}* (shared index, field-level isolation)
-        """
-        try:
-            # Replicate sanitize_project_name logic from legacy code
-            raw_name = project.name if hasattr(project, 'name') else str(project)
-            clean_name = raw_name.lower().strip()
-            # Basic sanitization - should ideally match `Utils.elastic_search.sanitize_project_name`
-            import re
-            clean_name = re.sub(r'[^a-z0-9]+', '-', clean_name).strip('-')
-
-            # Search both legacy and new index patterns
-            patterns = [
-                f"application-logs-{clean_name}*",
-                f"serops-*-{clean_name}*",
-            ]
-
-            # Also search org-scoped index (serops-application-{org_slug})
-            if hasattr(project, 'organisation') and project.organisation:
-                org_slug = getattr(project.organisation, 'slug', '')
-                if org_slug:
-                    patterns.append(f"serops-application-{org_slug}*")
-
-            found = []
-            for pattern in patterns:
-                try:
-                    indices = self.client.cat.indices(index=pattern, format="json", h="index")
-                    found.extend(i['index'] for i in indices)
-                except es_exceptions.NotFoundError:
-                    continue
-            return sorted(set(found))
-
-        except Exception as e:
-            logger.warning(f"Failed to discover indices for project {project}: {e}")
-            return []
+        """Indices to search for a project: see :func:`discover_log_indices`."""
+        return discover_log_indices(self.client, project, self.index_patterns)
 
     def health_check(self) -> bool:
         """Check if Elasticsearch is reachable."""
@@ -256,3 +223,59 @@ class ElasticsearchLogProvider(LogProvider):
             logger.error(f"Elasticsearch health check failed: {e}")
             return False
 
+
+# Where shippers write by default when nobody chose a name: Elastic Agent
+# and OpenTelemetry data streams (logs-*), Filebeat, Logstash.
+DEFAULT_LOG_INDEX_PATTERNS = ['logs-*', 'filebeat-*', 'logstash-*']
+
+
+def parse_index_patterns(value) -> List[str]:
+    """The integration's index pattern setting: a comma-separated string or a list."""
+    if not value:
+        return []
+    items = value if isinstance(value, (list, tuple)) else str(value).split(',')
+    return [p.strip() for p in items if p and p.strip()]
+
+
+def discover_log_indices(client, project, configured: List[str]) -> List[str]:
+    """Indices (or patterns) to search for ``project``.
+
+    1. The integration's ``index_pattern`` setting, when set: used as is.
+    2. Otherwise SerOps' own naming (``application-logs-<project>*``,
+       ``serops-*-<project>*``, ``serops-application-<org>*``).
+    3. Otherwise the shippers' default patterns that hold any data.
+
+    Records are still filtered by project and environment fields, so a
+    broad pattern is safe. Step 3 used to be missing: anyone whose logs
+    were in ``logs-*`` or ``filebeat-*`` (our own Elasticsearch guide
+    recommends ``logs-*``) had their project skipped without a word.
+    """
+    if configured:
+        return list(configured)
+    import re
+    raw_name = project.name if hasattr(project, 'name') else str(project)
+    clean_name = re.sub(r'[^a-z0-9]+', '-', raw_name.lower().strip()).strip('-')
+    patterns = [f"application-logs-{clean_name}*", f"serops-*-{clean_name}*"]
+    org_slug = getattr(getattr(project, 'organisation', None), 'slug', '') or ''
+    if org_slug:
+        patterns.append(f"serops-application-{org_slug}*")
+
+    found = []
+    for pattern in patterns:
+        try:
+            found.extend(i['index'] for i in client.cat.indices(index=pattern, format="json", h="index"))
+        except Exception:
+            continue
+    if found:
+        return sorted(set(found))
+
+    defaults = []
+    for pattern in DEFAULT_LOG_INDEX_PATTERNS:
+        try:
+            # count covers data streams too (cat.indices only lists their
+            # hidden .ds-* backing indices).
+            if client.count(index=pattern, ignore_unavailable=True, allow_no_indices=True).get('count'):
+                defaults.append(pattern)
+        except Exception as exc:
+            logger.debug("Index pattern %s not usable: %s", pattern, exc)
+    return defaults

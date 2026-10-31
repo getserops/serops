@@ -323,6 +323,14 @@ ALERT_WEBHOOK_SECRETS = {
 }
 
 
+# Log files rotate by size: they used to grow without limit (569 MB on the
+# demo after a few months). Each file keeps at most SEROPS_LOG_FILE_MAX_MB
+# plus SEROPS_LOG_FILE_BACKUPS rotated copies. Gunicorn and Celery processes
+# share the files; a process can briefly keep writing to a copy another one
+# just rotated, but disk use stays bounded.
+_LOG_FILE_MAX_BYTES = max(1, int(os.getenv('SEROPS_LOG_FILE_MAX_MB', '50'))) * 1024 * 1024
+_LOG_FILE_BACKUPS = max(0, int(os.getenv('SEROPS_LOG_FILE_BACKUPS', '5')))
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -342,14 +350,20 @@ LOGGING = {
     'handlers': {
         'file': {
             'level': 'DEBUG',
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
+            'maxBytes': _LOG_FILE_MAX_BYTES,
+            'backupCount': _LOG_FILE_BACKUPS,
+            'delay': True,
             'formatter': 'json',
         },
         'user_actions': {
             'level': 'DEBUG',
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(BASE_DIR, 'logs', 'user_actions.log'),
+            'maxBytes': _LOG_FILE_MAX_BYTES,
+            'backupCount': _LOG_FILE_BACKUPS,
+            'delay': True,
             'formatter': 'json',
         },
     },
@@ -400,7 +414,9 @@ LOGGING = {
 
 # The image runs as a non-root user. A logs volume created by an older
 # release, which ran as root, isn't writable by it: log to stdout instead
-# of failing at startup (FileHandler raises when it can't open its file).
+# of failing at startup (a file handler raises when it can't open its file).
+# The file handlers as configured, kept for checks even when replaced below.
+LOG_FILE_HANDLERS = {name: dict(LOGGING['handlers'][name]) for name in ('file', 'user_actions')}
 if not os.access(os.path.join(BASE_DIR, 'logs'), os.W_OK):
     for _handler in ('file', 'user_actions'):
         LOGGING['handlers'][_handler] = {'level': 'DEBUG', 'class': 'logging.StreamHandler', 'formatter': 'json'}

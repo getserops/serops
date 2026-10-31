@@ -291,7 +291,8 @@ def _top_issues(batch, limit=5) -> list:
         from Data.issue_order import root_cause_first
         return [
             {'severity': i.severity, 'component': i.component or '', 'description': i.description or ''}
-            for i in root_cause_first(batch.issues.all())[:limit]
+            # Code-review notes (CODE scope, INFO) are not part of an incident summary.
+            for i in root_cause_first(batch.issues.exclude(scope='CODE', severity='INFO'))[:limit]
         ]
     except Exception:
         return []

@@ -9,6 +9,8 @@ from .views import (
     SCMBindingViewSet,
     CICDBindingViewSet,
     ProjectDeploymentViewSet,
+    ProjectDataCheckView,
+    ProjectDataFixView,
 )
 
 # Router for ViewSets
@@ -22,6 +24,8 @@ urlpatterns = [
     path('<int:pk>/', ProjectDetailView.as_view(), name='project-detail'),
     path('<int:project_id>/services/', ProjectServiceView.as_view(), name='project-service-create'),
     path('services/<int:pk>/', ProjectServiceDetailView.as_view(), name='project-service-detail'),
+    path('<int:project_id>/data-check/', ProjectDataCheckView.as_view(), name='project-data-check'),
+    path('<int:project_id>/data-check/fix/', ProjectDataFixView.as_view(), name='project-data-fix'),
     path('<int:project_id>/custom-services/', CustomServiceView.as_view(), name='project-custom-services'),
     # Include router URLs for bindings
     path('', include(router.urls)),

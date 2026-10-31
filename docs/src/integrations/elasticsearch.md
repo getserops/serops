@@ -59,6 +59,26 @@ Elasticsearch supports two authentication methods:
 | Field | Type | Description |
 |-------|------|-------------|
 | `api_key` | string | Base64-encoded Elasticsearch API key for authentication |
+| `index_pattern` | string | Indices or data streams to search, comma-separated (e.g. `logs-*, filebeat-*`). See [Where SerOps looks for logs](#where-serops-looks-for-logs) |
+
+## Where SerOps looks for logs
+
+Set **Index pattern** on the integration (`extra_config.index_pattern`) to the
+indices or data streams that hold your logs, comma-separated, for example
+`logs-*, filebeat-*`. Records are still filtered by their `project_name` and
+`environment` fields, so a broad pattern is safe.
+
+Left empty, SerOps searches:
+
+1. indices named the SerOps way, if any exist: `application-logs-<project>*`,
+   `serops-*-<project>*`, `serops-application-<organisation>*`;
+2. otherwise the shippers' default patterns that hold data: `logs-*`
+   (Elastic Agent, the OpenTelemetry Collector), `filebeat-*` and `logstash-*`.
+
+Records shaped by Filebeat, Elastic Agent or the OpenTelemetry Collector
+(Elastic Common Schema: `log.level`, `service.name`, `service.environment`)
+are read as they are; see [field aliases](../how-to/configure-data-collection.md#alias-support-datadog-usm-opentelemetry-kubernetes).
+
 
 ## Health Check
 
@@ -257,7 +277,7 @@ The same applies when shipping to OpenSearch or to Splunk through HEC.
 | "Connection refused" | Verify `host` URL is reachable from SerOps backend |
 | "401 Unauthorized" | Check `username`/`password` or `api_key` are correct |
 | "SSL certificate error" | Ensure the cluster certificate is trusted, or set `verify_certs: false` in `extra_config` (not recommended for production) |
-| "No data returned" | Verify the time range has data; check that `capabilities` includes `"logs"` |
+| "No data returned" | Verify the time range has data; check that `capabilities` includes `"logs"`; set **Index pattern** if your logs are not in `logs-*`, `filebeat-*`, `logstash-*` or SerOps-named indices |
 | Filters return 0 hits on a fresh index | Apply the recommended index template above — or upgrade to a SerOps build ≥ `ce1f9aa` (Sept 2026) whose adapter auto-uses `.keyword` sub-fields |
 
 ## Related Pages

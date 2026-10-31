@@ -13,8 +13,25 @@ Without these fields, SerOps cannot:
 - Separate environments (production vs. staging vs. development)
 - Generate meaningful batches for AI analysis
 
-!!! tip "Verify your setup with `check_ingest`"
-    After configuring your log shipper or metric exporter, verify SerOps is receiving the right fields — no need to guess and no more "empty dashboard" mysteries:
+!!! tip "Check my data"
+    Open **Projects → [your project] → Data** and select **Check my data**. SerOps sends the query the scheduled analysis sends to your log store, one filter at a time, over the last hour, and shows how many logs are left after each step:
+
+    | Step | Logs left |
+    |------|-----------|
+    | Logs in the places the project reads from (indices, log groups, streams) | every log |
+    | Tagged with the project | `project_name` |
+    | In the environment, or one of its spellings | `environment` |
+    | Errors and warnings | level, or the line itself |
+    | From the services the project lists | `service_name`: these are analysed |
+
+    The first step that leaves nothing says what to change. The check also lists the project, environment and service **values** your logs carry (with the field that carried each), and offers two fixes in one click: list a service seen in your errors, or accept the environment value your logs carry (for example `live` for Production).
+
+    The check shows values such as service names, never log messages. Running it needs the *use integrations* permission (users and admins); applying a fix needs *edit projects*.
+
+    The same tab shows what the last scheduled run of each environment did and, when it made no analysis, why: no services listed, no log integration, nowhere to read logs from, no errors in the window, errors only from unlisted services, and so on.
+
+!!! tip "Check field coverage with `check_ingest`"
+    To see which field names your records use (rather than the values), run the field coverage report:
 
     ```bash
     # CLI (from the backend container):
@@ -102,19 +119,19 @@ If your existing infrastructure already tags data with a common convention, SerO
 
 | Canonical | Accepted alternatives (in precedence order) |
 |-----------|---------------------------------------------|
-| `service_name` | `service` (Datadog USM), `service.name` (OpenTelemetry), `app` (Kubernetes), `app.kubernetes.io/name` (Kubernetes standard) |
-| `environment` | `env` (Datadog USM), `deployment.environment` (OpenTelemetry) |
-| `log_level` | `level`, `severity`, `status` (Datadog log-severity field) |
+| `service_name` | `service` (Datadog USM), `service.name` (OpenTelemetry, Elastic Common Schema), `app` (Kubernetes), `app.kubernetes.io/name` (Kubernetes standard), `kubernetes.labels.app`, `kubernetes.container_name` (Fluent Bit), `kubernetes.container.name` (Filebeat) |
+| `environment` | `env` (Datadog USM), `deployment.environment` / `deployment.environment.name` (OpenTelemetry), `service.environment` (Elastic Common Schema) |
+| `log_level` | `level`, `log.level` (Elastic Common Schema), `severity`, `severity_text` (OpenTelemetry), `status` (Datadog log-severity field) |
 | `project_name` | `project` |
 | `organisation_name` | `organization_name` (US spelling), `org_name` |
 
-Alias-aware query builders emit `bool.should` (Elasticsearch), `OR` (Datadog), and `or` (CloudWatch Insights) clauses so any tagged record matches. **Grafana Loki is the exception** — its stream selectors AND across labels and can't easily OR the same value against different label names. Loki users must tag with the canonical `service_name` / `project_name` / `environment` names.
+Dotted names match whether the record stores them flat (`"service.name": "x"`) or nested (`"service": {"name": "x"}`). Alias-aware query builders emit `bool.should` (Elasticsearch), `OR` (Datadog), `or` (CloudWatch Insights) and `IN` (Splunk) clauses so any tagged record matches. **Grafana Loki is the exception** — its stream selectors AND across labels and can't easily OR the same value against different label names. Loki users must tag with the canonical `service_name` / `project_name` / `environment` names.
 
 **Provider-specific notes:**
 
-- **Elasticsearch / OpenSearch**: Fields are stored as top-level document fields. Severity is queried via `log_level.keyword`.
+- **Elasticsearch / OpenSearch**: Fields are document fields, top-level or nested (Elastic Common Schema). Every level field is queried, whatever its mapping (keyword, text or a number).
 - **Grafana Loki**: Fields are stored as stream labels (`project_name`, `service_name`, `environment`, `log_level`).
-- **Datadog**: Fields are stored as log attributes (`@project_name`, `@service_name`, `@environment`). Datadog's native `status` field is also used for severity filtering.
+- **Datadog**: Fields can be **tags** (the Agent's `tags:`, `DD_TAGS`, Unified Service Tagging `env` / `service`) or **log attributes** from JSON bodies (`@project_name`); both are matched. Datadog's native `status` field is also used for severity.
 - **AWS CloudWatch**: Fields are stored as JSON fields in structured log entries (`project_name`, `service_name`, `environment`, `log_level`).
 
 !!! warning "Service Name Must Match Exactly"
@@ -122,18 +139,24 @@ Alias-aware query builders emit `bool.should` (Elasticsearch), `OR` (Datadog), a
 
 ### Severity Values
 
-SerOps normalises severity levels. Your logs should use one of:
+SerOps normalises severity levels. Any case is accepted (`ERROR`, `error`, `Error`):
 
-| Level | Accepted Values (case-insensitive) |
-|-------|-----------------------------------|
-| Error | `ERROR`, `ERR`, `FATAL`, `CRITICAL`, `CRIT` |
-| Warning | `WARN`, `WARNING` |
-| Info | `INFO` |
-| Debug | `DEBUG`, `TRACE` |
+| Level | Accepted values | Numbers |
+|-------|-----------------|---------|
+| Error | `ERROR`, `ERR`, `FATAL`, `CRITICAL`, `CRIT`, `ALERT`, `EMERG`, `PANIC`, `SEVERE` | Pino / Bunyan `level` 50 and 60; OpenTelemetry `severity_number` 17+; syslog `severity` 0-3 |
+| Warning | `WARN`, `WARNING` | Pino / Bunyan 40; OpenTelemetry 13-16; syslog 4 |
+| Info | `INFO`, `NOTICE` | Pino / Bunyan 30; OpenTelemetry 9-12; syslog 5-6 |
+| Debug | `DEBUG`, `TRACE` | lower values |
+
+**No level field?** Unstructured logs work too: SerOps reads the level from
+the line itself (`2026-10-27 ERROR ...`, `[warn] ...`, `level=error`), and
+fetches lines whose text holds an error word (`exception`, `failed`,
+`timeout` ...) even when they carry no level.
 
 ### Environment Names
 
-Use standard names or their aliases — SerOps normalises them automatically:
+Use standard names or their aliases. SerOps queries every spelling of the
+environment it analyses, so logs tagged `prod` belong to `production`:
 
 | Environment | Accepted Aliases |
 |-------------|-----------------|
@@ -141,7 +164,34 @@ Use standard names or their aliases — SerOps normalises them automatically:
 | `staging` | `stage`, `stg`, `preprod` |
 | `development` | `dev` |
 
+Logs that use another value (`live`, `prod-eu`) count for an environment once
+you accept that value: **Check my data** offers it in one click when it sees
+it in your logs. The scheduled analysis then queries that value too.
+
 ---
+
+### Projects tagged another way
+
+You do not have to add `project_name` to your logs. If your services are
+already grouped another way, tell the project:
+
+| Your logs carry | Project log rule |
+|-----------------|------------------|
+| OpenTelemetry `service.namespace: shop` | `service.namespace = shop` (or `resource.attributes.service.namespace` as the Collector's Elasticsearch exporter writes it) |
+| A Kubernetes namespace per project | `kubernetes.namespace = shop` (Filebeat), `kubernetes.namespace_name = shop` (Fluent Bit), `namespace = shop` (Loki) |
+| An `app.kubernetes.io/part-of` or `team` label | `kubernetes.labels.app_kubernetes_io/part-of = shop`, `team = payments` |
+
+A log belongs to the project when it carries `project_name` (or `project`)
+equal to the project name **or** matches any of its rules, so a rule only
+ever adds logs. A project has up to five rules. Every log store is queried
+this way. On Loki the field is a label name (dots become underscores, as
+Loki's own OpenTelemetry ingestion writes them: `service_namespace`) and
+SerOps runs one query per rule.
+
+The easiest way to set a rule: **Projects → [project] → Data → Check my
+data** lists how the logs with no project field are grouped, values equal to
+the project name first, with **Use for this project** next to each. The same
+place lists the project's rules, with **Remove**.
 
 ## Required Labels for Metrics
 
@@ -195,6 +245,19 @@ The `serops_type` label is used only by **host discovery** — the host picker o
 | `internal` | Monitoring infrastructure (Prometheus, exporters) — hidden from host picker |
 
 ---
+
+## Where SerOps looks for your logs
+
+| Provider | Where | Setting |
+|----------|-------|---------|
+| Elasticsearch / OpenSearch | SerOps-named indices (`application-logs-<project>*`), else `logs-*`, `filebeat-*`, `logstash-*` | **Index pattern** on the integration, e.g. `logs-*, filebeat-*` |
+| AWS CloudWatch | Log groups starting with `/aws/<project>` or containing the project name | **Log groups** on the integration, e.g. `/ecs/shop-api, /aws/lambda/checkout` |
+| Splunk | The `main` index | **Index** on the integration |
+| Grafana Loki | Streams labelled `project_name="<project>"` | (labels, see below) |
+| Datadog, Google Cloud, Azure | The whole account / workspace, filtered by the fields above | none |
+
+Whatever the location, records are still filtered by project and environment,
+so a broad index pattern or several log groups are safe.
 
 ## Provider-Specific Agent Configuration
 
@@ -422,8 +485,8 @@ scrape_configs:
     static_configs:
       - targets: ['node_exporter:9100']
         labels:
-          org_id: 'myorg'
-          project_id: 'myproject'
+          organisation_name: 'myorg'
+          project_name: 'myproject'
           environment: 'production'
           hostname: 'api-prod-01'
           serops_type: 'server'
@@ -433,8 +496,8 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
         labels:
-          org_id: 'myorg'
-          project_id: 'myproject'
+          organisation_name: 'myorg'
+          project_name: 'myproject'
           environment: 'production'
           hostname: 'prometheus'
           serops_type: 'internal'
@@ -447,15 +510,15 @@ scrape_configs:
     static_configs:
       - targets: ['10.0.1.10:9100']
         labels:
-          org_id: 'myorg'
-          project_id: 'myproject'
+          organisation_name: 'myorg'
+          project_name: 'myproject'
           environment: 'production'
           hostname: 'web-01'
           serops_type: 'server'
       - targets: ['10.0.1.11:9100']
         labels:
-          org_id: 'myorg'
-          project_id: 'myproject'
+          organisation_name: 'myorg'
+          project_name: 'myproject'
           environment: 'production'
           hostname: 'web-02'
           serops_type: 'server'
@@ -467,8 +530,8 @@ Datadog metrics use tags for filtering. Ensure your hosts report with the correc
 
 ```yaml
 tags:
-  - "org_id:myorg"
-  - "project_id:myproject"
+  - "organisation_name:myorg"
+  - "project_name:myproject"
   - "environment:production"
   - "serops_type:server"
 ```
@@ -495,8 +558,8 @@ SerOps maps metric names to CloudWatch namespaces:
 
 Ensure your EC2 instances or CWAgent publish metrics with these dimensions:
 
-- `org_id`
-- `project_id`
+- `organisation_name`
+- `project_name`
 - `environment`
 - `InstanceId` (auto-populated by EC2)
 
@@ -508,8 +571,8 @@ The enrichment values must match what you configured in SerOps:
 
 | Agent field | Must match | Where to find it |
 |-------------|-----------|------------------|
-| `organisation_name` (logs) / `org_id` (metrics) | Organisation name | **Settings > General** |
-| `project_name` (logs) / `project_id` (metrics) | Project name | **Projects** page |
+| `organisation_name` | Organisation name (metrics need it exactly) | **Settings > General** |
+| `project_name` | Project name | **Projects** page |
 | `service_name` | ProjectService name | **Projects > [Project] > Services** |
 | `environment` | Environment name | **Projects > [Project] > Environments** |
 
@@ -529,11 +592,12 @@ The enrichment values must match what you configured in SerOps:
 
 After configuring your agents, verify data is flowing correctly:
 
+- [ ] **Check my data finds logs to analyse**: **Projects → [Project] → Data → Check my data** ends with "Everything is in place" (or "no errors or warnings", which is good news)
 - [ ] **Health check passes**: Go to **Integrations → Log Providers** (or **Metric Providers**) and run a health check on your provider
 - [ ] **Service names match**: The `service_name` in your logs exactly matches a service registered under your project
 - [ ] **Environment names match**: The `environment` in your logs matches an enabled environment in your project settings (or a known alias)
 - [ ] **Logs are queryable**: Check your provider directly (Kibana, Grafana, Datadog UI) to confirm enriched fields are present on log entries
-- [ ] **Metrics have labels**: Query Prometheus/VictoriaMetrics directly to verify `org_id`, `project_id`, `environment` labels exist on `node_*` metrics
+- [ ] **Metrics have labels**: Query Prometheus/VictoriaMetrics directly to verify `organisation_name`, `project_name`, `environment` labels exist on `node_*` metrics
 - [ ] **Batches appear**: Navigate to **Analyses** in SerOps — batches should appear within the configured generation interval (default: 60 seconds)
 
 ---
@@ -542,12 +606,14 @@ After configuring your agents, verify data is flowing correctly:
 
 | Symptom | Likely Cause | Solution |
 |---------|-------------|----------|
-| No batches appear | `service_name` mismatch | Compare the service name in your logs with the registered ProjectService name — they must be identical |
+| No batches appear | See **Projects → [Project] → Data** | The last scheduled run of each environment says why it made no analysis; **Check my data** shows the step where logs drop out |
+| No batches appear | `service_name` mismatch | Compare the service name in your logs with the registered ProjectService name (upper and lower case do not matter); **Check my data** lists the services in your logs and lists them in the project in one click |
+| No batches appear | `project_name` mismatch | Project names are matched exactly, including case; **Check my data** lists the project values your logs carry |
 | Empty batches (no logs) | Missing enrichment fields | Check your log provider directly for the presence of `project_name`, `service_name`, `environment` fields |
 | Wrong environment on batches | Environment name not matching | Verify your agent writes a standard environment name (`production`, `staging`, `development`) or a known alias |
 | Metrics page shows no hosts | Missing `serops_type: server` label | Ensure your Prometheus scrape target has `serops_type: 'server'` — `internal` targets are hidden from the UI |
-| Metrics page shows no data | Missing required labels | Query Prometheus directly: `node_memory_MemTotal_bytes{org_id="yourorg"}` — if empty, labels are not set |
-| Logs from one org appear in another | Incorrect `organisation_name` / `org_id` | Each organisation must use a unique identifier consistently across all agents |
+| Metrics page shows no data | Missing required labels | Query Prometheus directly: `node_memory_MemTotal_bytes{organisation_name="yourorg"}` — if empty, labels are not set |
+| Logs from one org appear in another | Incorrect `organisation_name` | Each organisation must use a unique identifier consistently across all agents |
 
 ---
 

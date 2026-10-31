@@ -22,7 +22,8 @@ AWS CloudWatch is a monitoring and observability service from Amazon Web Service
 ## Configuration
 
 In the UI: **Integrations → Log Providers → Add Integration → AWS CloudWatch**, then fill in
-the region, the access key ID and the secret access key. Through the API:
+the region, the access key ID, the secret access key and, optionally, the log
+groups to search. Through the API:
 
 ```json
 {
@@ -33,7 +34,7 @@ the region, the access key ID and the secret access key. Through the API:
   "password": "<secret access key>",
   "extra_config": {
     "aws_region": "us-east-1",
-    "default_log_group": "/serops/production"
+    "log_groups": "/ecs/shop-api, /aws/lambda/checkout"
   }
 }
 ```
@@ -60,7 +61,17 @@ stored integration needs credentials that keep working.
 | Field | Type | Description |
 |-------|------|-------------|
 | `aws_region` | string | AWS region for CloudWatch (e.g., `eu-west-1`). Defaults to `us-east-1`. |
-| `default_log_group` | string | Default CloudWatch log group to query (e.g., `/serops/production`) |
+| `log_groups` | string | Log groups to search, comma-separated, up to 50. Left empty, SerOps searches the groups whose name starts with `/aws/<project>` or contains the project name |
+| `default_log_group` | string | Log group for queries that name none (e.g. `/serops/production`) |
+
+### How log events are read
+
+Logs Insights queries are asked for the raw event. JSON events are read field
+by field (`log_level` / `level` / `log.level`, `service_name` / `service` /
+`service.name`, `environment` / `env` ..., see
+[field aliases](../how-to/configure-data-collection.md#alias-support-datadog-usm-opentelemetry-kubernetes));
+plain-text events get their level from the line (`ERROR`, `[warn]`,
+`level=error`) and their service from the log stream name.
 
 ## Metric Mapping
 
@@ -164,7 +175,7 @@ Response:
 | "InvalidAccessKeyId" | Check that the access key ID is correct and the IAM user is active |
 | "SignatureDoesNotMatch" | Check that the secret access key is correct |
 | "AccessDenied" | Verify the IAM user/role has the required CloudWatch permissions |
-| "No data returned" | Verify the time range has data; check `default_log_group` exists and `capabilities` includes the expected type |
+| "No data returned" | Verify the time range has data and `capabilities` includes the expected type; set **Log groups** if your groups are not named after the project |
 
 ## Related Pages
 

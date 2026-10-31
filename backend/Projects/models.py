@@ -29,10 +29,46 @@ class Project(models.Model):
                   'Deleting a cluster leaves the project unassigned, '
                   'not deleted.',
     )
-    
+    # Other ways this project's logs are tagged, besides project_name /
+    # project = <name>: [{"field": "service.namespace", "value": "shop"}, ...].
+    # A log belongs to the project when it carries the project name OR
+    # matches any rule, so a rule only ever adds logs. See log_rules_clean().
+    log_rules = models.JSONField(default=list, blank=True)
+
+    MAX_LOG_RULES = 5
+
     def __str__(self):
         return self.name
-    
+
+    @staticmethod
+    def clean_log_rule(field, value):
+        """A (field, value) a query can carry safely, or ValueError.
+
+        Field names are identifiers in every query language SerOps writes
+        (dotted paths, Kubernetes label keys); values are quoted by each
+        builder, but bounded here.
+        """
+        import re
+        field = str(field or '').strip()
+        value = str(value or '').strip()
+        if not re.fullmatch(r'[A-Za-z_@][A-Za-z0-9_.@/-]{0,127}', field):
+            raise ValueError('field must be a field name such as service.namespace or kubernetes.namespace')
+        if not value or len(value) > 200 or any(c in value for c in '\n\r'):
+            raise ValueError('value must be 1 to 200 characters on one line')
+        return field, value
+
+    def log_rules_clean(self):
+        """The valid rules, as (field, value) pairs (invalid ones are skipped)."""
+        out = []
+        for rule in self.log_rules or []:
+            try:
+                pair = self.clean_log_rule(rule.get('field'), rule.get('value'))
+            except (ValueError, AttributeError):
+                continue
+            if pair not in out:
+                out.append(pair)
+        return out[:self.MAX_LOG_RULES]
+
     class Meta:
         unique_together = ('name', 'organisation')
 
@@ -193,6 +229,12 @@ class ProjectEnvironment(models.Model):
     
     def __str__(self):
         return f"{self.project.name} / {self.display_name}"
+
+    def log_labels(self):
+        """Values of the log environment field, besides the name and its
+        usual spellings, that mean this environment (comma-separated in
+        ``log_label_value``)."""
+        return [v.strip() for v in (self.log_label_value or '').split(',') if v.strip()]
     
     def matches_branch(self, branch_name):
         """Check if a branch matches this environment's patterns."""

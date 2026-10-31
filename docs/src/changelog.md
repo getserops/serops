@@ -16,6 +16,70 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.2.10] - 2026-10-31
+
+Data collection release. Two migrations (Data 0055, Projects 0016) run on
+their own. Set `SEROPS_VERSION=1.2.10` or `--version 1.2.10`.
+
+**After upgrading,** SerOps finds logs it used to miss. Expect more analyses
+and issues for a few batches, until Sentinel's baseline catches up.
+
+### Logs as your shippers write them
+
+Many standard setups silently got no data. Now:
+
+- Elasticsearch and OpenSearch also search `logs-*`, `filebeat-*` and
+  `logstash-*`, and a new **Index pattern** setting names your own indices.
+  CloudWatch finds log groups named after the project, and a **Log groups**
+  setting names them explicitly.
+- Every level spelling is read: `WARN`, lowercase, Pino and Bunyan numeric
+  levels, OpenTelemetry severity numbers, and lines with no level field.
+- Elastic Common Schema (Filebeat, Elastic Agent), OpenTelemetry (including
+  the Collector's Elasticsearch exporter), Fluent Bit, Pino and plain-text
+  logs parse correctly. Datadog tags are matched as well as attributes.
+- Environment spellings match: logs tagged `prod` belong to `production`.
+- On Kubernetes, a log's host is the node, not the log shipper.
+
+### Check my data
+
+**Projects → [project] → Data** shows what the last scheduled run of each
+environment did and, when it made no analysis, why. **Check my data** runs
+the scheduled query against your log store one filter at a time and stops at
+the first step that leaves nothing, with what to change. It lists the
+project, environment and service values your logs carry (never log
+messages) and fixes common cases in one click: list a service seen in your
+errors, or accept an environment value your logs use (`live` for
+Production). The onboarding wizard links to it when the first analysis has
+not arrived.
+
+### Project log rules
+
+A project's logs no longer need a `project_name` field. Map the project onto
+how your services are already grouped (`service.namespace`, a Kubernetes
+namespace, an `app.kubernetes.io/part-of` or `team` label). Logs carrying the
+project name or matching a rule belong to the project, in every log store.
+Check my data lists how untagged logs are grouped and sets a rule in one
+click. See [Projects tagged another way](how-to/configure-data-collection.md#projects-tagged-another-way).
+
+### Analysis
+
+- Warnings reach the AI (they were dropped from every prompt).
+- An issue links only the commits the analysis says caused it, never a
+  commit it named to rule out.
+- During an incident, findings from reviewing the code are shown apart as
+  code review notes: no notification, no commit blamed.
+- Log lines in the prompt carry their host, so "fails on one node only" is
+  visible; errors that differ only by a duration are grouped.
+
+### Other fixes
+
+- Log files rotate (`SEROPS_LOG_FILE_MAX_MB`, default 50).
+- Redaction no longer blanks ordinary error text after words like `token`.
+- The analysis log table shows the service of logs without `service_name`.
+- The first batch of a project queries its own time window.
+
+---
+
 ## [1.2.9] - 2026-10-27
 
 Security and integrations release. One migration (Data 0054, runs on its

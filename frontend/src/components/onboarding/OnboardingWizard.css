@@ -6,6 +6,11 @@
     right: 24px;
     width: 480px;
     max-width: calc(100vw - 48px);
+    /* Anchored at the bottom, it grows upwards: without a cap a long step
+       pushed the header (and its Minimize button) above the screen, and the
+       wizard could no longer be moved out of the way. */
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
     z-index: 1200;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
     border-radius: 16px;

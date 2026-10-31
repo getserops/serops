@@ -13,6 +13,8 @@ import PostmortemModal from "./PostmortemModal";
 import PageHeader from "./PageHeader";
 import BatchTimelineChart from "./BatchTimelineChart";
 import "./Detail.css";
+import { projectOf, serviceOf } from "../utils/logFields";
+import { splitCodeNotes } from "../utils/codeNotes";
 
 // Investigate prefilled with this batch's scope and window.
 const rerunLink = (batch) => {
@@ -180,8 +182,8 @@ const Detail = () => {
             logDetails: log._source?.message || "No message available",
             type: log._source?.level?.toLowerCase() || "other",
             index: log._index || "unknown",
-            serviceName: log._source?.service_name || null,
-            projectName: log._source?.project_name || null,
+            serviceName: serviceOf(log._source),
+            projectName: projectOf(log._source),
           }));
           setData(formattedData);
           extractAvailableServices(formattedData);
@@ -375,7 +377,11 @@ const Detail = () => {
   };
 
   const sentinel = sentinelChip(batchMeta?.sentinel_decision);
-  const issues = Array.isArray(batchMeta?.issues) ? batchMeta.issues : [];
+  const allIssues = Array.isArray(batchMeta?.issues) ? batchMeta.issues : [];
+  // During an incident, findings from reviewing the code (CODE scope, INFO)
+  // are notes, not suspects: shown apart, left out of counts and actions.
+  const codeNotes = splitCodeNotes(allIssues).notes;
+  const issues = splitCodeNotes(allIssues).issues;
   // Incident actions: acknowledge stops escalation for every open issue
   // this batch found; the link and post-mortem make it shareable.
   const unacknowledged = issues.filter((i) => i.id && (i.status || 'OPEN') === 'OPEN' && !i.acknowledged_at);
@@ -789,6 +795,28 @@ const Detail = () => {
             ))}
           </div>
         </div>
+      )}
+
+      {codeNotes.length > 0 && (
+        <section className="ds-card code-notes-card" style={{ marginBottom: '1rem' }} aria-labelledby="code-notes-title">
+          <div className="ds-card-header" style={{ background: 'var(--bg-sunken)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <h2 id="code-notes-title" style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>
+                {t('detail.codeNotes.title', { count: codeNotes.length })}
+              </h2>
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{t('detail.codeNotes.hint')}</div>
+            </div>
+          </div>
+          {codeNotes.map((note) => (
+            <div key={note.id} style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--border-default)' }}>
+              <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>{note.description || note.error_target}</div>
+              {note.root_cause && (
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.5 }}>{note.root_cause}</div>
+              )}
+              {note.component && <div className="ds-mono" style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>{note.component}</div>}
+            </div>
+          ))}
+        </section>
       )}
 
           </div>

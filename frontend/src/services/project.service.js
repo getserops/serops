@@ -63,6 +63,26 @@ export const ProjectService = {
     }
   },
 
+  // "Check my data": last scheduled runs, the check itself, and its fixes
+  GetDataRuns: async (projectId) => {
+    const response = await axios.get(`${API_BASE_URL}/projects/${projectId}/data-check/`, getAuthHeader());
+    return response.data;
+  },
+
+  CheckData: async (projectId, { environment, minutes } = {}) => {
+    const response = await axios.post(
+      `${API_BASE_URL}/projects/${projectId}/data-check/`,
+      { environment, minutes },
+      getAuthHeader()
+    );
+    return response.data;
+  },
+
+  ApplyDataFix: async (projectId, fix) => {
+    const response = await axios.post(`${API_BASE_URL}/projects/${projectId}/data-check/fix/`, fix, getAuthHeader());
+    return response.data;
+  },
+
   GetProjectDetails: async (projectId) => {
     try {
       const response = await axios.get(

@@ -100,7 +100,7 @@ class TestLogQueryToAzureKql(SimpleTestCase):
     def test_project_and_env(self):
         kql = LogQuery(project="acme", environment="prod").to_azure_kql()
         self.assertIn('| where Properties.project_name == "acme"', kql)
-        self.assertIn('| where Properties.environment == "prod"', kql)
+        self.assertIn('| where tostring(Properties.environment) in~ ("prod", "production", "prd")', kql)
 
     def test_services_in_clause(self):
         kql = LogQuery(services=["api", "worker"]).to_azure_kql()

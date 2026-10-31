@@ -48,6 +48,7 @@ _JSON_TEMPLATE = '''{
                 "cicd": ["<pipeline_or_job_name — omit or empty when cicd not used>"],
                 "traces": ["<trace_id — omit or empty when traces not used>"]
             },
+            "caused_by_commits": ["<REQUIRED: SHA of each commit that caused this issue; [] when no commit is at fault. Never list a commit you looked at and ruled out>"],
             "occurrences": {
                 "count": "<number>",
                 "timestamps": ["<timestamp>"]
@@ -134,6 +135,7 @@ ISSUE CREATION RULES (CRITICAL FOR DEDUPLICATION):
    - For code changes: Use 'service_name' field from the commit data
    - For CI/CD issues: Use pipeline/job name or 'service_name' from the job data
    - For metrics (memory/CPU) without logs: Use "INFRASTRUCTURE"
+   Log lines read `[time] [level] [service] [host] message`; the host (node, machine or pod) is left out when unknown, and a repeated line says which hosts it came from. When a failure is confined to one host while others are fine, name that host in root_cause: it is usually where the cause lives.
 9. **ONE ISSUE PER ROOT CAUSE**: When several services fail because of the same underlying cause (a shared database, cache, queue, DNS, certificate, upstream API, a resource limit, or one deploy), report ONE issue, not one per service:
    - `component` = where the cause lives: the shared dependency when it appears in the data (e.g. "redis-cache", "postgres-primary", "coredns"), otherwise the service whose change or failure triggered the others. Use scope INFRASTRUCTURE for cluster-wide causes such as DNS.
    - `affected_services` = every other service showing symptoms of that cause.
@@ -168,8 +170,8 @@ ERROR CLASSIFICATION (CRITICAL FOR SMART DEDUPLICATION):
    - If unclear, use a brief identifier from the error message
 
 CODE CHANGE RULES (apply only when code changes are in the batch):
-14. **Correlate first.** If errors or issues exist elsewhere in the batch, check whether the recent commits explain them: match error timestamps with commit timestamps, check whether modified files could cause the observed behaviour, and reference the specific commit SHA in root_cause when the correlation holds.
-15. **Then review the diffs proactively, even without runtime evidence.** For each finding, create an issue with scope=CODE and the fitting issue_type (CODE_QUALITY, POTENTIAL_BUG, SECURITY_RISK, DEPRECATED_USAGE) — severity INFO for minor cleanup, WARNING for potential bugs, CRITICAL for security risks. Reference the specific commit SHA and file path in root_cause. Pick error_class from: TYPO, NULL_REFERENCE, RACE_CONDITION, UNHANDLED_EXCEPTION. What to scan for: typos in identifiers/strings/config; null-or-undefined property access; missing error handling; hardcoded secrets or credentials; deprecated API usage or anti-patterns; race conditions on shared mutable state.
+14. **Correlate first.** If errors or issues exist elsewhere in the batch, check whether the recent commits explain them: match error timestamps with commit timestamps, check whether modified files could cause the observed behaviour, and reference the specific commit SHA in root_cause when the correlation holds. List in `caused_by_commits` only the commits that caused the issue: a commit you mention in order to rule it out ("only added a test fixture") stays out of it, and `caused_by_commits` is [] when no commit is at fault.
+15. **Then review the diffs proactively, even without runtime evidence.** During an incident (the batch has runtime errors), a finding of this review that is not the incident's cause is a note, not a suspect: scope=CODE, severity INFO, `caused_by_commits` [] — name the commit and file in root_cause as where the code is, not as a cause. Outside an incident, for each finding create an issue with scope=CODE and the fitting issue_type (CODE_QUALITY, POTENTIAL_BUG, SECURITY_RISK, DEPRECATED_USAGE) — severity INFO for minor cleanup, WARNING for potential bugs, CRITICAL for security risks. Reference the specific commit SHA and file path in root_cause. Pick error_class from: TYPO, NULL_REFERENCE, RACE_CONDITION, UNHANDLED_EXCEPTION. What to scan for: typos in identifiers/strings/config; null-or-undefined property access; missing error handling; hardcoded secrets or credentials; deprecated API usage or anti-patterns; race conditions on shared mutable state.
 16. **Never return an empty correlated_issues list solely because runtime evidence is absent** — a code-only batch is a valid analysis target as long as rule 15 finds something.
 
 SIGNAL-ONLY DEGRADATION RULES:

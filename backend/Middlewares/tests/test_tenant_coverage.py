@@ -72,6 +72,8 @@ TARGETS = {
     'api/projects/<int:project_id>/services/': {'project_id': 'project'},
     'api/projects/services/<int:pk>/': {'pk': 'project_service'},
     'api/projects/<int:project_id>/custom-services/': {'project_id': 'project'},
+    'api/projects/<int:project_id>/data-check/': {'project_id': 'project'},
+    'api/projects/<int:project_id>/data-check/fix/': {'project_id': 'project'},
     'api/projects/^scm-bindings/(?P<pk>[^/.]+)/$': {'pk': 'scm_binding'},
     'api/projects/^scm-bindings/(?P<pk>[^/.]+)/auto-link/$': {'pk': 'scm_binding'},
     'api/projects/^scm-bindings/(?P<pk>[^/.]+)/auto-link-suggestions/$': {'pk': 'scm_binding'},

@@ -23,7 +23,7 @@ class ScenarioIntegrityTest(SimpleTestCase):
         builds = runner.select()
         ids = [b.__name__ for b in builds]
         self.assertEqual(len(ids), len(set(ids)))
-        self.assertEqual(len(runner.SETS['held_out']), 11)
+        self.assertEqual(len(runner.SETS['held_out']), 9)
         for b in builds:
             sc = b()
             a = sc['answer']

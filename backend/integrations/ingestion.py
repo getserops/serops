@@ -23,15 +23,17 @@ logger = logging.getLogger(__name__)
 
 Metrics_interval = int(os.getenv('BATCH_GENERATION_INTERVAL', 5))
 
-# Environment aliases for normalization
-ENVIRONMENT_ALIASES = {
-    'production': ['prod', 'prd', 'production'],
-    'staging': ['stage', 'stg', 'staging', 'preprod'],
-    'development': ['dev', 'development']
-}
+# Environment aliases for normalization (one list, shared with the queries)
+from integrations.field_aliases import (  # noqa: E402
+    ENVIRONMENT_ALIASES as ENVIRONMENT_FIELD_ALIASES,
+    ENVIRONMENT_VALUE_ALIASES as ENVIRONMENT_ALIASES,
+    environment_values,
+    first_present,
+    lookup,
+)
 
 
-def is_log_matching_environment(log, target_environment):
+def is_log_matching_environment(log, target_environment, extra_values=()):
     """
     Check if a log entry matches the target environment.
     Strictly filters logs to prevent cross-environment leakage.
@@ -42,44 +44,21 @@ def is_log_matching_environment(log, target_environment):
     """
     if not target_environment:
         return True
-        
-    env_label = None
-    
-    # Check if log is LogEntry or dict
+
     if hasattr(log, 'labels'):
-        # LogEntry
-        labels = log.labels
-        env_label = labels.get('environment') or labels.get('env')
-        
-        # Check for nested kubernetes labels if accessible
-        if not env_label and 'kubernetes' in labels:
-            k8s = labels['kubernetes']
-            if isinstance(k8s, dict):
-                env_label = k8s.get('labels', {}).get('environment')
+        doc = log.labels or {}
     else:
-        # Legacy dict
-        source = log.get('_source', {})
-        env_label = (
-            source.get('environment') or 
-            source.get('env') or 
-            source.get('kubernetes', {}).get('labels', {}).get('environment') or
-            source.get('labels', {}).get('environment')
-        )
-    
+        doc = log.get('_source', {})
+    env_label = (first_present(doc, ENVIRONMENT_FIELD_ALIASES, default=None)
+                 or lookup(doc, 'kubernetes.labels.environment')
+                 or lookup(doc, 'labels.environment'))
+
     # Legacy support: if no tag, assume match
     if not env_label:
         return True
-        
-    env_lower = str(env_label).lower()
-    target_lower = target_environment.lower()
-    
-    # Direct match
-    if env_lower == target_lower:
-        return True
-        
-    # Alias match
-    target_aliases = ENVIRONMENT_ALIASES.get(target_lower, [target_lower])
-    return env_lower in target_aliases
+
+    wanted = {v.lower() for v in environment_values(target_environment, extra_values)}
+    return str(env_label).lower() in wanted
 
 
 def _parse_timestamp(ts_str):
@@ -100,6 +79,7 @@ def _make_signature(message):
     sig = re.sub(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', '<IP>', sig)
     sig = re.sub(r'port \d+', 'port <PORT>', sig)
     sig = re.sub(r'\b[0-9a-f]{8,}\b', '<HEX>', sig)
+    sig = re.sub(r'\b\d+(?:\.\d+)?\s?(?:ms|us|µs|ns|s)\b', '<DURATION>', sig)  # "failed after 1003ms"
     sig = re.sub(r'\b\d{5,}\b', '<NUM>', sig)
     return sig.strip()
 
@@ -346,11 +326,13 @@ def filter_unique_logs(hits, time_window, organisation=None):
             message and log_id and timestamp,
             message not in seen_data['messages'],
             log_id not in seen_data['ids'],
-            timestamp not in seen_data['timestamps'],
         ]):
+            # Not keyed on the timestamp: logs written in the same
+            # millisecond (a burst of errors, or a shipper with
+            # one-second precision) are different logs, and all but one
+            # were dropped.
             seen_data['messages'].add(message)
             seen_data['ids'].add(log_id)
-            seen_data['timestamps'].add(timestamp)
             unique_logs.append(hit)
 
     def get_sort_key(item):
@@ -432,12 +414,11 @@ def filter_unique_logs_for_project(hits, time_window, project_name=None, organis
             message and log_id and timestamp,
             message not in seen_data['messages'],
             log_id not in seen_data['ids'],
-            timestamp not in seen_data['timestamps'],
             is_project_relevant,
         ]):
+            # Not keyed on the timestamp (see filter_unique_logs).
             seen_data['messages'].add(message)
             seen_data['ids'].add(log_id)
-            seen_data['timestamps'].add(timestamp)
             unique_logs.append(hit)
 
     def get_sort_key(item):

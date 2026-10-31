@@ -456,6 +456,11 @@
       "analysed": "Analysed",
       "related": "Related",
       "allIssues": "Issues"
+    },
+    "codeNotes": {
+      "title_one": "{{count}} code review note",
+      "title_other": "{{count}} code review notes",
+      "hint": "Found while reading the code changes in this window. Not the cause of this incident; worth a look later."
     }
   },
   "timeline": {
@@ -1120,7 +1125,7 @@
       "cicd": "CI/CD",
       "logs": "Log Providers",
       "metrics": "Metric Providers",
-        "traces": "Trace Providers"
+      "traces": "Trace Providers"
     },
     "scmDesc": "Repositories SerOps reads commits and diffs from, to tie incidents to code changes.",
     "cicdDesc": "Pipelines and deployments SerOps lines up with incidents."
@@ -1270,7 +1275,8 @@
     "optional": "(optional)",
     "active": "Active",
     "inactive": "Inactive",
-    "breadcrumb": "Breadcrumb"
+    "breadcrumb": "Breadcrumb",
+    "remove": "Remove"
   },
   "languages": {
     "en": "English",
@@ -1578,5 +1584,98 @@
     "label": "Density",
     "comfortable": "Comfortable",
     "compact": "Compact"
+  },
+  "dataCheck": {
+    "title": "Check my data",
+    "description": "Runs the query the scheduled analysis sends, one filter at a time, against your log store, and shows where logs drop out.",
+    "lastRuns": "Last scheduled runs",
+    "environment": "Environment",
+    "result": "Result",
+    "why": "Details",
+    "wholeProject": "Whole project",
+    "window": "Look back",
+    "windows": {
+      "15": "Last 15 minutes",
+      "60": "Last hour",
+      "1440": "Last 24 hours"
+    },
+    "run": "Check my data",
+    "checking": "Checking…",
+    "failed": "The check could not run.",
+    "fixFailed": "The change could not be saved.",
+    "noPermission": "Ask someone who can use integrations to run the check.",
+    "steps": "What the scheduled analysis would find (last {{minutes}} min)",
+    "logs": "Logs",
+    "value": "Value",
+    "field": "Field",
+    "listed": "Listed in this project",
+    "step": {
+      "title": "Step",
+      "found": "Logs in {{locations}}",
+      "project": "Tagged with project “{{project}}”",
+      "environment": "In environment {{values}}",
+      "level": "Errors and warnings",
+      "services": "From the services this project lists"
+    },
+    "outcome": {
+      "batch": "Analysis created",
+      "empty": "Nothing to analyse",
+      "skipped": "Skipped",
+      "error": "Failed"
+    },
+    "reason": {
+      "no_services": "The project lists no services, so no logs are analysed. Add a service.",
+      "no_log_provider": "No active log integration. Connect one in Settings → Observability.",
+      "no_log_location": "No index, log group or stream with logs for this project was found. Set where your logs are in the log integration, or run Check my data.",
+      "no_matching_logs": "The log store returned no error or warning logs for this project and environment. That is good news if nothing failed; if your services did log errors, run Check my data.",
+      "already_analysed": "Every log found was already part of an earlier analysis.",
+      "outside_window": "The logs found carry timestamps outside the analysis window.",
+      "not_important": "The logs found were not errors or warnings.",
+      "other_environment": "The logs found belong to another environment.",
+      "quiet": "Errors and warnings were at their usual level, so no analysis was needed."
+    },
+    "diagnosis": {
+      "no_log_provider": "No active log integration. Connect one in Settings → Observability.",
+      "no_log_location": "SerOps found no index, log group or stream with logs for this project. Set where your logs are in the log integration (index pattern or log groups).",
+      "no_logs": "The log store has no logs at all in the last {{minutes}} minutes in the places this project reads from. Check that your shipper is running and sending to this store.",
+      "project_not_tagged": "Logs are arriving, but none carry project_name = “{{project}}”. Add that field (or label, or tag) to your logs in the shipper; the values your logs carry today are listed below.",
+      "environment_not_tagged": "Logs for this project are arriving, but none carry the environment “{{environment}}” or one of its spellings. Use a value your logs carry, or tag the logs with this environment.",
+      "no_errors": "Logs reach SerOps and are tagged correctly. There were no errors or warnings in the last {{minutes}} minutes, so there was nothing to analyse. That is good news.",
+      "no_services": "Errors and warnings are arriving, but the project lists no services yet. List the services below to analyse them.",
+      "unregistered_services": "Errors and warnings are arriving, but only from services this project does not list. List them to analyse them.",
+      "ok": "Everything is in place: {{count}} errors and warnings would be analysed now."
+    },
+    "caseHint": "Your logs say “{{value}}”: project names are matched exactly, including upper and lower case.",
+    "fixEnvironment": "Use the environment your logs carry",
+    "useValue": "Use “{{value}}” for {{environment}}",
+    "useValueHint": "Logs with this value then count as this environment, in the check and in every scheduled analysis.",
+    "envFixed": "Logs tagged “{{value}}” now count as this environment.",
+    "fixServices": "Services seen in your errors and warnings, not listed in this project",
+    "addServices_one": "List {{count}} service",
+    "addServices_other": "List {{count}} services",
+    "servicesAdded_one": "{{count}} service listed.",
+    "servicesAdded_other": "{{count}} services listed.",
+    "seen": {
+      "project": "Project values in your logs",
+      "environment": "Environment values in your logs",
+      "service": "Services in your logs"
+    },
+    "privacy": "Reads up to {{size}} logs per step and shows field values such as service names, never log messages.",
+    "tab": "Data",
+    "waitingTitle": "No analysis yet? Check your data",
+    "waitingIntro": "The first analysis needs errors or warnings from a service you listed. This check shows what SerOps finds in your logs right now.",
+    "more": "and {{count}} more",
+    "rules": {
+      "title": "This project also reads logs where",
+      "hint": "Besides logs tagged project_name = “{{project}}”. Every log store is queried this way, in the check and in every scheduled analysis.",
+      "removed": "Rule removed."
+    },
+    "groupings": {
+      "title": "How your other logs are grouped",
+      "hint": "Logs with no project field, by the fields teams usually group services by. Use one for “{{project}}” and those logs belong to it, without retagging anything.",
+      "sameName": "same name",
+      "use": "Use for this project",
+      "added": "Logs where {{field}} = {{value}} now belong to this project."
+    }
   }
 }

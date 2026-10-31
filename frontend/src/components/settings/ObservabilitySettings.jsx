@@ -52,6 +52,8 @@ const PROVIDERS = {
             { name: "host", label: "Host URL", type: "url", placeholder: "http://elasticsearch:9200", required: true },
             { name: "username", label: "Username", placeholder: "elastic" },
             { name: "password", label: "Password", type: "password" },
+            { name: "extra_config.index_pattern", label: "Index pattern", placeholder: "logs-*, filebeat-*",
+              help: "Where your logs are stored. Leave empty to use SerOps' own indices, or else logs-*, filebeat-* and logstash-*." },
         ],
     },
     opensearch: {
@@ -61,6 +63,8 @@ const PROVIDERS = {
             { name: "host", label: "Host URL", type: "url", placeholder: "https://opensearch:9200", required: true },
             { name: "username", label: "Username" },
             { name: "password", label: "Password", type: "password" },
+            { name: "extra_config.index_pattern", label: "Index pattern", placeholder: "logs-*, filebeat-*",
+              help: "Where your logs are stored. Leave empty to use SerOps' own indices, or else logs-*, filebeat-* and logstash-*." },
         ],
     },
     loki: {
@@ -131,6 +135,8 @@ const PROVIDERS = {
             { name: "extra_config.aws_region", label: "AWS Region", placeholder: "us-east-1", required: true },
             { name: "username", label: "Access Key ID", required: true },
             { name: "password", label: "Secret Access Key", type: "password", required: true },
+            { name: "extra_config.log_groups", label: "Log groups", placeholder: "/ecs/shop-api, /aws/lambda/checkout",
+              help: "Comma-separated, up to 50. Leave empty to search the groups named after each project." },
         ],
     },
     gcp: {
@@ -538,6 +544,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                                         placeholder={placeholder}
                                         value={getNestedValue(form, field.name) || ""}
                                         onChange={(e) => handleFieldChange(field.name, e.target.value)} />
+                                    {field.help && <Form.Text muted>{field.help}</Form.Text>}
                                 </Form.Group>
                             );
                         })}

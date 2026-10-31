@@ -57,6 +57,8 @@ class TestElasticsearchLogProvider(SimpleTestCase):
             index="test-index",
             body={"query": {"match_all": {}}},
             size=5000,
+            ignore_unavailable=True,
+            allow_no_indices=True,
         )
 
     def test_search_with_time_range(self):

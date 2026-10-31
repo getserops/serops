@@ -68,6 +68,9 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
     const [password, setPassword] = useState('');
     const [apiKey, setApiKey] = useState('');
     const [awsRegion, setAwsRegion] = useState('');
+    // Where the logs are: an index pattern (Elasticsearch / OpenSearch) or
+    // log groups (CloudWatch). Optional: the backend has defaults.
+    const [logLocation, setLogLocation] = useState('');
     const [loadingProviders, setLoadingProviders] = useState(true);
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
@@ -83,6 +86,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
         setPassword('');
         setApiKey('');
         setAwsRegion('');
+        setLogLocation('');
         setTestResult(null);
         setError(null);
     };
@@ -119,6 +123,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
     // CloudWatch authenticates with the integration's own access key:
     // key ID in username, secret in the encrypted password field.
     const isAws = providerCode === 'cloudwatch';
+    const usesIndexPattern = providerCode === 'elasticsearch' || providerCode === 'opensearch';
 
     // On provider change, auto-fill display name + preselect
     // best-guess capabilities (logs preferred).
@@ -159,6 +164,10 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
         const extra = {};
         if (apiKey && !isAws) extra.api_key = apiKey;
         if (isAws && awsRegion.trim()) extra.aws_region = awsRegion.trim();
+        if (logLocation.trim()) {
+            if (isAws) extra.log_groups = logLocation.trim();
+            else if (usesIndexPattern) extra.index_pattern = logLocation.trim();
+        }
         const payload = {
             provider: selectedProvider.code,
             display_name: displayName,
@@ -351,6 +360,20 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                         value={awsRegion}
                                         onChange={(e) => setAwsRegion(e.target.value)}
                                         placeholder="us-east-1"
+                                    />
+                                )}
+
+                                {(isAws || usesIndexPattern) && (
+                                    <TextField
+                                        fullWidth
+                                        sx={{ mb: 2 }}
+                                        label={isAws ? 'Log groups (optional)' : 'Index pattern (optional)'}
+                                        value={logLocation}
+                                        onChange={(e) => setLogLocation(e.target.value)}
+                                        placeholder={isAws ? '/ecs/shop-api, /aws/lambda/checkout' : 'logs-*, filebeat-*'}
+                                        helperText={isAws
+                                            ? 'Comma-separated. Empty: the groups named after each project.'
+                                            : "Where your logs are stored. Empty: SerOps' own indices, or else logs-*, filebeat-* and logstash-*."}
                                     />
                                 )}
 

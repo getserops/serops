@@ -45,6 +45,8 @@ from integrations.schemas import (
     _detect_level,
     _parse_timestamp,
 )
+from integrations.schemas import level_of
+from integrations.field_aliases import SERVICE_NAME_ALIASES, first_present
 
 logger = logging.getLogger(__name__)
 
@@ -324,8 +326,8 @@ class SplunkLogProvider(LogProvider):
                 LogEntry(
                     timestamp=timestamp,
                     message=row.get("message") or row.get("_raw", ""),
-                    level=_detect_level(row.get("log_level", row.get("level", "INFO"))),
-                    service=row.get("service_name", row.get("service", "")),
+                    level=level_of(row, row.get("message") or row.get("_raw", "")),
+                    service=str(first_present(row, SERVICE_NAME_ALIASES, default="")),
                     host=row.get("host", ""),
                     trace_id=row.get("trace_id", ""),
                     raw_id=row.get("_cd", ""),  # Splunk internal doc id

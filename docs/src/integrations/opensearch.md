@@ -75,6 +75,8 @@ OpenSearch uses HTTP basic authentication. Provide `username` and `password` at 
 | Field | Type | Description |
 |-------|------|-------------|
 | `verify_certs` | bool | Whether to verify SSL certificates when connecting. Defaults to `false`. |
+| `index_pattern` | string | Indices to search, comma-separated (e.g. `logs-*`). Same rules as [Elasticsearch](elasticsearch.md#where-serops-looks-for-logs) |
+
 
 ## Health Check
 
@@ -103,7 +105,7 @@ Response:
 | "Connection refused" | Verify `host` URL is reachable from SerOps backend |
 | "401 Unauthorized" | Check `username` and `password` are correct |
 | "SSL certificate error" | Set `verify_certs: false` in `extra_config` (not recommended for production) |
-| "No data returned" | Verify the time range has data; check that `capabilities` includes `"logs"` |
+| "No data returned" | Verify the time range has data; check that `capabilities` includes `"logs"`; set **Index pattern** if your logs are not in `logs-*`, `filebeat-*`, `logstash-*` or SerOps-named indices |
 | Batches are empty | Documents are missing the [required fields](#required-log-fields). Run `check_ingest` to confirm what's actually indexed |
 
 ## Related Pages

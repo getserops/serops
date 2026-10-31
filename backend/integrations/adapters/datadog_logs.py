@@ -12,7 +12,8 @@ import requests
 from requests.exceptions import RequestException
 
 from integrations.base import LogProvider, LogProviderCapabilities
-from integrations.schemas import LogEntry, LogStream, LogQuery, _parse_timestamp, _detect_level
+from integrations.field_aliases import first_present
+from integrations.schemas import LogEntry, LogStream, LogQuery, _parse_timestamp, _detect_level, level_of
 
 logger = logging.getLogger(__name__)
 
@@ -197,16 +198,23 @@ class DatadogLogProvider(LogProvider):
                 k, v = tag.split(":", 1)
                 tags[k] = v
 
-        return LogEntry(
-            timestamp=_parse_timestamp(attrs.get("timestamp", "")),
-            message=attrs.get("message", ""),
-            level=_detect_level(attrs.get("status", "info")),
-            service=attrs.get("service", tags.get("service", "")),
-            host=attrs.get("host", tags.get("host", "")),
-            labels={
-                "_index": tags.get("index", "main"),
-                **tags,
-            },
-            trace_id=attrs.get("attributes", {}).get("trace_id", ""),
+        # Custom attributes (the JSON log body) sit under attributes.attributes;
+        # reserved ones (service, host, status, message) one level up; tags
+        # are "key:value" strings. One record so every alias is read alike.
+        custom = attrs.get("attributes", {}) or {}
+        record = {**tags, **custom, **{k: v for k, v in attrs.items() if k not in ("attributes", "tags")}}
+        message = attrs.get("message", "") or ""
+        # status is Datadog's own severity, already normalised; a level
+        # attribute from the body wins when status was left at "info".
+        level = _detect_level(attrs.get("status", "info"))
+        if level == "INFO":
+            level = level_of(custom, message)
+        return LogEntry.from_record(
+            record,
             raw_id=event.get("id", ""),
+            timestamp=_parse_timestamp(attrs.get("timestamp", "")),
+            message=message,
+            level=level,
+            labels={"_index": tags.get("index", "main"), **tags, **custom},
+            trace_id=str(first_present(custom, ("trace_id", "dd.trace_id"), default="")),
         )

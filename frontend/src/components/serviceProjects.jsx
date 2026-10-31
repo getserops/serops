@@ -1,14 +1,15 @@
 
 import PageHeader from "./PageHeader";
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { Table, Button, Pagination, Nav, Tab, Badge } from "react-bootstrap";
-import { FaPlus, FaTrash, FaEye, FaServer } from "react-icons/fa";
+import { FaPlus, FaTrash, FaEye, FaServer, FaSearch } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
 import { useServiceProjects } from "../hooks/useServiceProjects";
 import ServiceDetailsModal from "./ServiceProjects/ServiceDetailsModal";
 import AddServiceWizard from "./ServiceProjects/AddServiceWizard";
 import DeploymentsPanel from "./ServiceProjects/DeploymentsPanel";
+import DataCheckPanel from "./ServiceProjects/DataCheckPanel";
 import DeploymentService from "../services/deployment.service";
 import { ProjectService } from "../services/project.service";
 import { can } from "../utils/permissions";
@@ -64,7 +65,9 @@ const ServiceProjects = () => {
   // signal doesn't stick a mystery tab in front of an SMB user).
   const [deploymentCount, setDeploymentCount] = useState(0);
   const [environments, setEnvironments] = useState([]);
-  const [activeTab, setActiveTab] = useState('services');
+  // ?tab=data opens Check my data directly (the onboarding wizard links here).
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'data' ? 'data' : 'services');
 
   useEffect(() => {
     if (!projectId) return;
@@ -113,13 +116,13 @@ const ServiceProjects = () => {
         />
         <div className="ds-card projects-card">
           <Tab.Container activeKey={activeTab} onSelect={(k) => setActiveTab(k || 'services')}>
-            {showDeploymentsTab && (
-              <Nav variant="tabs" className="px-4 pt-2">
-                <Nav.Item>
-                  <Nav.Link eventKey="services">
-                    {t('services.title', 'Services')}
-                  </Nav.Link>
-                </Nav.Item>
+            <Nav variant="tabs" className="px-4 pt-2">
+              <Nav.Item>
+                <Nav.Link eventKey="services">
+                  {t('services.title', 'Services')}
+                </Nav.Link>
+              </Nav.Item>
+              {showDeploymentsTab && (
                 <Nav.Item>
                   <Nav.Link eventKey="deployments" className="d-flex align-items-center gap-2">
                     <FaServer size={12} />
@@ -127,8 +130,14 @@ const ServiceProjects = () => {
                     <Badge bg="secondary" pill>{deploymentCount}</Badge>
                   </Nav.Link>
                 </Nav.Item>
-              </Nav>
-            )}
+              )}
+              <Nav.Item>
+                <Nav.Link eventKey="data" className="d-flex align-items-center gap-2">
+                  <FaSearch size={12} />
+                  {t('dataCheck.tab')}
+                </Nav.Link>
+              </Nav.Item>
+            </Nav>
 
             <Tab.Content>
               <Tab.Pane eventKey="services">
@@ -259,6 +268,13 @@ const ServiceProjects = () => {
                   />
                 </Tab.Pane>
               )}
+              <Tab.Pane eventKey="data" mountOnEnter unmountOnExit className="p-4">
+                <DataCheckPanel
+                  projectId={projectId}
+                  environments={environments}
+                  onFixed={refreshServices}
+                />
+              </Tab.Pane>
             </Tab.Content>
           </Tab.Container>
         </div>

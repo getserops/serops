@@ -15,6 +15,9 @@ from integrations.field_aliases import (
     LOG_LEVEL_ALIASES,
     PROJECT_NAME_ALIASES,
     SERVICE_NAME_ALIASES,
+    environment_values,
+    first_present,
+    first_present_with_key,
 )
 
 # What ``LogQuery.to_logql()`` returns when the query carries no label
@@ -47,49 +50,57 @@ class LogEntry:
 
     @classmethod
     def from_es_hit(cls, hit: dict) -> "LogEntry":
-        """Convert an Elasticsearch hit to canonical LogEntry."""
+        """Convert an Elasticsearch / OpenSearch hit to canonical LogEntry.
+
+        Reads every accepted alias, flat or nested, so SerOps-shaped
+        documents, Elastic Common Schema (``log.level``, ``service.name``
+        objects from Filebeat / Elastic Agent) and OpenTelemetry exports
+        all parse the same way.
+        """
         source = hit.get("_source", {})
-        # Level field: try log_level (Fluentd), then level, then severity
-        raw_level = (
-            source.get("log_level")
-            or source.get("level")
-            or source.get("severity")
-            or "INFO"
+        return cls.from_record(source, raw_id=hit.get("_id", ""))
+
+    @classmethod
+    def from_record(cls, doc: dict, raw_id: str = "", **overrides) -> "LogEntry":
+        """Build a LogEntry from one structured log record of any shape."""
+        message = first_present(doc, MESSAGE_FIELDS, default="")
+        if not isinstance(message, str):
+            message = str(message)
+        values = dict(
+            timestamp=_parse_timestamp(first_present(doc, TIMESTAMP_FIELDS, default="")),
+            message=message,
+            level=level_of(doc, message),
+            service=str(first_present(doc, SERVICE_NAME_ALIASES, default="")),
+            host=str(first_present(doc, HOST_FIELDS, default="")),
+            labels={k: v for k, v in doc.items() if k not in ("message", "@timestamp", "level", "severity")},
+            trace_id=str(first_present(doc, ("trace_id", "trace.id", "dd.trace_id", "traceId"), default="")),
+            raw_id=raw_id,
         )
-        # Service field: try service_name (Fluentd), then kubernetes.container_name, then service
-        raw_service = (
-            source.get("service_name")
-            or source.get("kubernetes", {}).get("container_name")
-            or source.get("service", "")
-        )
-        return cls(
-            timestamp=_parse_timestamp(source.get("@timestamp", "")),
-            message=source.get("message", ""),
-            level=_detect_level(raw_level),
-            service=raw_service,
-            host=source.get("hostname", source.get("host", "")),
-            labels={k: v for k, v in source.items() if k not in ("message", "@timestamp", "level", "severity")},
-            trace_id=source.get("trace_id", ""),
-            raw_id=hit.get("_id", ""),
-        )
+        values.update(overrides)
+        return cls(**values)
 
     def to_legacy_dict(self) -> dict:
         """
         Convert canonical LogEntry back to legacy ES-style dict.
         Bridge function to maintain compatibility with existing key-based logic.
         """
+        # Labels first, the parsed values last: an ECS record's ``service``
+        # / ``host`` objects used to overwrite the parsed names, and the
+        # batch then stored {"name": "checkout-api", ...} as the service.
         source = {
+            **self.labels,
             '@timestamp': self.timestamp.isoformat(),
             'message': self.message,
             'level': self.level,
             'service': self.service,
             'host': self.host,
             'trace_id': self.trace_id,
-            **self.labels  # Include all other labels
         }
-        # Ensure legacy environment fields if they exist in labels
-        if 'environment' in self.labels:
-            source['environment'] = self.labels['environment']
+        # The environment, wherever the record carried it (service.environment
+        # sat inside the service object replaced above).
+        env = first_present(self.labels, ENVIRONMENT_ALIASES, default='')
+        if env:
+            source['environment'] = env
         
         if self.deduplicated:
             source['deduplicated'] = True
@@ -209,11 +220,28 @@ class LogQuery:
     # no runtime enforcement is needed — but the helper below exists
     # so it's easy to do it right when a new endpoint adds one.
     project: Optional[str] = None       # filter by serops_meta.project_name
+    # Other ways the project's logs are tagged (Project.log_rules_clean()):
+    # [(field, value), ...]. A log matches the project when it carries the
+    # project name OR matches any rule.
+    project_rules: Optional[list] = None
     environment: Optional[str] = None   # filter by serops_meta.environment
+    # Other values the environment's logs carry (ProjectEnvironment.log_label_value)
+    environment_labels: Optional[list] = None
     event_type: Optional[str] = None    # "cicd_job_failure"
     text_search: Optional[str] = None   # free-text search in message
     category: Optional[str] = None      # "cicd" filter on serops_meta
     max_results: int = 5000
+
+    def project_matches(self) -> list:
+        """The project clause as alternatives: [(fields, value), ...], any one matching."""
+        if not self.project:
+            return []
+        return [(list(PROJECT_NAME_ALIASES), self.project)] + [
+            ([field], value) for field, value in (self.project_rules or [])]
+
+    def environment_values(self) -> list:
+        """Every value of the environment field this query accepts."""
+        return environment_values(self.environment, self.environment_labels or ())
 
     def scope_services_to_org(self, organisation) -> "LogQuery":
         """Filter ``self.services`` to only names belonging to ``organisation``.
@@ -282,18 +310,21 @@ class LogQuery:
             })
 
         if self.severity:
-            normalized = [s.upper() for s in self.severity]
-            # log_level.keyword is the ES-canonical mapped field; each
-            # alias is queried as a plain field (users may or may not
-            # have a .keyword mapping on aliases). minimum_should_match=1
-            # ensures at least one alias matches.
-            should = [{"terms": {"log_level.keyword": normalized}}]
-            should.extend(
-                {"terms": {alias: normalized}} for alias in LOG_LEVEL_ALIASES
-            )
-            filter_clauses.append({
-                "bool": {"should": should, "minimum_should_match": 1}
-            })
+            # Every spelling and case of each level, on every level field
+            # (plain and .keyword), plus Pino-style numbers. ``lenient``
+            # lets the same clause hit keyword, text and numeric mappings
+            # without a type error failing the whole search. Records with
+            # no level field are reached through their message words.
+            values = [_es_quote(v) for v in severity_spellings(self.severity)]
+            values += numeric_severities(self.severity)
+            level_fields = []
+            for alias in LOG_LEVEL_ALIASES:
+                level_fields += [alias, f"{alias}.keyword"]
+            filter_clauses.append({"bool": {"should": [
+                {"query_string": {"query": " OR ".join(values), "fields": level_fields, "lenient": True}},
+                {"query_string": {"query": " OR ".join(SEVERITY_MESSAGE_WORDS),
+                                  "fields": ["message"], "lenient": True}},
+            ], "minimum_should_match": 1}})
 
         # E9-1 fix: use `.keyword` sub-field for exact-match filters on
         # canonical string fields. On indices with default dynamic
@@ -314,9 +345,10 @@ class LogQuery:
 
         if self.project:
             should_terms = []
-            for alias in PROJECT_NAME_ALIASES:
-                for variant in _keyword_variants(alias):
-                    should_terms.append({"term": {variant: self.project}})
+            for fields, value in self.project_matches():
+                for alias in fields:
+                    for variant in _keyword_variants(alias):
+                        should_terms.append({"term": {variant: value}})
             filter_clauses.append({
                 "bool": {"should": should_terms, "minimum_should_match": 1}
             })
@@ -325,7 +357,7 @@ class LogQuery:
             should_terms = []
             for alias in ENVIRONMENT_ALIASES:
                 for variant in _keyword_variants(alias):
-                    should_terms.append({"term": {variant: self.environment}})
+                    should_terms.append({"terms": {variant: self.environment_values()}})
             filter_clauses.append({
                 "bool": {"should": should_terms, "minimum_should_match": 1}
             })
@@ -374,15 +406,39 @@ class LogQuery:
         if not must and not filter_clauses:
             query = {"match_all": {}}
 
-        return {"query": query, "size": self.max_results}
+        # Newest first: when a window holds more than max_results records,
+        # keep the latest ones rather than whatever the shards return.
+        return {"query": query, "size": self.max_results,
+                "sort": [{"@timestamp": {"order": "desc", "unmapped_type": "date"}}]}
 
-    def to_logql(self) -> str:
+    def to_logql_alternatives(self) -> list:
+        """One LogQL query per way the project's logs are tagged.
+
+        A stream selector cannot say "label A or label B", so a project with
+        log rules is read with one query per rule (the Loki adapter merges
+        them). Rule fields are Loki label names: dots become underscores, as
+        Loki's own OpenTelemetry ingestion does (service.namespace ->
+        service_namespace).
+        """
+        queries = [self.to_logql()]
+        for field, value in (self.project_rules or []) if self.project else []:
+            label = re.sub(r'[^A-Za-z0-9_]', '_', field)
+            if label[:1].isdigit():
+                label = '_' + label
+            queries.append(self.to_logql(project_label=(label, value)))
+        return queries
+
+    def to_logql(self, project_label=None) -> str:
         """Translate to LogQL query for Loki."""
         label_matchers = []
-        if self.project:
-            label_matchers.append(f'project_name="{self.project}"')
+        if project_label:
+            label, value = project_label
+            label_matchers.append(f'{label}="{_logql_escape(value)}"')
+        elif self.project:
+            label_matchers.append(f'project_name="{_logql_escape(self.project)}"')
         if self.environment:
-            label_matchers.append(f'environment="{self.environment}"')
+            label_matchers.append(
+                f'environment=~"{"|".join(_re2_escape(v) for v in self.environment_values())}"')
         if self.category:
             label_matchers.append(f'category="{self.category}"')
         if self.services:
@@ -416,7 +472,11 @@ class LogQuery:
             # positive (the word "error" in an INFO body) is harmless, while
             # a false negative would silently lose data — which is why no
             # word-boundary anchoring is applied here.
-            filters.append(f'|~ "(?i)({_logql_severity_alternatives(self.severity)})"')
+            alternatives = _logql_severity_alternatives(self.severity)
+            digits = "".join(n[0] for n in numeric_severities(self.severity))
+            if digits:  # Pino / Bunyan JSON lines: "level":50
+                alternatives += f'|\\"level\\":[{digits}]0'
+            filters.append(f'|~ "(?i)({alternatives})"')
         if self.text_search:
             filters.append(f'|~ "{self.text_search}"')
         if self.event_type:
@@ -427,82 +487,96 @@ class LogQuery:
     def to_datadog_query(self) -> str:
         """Translate to Datadog log search query.
 
-        Alias-aware: uses Datadog's OR syntax so a search for
-        ``service=checkout`` matches records tagged with ``service_name``,
-        ``service``, ``service.name``, ``app``, or ``app.kubernetes.io/name``.
-        Datadog USM users (with ``service``/``env``) get results
-        without adding SerOps-specific tags.
+        Every alias is matched both as a **tag** (``env:prod``, what the
+        Datadog Agent's ``tags:`` and ``DD_TAGS`` produce) and as a log
+        **attribute** (``@env:prod``, from JSON log bodies). Datadog keeps
+        the two apart, so searching attributes alone missed every tagged
+        log, including the Unified Service Tagging ``service`` / ``env``.
         """
         parts = []
 
-        def _or_across_aliases(value_expr: str, aliases: list) -> str:
-            return "(" + " OR ".join(f"@{alias}:{value_expr}" for alias in aliases) + ")"
+        def _either(aliases, values):
+            values = values if isinstance(values, list) else [values]
+            vexpr = " OR ".join(_dd_value(v) for v in values)
+            vexpr = f"({vexpr})" if len(values) > 1 else vexpr
+            clauses = []
+            for alias in aliases:
+                key = _dd_key(alias)
+                clauses += [f"{key}:{vexpr}", f"@{key}:{vexpr}"]
+            return "(" + " OR ".join(clauses) + ")"
 
         if self.project:
-            parts.append(_or_across_aliases(self.project, PROJECT_NAME_ALIASES))
+            parts.append("(" + " OR ".join(_either(f, v) for f, v in self.project_matches()) + ")")
 
         if self.environment:
-            parts.append(_or_across_aliases(self.environment, ENVIRONMENT_ALIASES))
+            parts.append(_either(ENVIRONMENT_ALIASES, self.environment_values()))
 
         if self.event_type:
-            parts.append(f"@event_type:{self.event_type}")
+            parts.append(f"@event_type:{_dd_value(self.event_type)}")
 
         if self.severity:
-            values = " OR ".join(s.lower() for s in self.severity)
-            # `status` is Datadog's native severity field (no @-prefix);
-            # other aliases need the @ prefix for log-attribute lookup.
-            severity_clauses = [f"status:({values})"]
-            severity_clauses.extend(
-                f"@{alias}:({values})" for alias in LOG_LEVEL_ALIASES
-            )
-            parts.append("(" + " OR ".join(severity_clauses) + ")")
+            # ``status`` is Datadog's own severity (lowercase: error, warn,
+            # critical, alert, emerg). Unstructured logs default to info, so
+            # their message words are searched too.
+            statuses = []
+            for v in severity_spellings(self.severity) + ["alert", "emerg", "emergency"]:
+                if v.lower() not in statuses:
+                    statuses.append(v.lower())
+            spellings = severity_spellings(self.severity) + numeric_severities(self.severity)
+            clauses = [f"status:({' OR '.join(statuses)})"]
+            clauses += [f"@{_dd_key(alias)}:({' OR '.join(_dd_value(v) for v in spellings)})"
+                        for alias in LOG_LEVEL_ALIASES if alias != "status"]
+            clauses.append("(" + " OR ".join(SEVERITY_MESSAGE_WORDS) + ")")
+            parts.append("(" + " OR ".join(clauses) + ")")
 
         if self.services:
-            values = " OR ".join(self.services)
-            parts.append(_or_across_aliases(f"({values})", SERVICE_NAME_ALIASES))
+            parts.append(_either(SERVICE_NAME_ALIASES, list(self.services)))
 
         if self.text_search:
             parts.append(self.text_search)
         if self.category:
-            parts.append(f"@category:{self.category}")
+            parts.append(f"@category:{_dd_value(self.category)}")
         return " ".join(parts) if parts else "*"
 
     def to_cloudwatch_insights(self) -> str:
         """Translate to CloudWatch Logs Insights query.
 
-        Alias-aware: emits ``(field_a = 'X' or field_b = 'X' ...)``
-        clauses so records tagged with any of the accepted alternatives
-        match. Users on ECS/EKS with Container Insights typically emit
-        ``service`` (Datadog USM style); native support saves them
-        from double-tagging.
+        Alias-aware: emits ``(field_a in [...] or field_b in [...])``
+        clauses so records tagged with any accepted alternative match.
+        Levels are compared lowercased against every spelling, and lines
+        without a level field are reached through their message words.
+        The parser reads fields from ``@message`` itself, so the query only
+        asks for the raw event.
         """
         filters = []
 
-        def _or_across_aliases(aliases: list, value) -> str:
-            # value can be a scalar or a list (for `in [...]` clauses).
-            if isinstance(value, list):
-                vlist = ", ".join(f"'{v}'" for v in value)
-                clauses = [f"{alias} in [{vlist}]" for alias in aliases]
-            else:
-                clauses = [f"{alias} = '{value}'" for alias in aliases]
-            return "(" + " or ".join(clauses) + ")"
+        def _in(aliases, values):
+            values = values if isinstance(values, list) else [values]
+            vlist = ", ".join(_cw_string(v) for v in values)
+            return "(" + " or ".join(f"{_cw_field(a)} in [{vlist}]" for a in aliases) + ")"
 
         if self.severity:
-            normalized = [s.upper() for s in self.severity]
-            filters.append(_or_across_aliases(LOG_LEVEL_ALIASES, normalized))
+            lowered = []
+            for v in severity_spellings(self.severity) + numeric_severities(self.severity):
+                if v.lower() not in lowered:
+                    lowered.append(v.lower())
+            vlist = ", ".join(_cw_string(v) for v in lowered)
+            clauses = [f"tolower({_cw_field(a)}) in [{vlist}]" for a in LOG_LEVEL_ALIASES]
+            clauses.append(f"@message like /(?i)({'|'.join(SEVERITY_MESSAGE_WORDS)})/")
+            filters.append("(" + " or ".join(clauses) + ")")
         if self.project:
-            filters.append(_or_across_aliases(PROJECT_NAME_ALIASES, self.project))
+            filters.append("(" + " or ".join(_in(f, v) for f, v in self.project_matches()) + ")")
         if self.environment:
-            filters.append(_or_across_aliases(ENVIRONMENT_ALIASES, self.environment))
+            filters.append(_in(ENVIRONMENT_ALIASES, self.environment_values()))
         if self.event_type:
-            filters.append(f"event_type = '{self.event_type}'")
+            filters.append(f"event_type = {_cw_string(self.event_type)}")
         if self.services:
-            filters.append(_or_across_aliases(SERVICE_NAME_ALIASES, self.services))
+            filters.append(_in(SERVICE_NAME_ALIASES, list(self.services)))
         if self.text_search:
-            filters.append(f"@message like '{self.text_search}'")
+            filters.append(f"@message like {_cw_string(self.text_search)}")
 
         where = " and ".join(filters)
-        query = "fields @timestamp, @message, log_level, project_name, service_name"
+        query = "fields @timestamp, @message, @logStream, @log"
         if where:
             query += f" | filter {where}"
         query += f" | sort @timestamp desc | limit {self.max_results}"
@@ -560,9 +634,13 @@ class LogQuery:
         # Properties.<name>. Perf / Syslog use flat columns; those
         # operators would rewrite these via a custom KQL block.
         if self.project:
-            lines.append(f'| where Properties.project_name == "{_kql_escape(self.project)}"')
+            ors = [f'Properties.project_name == "{_kql_escape(self.project)}"'] + [
+                f'tostring(Properties["{_kql_escape(field)}"]) == "{_kql_escape(value)}"'
+                for field, value in (self.project_rules or [])]
+            lines.append('| where ' + ' or '.join(ors))
         if self.environment:
-            lines.append(f'| where Properties.environment == "{_kql_escape(self.environment)}"')
+            env_list = ", ".join(f'"{_kql_escape(v)}"' for v in self.environment_values())
+            lines.append(f'| where tostring(Properties.environment) in~ ({env_list})')
         if self.category:
             lines.append(f'| where Properties.category == "{_kql_escape(self.category)}"')
         if self.event_type:
@@ -658,9 +736,12 @@ class LogQuery:
 
         # Label filters — quoted so anything with a space or colon works.
         if self.project:
-            clauses.append(f'labels.project_name="{_gcp_escape(self.project)}"')
+            ors = [f'labels.project_name="{_gcp_escape(self.project)}"'] + [
+                f'labels."{_gcp_escape(field)}"="{_gcp_escape(value)}"' for field, value in (self.project_rules or [])]
+            clauses.append(ors[0] if len(ors) == 1 else "(" + " OR ".join(ors) + ")")
         if self.environment:
-            clauses.append(f'labels.environment="{_gcp_escape(self.environment)}"')
+            envs = " OR ".join(f'labels.environment="{_gcp_escape(v)}"' for v in self.environment_values())
+            clauses.append(f"({envs})")
         if self.category:
             clauses.append(f'labels.category="{_gcp_escape(self.category)}"')
         if self.event_type:
@@ -713,25 +794,38 @@ class LogQuery:
         # Field filters — quoted values so anything with a space works.
         # Use conservative escaping (backslash-quote) to defeat
         # accidental SPL injection via a malicious value.
+        # Field values match case-insensitively in SPL; every alias is
+        # tried (JSON fields extracted from events keep their dotted names).
+        def _any(aliases, values):
+            values = values if isinstance(values, list) else [values]
+            vlist = ", ".join(f'"{_spl_escape(v)}"' for v in values)
+            return "(" + " OR ".join(f'{a} IN ({vlist})' for a in _spl_fields(aliases)) + ")"
+
         if self.project:
-            parts.append(f'project_name="{_spl_escape(self.project)}"')
+            ors = [_any(f, v) for f, v in self.project_matches() if _spl_fields(f)]
+            parts.append(ors[0] if len(ors) == 1 else "(" + " OR ".join(ors) + ")")
         if self.environment:
-            parts.append(f'environment="{_spl_escape(self.environment)}"')
+            parts.append(_any(ENVIRONMENT_ALIASES, self.environment_values()))
         if self.category:
             parts.append(f'category="{_spl_escape(self.category)}"')
         if self.event_type:
             parts.append(f'event_type="{_spl_escape(self.event_type)}"')
 
         if self.services:
-            svc_list = ", ".join(f'"{_spl_escape(s)}"' for s in self.services)
-            parts.append(f'service_name IN ({svc_list})')
+            parts.append(_any(SERVICE_NAME_ALIASES, list(self.services)))
 
         if self.severity:
-            # SPL uses OR joins for value alternation on the same key.
-            sev_clauses = " OR ".join(
-                f'log_level="{_spl_escape(s.upper())}"' for s in self.severity
-            )
-            parts.append(f'({sev_clauses})')
+            # Every spelling on every level field, or (for raw events with
+            # no level field) one of the message words. Bare terms search
+            # the raw event case-insensitively.
+            spellings = []
+            for v in severity_spellings(self.severity) + numeric_severities(self.severity):
+                if v.upper() not in spellings:
+                    spellings.append(v.upper())
+            vlist = ", ".join(f'"{_spl_escape(v)}"' for v in spellings)
+            clauses = [f'{a} IN ({vlist})' for a in _spl_fields(LOG_LEVEL_ALIASES)]
+            clauses += list(SEVERITY_MESSAGE_WORDS)
+            parts.append("(" + " OR ".join(clauses) + ")")
 
         if self.text_search:
             # Free-text term goes as a bare quoted phrase.
@@ -759,10 +853,11 @@ def _parse_timestamp(ts: str) -> datetime:
 
 def _detect_level(level_str: str) -> str:
     """Normalize log level string."""
-    if not level_str:
+    if level_str is None or level_str == "":
         return "INFO"
-    upper = level_str.upper().strip()
-    if upper in ("ERROR", "ERR", "FATAL", "CRITICAL", "CRIT"):
+    upper = str(level_str).upper().strip()
+    if upper in ("ERROR", "ERR", "FATAL", "CRITICAL", "CRIT", "ALERT", "EMERG", "EMERGENCY",
+                 "PANIC", "SEVERE"):
         return "ERROR"
     if upper in ("WARN", "WARNING"):
         return "WARN"
@@ -787,6 +882,90 @@ _SEVERITY_LINE_SYNONYMS = {
     'TRACE':    ('DEBUG', 'TRACE'),
     'INFO':     ('INFO',),
 }
+
+
+# Field names other than the level aliases that carry a record's parts.
+MESSAGE_FIELDS = ("message", "msg", "body", "log", "body.text", "body_text", "@message")
+TIMESTAMP_FIELDS = ("@timestamp", "timestamp", "time", "ts")
+# The Kubernetes node first: Filebeat, Fluent Bit and the OTel Collector run
+# as agents and write their own name to host.name / hostname, so on
+# Kubernetes those named the log shipper, not where the container ran.
+HOST_FIELDS = ("kubernetes.node.name", "kubernetes.host", "k8s.node.name", "hostname", "host.name", "host",
+               "host.hostname")
+
+# Words that mark a line worth fetching even without a level field
+# (unstructured logs). A coarse pre-filter only: the level of each line is
+# decided after it arrives, so an INFO line that says "error" is harmless.
+SEVERITY_MESSAGE_WORDS = (
+    "error", "err", "exception", "fatal", "critical", "panic", "failed",
+    "failure", "traceback", "timeout", "warn", "warning", "refused", "denied",
+    "unauthorized", "oom",
+)
+
+# Numeric levels written by Pino / Bunyan (Node): 40 warn, 50 error, 60 fatal.
+_NUMERIC_LEVEL_BY_CANONICAL = {"WARN": ("40",), "ERROR": ("50",), "CRITICAL": ("60",)}
+
+
+def severity_spellings(severities) -> list:
+    """Every way a requested severity is written, in each common case.
+
+    Providers compare level values exactly, so asking for ``WARNING`` alone
+    missed ``WARN``, ``warn`` and ``Warning``: Java, Go and Node loggers
+    were never fetched.
+    """
+    out = []
+    for level in severities or ():
+        for spelling in _SEVERITY_LINE_SYNONYMS.get(str(level).upper(), (str(level).upper(),)):
+            for variant in (spelling, spelling.lower(), spelling.title()):
+                if variant not in out:
+                    out.append(variant)
+    return out
+
+
+def numeric_severities(severities) -> list:
+    out = []
+    for level in severities or ():
+        canonical = _detect_level(level)
+        canonical = "CRITICAL" if str(level).upper() in ("CRITICAL", "CRIT", "FATAL") else canonical
+        for n in _NUMERIC_LEVEL_BY_CANONICAL.get(canonical, ()):
+            if n not in out:
+                out.append(n)
+    return out
+
+
+def level_from_value(key, value) -> str:
+    """Canonical level from one level field. Numbers are read on the scale
+    of the field they came in: OpenTelemetry ``severity_number`` (17+ error),
+    syslog ``severity`` (0-7), otherwise Pino / Bunyan (50 error, 40 warn)."""
+    if isinstance(value, bool):
+        return "INFO"
+    number = None
+    if isinstance(value, (int, float)):
+        number = value
+    elif isinstance(value, str) and value.strip().isdigit():
+        number = int(value.strip())
+    if number is None:
+        return _detect_level(str(value))
+    if key and key.endswith("status"):
+        return "INFO"  # an HTTP status code, not a level
+    if key and "number" in key:
+        return "ERROR" if number >= 17 else "WARN" if number >= 13 else "INFO" if number >= 9 else "DEBUG"
+    if key and key.startswith("severity") and 0 <= number <= 7:
+        return "ERROR" if number <= 3 else "WARN" if number == 4 else "DEBUG" if number == 7 else "INFO"
+    return "ERROR" if number >= 50 else "WARN" if number >= 40 else "INFO" if number >= 30 else "DEBUG"
+
+
+def level_of(doc, message: str = "") -> str:
+    """A record's level: its level field when it has one, else read from
+    the line itself (unstructured logs)."""
+    key, value = first_present_with_key(doc, LOG_LEVEL_ALIASES + ["severity_number"])
+    if key:
+        return level_from_value(key, value)
+    return _detect_level_from_line(message, default="INFO")
+
+
+def _es_quote(value: str) -> str:
+    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def _logql_severity_alternatives(severities) -> str:
@@ -845,6 +1024,47 @@ def _detect_level_from_line(line: str, default: str = "INFO") -> str:
 # ---------------------------------------------------------------------------
 # Provider-specific string helpers
 # ---------------------------------------------------------------------------
+
+
+def _spl_fields(names) -> list:
+    """Alias field names the SPL search command can take as they are.
+    Names with other characters (``app.kubernetes.io/name``) are left out:
+    search has no way to quote a field name."""
+    return [n for n in names if re.fullmatch(r"[A-Za-z0-9_.]+", n)]
+
+
+def _logql_escape(value: str) -> str:
+    """A value inside a LogQL double-quoted label matcher."""
+    return str(value).replace('\\', '\\\\').replace('"', '\\"')
+
+
+def _re2_escape(value: str) -> str:
+    """Escape a literal for a LogQL (RE2) regex inside a double-quoted string."""
+    escaped = re.sub(r'([\\.+*?()|\[\]{}^$])', r'\\\\\1', str(value))
+    return escaped.replace('"', '\\"')
+
+
+def _dd_value(value) -> str:
+    """A Datadog search value: quoted when it contains spaces or syntax."""
+    value = str(value)
+    if re.fullmatch(r"[A-Za-z0-9_.\-]+", value) and not value.startswith("-"):
+        return value
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _dd_key(name: str) -> str:
+    """A Datadog field name: ``/`` is search syntax and must be escaped."""
+    return name.replace("/", "\\/")
+
+
+def _cw_string(value) -> str:
+    """A single-quoted CloudWatch Logs Insights string literal."""
+    return "'" + str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def _cw_field(name: str) -> str:
+    """A field name for Logs Insights: backticked unless it is plain."""
+    return name if re.fullmatch(r"[A-Za-z0-9_.@]+", name) else "`" + name.replace("`", "") + "`"
 
 
 def _spl_escape(value: str) -> str:
