@@ -910,6 +910,10 @@
 .settings-table :is(th, td):first-child { padding-left: 20px; }
 .settings-table :is(th, td):last-child { padding-right: 20px; text-align: right; }
 .settings-table tbody tr:last-child td { border-bottom: 0; }
+/* A settings table inside a padded section body (not edge to edge): the body
+   already insets it, so its first and last columns line up with the text. */
+.settings-table.settings-table-inset :is(th, td):first-child { padding-left: 0; }
+.settings-table.settings-table-inset :is(th, td):last-child { padding-right: 0; }
 
 /* Short values (counts, status, dates) sit centred under their header.
    Phones stack the rows into cards, so only from tablet width up. */

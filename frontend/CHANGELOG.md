@@ -10,6 +10,8 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.2.11] - 2026-10-31
+
 ## [1.2.10] - 2026-10-31
 
 ## [1.2.9] - 2026-10-27

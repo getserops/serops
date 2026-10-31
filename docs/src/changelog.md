@@ -16,6 +16,22 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.2.11] - 2026-10-31
+
+Small fix release, no migration. Set `SEROPS_VERSION=1.2.11` or
+`--version 1.2.11`.
+
+### Fixed
+
+- Errors that come with both a code and a sentence showed the code: the
+  read-only demo displayed `demo_read_only` instead of its message, and
+  investigation limits their code. The sentence is shown.
+- The tables of **Check my data** line up with their section's text.
+
+The UI quality gate now checks the project Data tab on every CI run.
+
+---
+
 ## [1.2.10] - 2026-10-31
 
 Data collection release. Two migrations (Data 0055, Projects 0016) run on

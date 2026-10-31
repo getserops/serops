@@ -1,12 +1,15 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { PAGES } from './pages';
+import { FLOWS } from './flows';
 
 const open = async (page: Page, path: string, theme: 'light' | 'dark' = 'light') => {
   await page.addInitScript((t) => {
     localStorage.setItem('seropsSettings', JSON.stringify({ theme: t }));
   }, theme);
-  await page.goto(path);
+  // "flow:<name>": a page reached by clicks (flows.ts), not by URL.
+  if (path.startsWith('flow:')) await FLOWS[path.slice(5)](page);
+  else await page.goto(path);
   await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
   // Charts and lazy panels settle after the last request.
   await page.waitForTimeout(800);
@@ -102,7 +105,8 @@ test.describe('table inset', () => {
           // inside the cell starts there too).
           const ref = cell.getBoundingClientRect().left + parseFloat(getComputedStyle(cell).paddingLeft);
           const texts = Array.from(card.querySelectorAll('h1,h2,h3,h4,h5,h6,p,small,label,li,span,div,a'))
-            .filter((el) => vis(el) && !el.closest('table, .dropdown-menu, .modal, .pagination, button') && el.closest(CARD) === card)
+            // Boxed elements (buttons, alerts) inset their own text: their edge lines up, not the text.
+            .filter((el) => vis(el) && !el.closest('table, .dropdown-menu, .modal, .pagination, button, .alert') && el.closest(CARD) === card)
             .filter((el) => Array.from(el.childNodes).some((c) => c.nodeType === 3 && (c.textContent || '').trim()));
           for (const el of texts) {
             const x = textLeft(el);

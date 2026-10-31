@@ -61,7 +61,7 @@ function SeenTable({ title, rows, showField, showRegistered, t }) {
     return (
         <div className="settings-subsection">
             <h4 className="settings-subsection-title">{title}</h4>
-            <Table hover responsive className="table-stack settings-table mb-0">
+            <Table hover responsive className="table-stack settings-table settings-table-inset mb-0">
                 <thead>
                     <tr>
                         <th>{t('dataCheck.value')}</th>
@@ -173,7 +173,7 @@ export default function DataCheckPanel({ projectId, environments = [], onFixed }
                 {runs.length > 0 && (
                     <div className="settings-subsection border-0 pt-0">
                         <h4 className="settings-subsection-title">{t('dataCheck.lastRuns')}</h4>
-                        <Table hover responsive className="table-stack settings-table mb-0">
+                        <Table hover responsive className="table-stack settings-table settings-table-inset mb-0">
                             <thead>
                                 <tr>
                                     <th>{t('dataCheck.environment')}</th>
@@ -261,7 +261,7 @@ export default function DataCheckPanel({ projectId, environments = [], onFixed }
                                 <h4 className="settings-subsection-title">
                                     {t('dataCheck.steps', { minutes: report.window_minutes })}
                                 </h4>
-                                <Table hover responsive className="table-stack settings-table mb-0">
+                                <Table hover responsive className="table-stack settings-table settings-table-inset mb-0">
                                     <thead>
                                         <tr>
                                             <th>{t('dataCheck.step.title')}</th>
@@ -309,7 +309,7 @@ export default function DataCheckPanel({ projectId, environments = [], onFixed }
                             <div className="settings-subsection">
                                 <h4 className="settings-subsection-title">{t('dataCheck.rules.title')}</h4>
                                 <p className="form-hint mb-0">{t('dataCheck.rules.hint', { project: report.project })}</p>
-                                <Table hover responsive className="table-stack settings-table mb-0">
+                                <Table hover responsive className="table-stack settings-table settings-table-inset mb-0">
                                     <thead>
                                         <tr>
                                             <th>{t('dataCheck.field')}</th>
@@ -342,7 +342,7 @@ export default function DataCheckPanel({ projectId, environments = [], onFixed }
                             <div className="settings-subsection">
                                 <h4 className="settings-subsection-title">{t('dataCheck.groupings.title')}</h4>
                                 <p className="form-hint mb-0">{t('dataCheck.groupings.hint', { project: report.project })}</p>
-                                <Table hover responsive className="table-stack settings-table mb-0">
+                                <Table hover responsive className="table-stack settings-table settings-table-inset mb-0">
                                     <thead>
                                         <tr>
                                             <th>{t('dataCheck.field')}</th>

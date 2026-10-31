@@ -7,6 +7,19 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.2.11] - 2026-10-31
+
+Small fix release, no migration. Set `SEROPS_VERSION=1.2.11` or `--version 1.2.11`.
+
+### Changed
+
+- The UI quality gate checks the project Data tab (accessibility in light and dark, phone width, table alignment) on every CI run.
+
+### Fixed
+
+- Errors that come with both a code and a sentence (the read-only demo's `demo_read_only`, investigation limits) showed the code. The sentence is shown.
+- The tables of Check my data started 20 px inside the section's text; they line up now.
+
 ## [1.2.10] - 2026-10-31
 
 Data collection release: logs as real shippers write them reach the analysis,

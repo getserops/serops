@@ -13,6 +13,7 @@ export const PAGES: [string, string][] = [
   ['investigate', '/dash/investigate'],
   ['chat', '/dash/chat'],
   ['projects', '/dash/projects'],
+  ['project-data', 'flow:project-data'],  // Projects → [project] → Data, check result shown (flows.ts)
   ['traces', '/dash/traces'],
   ['notifications', '/dash/notifications'],
   ['profile', '/dash/profile'],

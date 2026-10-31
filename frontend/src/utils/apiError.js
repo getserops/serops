@@ -68,7 +68,9 @@ export function describeRequestError(error, rejectedMsg) {
   }
 
   // Prefer whatever the server said; it knows more than we do.
-  const fromServer = response.data?.error || response.data?.message;
+  // Some endpoints answer {error: "<code>", message: "<sentence>"} (the demo's
+  // "demo_read_only"): the sentence is for people, the code for programs.
+  const fromServer = response.data?.message || response.data?.error;
   if (fromServer) return fromServer;
 
   // Rate limits answer with `detail`, which used to be ignored: a throttled

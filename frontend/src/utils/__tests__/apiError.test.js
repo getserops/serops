@@ -35,6 +35,11 @@ describe('describeRequestError', () => {
     expect(describeRequestError(err, REJECTED)).toBe('Too many attempts');
   });
 
+  it('prefers the sentence over a code when the server sends both', () => {
+    const err = { response: { status: 403, data: { error: 'demo_read_only', message: "You're in the SerOps live demo — sign up to make changes." } } };
+    expect(describeRequestError(err, 'rejected')).toBe("You're in the SerOps live demo — sign up to make changes.");
+  });
+
   it('reports a 5xx as a server error, not a credentials problem', () => {
     const err = { response: { status: 503, data: {} } };
     expect(describeRequestError(err, REJECTED)).toBe(SERVER_ERROR);
