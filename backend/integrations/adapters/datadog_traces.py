@@ -83,10 +83,8 @@ class DatadogTraceAdapter(TraceProvider):
     def __init__(self, config: dict = None):
         super().__init__(config)
         # DD site is configurable — US1, US3, US5, EU1, US1-FED.
-        site = self._config.get('site') or self._config.get(
-            'extra_config', {}
-        ).get('site', 'datadoghq.com')
-        self.base_url = f'https://api.{site}'
+        from integrations.adapters.datadog_logs import datadog_site
+        self.base_url = f'https://api.{datadog_site(self._config)}'
         self._session = requests.Session()
 
         extras = self._config.get('extra_config', {}) or {}

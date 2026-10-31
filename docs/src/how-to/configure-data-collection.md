@@ -82,11 +82,11 @@ If your metrics come from Kubernetes, set the integration's `topology_mode` to `
 | Setting | VM mode (default) | Kubernetes mode |
 |---------|-------------------|-----------------|
 | **Prometheus** metric | `node_cpu_seconds_total`, `node_memory_MemTotal_bytes` | `sum by (service_name)(rate(container_cpu_usage_seconds_total[5m]))`, `sum by (service_name)(container_spec_memory_limit_bytes)` |
-| **Datadog** metric | `avg:system.cpu.user`, `avg:system.mem.total` | `avg:kubernetes.cpu.usage.total{...} by {service_name}`, `avg:kubernetes.memory.limits{...} by {service_name}` |
-| **CloudWatch** namespace | `AWS/EC2` + `CWAgent` | `ContainerInsights` (`pod_cpu_utilization`, `pod_memory_working_set`) |
+| **Datadog** metric | `avg:system.cpu.user`, `avg:system.mem.total` | `sum:container.cpu.usage{...} by {service}`, `sum:container.memory.limit{...} by {service}` |
+| **CloudWatch** namespace | `AWS/EC2` + `CWAgent` | `ContainerInsights` (`pod_cpu_utilization`, `pod_memory_utilization_over_pod_limit`) by `Service` |
 | Best for | Bare-metal, VMs, EC2 instances | Kubernetes clusters where pods move |
 
-Kubernetes mode is verified with Prometheus on single-node clusters; the Datadog and CloudWatch columns are not yet validated live. See [Tested environments](../integrations/overview.md#tested-environments).
+Kubernetes mode is verified on single-node clusters with Prometheus, the Datadog Agent and CloudWatch Container Insights; not yet on managed or multi-node clusters. See [Tested environments](../integrations/overview.md#tested-environments).
 
 **Prerequisites for `kubernetes` mode**:
 
@@ -168,6 +168,10 @@ Logs that use another value (`live`, `prod-eu`) count for an environment once
 you accept that value: **Check my data** offers it in one click when it sees
 it in your logs. The scheduled analysis then queries that value too.
 
+Logs that carry no environment at all count when the project has a single
+active environment: they can only belong to it. Once the project has a second
+active environment, only logs that carry one of its values count.
+
 ---
 
 ### Projects tagged another way
@@ -178,7 +182,7 @@ already grouped another way, tell the project:
 | Your logs carry | Project log rule |
 |-----------------|------------------|
 | OpenTelemetry `service.namespace: shop` | `service.namespace = shop` (or `resource.attributes.service.namespace` as the Collector's Elasticsearch exporter writes it) |
-| A Kubernetes namespace per project | `kubernetes.namespace = shop` (Filebeat), `kubernetes.namespace_name = shop` (Fluent Bit), `namespace = shop` (Loki) |
+| A Kubernetes namespace per project | `kubernetes.namespace = shop` (Filebeat), `kubernetes.namespace_name = shop` (Fluent Bit), `namespace = shop` (Loki), `kube_namespace = shop` (Datadog Agent) |
 | An `app.kubernetes.io/part-of` or `team` label | `kubernetes.labels.app_kubernetes_io/part-of = shop`, `team = payments` |
 
 A log belongs to the project when it carries `project_name` (or `project`)
@@ -187,6 +191,13 @@ ever adds logs. A project has up to five rules. Every log store is queried
 this way. On Loki the field is a label name (dots become underscores, as
 Loki's own OpenTelemetry ingestion writes them: `service_namespace`) and
 SerOps runs one query per rule.
+
+A rule whose value is one of an environment's values also puts its logs in
+that environment: with `kubernetes.namespace_name = production`, the
+namespace's logs are Production logs even though they carry no environment
+field. This is how Kubernetes logs shipped without pod labels (CloudWatch
+Container Insights) get an environment. A namespace named after the project
+(`shop`) says nothing about the environment.
 
 The easiest way to set a rule: **Projects → [project] → Data → Check my
 data** lists how the logs with no project field are grouped, values equal to

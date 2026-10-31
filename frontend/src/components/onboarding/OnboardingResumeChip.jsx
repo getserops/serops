@@ -56,7 +56,10 @@ export default function OnboardingResumeChip({ onResume }) {
                     position: 'fixed',
                     bottom: 16,
                     right: 16,
-                    zIndex: 1300,   // Above most content, below modals (MUI modal z=1300+)
+                    // Below every dialog: Bootstrap modals sit at 1055 (backdrop
+                    // 1050), MUI at 1300. At 1300 it covered the "Create" button
+                    // of Settings dialogs.
+                    zIndex: 1040,
                     maxWidth: 380,
                 }}
             >

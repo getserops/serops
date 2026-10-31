@@ -12,7 +12,7 @@ from .models import (
 )
 from django.conf import settings
 from ai_model.tasks import analyze_batch
-from datetime import datetime
+from datetime import datetime, timezone as dt_timezone
 from .serializers import serialize_metrics
 from Projects.models import Project
 from .audit import log_batch_delete
@@ -186,6 +186,10 @@ def create_log_batch(self):
                     logger.error(f"Error parsing timestamp {ts_str}: {str(e)}")
                     return False
             
+            if log_time.tzinfo is None:
+                # Log stores send UTC; a naive time (or the datetime.min a
+                # missing timestamp parses to) cannot be compared otherwise.
+                log_time = log_time.replace(tzinfo=dt_timezone.utc)
             result = batch_start_time <= log_time <= batch_end_time
             if not result:
                 logger.debug(f"Log outside batch window - ts: {ts_str}, log_time: {log_time}, " 
@@ -628,6 +632,7 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                 severity=SEVERITIES,
                 environment=environment.name if environment else None,
                 environment_labels=environment.log_labels() if environment else None,
+                environment_untagged=bool(environment and environment.is_only_environment()),
                 project=project_name,
                 project_rules=project.log_rules_clean() if project else None,
             )
@@ -687,6 +692,10 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                     logger.error(f"Error parsing timestamp {ts_str}: {str(e)}")
                     return False
 
+            if log_time.tzinfo is None:
+                # Log stores send UTC; a naive time (or the datetime.min a
+                # missing timestamp parses to) cannot be compared otherwise.
+                log_time = log_time.replace(tzinfo=dt_timezone.utc)
             result = batch_start_time <= log_time <= batch_end_time
             if not result:
                 logger.debug(f"Log outside batch window for {project_name} - ts: {ts_str}, log_time: {log_time}, " 
@@ -1067,12 +1076,12 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                 cicd_results = []
                 try:
                     cicd_results = provider.search(
-                        index=cicd_stream.to_index_name(),
+                        index=provider.stream_location(cicd_stream),
                         query=cicd_query,
                         size=100,
                     )
                 except Exception as e:
-                    logger.debug(f"CI/CD search on {cicd_stream.to_index_name()} failed: {e}")
+                    logger.debug(f"CI/CD search on {provider.stream_location(cicd_stream)} failed: {e}")
 
                 # Deduplicate by pipeline_id + job_name (prefer records with trace)
                 seen_jobs = {}

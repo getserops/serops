@@ -149,6 +149,51 @@ class DatadogEventParseTest(SimpleTestCase):
         self.assertEqual(DatadogLogProvider._event_to_log_entry(event).level, 'WARN')
 
 
+class DatadogSearchTest(SimpleTestCase):
+    """Found against a real Datadog (EU) trial, 2026-10-31."""
+
+    def provider(self):
+        return DatadogLogProvider({'site': 'datadoghq.eu', 'api_key': 'k', 'app_key': 'a'})
+
+    def response(self, status, body):
+        r = mock.Mock(ok=status < 400, status_code=status, text=str(body))
+        r.json.return_value = body
+        return r
+
+    def test_the_time_range_is_sent_as_datadog_reads_it(self):
+        p = self.provider()
+        start = datetime(2026, 10, 31, 9, 0, tzinfo=timezone.utc)
+        with mock.patch.object(p._session, 'post', return_value=self.response(200, {'data': []})) as post:
+            p.search('*', LogQuery(project='shop', time_range=(start, start + timedelta(minutes=15))))
+        flt = post.call_args.kwargs['json']['filter']
+        self.assertEqual((flt['from'], flt['to']), ('2026-10-31T09:00:00.000Z', '2026-10-31T09:15:00.000Z'))
+
+    def test_a_refused_query_is_an_error_not_zero_logs(self):
+        from integrations.base import LogSearchError
+        p = self.provider()
+        refused = self.response(400, {'errors': ['invalid_argument(bad time)']})
+        with mock.patch.object(p._session, 'post', return_value=refused):
+            with self.assertRaisesRegex(LogSearchError, 'bad time'):
+                p.search('*', LogQuery(project='shop'))
+
+    def test_indexes_are_listed_from_the_real_endpoint(self):
+        p = self.provider()
+        listed = mock.Mock(); listed.json.return_value = {'indexes': [{'name': 'main'}]}
+        with mock.patch.object(p._session, 'get', return_value=listed) as get:
+            self.assertEqual(p.get_indices(None), ['main'])
+        self.assertEqual(get.call_args.args[0], 'https://api.datadoghq.eu/api/v1/logs/config/indexes')
+
+    def test_unreadable_index_list_means_every_index(self):
+        import requests
+        p = self.provider()
+        denied = mock.Mock(); denied.raise_for_status.side_effect = requests.HTTPError('401 Unauthorized')
+        with mock.patch.object(p._session, 'get', return_value=denied):
+            self.assertEqual(p.get_indices(None), ['*'])
+        empty = mock.Mock(); empty.json.return_value = {'indexes': []}
+        with mock.patch.object(p._session, 'get', return_value=empty):
+            self.assertEqual(p.get_indices(None), ['*'])
+
+
 class CloudWatchTest(SimpleTestCase):
     def provider(self, **config):
         with mock.patch('integrations.adapters.cloudwatch_logs._get_boto3_client') as client:
@@ -168,8 +213,9 @@ class CloudWatchTest(SimpleTestCase):
         self.assertTrue(is_log_matching_environment(e, 'production'))
 
     def test_plain_line_level_from_text_and_service_from_stream(self):
+        # The awslogs driver names streams "prefix/container/task-id".
         rows = [[{'field': '@message', 'value': '[ERROR] payment failed'},
-                 {'field': '@logStream', 'value': 'checkout/web/123'}]]
+                 {'field': '@logStream', 'value': 'ecs/checkout/123'}]]
         [e] = CloudWatchLogProvider._parse_results(rows, '/ecs/shop')
         self.assertEqual((e.level, e.service), ('ERROR', 'checkout'))
 
@@ -184,7 +230,7 @@ class CloudWatchTest(SimpleTestCase):
         self.assertNotIn('logGroupName', kwargs)
 
     def test_no_time_range_does_not_crash_at_midnight(self):
-        p = self.provider()
+        p = self.provider(log_groups='/ecs/a')
         p.client.start_query.return_value = {'queryId': 'q'}
         p.client.get_query_results.return_value = {'status': 'Complete', 'results': []}
         with mock.patch('integrations.adapters.cloudwatch_logs.datetime') as dt:

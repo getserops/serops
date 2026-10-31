@@ -160,6 +160,10 @@ def fetch_metrics_with_provider(start_time, end_time, project_obj=None, project_
         else:
             ts = provider.query_range('node_cpu_seconds_total', labels, start_time, end_time)
             metrics['cpu'] = _map_timeseries(ts, 'node_cpu_seconds_total')
+            # CloudWatch and Datadog hand back a CPU percentage, not a
+            # seconds counter: calculate_cpu_usage would differentiate it.
+            if getattr(provider, 'cpu_is_percent', False) is True:
+                metrics['cpu_usage_percent'] = metrics['cpu']
 
         # Container lifecycle (Kubernetes only).
         #

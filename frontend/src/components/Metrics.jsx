@@ -355,11 +355,6 @@ const Metrics = () => {
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
-                      {peakCaption(cpuServices) && (
-                        <p className="small text-muted mb-0 mt-2" data-testid="cpu-peak-caption">
-                          {peakCaption(cpuServices)}
-                        </p>
-                      )}
                       {/* What the line is: a maximum across services, not an
                           average of them. The services list came back on
                           every fetch and nothing read it, so a point at 98%
@@ -515,6 +510,11 @@ const Metrics = () => {
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
+                      {peakCaption(cpuServices) && (
+                        <p className="small text-muted mb-0 mt-2" data-testid="cpu-peak-caption">
+                          {peakCaption(cpuServices)}
+                        </p>
+                      )}
                     </Card.Body>
                   </Card>
                 </Col>

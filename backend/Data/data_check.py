@@ -27,6 +27,7 @@ from django.utils import timezone
 
 from integrations.field_aliases import (
     ENVIRONMENT_ALIASES,
+    ENVIRONMENT_VALUE_ALIASES,
     PROJECT_NAME_ALIASES,
     environment_values,
     first_present,
@@ -57,6 +58,8 @@ GROUPING_FIELDS = [
     'kubernetes.namespace_name',                # Fluent Bit
     'k8s.namespace.name',                       # OpenTelemetry Kubernetes attributes
     'namespace',                                # Promtail / Loki label
+    'kube_namespace',                           # Datadog Agent tag
+    'kube_app_part_of',                         # Datadog Agent tag (app.kubernetes.io/part-of)
     'kubernetes.labels.app_kubernetes_io/part-of',  # Fluent Bit, Replace_Dots
     'kubernetes.labels.app.kubernetes.io/part-of',
     'app.kubernetes.io/part-of',
@@ -151,6 +154,7 @@ def check_project_data(project, environment=None, minutes=DEFAULT_MINUTES):
 
     registered = registered_service_names(project)
     env_labels = environment.log_labels() if environment else []
+    untagged = bool(environment and environment.is_only_environment())
 
     def run(key, **filters):
         if filters.get('project'):
@@ -191,7 +195,8 @@ def check_project_data(project, environment=None, minutes=DEFAULT_MINUTES):
 
     if environment:
         in_env = run('environment', project=project.name, environment=environment.name,
-                     environment_labels=env_labels or None)
+                     environment_labels=env_labels or None,
+                     environment_untagged=untagged)
         if in_env is None:
             return stop('search_failed', error=report['stages'][-1]['error'])
     else:
@@ -208,6 +213,11 @@ def check_project_data(project, environment=None, minutes=DEFAULT_MINUTES):
         claimed = {v.lower() for v in report['environment_values']}
         for other in ProjectEnvironment.objects.filter(project=project).exclude(pk=environment.pk):
             claimed |= {v.lower() for v in environment_values(other.name, other.log_labels())}
+        # Nor a spelling of another standard environment ("staging" for
+        # Production), even when the project has no such environment.
+        for spellings in ENVIRONMENT_VALUE_ALIASES.values():
+            if not claimed & set(spellings):
+                claimed |= set(spellings)
         stray = [v['value'] for v in report['seen']['environment'] if v['value'].lower() not in claimed]
         report['fixes'] += [{'action': 'use_environment_label', 'environment': environment.id, 'value': v}
                             for v in stray[:3]]
@@ -216,7 +226,8 @@ def check_project_data(project, environment=None, minutes=DEFAULT_MINUTES):
 
     errors = run('level', project=project.name, severity=SEVERITIES,
                  environment=environment.name if environment else None,
-                 environment_labels=env_labels or None)
+                 environment_labels=env_labels or None,
+                 environment_untagged=untagged)
     if errors is None:
         return stop('search_failed', error=report['stages'][-1]['error'])
     errors = [e for e in errors if is_important_log(e)]

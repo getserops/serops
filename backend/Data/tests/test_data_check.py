@@ -57,7 +57,8 @@ class FakeStore:
                 continue
             if query.environment:
                 wanted = {v.lower() for v in query.environment_values()}
-                if str(first_present(e.labels, ENVIRONMENT_ALIASES, default='')).lower() not in wanted:
+                env = str(first_present(e.labels, ENVIRONMENT_ALIASES, default='')).lower()
+                if env not in wanted and not (query.environment_untagged and not env):
                     continue
             if query.severity and e.level not in ('ERROR', 'WARN', 'WARNING', 'CRITICAL'):
                 continue
@@ -140,6 +141,12 @@ class CheckMyDataTest(TestCase):
         self.env.refresh_from_db()
         self.assertEqual(self.check(store)['diagnosis']['count'], 2)
 
+    def test_a_standard_name_of_another_environment_is_never_offered(self):
+        # The project has only Production: "staging" is still not a spelling of it.
+        store = FakeStore([entry(environment='production'), entry(environment='staging'), entry(environment='live')])
+        values = [f['value'] for f in self.check(store)['fixes'] if f['action'] == 'use_environment_label']
+        self.assertEqual(values, ['live'])
+
     def test_another_environment_of_the_project_is_never_offered(self):
         ProjectEnvironment.objects.create(project=self.project, name='staging', display_name='Staging')
         store = FakeStore([entry(environment='production'), entry(environment='stg'), entry(environment='live')])
@@ -149,6 +156,22 @@ class CheckMyDataTest(TestCase):
     def test_usual_environment_spellings_are_not_offered(self):
         report = self.check(FakeStore([entry(environment='prod')]))
         self.assertEqual(report['diagnosis']['code'], 'ok')
+
+    def test_logs_with_no_environment_count_when_the_project_has_one(self):
+        store = FakeStore([entry(), entry(environment=None, service='payments')])
+        report = self.check(store)
+        self.assertEqual(report['diagnosis']['count'], 2)
+        self.assertTrue(all(q.environment_untagged for q in store.queries if q.environment))
+
+    def test_logs_with_no_environment_are_left_out_when_the_project_has_several(self):
+        ProjectEnvironment.objects.create(project=self.project, name='staging', display_name='Staging')
+        report = self.check(FakeStore([entry(), entry(environment=None, service='payments')]))
+        self.assertEqual(report['diagnosis']['count'], 1)
+
+    def test_an_inactive_environment_does_not_count(self):
+        ProjectEnvironment.objects.create(project=self.project, name='staging', display_name='Staging',
+                                          is_active=False)
+        self.assertTrue(self.env.is_only_environment())
 
     def test_no_errors_is_good_news(self):
         report = self.check(FakeStore([entry(level='INFO'), entry(level='DEBUG')]))
@@ -234,6 +257,7 @@ class EnvironmentLabelReachesEveryQueryTest(TestCase):
                             environment=env.id, interval_minutes=15)
         query = runner.provider.search.call_args_list[0].args[1]
         self.assertIn('live', query.environment_values())
+        self.assertTrue(query.environment_untagged)
         self.assertTrue(DataRunStatus.objects.get(project=project, environment=env).outcome in ('batch', 'skipped'))
 
 
@@ -416,6 +440,12 @@ class ProjectLogRulesTest(TestCase):
         self.assertEqual(report['diagnosis']['count'], 3, 'the rule adds logs; project_name still counts')
         self.assertIn('frontend', [s['value'] for s in report['seen']['service']])
         self.assertEqual(report['seen']['groupings'], [], 'nothing left to map')
+
+    def test_the_datadog_agent_namespace_tag_is_offered(self):
+        log = entry(project=None)
+        log.labels['kube_namespace'] = 'api'   # the Agent's tag, merged into labels by the adapter
+        report = self.check(FakeStore([entry(), log]))
+        self.assertIn({'action': 'add_project_rule', 'field': 'kube_namespace', 'value': 'api'}, report['fixes'])
 
     def test_a_grouping_of_another_name_is_listed_but_not_recommended(self):
         log = entry(project=None)

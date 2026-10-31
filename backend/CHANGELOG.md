@@ -7,6 +7,56 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.2.12] - 2026-10-31
+
+Cloud integrations release, no migration. Set `SEROPS_VERSION=1.2.12` or `--version 1.2.12`. Datadog and AWS CloudWatch were run end to end against real accounts, including Kubernetes with the Datadog Agent and Container Insights.
+
+### Changed
+
+- A project with a single active environment also reads the logs that carry no environment at all (common on AWS: Lambda and ECS logs with only the project in the group name). With two or more environments, such logs still stay out. Applies to every log store; on CloudWatch a group whose name says another environment (`-staging`) stays out.
+
+### Fixed
+
+Found with a real Datadog Agent on Kubernetes (journey suite):
+
+- Datadog Kubernetes mode never returned a metric: it asked for `kubernetes.cpu.usage.total` and `kubernetes.memory.usage`, which the current Agent does not send, grouped by a `service_name` tag no Agent sets. It reads the container metrics the Agent sends (`container.cpu.usage`, `container.memory.limit`, `container.memory.usage`), summed per `service`.
+- The Datadog Kubernetes docs: the Helm values they gave did not install (`datadog.env` must be a list), log collection was left off, and agent-level tags put every pod of the node in the project. They now tag by namespace label.
+
+Found with a real CloudWatch agent on Kubernetes (journey suite):
+
+- CloudWatch Kubernetes mode returned no memory and a CPU about 100 times too high. Container Insights publishes percentages only: memory read `pod_memory_working_set`, never published as a metric, and CPU was the node percentage the pipeline treated as cores. Memory is now `pod_memory_utilization_over_pod_limit` (of the node when no pod has a limit) and CPU is in cores. Metrics were also kept only from a namespace named after the project; the environment's namespace counts too.
+- Kubernetes logs shipped without pod labels (Container Insights) never had an environment, so a project with several environments analysed none of them, and Check my data offered no way out. A project rule whose value names an environment (`kubernetes.namespace_name = production`) now also puts its logs in that environment, on every log store.
+- An analysis of CloudWatch logs crashed and never ran ("can't compare offset-naive and offset-aware datetimes"): Logs Insights returns timestamps without an offset. They are read as UTC.
+- On CloudWatch, CI/CD events were written to `/serops/cicd/<org>` but searched in `serops-cicd-<org>` (the Elasticsearch index name), a group that never exists: pipeline failures were never correlated, and every scheduled run logged an error.
+- The CloudWatch Kubernetes docs: the Container Insights quickstart command left four placeholders, so `kubectl` rejected the manifest; and they said pod labels reach Container Insights, which they do not (logs are shipped with `Labels Off`).
+
+Found against a real Datadog account:
+
+- Datadog metrics: an organisation whose name has a space ("Acme Cloud") got no metrics, because the query was not even parsed. Tag values are written as Datadog stores them (`acme_cloud`).
+- Datadog metrics were averaged over every host, so one host running out of memory read as a fleet at half capacity. They come one series per host, with UTC timestamps.
+- Check my data offers the Datadog Agent's `kube_namespace` and `kube_app_part_of` tags as project log rules.
+- The Datadog site entered in the form ("Datadog Site", e.g. `datadoghq.eu`) was ignored: every EU, US3 and US5 install called the US site and saw its valid keys refused. It is used now, also when pasted as `app.datadoghq.eu` or a URL.
+- Datadog "Test connection" only checked the API key; it also checks that the application key can read logs and query metrics, and says what is wrong.
+- The application key is required in Settings and in the onboarding wizard (the wizard had no field for it, so a Datadog source added there could never search logs).
+- The onboarding "Setup is …% done" box and the floating wizard sat above Settings dialogs and covered their buttons ("Create" in New log provider). They now stay below every dialog.
+- Datadog VM CPU (`system.cpu.user`) is a percentage; it was differentiated as a CPU-seconds counter.
+
+Found against a real AWS account (CloudWatch):
+
+- Check my data said "Everything is in place" while most errors were missed: CloudWatch logs seldom carry a project field, the log group says it. A record in a group named after the project (`/ecs/shop-payments`, `/aws/lambda/shop-checkout`) belongs to it unless the record names another project, and the environment can be a word of the group name (`/ecs/shop-orders-prod`). Plain-text lines count too.
+- EKS Container Insights log groups, named after the cluster, are searched; Check my data offers the `kubernetes.namespace_name` rule for them.
+- Lambda logs got the service "2026" from the dated stream name; they get the function name. ECS streams give the container.
+- A refused, failed or timed-out Logs Insights query was reported as "no logs"; Check my data now says the store refused the query and why. Searching all groups no longer asks for a nonexistent `/aws/application` group.
+- CloudWatch metrics never worked: "Test connection" and host discovery always failed (an invalid ListMetrics parameter), and no metric was ever returned (SerOps labels were sent as dimensions). Metrics now come one series per host from the CloudWatch agent, CPU falls back to EC2 `CPUUtilization`, and CPU is read as the percentage it is.
+- CloudWatch "Test connection" starts a query and reads a metric, and names the missing IAM permission.
+
+Found against a real Datadog account (log search):
+
+- Every Datadog log search with a time range was refused (the time was sent as `…+00:00Z`), so scheduled analyses on Datadog found no logs. Times are sent in the format Datadog reads.
+- A refused search came back as "no logs": a run then said there were no errors. It is reported as the log store refusing the query, with Datadog's message.
+- SerOps listed Datadog indexes from an endpoint that does not exist, and an empty list made the scheduler skip the project. It uses `/api/v1/logs/config/indexes`, and searches every index when the list cannot be read.
+- Check my data offered another standard environment's name ("use staging for Production") when the project had no such environment. It no longer does.
+
 ## [1.2.11] - 2026-10-31
 
 Small fix release, no migration. Set `SEROPS_VERSION=1.2.11` or `--version 1.2.11`.

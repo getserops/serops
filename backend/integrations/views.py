@@ -158,7 +158,7 @@ class ObservabilityIntegrationViewSet(viewsets.ModelViewSet):
                         'provider': type(provider).__name__,
                         'provider_type': 'log',
                         'healthy': healthy,
-                        'message': 'OK' if healthy else 'Health check failed',
+                        'message': 'OK' if healthy else (getattr(provider, 'last_error', None) or 'Health check failed'),
                     })
                 elif cap == 'metrics' and integration.metric_adapter_class:
                     provider = IntegrationRegistry.get_metric_provider(
@@ -171,7 +171,7 @@ class ObservabilityIntegrationViewSet(viewsets.ModelViewSet):
                         'provider': type(provider).__name__,
                         'provider_type': 'metric',
                         'healthy': healthy,
-                        'message': 'OK' if healthy else 'Health check failed',
+                        'message': 'OK' if healthy else (getattr(provider, 'last_error', None) or 'Health check failed'),
                     })
             except Exception as exc:
                 logger.error('Health check error for %s/%s: %s', integration.provider, cap, exc)

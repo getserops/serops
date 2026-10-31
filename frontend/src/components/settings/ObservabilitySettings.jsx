@@ -123,9 +123,12 @@ const PROVIDERS = {
         name: "Datadog", icon: SiDatadog, color: "#632CA6",
         capabilities: ["logs", "metrics", "traces"],
         fields: [
-            { name: "host", label: "Datadog Site", placeholder: "datadoghq.com", required: true },
+            { name: "host", label: "Datadog Site", placeholder: "datadoghq.com", required: true,
+              help: "The domain you sign in to: datadoghq.com, datadoghq.eu, us3.datadoghq.com, us5.datadoghq.com..." },
             { name: "extra_config.api_key", label: "API Key", type: "password", required: true },
-            { name: "extra_config.app_key", label: "Application Key", type: "password" },
+            // Searching logs and querying metrics need it, not only the API key.
+            { name: "extra_config.app_key", label: "Application Key", type: "password", required: true,
+              help: "An application key (not a personal access token) with logs_read_data, logs_read_index_data and timeseries_query." },
         ],
     },
     cloudwatch: {

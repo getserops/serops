@@ -6,9 +6,9 @@ Covers:
   * `get_config()` includes topology_mode so adapters can read it
   * Prometheus adapter emits `container_cpu_usage_seconds_total{...}`
     aggregated by `sum by (service_name)` when in kubernetes mode
-  * Datadog adapter emits `avg:kubernetes.cpu.usage.total{...} by {service_name}`
-  * CloudWatch adapter picks the `ContainerInsights` namespace + pod_*
-    metric name when in kubernetes mode
+  * Datadog adapter emits `sum:container.cpu.usage{...} by {service} / 1000000000`
+  * CloudWatch adapter reads Container Insights' pod_* percentages in
+    kubernetes mode and turns them into what the pipeline expects
   * VM mode remains unchanged for all three (regression protection)
   * Unknown metric in K8s mode gracefully falls back to VM behavior
 """
@@ -21,7 +21,7 @@ from django.test import SimpleTestCase, TestCase
 from Organisations.models import Organisations
 from integrations.adapters.datadog_metrics import (
     DatadogMetricProvider,
-    K8S_METRIC_NAME_MAP as DD_K8S_MAP,
+    K8S_METRIC_QUERIES as DD_K8S_MAP,
 )
 from integrations.adapters.prometheus import (
     K8S_METRIC_EXPR_TEMPLATES as PROM_K8S_TEMPLATES,
@@ -206,15 +206,15 @@ class DatadogK8sModeTest(SimpleTestCase):
         self.assertNotIn('kubernetes', q)
         self.assertNotIn('by {service_name}', q)
 
-    def test_k8s_mode_uses_kubernetes_metrics(self):
+    def test_k8s_mode_uses_the_container_metrics_the_agent_sends(self):
+        # Found against a real Agent: no kubernetes.cpu.usage.total, no
+        # service_name tag. container.cpu.usage is nanocores.
         q = DatadogMetricProvider._build_metric_query(
             'node_cpu_seconds_total',
             {'organisation_name': 'acme'},
             topology_mode='kubernetes',
         )
-        self.assertIn('kubernetes.cpu.usage.total', q)
-        self.assertIn('organisation_name:acme', q)
-        self.assertIn('by {service_name}', q)
+        self.assertEqual(q, 'sum:container.cpu.usage{organisation_name:acme} by {service} / 1000000000')
 
     def test_k8s_mode_memory_metric(self):
         q = DatadogMetricProvider._build_metric_query(
@@ -222,8 +222,21 @@ class DatadogK8sModeTest(SimpleTestCase):
             {'organisation_name': 'acme'},
             topology_mode='kubernetes',
         )
-        self.assertIn('kubernetes.memory.limits', q)
-        self.assertIn('by {service_name}', q)
+        self.assertEqual(q, 'sum:container.memory.limit{organisation_name:acme} by {service}')
+
+    def test_k8s_free_memory_is_limit_minus_usage(self):
+        q = DatadogMetricProvider._build_metric_query('node_memory_MemFree_bytes', {}, topology_mode='kubernetes')
+        self.assertEqual(q, 'sum:container.memory.limit{*} by {service} - sum:container.memory.usage{*} by {service}')
+
+    def test_k8s_series_are_keyed_by_service_name(self):
+        from unittest.mock import MagicMock, patch
+        from datetime import datetime
+        provider = DatadogMetricProvider({'api_key': 'k', 'app_key': 'a', 'topology_mode': 'kubernetes'})
+        resp = MagicMock()
+        resp.json.return_value = {'series': [{'scope': 'service:payments', 'pointlist': [[1793460000000, 0.07]]}]}
+        with patch.object(provider._session, 'get', return_value=resp):
+            series = provider.query_range('node_cpu_seconds_total', {}, datetime(2026, 10, 31), datetime(2026, 10, 31, 1))
+        self.assertEqual(series[0].labels['service_name'], 'payments')
 
     def test_k8s_mode_unknown_metric_falls_back_to_vm(self):
         q = DatadogMetricProvider._build_metric_query(
@@ -232,7 +245,7 @@ class DatadogK8sModeTest(SimpleTestCase):
             topology_mode='kubernetes',
         )
         # Falls through to VM path — passes metric name unchanged, no `by`
-        self.assertEqual(q, 'avg:my_custom_metric{organisation_name:acme}')
+        self.assertEqual(q, 'avg:my_custom_metric{organisation_name:acme} by {host}')
 
     def test_k8s_name_map_covers_all_canonical_metrics(self):
         canonical = {
@@ -262,12 +275,17 @@ class CloudWatchK8sModeTest(SimpleTestCase):
     def _provider(self, topology_mode='vm'):
         with patch('integrations.adapters.cloudwatch_metrics._get_boto3_client'):
             from integrations.adapters.cloudwatch_metrics import CloudWatchMetricProvider
-            return CloudWatchMetricProvider({
+            provider = CloudWatchMetricProvider({
                 'aws_region': 'us-east-1',
                 'topology_mode': topology_mode,
             })
+        # One listed series that fits every mapping (agent host, EKS Service).
+        dims = {'host': 'web-1', 'cpu': 'cpu-total', 'ClusterName': 'prod', 'Namespace': 'shop', 'Service': 'api'}
+        provider.client.get_paginator.return_value.paginate.return_value = [
+            {'Metrics': [{'Dimensions': [{'Name': k, 'Value': v} for k, v in dims.items()]}]}]
+        return provider
 
-    def test_vm_mode_queries_ec2_namespace(self):
+    def test_vm_mode_queries_the_agent_namespace(self):
         provider = self._provider(topology_mode='vm')
         # Mock get_metric_data to just capture the call
         provider.client.get_metric_data = MagicMock(return_value={'MetricDataResults': []})
@@ -279,7 +297,7 @@ class CloudWatchK8sModeTest(SimpleTestCase):
         namespace = provider.client.get_metric_data.call_args.kwargs[
             'MetricDataQueries'
         ][0]['MetricStat']['Metric']['Namespace']
-        self.assertEqual(namespace, 'AWS/EC2')
+        self.assertEqual(namespace, 'CWAgent')
 
     def test_k8s_mode_queries_container_insights(self):
         provider = self._provider(topology_mode='kubernetes')
@@ -295,18 +313,82 @@ class CloudWatchK8sModeTest(SimpleTestCase):
         self.assertEqual(namespace, 'ContainerInsights')
         self.assertEqual(metric_name, 'pod_cpu_utilization')
 
-    def test_k8s_mode_memory_uses_pod_working_set(self):
-        provider = self._provider(topology_mode='kubernetes')
+    def _queries(self, provider, metric, labels=None):
         provider.client.get_metric_data = MagicMock(return_value={'MetricDataResults': []})
-        provider.query_range(
-            'node_memory_MemTotal_bytes',
-            {'organisation_name': 'acme'},
-            datetime(2026, 1, 1), datetime(2026, 1, 1, 1),
-        )
-        metric_name = provider.client.get_metric_data.call_args.kwargs[
-            'MetricDataQueries'
-        ][0]['MetricStat']['Metric']['MetricName']
-        self.assertEqual(metric_name, 'pod_memory_working_set')
+        provider.query_range(metric, labels or {'organisation_name': 'acme'},
+                             datetime(2026, 1, 1), datetime(2026, 1, 1, 1))
+        return provider.client.get_metric_data.call_args.kwargs['MetricDataQueries']
+
+    def _list(self, provider, *series):
+        provider.client.get_paginator.return_value.paginate.return_value = [
+            {'Metrics': [{'Dimensions': [{'Name': k, 'Value': v} for k, v in dims.items()]}
+                         for dims in series]}]
+
+    def test_k8s_mode_memory_is_a_percentage_of_the_limit(self):
+        """Container Insights publishes no memory bytes by default, only
+        percentages: total 100, available 100 - used, used against the limit."""
+        provider = self._provider(topology_mode='kubernetes')
+        for metric, expr in (('node_memory_MemTotal_bytes', 'm0 * 0 + 100'),
+                             ('node_memory_MemFree_bytes', '100 - m0'),
+                             ('node_memory_MemAvailable_bytes', '100 - m0')):
+            read = {q['Id']: q for q in self._queries(provider, metric)}
+            self.assertEqual(read['m0']['MetricStat']['Metric']['MetricName'],
+                             'pod_memory_utilization_over_pod_limit')
+            self.assertFalse(read['m0']['ReturnData'])
+            self.assertEqual(read['r0']['Expression'], expr, metric)
+            self.assertTrue(read['r0']['ReturnData'])
+
+    def test_k8s_mode_memory_without_limits_is_a_percentage_of_the_node(self):
+        provider = self._provider(topology_mode='kubernetes')
+        pages = {'pod_memory_utilization_over_pod_limit': [{'Metrics': []}],
+                 'pod_memory_utilization': [{'Metrics': [{'Dimensions': [
+                     {'Name': 'ClusterName', 'Value': 'c'}, {'Name': 'Namespace', 'Value': 'shop'},
+                     {'Name': 'Service', 'Value': 'api'}]}]}]}
+        provider.client.get_paginator.return_value.paginate.side_effect = \
+            lambda Namespace, MetricName: pages[MetricName]
+        read = {q['Id']: q for q in self._queries(provider, 'node_memory_MemFree_bytes')}
+        self.assertEqual(read['m0']['MetricStat']['Metric']['MetricName'], 'pod_memory_utilization')
+        self.assertEqual(read['r0']['Expression'], '100 - m0')
+
+    def test_k8s_mode_cpu_is_in_cores(self):
+        """pod_cpu_utilization is % of the node; the pipeline multiplies by 100,
+        expecting cores: % / 100 x the node's cores x the running pods."""
+        provider = self._provider(topology_mode='kubernetes')
+        self._list(provider,
+                   {'ClusterName': 'prod', 'Namespace': 'shop', 'Service': 'api'},
+                   {'ClusterName': 'prod', 'Namespace': 'shop', 'Service': 'web'})
+        read = {q['Id']: q for q in self._queries(provider, 'node_cpu_seconds_total')}
+        self.assertEqual(read['r0']['Expression'], 'm0 / 100 * node_cpu0 / 1000 * pods0')
+        self.assertEqual(read['r1']['Expression'], 'm1 / 100 * node_cpu0 / 1000 * pods1')
+        node = read['node_cpu0']['MetricStat']['Metric']
+        self.assertEqual((node['MetricName'], node['Dimensions']),
+                         ('node_cpu_limit', [{'Name': 'ClusterName', 'Value': 'prod'}]))
+        pods = read['pods1']['MetricStat']['Metric']
+        self.assertEqual(pods['MetricName'], 'service_number_of_running_pods')
+        self.assertIn({'Name': 'Service', 'Value': 'web'}, pods['Dimensions'])
+        # One node query per cluster, whatever the number of services.
+        self.assertEqual([i for i in read if i.startswith('node_cpu')], ['node_cpu0'])
+
+    def test_k8s_mode_scopes_by_the_namespace_of_the_project_or_environment(self):
+        provider = self._provider(topology_mode='kubernetes')
+        self._list(provider,
+                   {'ClusterName': 'c', 'Namespace': 'production', 'Service': 'payments'},
+                   {'ClusterName': 'c', 'Namespace': 'kube-system', 'Service': 'kube-dns'},
+                   {'ClusterName': 'c', 'Namespace': 'shop', 'Service': 'cart'})
+        labels = {'organisation_name': 'acme', 'project_name': 'shop', 'environment': 'production'}
+        queries = self._queries(provider, 'node_memory_MemFree_bytes', labels)
+        services = sorted(d['Value'] for q in queries if 'MetricStat' in q
+                          for d in q['MetricStat']['Metric']['Dimensions'] if d['Name'] == 'Service')
+        self.assertEqual(services, ['cart', 'payments'])
+
+    def test_k8s_mode_names_each_series_after_its_service(self):
+        provider = self._provider(topology_mode='kubernetes')
+        provider.client.get_metric_data = MagicMock(return_value={'MetricDataResults': [
+            {'Id': 'r0', 'Timestamps': [datetime(2026, 1, 1)], 'Values': [42.0]}]})
+        [ts] = provider.query_range('node_memory_MemFree_bytes', {},
+                                    datetime(2026, 1, 1), datetime(2026, 1, 1, 1))
+        self.assertEqual(ts.labels['service_name'], 'api')
+        self.assertEqual(ts.points[0].value, 42.0)
 
     def test_k8s_mode_unknown_metric_returns_empty(self):
         """Unknown-metric behavior is the same in both modes: empty list + warning log."""

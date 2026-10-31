@@ -39,8 +39,8 @@ Last full run: **2026-10-24**, SerOps `main` after 1.2.5, Kubernetes 1.31
 | [OpenSearch](opensearch.md) | 1.3 and later (2.x, 3.x) | 1.3.20, 2.17.1, 3.1.0 | Live-tested |
 | [Grafana Loki](loki.md) | 2.9 and later (3.x) | 2.9.10, 3.2.1 | Live-tested |
 | [Splunk Enterprise](splunk.md) | 8.2 and later (9.x) | 8.2.12, 9.3.2 | Live-tested |
-| [Datadog](datadog.md) | Cloud service | — | Unit-tested |
-| [AWS CloudWatch](cloudwatch.md) | Cloud service (Logs Insights) | — | Unit-tested |
+| [Datadog](datadog.md) | Cloud service | Datadog EU, Agent 7 (Helm chart 3.264) | Live-tested |
+| [AWS CloudWatch](cloudwatch.md) | Cloud service (Logs Insights) | `eu-central-1`: ECS and Lambda log groups, Container Insights (Fluent Bit 3.0) | Live-tested |
 | [Google Cloud Logging](gcp.md) | Cloud service | — | Unit-tested |
 | [Azure Monitor](azure.md) | Cloud service (Log Analytics) | — | Unit-tested |
 
@@ -55,8 +55,8 @@ and Splunk through HEC).
 | [Prometheus](prometheus.md) | 2.x and 3.x | 2.55.1, 3.1.0 | Live-tested |
 | [VictoriaMetrics](victoriametrics.md) | Single node 1.x | 1.106.1 | Live-tested |
 | [Grafana Mimir](mimir.md) | 2.x | 2.14.2 (multi-tenant) | Live-tested |
-| [Datadog](datadog.md) | Cloud service | — | Unit-tested |
-| [AWS CloudWatch](cloudwatch.md) | Cloud service | — | Unit-tested |
+| [Datadog](datadog.md) | Cloud service | Datadog EU, Agent 7: host and Kubernetes container metrics | Live-tested |
+| [AWS CloudWatch](cloudwatch.md) | Cloud service | `eu-central-1`: CloudWatch agent 1.300074, host and Container Insights metrics | Live-tested |
 | [Google Cloud Monitoring](gcp.md) | Cloud service | — | Unit-tested |
 | [Azure Monitor](azure.md) | Cloud service | — | Unit-tested |
 

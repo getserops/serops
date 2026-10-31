@@ -202,6 +202,17 @@ describe('Metrics peak-across-services caption', () => {
     expect(caption.textContent).toContain('metrics.peakAcrossMany');
   });
 
+  it('puts each caption under its own chart', async () => {
+    // Found by the journey suite: both captions sat under the Memory chart.
+    svc.getBatchMetrics.mockResolvedValue({ ...POINTS, services: ['api', 'cache'] });
+    render(<Metrics />);
+    const cpu = await waitFor(() => screen.getByTestId('cpu-peak-caption'));
+    const memory = screen.getByTestId('memory-peak-caption');
+    expect(cpu.closest('.card')).not.toBe(memory.closest('.card'));
+    expect(cpu.closest('.card').textContent).toContain('metrics.cpuUsageOverTime');
+    expect(memory.closest('.card').textContent).toContain('metrics.memoryUsageOverTime');
+  });
+
   it('uses the singular phrasing for a single service', async () => {
     svc.getBatchMetrics.mockResolvedValue({ ...POINTS, services: ['cache'] });
     render(<Metrics />);

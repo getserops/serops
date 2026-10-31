@@ -44,6 +44,14 @@ Datadog uses API key and application key authentication. Both keys must be provi
 - **API Key** (`api_key`): Authenticates requests to the Datadog API.
 - **App Key** (`app_key`): Grants access to specific Datadog resources and scopes.
 
+Create the application key under **Organization Settings → Application Keys → New Key** (not a Personal Access Token, whose key starts with `ddpat_`). SerOps only reads, so scope it down to:
+
+| Scope | Used for |
+|-------|----------|
+| `logs_read_data` | Searching logs (analyses, Check my data) |
+| `logs_read_index_data` | Listing your log indexes. Without it SerOps searches every index |
+| `timeseries_query` | Querying metrics, when Datadog is also your metrics provider |
+
 No basic auth (`username`/`password`) is used for Datadog.
 
 ## Extra Configuration
@@ -70,50 +78,58 @@ SerOps automatically maps Prometheus-style metric names to Datadog metrics:
 
 ## Kubernetes setup
 
-!!! warning "Not yet validated against a live Datadog account"
-    The Datadog adapter, including this mode, is implemented and unit-tested,
-    but has not yet run against a live account or an in-cluster Datadog Agent.
+!!! note "Tested with a real Datadog Agent"
+    Checked in October 2026 with the `datadog/datadog` Helm chart (Agent 7)
+    on a local Kubernetes cluster, sending to a Datadog EU account: logs,
+    Check my data, metrics per service and an investigation.
     See [Tested environments](overview.md#tested-environments).
 
-Set the integration's `topology_mode` to `kubernetes` to switch SerOps from `system.*` metrics (host-level) to `kubernetes.*` metrics aggregated per service:
+Set the integration's **Topology mode** to **Kubernetes** (Settings →
+Integrations, in the integration's form) to read container metrics per
+service instead of host metrics:
 
 | Query | VM mode | Kubernetes mode |
 |-------|---------|-----------------|
-| CPU | `avg:system.cpu.user{...}` | `avg:kubernetes.cpu.usage.total{...} by {service_name}` |
-| Memory total | `avg:system.mem.total{...}` | `avg:kubernetes.memory.limits{...} by {service_name}` |
-| Memory usage | `avg:system.mem.free{...}` (inverse) | `avg:kubernetes.memory.usage{...} by {service_name}` |
+| CPU | `avg:system.cpu.user{...} by {host}` | `sum:container.cpu.usage{...} by {service}`, in cores |
+| Memory total | `avg:system.mem.total{...} by {host}` | `sum:container.memory.limit{...} by {service}` |
+| Memory free | `avg:system.mem.free{...} by {host}` | limit minus `container.memory.usage`, by service |
 
-**Prerequisites**: run the Datadog Agent as a DaemonSet on your cluster with the Kubernetes integration enabled (default). Add SerOps' canonical tags via `DD_TAGS` on the agent:
+The Agent tags every container with `service` (the deployment name, unless
+[Unified Service Tagging](https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/)
+sets another), so the services SerOps lists match your deployments.
+
+**Prerequisites**: run the Datadog Agent with the `datadog/datadog` Helm
+chart. Turn on log collection (it is off by default) and give your logs the
+project and environment from labels on the project's namespace:
 
 ```yaml
-# helm values.yaml for datadog/datadog chart
+# values.yaml for the datadog/datadog chart
 datadog:
-  apiKey: <YOUR-DD-API-KEY>
+  apiKeyExistingSecret: datadog-keys   # a Secret with api-key (and app-key)
   clusterName: prod-eks
   tags:
-    - "organisation_name:<YOUR-ORG>"
-    - "project_name:<YOUR-PROJECT>"
-    - "environment:production"
-  # Unified Service Tagging (USM) — DD's own convention. SerOps aliases
-  # `service` → `service_name` at query time, so setting `service` here
-  # via env vars or pod annotations works automatically.
-  env: production
-  # cluster-wide default; per-pod annotations override.
-kubelet:
-  tlsVerify: false     # only for kubeadm/minikube self-signed CAs
+    - "organisation_name:<YOUR-ORG>"   # every pod on the node gets this one
+  namespaceLabelsAsTags:
+    project_name: project_name
+    environment: environment
+  logs:
+    enabled: true
+    containerCollectAll: true
+  kubelet:
+    tlsVerify: false     # only for kubeadm/minikube self-signed CAs
 ```
 
-For **per-pod** service tagging (recommended), add DD's admission-controller annotations to your deployments:
-
-```yaml
-metadata:
-  annotations:
-    admission.datadoghq.com/service: "checkout"   # → aliased to service_name
-    admission.datadoghq.com/env: "production"     # → aliased to environment
-    admission.datadoghq.com/version: "v2.3.1"
+```bash
+kubectl label namespace <project-namespace> project_name=<YOUR-PROJECT> environment=production
 ```
 
-SerOps' log-side aliases (`service` → `service_name`, `env` → `environment`) mean you don't have to add SerOps-specific tags — the standard USM tags work.
+!!! warning "Agent-level tags land on every pod"
+    A tag under `datadog.tags` is added to every container on the node:
+    coredns, the Agent itself, other projects. Put `project_name` and
+    `environment` on the project's namespace as above, not under
+    `datadog.tags`. Logs that carry no project tag can also be joined to a
+    project from **Check my data** (it offers `kube_namespace` and
+    `kube_app_part_of` as project rules).
 
 **APM tip**: if your DD agents send traces, the same tagging flows through, so SerOps can correlate them with logs and metrics. See [Distributed Traces](traces.md).
 
@@ -150,6 +166,7 @@ Response:
 | "Connection refused" | Verify `host` URL is reachable from SerOps backend |
 | "403 Forbidden" | Verify `api_key` and `app_key` are valid and have the required permissions |
 | "No data returned" | Verify the time range has data; check that `capabilities` includes the expected type |
+| Analyses find nothing although logs arrive | Open **Projects → [project] → Data → Check my data**: it shows where logs drop out (project tag, environment, level, services) and what Datadog answered |
 
 ## Related Pages
 

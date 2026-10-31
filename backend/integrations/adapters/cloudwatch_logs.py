@@ -10,13 +10,33 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import List, Tuple, Optional
 
-from integrations.base import LogProvider, LogProviderCapabilities
+from integrations.base import LogProvider, LogProviderCapabilities, LogSearchError
 from integrations.field_aliases import first_present
 from integrations.schemas import (
     MESSAGE_FIELDS, LogEntry, LogStream, LogQuery, _parse_timestamp, _detect_level, level_of,
 )
 
 logger = logging.getLogger(__name__)
+
+# Lambda writes one stream per execution environment, named by date
+# ("2026/10/31/[$LATEST]9f8e..."): the function is in the group name.
+LAMBDA_GROUP_PREFIX = "/aws/lambda/"
+# EKS Container Insights (Fluent Bit) names the group after the cluster.
+CONTAINER_INSIGHTS_PREFIX = "/aws/containerinsights/"
+_DENIED = {"AccessDenied", "AccessDeniedException", "UnauthorizedOperation"}
+_BAD_KEY = {"UnrecognizedClientException", "InvalidClientTokenId", "InvalidSignatureException",
+            "SignatureDoesNotMatch", "IncompleteSignature"}
+
+
+def _aws_error(exc, action: str) -> str:
+    """A sentence for the person setting up the integration."""
+    code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
+    if code in _DENIED:
+        return (f"The access key is not allowed to call {action}. "
+                "Add it to the IAM policy of this key.")
+    if code in _BAD_KEY:
+        return "AWS does not recognise this access key, or the secret access key is wrong."
+    return str(exc)[:300]
 
 
 def _get_boto3_client(service: str, config: dict):
@@ -76,14 +96,15 @@ class CloudWatchLogProvider(LogProvider):
     def __init__(self, config: dict = None):
         super().__init__(config)
         self.client = _get_boto3_client("logs", self._config)
-        self.default_log_group = self._config.get(
-            "default_log_group", "/aws/application"
-        )
+        self.default_log_group = self._config.get("default_log_group") or ""
         # Integration setting: log groups to search (comma-separated or a list).
         groups = self._config.get("log_groups") or []
         if isinstance(groups, str):
             groups = groups.split(",")
         self.log_groups = [g.strip() for g in groups if g and g.strip()]
+
+    def stream_location(self, stream: LogStream) -> str:
+        return stream.to_cloudwatch_log_group()
 
     def index(self, documents: list, stream: LogStream) -> int:
         """
@@ -117,7 +138,7 @@ class CloudWatchLogProvider(LogProvider):
 
         events = []
         for doc in documents:
-            ts_ms = int(datetime.utcnow().timestamp() * 1000)
+            ts_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
             if "timestamp" in doc:
                 try:
                     dt = datetime.fromisoformat(doc["timestamp"].replace("Z", "+00:00"))
@@ -142,12 +163,28 @@ class CloudWatchLogProvider(LogProvider):
             return 0
 
     def health_check(self) -> bool:
-        """Validate credentials by listing log groups."""
+        """Validate the key by listing log groups, then starting a query."""
+        self.last_error = None
         try:
-            self.client.describe_log_groups(limit=1)
+            groups = self.client.describe_log_groups(limit=1).get("logGroups", [])
+        except Exception as exc:
+            logger.error("CloudWatch Logs health check failed: %s", exc)
+            self.last_error = _aws_error(exc, "logs:DescribeLogGroups")
+            return False
+        if not groups:
+            return True
+        end = datetime.now(timezone.utc)
+        try:
+            self.client.start_query(
+                logGroupNames=[groups[0]["logGroupName"]],
+                startTime=int((end - timedelta(minutes=1)).timestamp()),
+                endTime=int(end.timestamp()),
+                queryString="fields @timestamp | limit 1",
+            )
             return True
         except Exception as exc:
             logger.error("CloudWatch Logs health check failed: %s", exc)
+            self.last_error = _aws_error(exc, "logs:StartQuery")
             return False
 
     def search(
@@ -162,10 +199,15 @@ class CloudWatchLogProvider(LogProvider):
         Accepts both legacy dict queries and LogQuery DTOs.
         """
         # The scheduler passes every discovered group joined by commas;
-        # Insights takes them as a list (at most 50 per query).
-        log_groups = [g.strip() for g in (index or self.default_log_group).split(",") if g.strip()]
+        # Insights takes them as a list (at most 50 per query) and has no
+        # wildcard, so "*" or nothing means the configured groups.
+        log_groups = [g.strip() for g in (index or "").split(",") if g.strip() and g.strip() != "*"]
+        if not log_groups:
+            log_groups = self._all_groups()
         log_groups = log_groups[:50]
-        log_group = log_groups[0] if log_groups else self.default_log_group
+        if not log_groups:
+            return []
+        log_group = log_groups[0]
 
         # Translate LogQuery → Insights query if needed
         if isinstance(query, LogQuery):
@@ -191,34 +233,51 @@ class CloudWatchLogProvider(LogProvider):
                 queryString=insights_query,
                 limit=min(size, 10000),  # CW max is 10000
             )
-            query_id = response["queryId"]
-            return self._poll_results(query_id, log_group)
-
         except Exception as exc:
             logger.error("CloudWatch Logs search failed: %s", exc)
-            return []
+            raise LogSearchError(_aws_error(exc, "logs:StartQuery")) from exc
+        return self._poll_results(response["queryId"], log_group)
+
+    def _all_groups(self) -> List[str]:
+        """The groups to search when the caller names none."""
+        if self.log_groups:
+            return list(self.log_groups)
+        if self.default_log_group:
+            return [self.default_log_group]
+        try:
+            result = self.client.describe_log_groups(limit=50)
+        except Exception as exc:
+            raise LogSearchError(_aws_error(exc, "logs:DescribeLogGroups")) from exc
+        return [g["logGroupName"] for g in result.get("logGroups", [])]
 
     def get_indices(self, project) -> List[str]:
         """Log groups to search for a project.
 
         The integration's ``log_groups`` setting when set; otherwise groups
         whose name starts with ``/aws/<project>`` or contains the project
-        name (``/ecs/shop-api``, ``/serops/application/shop``, ...).
-        Records are still filtered by project and environment fields.
+        name (``/ecs/shop-api``, ``/aws/lambda/shop-checkout``, ...), plus
+        the EKS Container Insights application groups, which are named
+        after the cluster. A record in a group named after the project
+        belongs to it unless it names another project (see
+        ``LogQuery.to_cloudwatch_insights``); records in the other groups
+        need a project field or a project rule.
         """
         if self.log_groups:
             return list(self.log_groups)
         raw_name = project.name if hasattr(project, "name") else str(project)
         name = raw_name.lower().strip()
         found = []
-        for kwargs in ({"logGroupNamePrefix": f"/aws/{name}"}, {"logGroupNamePattern": name}):
+        for kwargs in ({"logGroupNamePrefix": f"/aws/{name}"}, {"logGroupNamePattern": name},
+                       {"logGroupNamePrefix": CONTAINER_INSIGHTS_PREFIX}):
             try:
                 result = self.client.describe_log_groups(limit=50, **kwargs)
             except Exception as exc:
                 logger.warning("CloudWatch describe_log_groups %s failed: %s", kwargs, exc)
                 continue
             found += [g["logGroupName"] for g in result.get("logGroups", [])
-                      if g["logGroupName"] not in found]
+                      if g["logGroupName"] not in found
+                      and (not g["logGroupName"].startswith(CONTAINER_INSIGHTS_PREFIX)
+                           or g["logGroupName"].endswith("/application"))]
         return found[:50]
 
     # ------------------------------------------------------------------
@@ -237,12 +296,13 @@ class CloudWatchLogProvider(LogProvider):
                 return self._parse_results(result.get("results", []), log_group)
             if status in ("Failed", "Cancelled", "Timeout"):
                 logger.warning("CloudWatch query %s ended with status: %s", query_id, status)
-                return []
+                raise LogSearchError(f"The CloudWatch Logs Insights query ended with status {status}.")
 
             time.sleep(self.POLL_INTERVAL)
 
         logger.warning("CloudWatch query %s timed out after polling", query_id)
-        return []
+        raise LogSearchError("CloudWatch Logs Insights did not answer within "
+                             f"{int(self.POLL_INTERVAL * self.MAX_POLL_ATTEMPTS)} seconds.")
 
     @staticmethod
     def _build_query(query: dict) -> str:
@@ -303,8 +363,18 @@ class CloudWatchLogProvider(LogProvider):
                 labels={**record, "_index": group, "log_group": group, "log_stream": log_stream},
             )
             if not entry.service:
-                entry.service = log_stream.split("/")[0] if "/" in log_stream else log_stream
+                entry.service = _service_from_names(group, log_stream)
             if not entry.host:
                 entry.host = log_stream
             entries.append(entry)
         return entries
+
+
+def _service_from_names(group: str, log_stream: str) -> str:
+    """The service of a record that names none: the function of a Lambda
+    group, else the container in the stream name (ECS names streams
+    "prefix/container/task-id")."""
+    if group.startswith(LAMBDA_GROUP_PREFIX):
+        return group[len(LAMBDA_GROUP_PREFIX):]
+    parts = log_stream.split("/")
+    return parts[1] if len(parts) == 3 else parts[0]

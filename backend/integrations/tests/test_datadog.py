@@ -17,11 +17,29 @@ class TestDatadogLogProvider(SimpleTestCase):
             "app_key": "test-app-key",
         })
 
+    @patch("integrations.adapters.datadog_logs.requests.Session.post")
     @patch("integrations.adapters.datadog_logs.requests.Session.get")
-    def test_health_check_success(self, mock_get):
+    def test_health_check_success(self, mock_get, mock_post):
         mock_get.return_value = MagicMock(status_code=200)
+        mock_post.return_value = MagicMock(status_code=200)
         self.assertTrue(self.provider.health_check())
         self.assertIn("/api/v1/validate", mock_get.call_args[0][0])
+        self.assertIn("/api/v2/logs/events/search", mock_post.call_args[0][0])
+
+    @patch("integrations.adapters.datadog_logs.requests.Session.post")
+    @patch("integrations.adapters.datadog_logs.requests.Session.get")
+    def test_health_check_fails_when_the_app_key_cannot_read_logs(self, mock_get, mock_post):
+        mock_get.return_value = MagicMock(status_code=200)
+        mock_post.return_value = MagicMock(status_code=403)
+        self.assertFalse(self.provider.health_check())
+        self.assertIn("application key", self.provider.last_error)
+
+    def test_the_site_is_read_from_the_host_field(self):
+        from integrations.adapters.datadog_logs import DatadogLogProvider, datadog_site
+        self.assertEqual(DatadogLogProvider({"host": "datadoghq.eu"}).base_url, "https://api.datadoghq.eu")
+        for raw in ("https://app.datadoghq.eu/", "api.datadoghq.eu", "DATADOGHQ.EU"):
+            self.assertEqual(datadog_site({"host": raw}), "datadoghq.eu")
+        self.assertEqual(datadog_site({}), "datadoghq.com")
 
     @patch("integrations.adapters.datadog_logs.requests.Session.get")
     def test_health_check_invalid_key(self, mock_get):
@@ -170,10 +188,31 @@ class TestDatadogMetricProvider(SimpleTestCase):
         q = DatadogMetricProvider._build_metric_query(
             "node_memory_MemTotal_bytes", {"organisation_name": "acme"}
         )
-        self.assertEqual(q, "avg:system.mem.total{organisation_name:acme}")
+        self.assertEqual(q, "avg:system.mem.total{organisation_name:acme} by {host}")
 
     def test_build_metric_query_no_labels(self):
         q = DatadogMetricProvider._build_metric_query(
             "node_cpu_seconds_total", {}
         )
-        self.assertEqual(q, "avg:system.cpu.user{*}")
+        self.assertEqual(q, "avg:system.cpu.user{*} by {host}")
+
+    def test_tag_values_are_written_as_datadog_stores_them(self):
+        # Found against a real Datadog: "Acme Cloud" is stored as acme_cloud,
+        # and a query with the space is not even parsed.
+        q = DatadogMetricProvider._build_metric_query(
+            "node_memory_MemFree_bytes", {"organisation_name": "Acme Cloud", "environment": "production"})
+        self.assertEqual(q, "avg:system.mem.free{organisation_name:acme_cloud,environment:production} by {host}")
+
+    def test_points_are_utc(self):
+        from datetime import timezone
+        series = DatadogMetricProvider._parse_series(
+            {"series": [{"pointlist": [[1793437200000, 1.0]], "scope": "host:node-a"}]}, "m")
+        self.assertEqual(series[0].points[0].timestamp.tzinfo, timezone.utc)
+        self.assertEqual(series[0].labels, {"host": "node-a"})
+
+    def test_vm_cpu_is_a_percentage(self):
+        # system.cpu.user is a percentage: differentiating it as a seconds
+        # counter gave nonsense CPU.
+        self.assertTrue(self.provider.cpu_is_percent)
+        k8s = DatadogMetricProvider(config={"api_key": "k", "app_key": "a", "topology_mode": "kubernetes"})
+        self.assertFalse(k8s.cpu_is_percent)

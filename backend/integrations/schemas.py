@@ -7,11 +7,12 @@ consume only canonical models — never provider-shaped data.
 
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from integrations.field_aliases import (
     ENVIRONMENT_ALIASES,
+    ENVIRONMENT_VALUE_ALIASES,
     LOG_LEVEL_ALIASES,
     PROJECT_NAME_ALIASES,
     SERVICE_NAME_ALIASES,
@@ -227,6 +228,9 @@ class LogQuery:
     environment: Optional[str] = None   # filter by serops_meta.environment
     # Other values the environment's logs carry (ProjectEnvironment.log_label_value)
     environment_labels: Optional[list] = None
+    # Also logs that carry no environment at all: set when the project has
+    # a single environment, so they can only belong to it.
+    environment_untagged: bool = False
     event_type: Optional[str] = None    # "cicd_job_failure"
     text_search: Optional[str] = None   # free-text search in message
     category: Optional[str] = None      # "cicd" filter on serops_meta
@@ -242,6 +246,21 @@ class LogQuery:
     def environment_values(self) -> list:
         """Every value of the environment field this query accepts."""
         return environment_values(self.environment, self.environment_labels or ())
+
+    def environment_rules(self) -> list:
+        """The project rules that also say the environment: [(field, value), ...].
+
+        A rule whose value is one of the environment's values
+        (``kubernetes.namespace_name = production``) puts its logs in that
+        environment as well as in the project. Kubernetes shippers rarely
+        write an environment field (Container Insights' Fluent Bit drops the
+        pod labels), and the namespace is often named after the environment.
+        """
+        if not (self.project and self.environment):
+            return []
+        wanted = {v.lower() for v in self.environment_values()}
+        return [(field, value) for field, value in (self.project_rules or [])
+                if str(value).lower() in wanted]
 
     def scope_services_to_org(self, organisation) -> "LogQuery":
         """Filter ``self.services`` to only names belonging to ``organisation``.
@@ -358,6 +377,12 @@ class LogQuery:
             for alias in ENVIRONMENT_ALIASES:
                 for variant in _keyword_variants(alias):
                     should_terms.append({"terms": {variant: self.environment_values()}})
+            for field, value in self.environment_rules():
+                for variant in _keyword_variants(field):
+                    should_terms.append({"term": {variant: value}})
+            if self.environment_untagged:
+                should_terms.append({"bool": {"must_not": [
+                    {"exists": {"field": alias}} for alias in ENVIRONMENT_ALIASES]}})
             filter_clauses.append({
                 "bool": {"should": should_terms, "minimum_should_match": 1}
             })
@@ -425,20 +450,22 @@ class LogQuery:
             label = re.sub(r'[^A-Za-z0-9_]', '_', field)
             if label[:1].isdigit():
                 label = '_' + label
-            queries.append(self.to_logql(project_label=(label, value)))
+            says_environment = (field, value) in self.environment_rules()
+            queries.append(self.to_logql(project_label=(label, value, says_environment)))
         return queries
 
     def to_logql(self, project_label=None) -> str:
         """Translate to LogQL query for Loki."""
         label_matchers = []
         if project_label:
-            label, value = project_label
+            label, value, _ = project_label
             label_matchers.append(f'{label}="{_logql_escape(value)}"')
         elif self.project:
             label_matchers.append(f'project_name="{_logql_escape(self.project)}"')
-        if self.environment:
-            label_matchers.append(
-                f'environment=~"{"|".join(_re2_escape(v) for v in self.environment_values())}"')
+        if self.environment and not (project_label and project_label[2]):
+            # An empty alternative matches the streams with no environment label.
+            values = [_re2_escape(v) for v in self.environment_values()] + [""] * self.environment_untagged
+            label_matchers.append(f'environment=~"{"|".join(values)}"')
         if self.category:
             label_matchers.append(f'category="{self.category}"')
         if self.services:
@@ -509,7 +536,14 @@ class LogQuery:
             parts.append("(" + " OR ".join(_either(f, v) for f, v in self.project_matches()) + ")")
 
         if self.environment:
-            parts.append(_either(ENVIRONMENT_ALIASES, self.environment_values()))
+            env = _either(ENVIRONMENT_ALIASES, self.environment_values())
+            rules = [_either([f], v) for f, v in self.environment_rules()]
+            if rules:
+                env = "(" + " OR ".join([env] + rules) + ")"
+            if self.environment_untagged:
+                absent = " ".join(f"-{_dd_key(a)}:* -@{_dd_key(a)}:*" for a in ENVIRONMENT_ALIASES)
+                env = f"({env} OR ({absent}))"
+            parts.append(env)
 
         if self.event_type:
             parts.append(f"@event_type:{_dd_value(self.event_type)}")
@@ -547,6 +581,14 @@ class LogQuery:
         without a level field are reached through their message words.
         The parser reads fields from ``@message`` itself, so the query only
         asks for the raw event.
+
+        CloudWatch logs seldom carry a project or environment field: the
+        log group says it (``/ecs/shop-payments-prod``). A record with no
+        project field matches when its group name contains the project, and
+        one with no environment field when its group name has one of the
+        environment's values as a word. With ``environment_untagged``, one
+        with no environment field also matches unless its group name names
+        another environment.
         """
         filters = []
 
@@ -565,9 +607,19 @@ class LogQuery:
             clauses.append(f"@message like /(?i)({'|'.join(SEVERITY_MESSAGE_WORDS)})/")
             filters.append("(" + " or ".join(clauses) + ")")
         if self.project:
-            filters.append("(" + " or ".join(_in(f, v) for f, v in self.project_matches()) + ")")
+            group = _cw_group_names(PROJECT_NAME_ALIASES, re.escape(self.project))
+            filters.append("(" + " or ".join([_in(f, v) for f, v in self.project_matches()] + [group]) + ")")
         if self.environment:
-            filters.append(_in(ENVIRONMENT_ALIASES, self.environment_values()))
+            words = "|".join(re.escape(v) for v in self.environment_values())
+            group = _cw_group_names(ENVIRONMENT_ALIASES, rf"[/_.-]({words})([/_.-].*)?$")
+            clauses = [_in(ENVIRONMENT_ALIASES, self.environment_values()), group]
+            clauses += [_in([f], v) for f, v in self.environment_rules()]
+            if self.environment_untagged:
+                wanted = {v.lower() for v in self.environment_values()}
+                others = [v for spellings in ENVIRONMENT_VALUE_ALIASES.values()
+                          for v in spellings if v not in wanted]
+                clauses.append(_cw_untagged(ENVIRONMENT_ALIASES, rf"[/_.-]({'|'.join(others)})([/_.-].*)?$"))
+            filters.append("(" + " or ".join(clauses) + ")")
         if self.event_type:
             filters.append(f"event_type = {_cw_string(self.event_type)}")
         if self.services:
@@ -640,7 +692,12 @@ class LogQuery:
             lines.append('| where ' + ' or '.join(ors))
         if self.environment:
             env_list = ", ".join(f'"{_kql_escape(v)}"' for v in self.environment_values())
-            lines.append(f'| where tostring(Properties.environment) in~ ({env_list})')
+            clause = f'tostring(Properties.environment) in~ ({env_list})'
+            for field, value in self.environment_rules():
+                clause += f' or tostring(Properties["{_kql_escape(field)}"]) == "{_kql_escape(value)}"'
+            if self.environment_untagged:
+                clause = f'isempty(tostring(Properties.environment)) or {clause}'
+            lines.append(f'| where {clause}')
         if self.category:
             lines.append(f'| where Properties.category == "{_kql_escape(self.category)}"')
         if self.event_type:
@@ -741,6 +798,10 @@ class LogQuery:
             clauses.append(ors[0] if len(ors) == 1 else "(" + " OR ".join(ors) + ")")
         if self.environment:
             envs = " OR ".join(f'labels.environment="{_gcp_escape(v)}"' for v in self.environment_values())
+            for field, value in self.environment_rules():
+                envs += f' OR labels."{_gcp_escape(field)}"="{_gcp_escape(value)}"'
+            if self.environment_untagged:
+                envs += " OR NOT labels.environment:*"
             clauses.append(f"({envs})")
         if self.category:
             clauses.append(f'labels.category="{_gcp_escape(self.category)}"')
@@ -805,7 +866,14 @@ class LogQuery:
             ors = [_any(f, v) for f, v in self.project_matches() if _spl_fields(f)]
             parts.append(ors[0] if len(ors) == 1 else "(" + " OR ".join(ors) + ")")
         if self.environment:
-            parts.append(_any(ENVIRONMENT_ALIASES, self.environment_values()))
+            env = _any(ENVIRONMENT_ALIASES, self.environment_values())
+            rules = [_any([f], v) for f, v in self.environment_rules() if _spl_fields([f])]
+            if rules:
+                env = "(" + " OR ".join([env] + rules) + ")"
+            if self.environment_untagged:
+                absent = " ".join(f"NOT {a}=*" for a in _spl_fields(ENVIRONMENT_ALIASES))
+                env = f"({env} OR ({absent}))"
+            parts.append(env)
         if self.category:
             parts.append(f'category="{_spl_escape(self.category)}"')
         if self.event_type:
@@ -840,15 +908,21 @@ class LogQuery:
 # --- Helpers ---
 
 def _parse_timestamp(ts: str) -> datetime:
-    """Parse ISO timestamp string, handling common formats."""
+    """Parse ISO timestamp string, handling common formats.
+
+    A timestamp without an offset is UTC: CloudWatch Logs Insights returns
+    ``@timestamp`` as ``2026-10-31 19:36:28.308``. Left naive, it crashed the
+    batch's time-window comparison against aware datetimes.
+    """
     if not ts:
         return datetime.min
     try:
         # Handle Z suffix
         ts = ts.replace("Z", "+00:00")
-        return datetime.fromisoformat(ts)
+        parsed = datetime.fromisoformat(ts)
     except (ValueError, TypeError):
         return datetime.min
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 def _detect_level(level_str: str) -> str:
@@ -1065,6 +1139,32 @@ def _cw_string(value) -> str:
 def _cw_field(name: str) -> str:
     """A field name for Logs Insights: backticked unless it is plain."""
     return name if re.fullmatch(r"[A-Za-z0-9_.@]+", name) else "`" + name.replace("`", "") + "`"
+
+
+def _cw_group_names(aliases, pattern: str) -> str:
+    """Records that carry none of ``aliases`` and whose log group name
+    matches ``pattern`` (case-insensitive). ``@log`` is
+    "<account id>:<group name>".
+
+    On a plain-text event Insights finds no field at all, and any test
+    on a field, ``not ispresent()`` included, is false. Such an event
+    carries no field by definition, so the group name alone decides."""
+    return f"(@log like /(?i)^[0-9]*:.*{_cw_regex(pattern)}/ and {_cw_absent(aliases)})"
+
+
+def _cw_untagged(aliases, pattern: str) -> str:
+    """Records that carry none of ``aliases`` and whose log group name
+    does not match ``pattern``."""
+    return f"(@log not like /(?i)^[0-9]*:.*{_cw_regex(pattern)}/ and {_cw_absent(aliases)})"
+
+
+def _cw_regex(pattern: str) -> str:
+    return pattern.replace("/", r"\/")
+
+
+def _cw_absent(aliases) -> str:
+    absent = " and ".join(f"not ispresent({_cw_field(a)})" for a in aliases)
+    return f"(@message not like /^\\s*\\{{/ or ({absent}))"
 
 
 def _spl_escape(value: str) -> str:

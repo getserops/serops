@@ -67,6 +67,8 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [apiKey, setApiKey] = useState('');
+    // Datadog searches logs and queries metrics with an application key.
+    const [appKey, setAppKey] = useState('');
     const [awsRegion, setAwsRegion] = useState('');
     // Where the logs are: an index pattern (Elasticsearch / OpenSearch) or
     // log groups (CloudWatch). Optional: the backend has defaults.
@@ -85,6 +87,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
         setUsername('');
         setPassword('');
         setApiKey('');
+        setAppKey('');
         setAwsRegion('');
         setLogLocation('');
         setTestResult(null);
@@ -157,12 +160,14 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
         const cloudProviders = new Set(['cloudwatch', 'gcp', 'azure']);
         if (!cloudProviders.has(selectedProvider.code) && !host.trim()) return false;
         if (isAws && !(username.trim() && password)) return false;
+        if (providerCode === 'datadog' && !(apiKey && appKey)) return false;
         return true;
     };
 
     const buildPayload = () => {
         const extra = {};
         if (apiKey && !isAws) extra.api_key = apiKey;
+        if (appKey && providerCode === 'datadog') extra.app_key = appKey;
         if (isAws && awsRegion.trim()) extra.aws_region = awsRegion.trim();
         if (logLocation.trim()) {
             if (isAws) extra.log_groups = logLocation.trim();
@@ -409,6 +414,18 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                     autoComplete="new-password"
                                     spellCheck={false}
                                     helperText="Only some providers use API keys (Datadog, cloud services)."
+                                />}
+                                {providerCode === 'datadog' && <TextField
+                                    fullWidth
+                                    sx={{ mb: 1 }}
+                                    type="password"
+                                    label="Application Key"
+                                    required
+                                    value={appKey}
+                                    onChange={(e) => setAppKey(e.target.value)}
+                                    autoComplete="new-password"
+                                    spellCheck={false}
+                                    helperText="An application key with logs_read_data, logs_read_index_data and timeseries_query."
                                 />}
                             </>
                         )}

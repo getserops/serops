@@ -5,10 +5,10 @@ Implements the MetricProvider ABC using boto3 CloudWatch client.
 Uses GetMetricData for range queries and ListMetrics for host discovery.
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
-from integrations.adapters.cloudwatch_logs import _get_boto3_client
+from integrations.adapters.cloudwatch_logs import _aws_error, _get_boto3_client
 from integrations.base import MetricProvider, MetricProviderCapabilities
 from integrations.schemas import TimeSeries, TimeSeriesPoint, HostInfo
 
@@ -16,59 +16,102 @@ logger = logging.getLogger(__name__)
 
 
 # Map our metric names → CloudWatch namespace + metric name + stat.
-# VM mode (default) uses AWS/EC2 + CWAgent metrics — bare-metal / EC2 hosts.
+# VM mode (default) reads the CloudWatch agent (namespace CWAgent), whose
+# series carry a ``host`` dimension; CPU falls back to the EC2 basic
+# monitoring metric, which every instance has without the agent.
+# ``where``: dimensions a series must have (the agent sends one CPU series
+# per core plus a ``cpu-total`` one). ``host``: the dimension naming the host.
 METRIC_MAP = {
     "node_memory_MemTotal_bytes": {
         "namespace": "CWAgent",
         "metric": "mem_total",
         "stat": "Average",
+        "host": "host",
     },
     "node_memory_MemFree_bytes": {
         "namespace": "CWAgent",
         "metric": "mem_free",
         "stat": "Average",
+        "host": "host",
     },
     "node_memory_MemAvailable_bytes": {
         "namespace": "CWAgent",
         "metric": "mem_available",
         "stat": "Average",
+        "host": "host",
     },
     "node_cpu_seconds_total": {
-        "namespace": "AWS/EC2",
-        "metric": "CPUUtilization",
+        "namespace": "CWAgent",
+        "metric": "cpu_usage_active",
         "stat": "Average",
+        "host": "host",
+        "where": {"cpu": "cpu-total"},
+        "fallback": {
+            "namespace": "AWS/EC2",
+            "metric": "CPUUtilization",
+            "stat": "Average",
+            "host": "InstanceId",
+        },
     },
 }
 
 # Kubernetes topology mode: CloudWatch Container Insights.
-# Requires ContainerInsights enabled on the EKS cluster (`aws eks
-# update-cluster-config` OR the CloudWatch agent DaemonSet). Metrics
-# live in the `ContainerInsights` namespace with dimensions like
-# ClusterName / Namespace / PodName / Service.
+# The CloudWatch agent DaemonSet (EKS add-on or AWS's quickstart) publishes
+# pod metrics in the `ContainerInsights` namespace, one series per
+# Kubernetes Service with dimensions ClusterName / Namespace / Service.
+# By default it publishes percentages only; pod_memory_working_set lives in
+# the performance log events, never as a metric. Checked against a real
+# agent (1.300074) on 2026-10-31.
+#
+# ``expr``: CloudWatch metric math over the listed series ``{m}``. ``with``:
+# more metrics the expression reads, from the same series (``series``) or
+# from the cluster (``cluster``).
+#
+# Memory: the pipeline takes total and available and divides them, so a
+# percentage becomes 100 and 100 - used. Used is measured against the pod's
+# memory limit, like Prometheus and Datadog, so a pod nearing its OOMKill
+# shows it; with no limit set anywhere in scope, against the node.
+def _k8s_memory(expr):
+    def mapping(metric):
+        return {"namespace": "ContainerInsights", "metric": metric,
+                "stat": "Average", "host": "Service", "expr": expr}
+    return {**mapping("pod_memory_utilization_over_pod_limit"),
+            "fallback": mapping("pod_memory_utilization")}
+
+
+# CPU: the pipeline multiplies by 100, expecting cores. pod_cpu_utilization
+# is a percentage of the node: times the node's cores (node_cpu_limit, in
+# millicores) times the running pods.
 K8S_METRIC_MAP = {
-    "node_memory_MemTotal_bytes": {
-        "namespace": "ContainerInsights",
-        "metric": "pod_memory_working_set",
-        "stat": "Average",
-    },
-    "node_memory_MemFree_bytes": {
-        # ContainerInsights doesn't expose free memory directly.
-        # `pod_memory_utilization` (%) is the closest signal.
-        "namespace": "ContainerInsights",
-        "metric": "pod_memory_utilization",
-        "stat": "Average",
-    },
-    "node_memory_MemAvailable_bytes": {
-        "namespace": "ContainerInsights",
-        "metric": "pod_memory_utilization",
-        "stat": "Average",
-    },
+    "node_memory_MemTotal_bytes": _k8s_memory("{m} * 0 + 100"),
+    "node_memory_MemFree_bytes": _k8s_memory("100 - {m}"),
+    "node_memory_MemAvailable_bytes": _k8s_memory("100 - {m}"),
     "node_cpu_seconds_total": {
         "namespace": "ContainerInsights",
         "metric": "pod_cpu_utilization",
         "stat": "Average",
+        "host": "Service",
+        "expr": "{m} / 100 * {node_cpu} / 1000 * {pods}",
+        "with": {
+            "node_cpu": ("node_cpu_limit", "cluster"),
+            "pods": ("service_number_of_running_pods", "series"),
+        },
     },
 }
+
+# A SerOps label scopes the series only when they carry one of these
+# dimensions. AWS metrics rarely do (the agent adds EC2 fields, not
+# custom ones), and then every series in the account and region counts.
+SCOPE_DIMENSIONS = {
+    "organisation_name": ("organisation_name",),
+    "project_name": ("project_name",),
+    "environment": ("environment", "env"),
+}
+# Container Insights cannot carry custom dimensions (the pod labels never
+# reach it), so a Kubernetes namespace is the only scope: the one named
+# after the project, or after the environment, as for kube-state-metrics.
+NAMESPACE_SCOPE = ("project_name", "environment")
+MAX_SERIES = 100
 
 
 class CloudWatchMetricProvider(MetricProvider):
@@ -85,6 +128,9 @@ class CloudWatchMetricProvider(MetricProvider):
         exemplars=False,
         max_query_window_days=14,  # CW detailed metrics: 15 days
     )
+    # The agent's cpu_usage_active, EC2's CPUUtilization and Container
+    # Insights' pod_cpu_utilization are all percentages.
+    cpu_is_percent = True
 
     def __init__(self, config: dict = None):
         super().__init__(config)
@@ -98,15 +144,25 @@ class CloudWatchMetricProvider(MetricProvider):
     # ------------------------------------------------------------------
 
     def health_check(self) -> bool:
-        """Validate credentials by listing metrics."""
+        """Validate the key by listing metrics, then reading one."""
+        self.last_error = None
         try:
-            self.client.list_metrics(
-                Namespace="AWS/EC2",
-                MaxRecords=1,
-            )
+            self.client.list_metrics(Namespace="CWAgent")
+        except Exception as exc:
+            logger.error("CloudWatch Metrics health check failed: %s", exc)
+            self.last_error = _aws_error(exc, "cloudwatch:ListMetrics")
+            return False
+        try:
+            now = datetime.now(timezone.utc)
+            self.client.get_metric_data(
+                MetricDataQueries=[{"Id": "m1", "MetricStat": {
+                    "Metric": {"Namespace": "AWS/EC2", "MetricName": "CPUUtilization"},
+                    "Period": 300, "Stat": "Average"}}],
+                StartTime=now - timedelta(minutes=10), EndTime=now)
             return True
         except Exception as exc:
             logger.error("CloudWatch Metrics health check failed: %s", exc)
+            self.last_error = _aws_error(exc, "cloudwatch:GetMetricData")
             return False
 
     def query_range(
@@ -133,9 +189,6 @@ class CloudWatchMetricProvider(MetricProvider):
             )
             return []
 
-        # Build dimensions from labels
-        dimensions = self._labels_to_dimensions(labels)
-
         # Calculate appropriate period
         delta_seconds = (end - start).total_seconds()
         if delta_seconds <= 3600:
@@ -146,57 +199,42 @@ class CloudWatchMetricProvider(MetricProvider):
             period = 3600
 
         try:
+            series = self._series(mapping, labels)
+            if not series and mapping.get("fallback"):
+                mapping = mapping["fallback"]
+                series = self._series(mapping, labels)
+            if not series:
+                return []
             response = self.client.get_metric_data(
-                MetricDataQueries=[
-                    {
-                        "Id": "m1",
-                        "MetricStat": {
-                            "Metric": {
-                                "Namespace": mapping["namespace"],
-                                "MetricName": mapping["metric"],
-                                "Dimensions": dimensions,
-                            },
-                            "Period": period,
-                            "Stat": mapping["stat"],
-                        },
-                        "ReturnData": True,
-                    }
-                ],
+                MetricDataQueries=self._queries(mapping, series, period),
                 StartTime=start,
                 EndTime=end,
-                ScanBy="TimestampDescending",
+                ScanBy="TimestampAscending",
             )
-
-            results = response.get("MetricDataResults", [])
-            series_list: List[TimeSeries] = []
-
-            for result in results:
-                timestamps = result.get("Timestamps", [])
-                values = result.get("Values", [])
-                if not timestamps:
-                    continue
-
-                points = [
-                    TimeSeriesPoint(
-                        timestamp=ts if isinstance(ts, datetime) else datetime.fromisoformat(str(ts)),
-                        value=float(val),
-                    )
-                    for ts, val in zip(timestamps, values)
-                ]
-
-                series_list.append(
-                    TimeSeries(
-                        metric_name=metric,
-                        labels={**labels, "cw_namespace": mapping["namespace"]},
-                        points=points,
-                    )
-                )
-
-            return series_list
-
         except Exception as exc:
             logger.error("CloudWatch query_range failed: %s", exc)
             return []
+
+        series_list: List[TimeSeries] = []
+        for result in response.get("MetricDataResults", []):
+            timestamps = result.get("Timestamps", [])
+            if not timestamps:
+                continue
+            dims = series[int(result["Id"][1:])]
+            host = dims.get(mapping["host"], "")
+            extra = {"service_name": host} if mapping["host"] == "Service" else {}
+            series_list.append(
+                TimeSeries(
+                    metric_name=metric,
+                    labels={**labels, **dims, **extra, "host": host, "instance": host,
+                            "cw_namespace": mapping["namespace"]},
+                    points=[
+                        TimeSeriesPoint(timestamp=ts, value=float(val))
+                        for ts, val in zip(timestamps, result.get("Values", []))
+                    ],
+                )
+            )
+        return series_list
 
     def discover_hosts(
         self,
@@ -208,50 +246,97 @@ class CloudWatchMetricProvider(MetricProvider):
         Discover EC2 instances reporting metrics to CloudWatch.
         Uses ListMetrics to find unique InstanceId dimensions.
         """
+        labels = {"organisation_name": org, "project_name": project, "environment": environment}
+        mapping = (K8S_METRIC_MAP if self._topology_mode == "kubernetes" else METRIC_MAP)["node_cpu_seconds_total"]
         try:
-            kwargs = {
-                "Namespace": "AWS/EC2",
-                "MetricName": "CPUUtilization",
-                "MaxRecords": 500,
-            }
-            # Filter by specific dimensions if provided
-            dim_filters = []
-            if org:
-                dim_filters.append({"Name": "organisation_name", "Value": org})
-            if project:
-                dim_filters.append({"Name": "project_name", "Value": project})
-            if dim_filters:
-                kwargs["Dimensions"] = dim_filters
-
-            response = self.client.list_metrics(**kwargs)
-            metrics = response.get("Metrics", [])
-
-            seen = set()
-            hosts: List[HostInfo] = []
-            for m in metrics:
-                dims = {d["Name"]: d["Value"] for d in m.get("Dimensions", [])}
-                instance_id = dims.get("InstanceId", "")
-                if not instance_id or instance_id in seen:
-                    continue
-                seen.add(instance_id)
-                hosts.append(
-                    HostInfo(
-                        hostname=instance_id,
-                        environment=environment or dims.get("environment", "unknown"),
-                        labels={"instance": instance_id, **dims},
-                        project=project or "",
-                    )
-                )
-
-            return hosts
-
+            series = self._series(mapping, labels)
+            if not series and mapping.get("fallback"):
+                mapping = mapping["fallback"]
+                series = self._series(mapping, labels)
         except Exception as exc:
             logger.error("CloudWatch discover_hosts failed: %s", exc)
             return []
+        return [
+            HostInfo(
+                hostname=dims[mapping["host"]],
+                environment=environment or dims.get("environment", "unknown"),
+                labels={"instance": dims[mapping["host"]], **dims},
+                project=project or "",
+            )
+            for dims in series
+        ]
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _queries(mapping: dict, series: List[dict], period: int) -> list:
+        """GetMetricData queries: one result per series, ``r<i>``.
+
+        With an ``expr`` the series is read as ``m<i>`` and the result is
+        the expression; the ``with`` metrics are read alongside, a cluster's
+        once for all its series.
+        """
+        def stat(qid, metric, dims, returned):
+            return {"Id": qid, "ReturnData": returned, "MetricStat": {
+                "Metric": {"Namespace": mapping["namespace"], "MetricName": metric,
+                           "Dimensions": [{"Name": k, "Value": v} for k, v in dims.items()]},
+                "Period": period, "Stat": mapping["stat"]}}
+
+        if not mapping.get("expr"):
+            return [stat(f"r{i}", mapping["metric"], dims, True) for i, dims in enumerate(series)]
+        queries, clusters = [], {}
+        for i, dims in enumerate(series):
+            ids = {"m": f"m{i}"}
+            queries.append(stat(f"m{i}", mapping["metric"], dims, False))
+            for name, (metric, scope) in mapping.get("with", {}).items():
+                if scope == "cluster":
+                    cluster = dims.get("ClusterName", "")
+                    if (name, cluster) not in clusters:
+                        clusters[(name, cluster)] = f"{name}{len(clusters)}"
+                        queries.append(stat(clusters[(name, cluster)], metric,
+                                            {"ClusterName": cluster}, False))
+                    ids[name] = clusters[(name, cluster)]
+                else:
+                    ids[name] = f"{name}{i}"
+                    queries.append(stat(ids[name], metric, dims, False))
+            queries.append({"Id": f"r{i}", "Expression": mapping["expr"].format(**ids),
+                            "Period": period, "ReturnData": True})
+        return queries
+
+    def _series(self, mapping: dict, labels: dict) -> List[dict]:
+        """The series of a metric to read, as dimension dicts, one per host.
+
+        GetMetricData returns a metric only when the dimensions match
+        exactly, so the series are listed first. A SerOps label narrows
+        them only when the series carry a matching dimension (see
+        SCOPE_DIMENSIONS).
+        """
+        found = []
+        pages = self.client.get_paginator("list_metrics").paginate(
+            Namespace=mapping["namespace"], MetricName=mapping["metric"])
+        for page in pages:
+            found += [{d["Name"]: d["Value"] for d in m.get("Dimensions", [])}
+                      for m in page.get("Metrics", [])]
+            if len(found) >= 1000:
+                break
+        host = mapping["host"]
+        found = [d for d in found if d.get(host)
+                 and all(d.get(k) == v for k, v in mapping.get("where", {}).items())]
+        for label, names in SCOPE_DIMENSIONS.items():
+            value = str((labels or {}).get(label) or "").lower()
+            for name in names:
+                if value and any(name in d for d in found):
+                    found = [d for d in found if str(d.get(name, "")).lower() == value]
+        namespaces = {str((labels or {}).get(k) or "").lower() for k in NAMESPACE_SCOPE} - {""}
+        if namespaces and any("Namespace" in d for d in found):
+            found = [d for d in found if str(d.get("Namespace", "")).lower() in namespaces]
+        # One series per host: the agent may also send aggregated copies.
+        by_host = {}
+        for dims in sorted(found, key=len):
+            by_host.setdefault(dims[host], dims)
+        return list(by_host.values())[:MAX_SERIES]
 
     @staticmethod
     def _labels_to_dimensions(labels: dict) -> list:

@@ -235,6 +235,12 @@ class ProjectEnvironment(models.Model):
         usual spellings, that mean this environment (comma-separated in
         ``log_label_value``)."""
         return [v.strip() for v in (self.log_label_value or '').split(',') if v.strip()]
+
+    def is_only_environment(self):
+        """True when the project has no other active environment: logs
+        that carry no environment at all can then only belong to this one."""
+        return not ProjectEnvironment.objects.filter(
+            project_id=self.project_id, is_active=True).exclude(pk=self.pk).exists()
     
     def matches_branch(self, branch_name):
         """Check if a branch matches this environment's patterns."""

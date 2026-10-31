@@ -16,6 +16,43 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.2.12] - 2026-10-31
+
+Cloud integrations release, no migration. Set `SEROPS_VERSION=1.2.12` or
+`--version 1.2.12`.
+
+Datadog and AWS CloudWatch now run end to end against real accounts: logs,
+Check my data, metrics and an investigation, on VMs and on Kubernetes (the
+Datadog Agent Helm chart, CloudWatch Container Insights). Both are marked
+Live-tested in [Compatibility](integrations/compatibility.md).
+
+### Changed
+
+- A project with a single environment also reads logs that carry no
+  environment (Lambda and ECS logs often name only the project).
+- A project rule whose value names an environment
+  (`kubernetes.namespace_name = production`) also puts its logs in that
+  environment, on every log store. Container Insights logs carry no
+  environment field.
+
+### Fixed
+
+- **Datadog**: logs with a time range were refused; the Datadog site from the
+  form (EU, US3, US5) was ignored; metrics failed for organisation names with a
+  space and were averaged over every host; Kubernetes mode returned no metric.
+  Test connection also checks the application key. The Kubernetes setup in
+  the docs installs, collects logs and tags by namespace.
+- **AWS CloudWatch**: logs are found by log group name (`/ecs/shop-payments`),
+  Lambda and ECS give the service; metrics work (they never did), on VMs and
+  with Container Insights; an analysis no longer crashes on Logs Insights
+  timestamps; CI/CD events are read where they are written. The Container
+  Insights command in the docs works.
+- Check my data reports a refused query as refused, not as "no logs".
+- Metrics page: the CPU caption sits under the CPU chart. The onboarding box
+  no longer covers dialogs.
+
+---
+
 ## [1.2.11] - 2026-10-31
 
 Small fix release, no migration. Set `SEROPS_VERSION=1.2.11` or

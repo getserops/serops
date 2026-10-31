@@ -5,17 +5,46 @@ Implements the LogProvider ABC using the Datadog HTTP API v2.
 Uses Log Search endpoint for querying.
 """
 import logging
-from datetime import datetime
+import re
+from datetime import datetime, timezone
 from typing import List, Tuple, Optional
 
 import requests
 from requests.exceptions import RequestException
 
-from integrations.base import LogProvider, LogProviderCapabilities
+from integrations.base import LogProvider, LogProviderCapabilities, LogSearchError
 from integrations.field_aliases import first_present
 from integrations.schemas import LogEntry, LogStream, LogQuery, _parse_timestamp, _detect_level, level_of
 
 logger = logging.getLogger(__name__)
+
+
+def datadog_site(config: dict) -> str:
+    """The Datadog site (datadoghq.com, datadoghq.eu, us5.datadoghq.com...).
+
+    The UI saves the site in ``host`` ("Datadog Site"), the API docs put it
+    in ``site``; people also paste "app.datadoghq.eu" or a full URL. Only
+    ``site`` used to be read, so every EU (and US3/US5) install called the
+    US site and saw its valid keys refused.
+    """
+    extras = config.get("extra_config") or {}
+    raw = config.get("site") or extras.get("site") or config.get("host") or "datadoghq.com"
+    raw = re.sub(r"^[a-z]+://", "", str(raw).strip().lower()).split("/")[0]
+    for prefix in ("api.", "app.", "http-intake.logs."):
+        if raw.startswith(prefix):
+            raw = raw[len(prefix):]
+    return raw or "datadoghq.com"
+
+
+def _dd_time(dt: datetime) -> str:
+    """A time for the Datadog search API: ISO 8601 in UTC with a Z.
+
+    ``isoformat() + "Z"`` on an aware datetime gave "...+00:00Z", which
+    Datadog rejects (400): every query with a time range failed.
+    """
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
 class DatadogLogProvider(LogProvider):
@@ -24,7 +53,7 @@ class DatadogLogProvider(LogProvider):
 
     Endpoints used:
       - POST /api/v2/logs/events/search — log queries
-      - GET  /api/v2/logs/config/indexes — index discovery
+      - GET  /api/v1/logs/config/indexes — index discovery
       - GET  /api/v1/validate            — health check
     """
 
@@ -40,8 +69,8 @@ class DatadogLogProvider(LogProvider):
     def __init__(self, config: dict = None):
         super().__init__(config)
         # Datadog site: datadoghq.com, datadoghq.eu, etc.
-        site = self._config.get("site", "datadoghq.com")
-        self.base_url = f"https://api.{site}"
+        self.base_url = f"https://api.{datadog_site(self._config)}"
+        self.last_error = None
         self._session = requests.Session()
         # DD auth headers
         self._session.headers.update({
@@ -86,15 +115,29 @@ class DatadogLogProvider(LogProvider):
             return 0
 
     def health_check(self) -> bool:
-        """Validate API key via /api/v1/validate."""
+        """The API key is valid on this site AND the application key can
+        search logs. Checking the API key alone said "healthy" with a wrong
+        or missing application key, and every search then failed."""
+        self.last_error = None
         try:
-            resp = self._session.get(
-                f"{self.base_url}/api/v1/validate",
+            resp = self._session.get(f"{self.base_url}/api/v1/validate", timeout=self.timeout_seconds)
+            if resp.status_code != 200:
+                self.last_error = (f"The API key is not valid on {self.base_url.replace('https://api.', '')}. "
+                                   "Check the key and the Datadog site (e.g. datadoghq.eu).")
+                return False
+            resp = self._session.post(
+                f"{self.base_url}/api/v2/logs/events/search",
+                json={"filter": {"query": "*", "from": "now-1m", "to": "now"}, "page": {"limit": 1}},
                 timeout=self.timeout_seconds,
             )
-            return resp.status_code == 200
+            if resp.status_code in (401, 403):
+                self.last_error = ("The application key cannot read logs. Create an application key "
+                                   "(not a personal access token) with the logs_read_data scope.")
+                return False
+            return True
         except RequestException as exc:
             logger.error("Datadog Logs health check failed: %s", exc)
+            self.last_error = f"Datadog is not reachable: {exc}"
             return False
 
     def search(
@@ -120,8 +163,8 @@ class DatadogLogProvider(LogProvider):
         body = {
             "filter": {
                 "query": dd_query,
-                "from": time_range[0].isoformat() + "Z" if time_range else "now-1h",
-                "to": time_range[1].isoformat() + "Z" if time_range else "now",
+                "from": _dd_time(time_range[0]) if time_range else "now-1h",
+                "to": _dd_time(time_range[1]) if time_range else "now",
             },
             "sort": "-timestamp",
             "page": {
@@ -135,30 +178,42 @@ class DatadogLogProvider(LogProvider):
                 json=body,
                 timeout=self.timeout_seconds,
             )
-            resp.raise_for_status()
-            data = resp.json()
-            events = data.get("data", [])
-            return [self._event_to_log_entry(e) for e in events]
-
         except RequestException as exc:
             logger.error("Datadog Logs search failed: %s", exc)
-            return []
+            raise LogSearchError(f"Datadog search failed: {exc}") from exc
+        if not resp.ok:
+            # Refused queries used to come back as "no logs": a scheduled run
+            # then said there were no errors, and Check my data that the logs
+            # were missing, while Datadog was answering 400 to every query.
+            try:
+                detail = "; ".join(map(str, resp.json().get("errors", []))) or resp.text[:200]
+            except ValueError:
+                detail = resp.text[:200]
+            logger.error("Datadog Logs search refused (%s): %s", resp.status_code, detail)
+            raise LogSearchError(f"Datadog refused the query ({resp.status_code}): {detail}")
+        events = resp.json().get("data", [])
+        return [self._event_to_log_entry(e) for e in events]
 
     def get_indices(self, project) -> List[str]:
-        """Get available Datadog log indexes."""
+        """Get available Datadog log indexes.
+
+        A search needs no index named (Datadog searches them all), so when
+        the list is empty or cannot be read (an application key without
+        logs_read_index_data) this answers "*" rather than nothing: an empty
+        answer made the scheduler skip the project as having nowhere to read
+        logs from.
+        """
         try:
             resp = self._session.get(
-                f"{self.base_url}/api/v1/logs/indexes",
+                f"{self.base_url}/api/v1/logs/config/indexes",
                 timeout=self.timeout_seconds,
             )
             resp.raise_for_status()
-            data = resp.json()
-            return [
-                idx.get("name", "") for idx in data.get("indexes", [])
-            ]
-        except RequestException as exc:
-            logger.warning("Datadog get_indices failed: %s", exc)
-            return []
+            names = [idx.get("name", "") for idx in resp.json().get("indexes", []) if idx.get("name")]
+            return names or ["*"]
+        except (RequestException, ValueError) as exc:
+            logger.warning("Datadog get_indices failed, searching every index: %s", exc)
+            return ["*"]
 
     # ------------------------------------------------------------------
     # Internal helpers

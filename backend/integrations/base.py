@@ -15,6 +15,12 @@ from .schemas import LogEntry, TimeSeries, HostInfo, LogStream, LogQuery
 from traces.schemas import TraceEntry
 
 
+class LogSearchError(RuntimeError):
+    """The log store refused or failed a search. Raised instead of returning
+    no logs, so callers can say "the store refused the query" rather than
+    "there were no errors"."""
+
+
 # --- Capability Flags ---
 
 @dataclass
@@ -137,6 +143,14 @@ class LogProvider(AdapterBase, ABC):
     def health_check(self) -> bool:
         """Check if the log provider is reachable and healthy."""
         ...
+
+    def stream_location(self, stream) -> str:
+        """Where ``index()`` writes ``stream``, for ``search()`` to read it back.
+
+        An index name by default; Loki and Datadog ignore it (they select by
+        labels and tags). A provider that writes elsewhere overrides this.
+        """
+        return stream.to_index_name()
 
 
 # --- Metric Provider ABC ---

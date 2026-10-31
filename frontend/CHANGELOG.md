@@ -10,6 +10,14 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.2.12] - 2026-10-31
+
+### Fixed
+
+- Metrics page: the CPU "Peak reading across N services" caption sat under the Memory chart; it is under the CPU chart.
+- The onboarding box and the floating wizard covered Settings dialogs' buttons; they stay below every dialog.
+- The onboarding wizard asks for the Datadog application key.
+
 ## [1.2.11] - 2026-10-31
 
 ## [1.2.10] - 2026-10-31

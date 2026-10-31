@@ -5,7 +5,8 @@ Implements the MetricProvider ABC using the Datadog HTTP API.
 Uses the Query Timeseries endpoint for range queries.
 """
 import logging
-from datetime import datetime
+import re
+from datetime import datetime, timezone
 from typing import List, Optional
 
 import requests
@@ -20,15 +21,37 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Kubernetes topology mode
 # ---------------------------------------------------------------------------
-# Maps canonical SerOps metric names to Datadog's Kubernetes integration
-# metric names. Requires the Datadog Agent's Kubernetes check to be enabled
-# (default on DaemonSet installs). Aggregated `by {service_name}` at query
-# time so per-service dashboards work across pod restarts / node reschedules.
-K8S_METRIC_NAME_MAP = {
-    'node_memory_MemTotal_bytes':     'kubernetes.memory.limits',
-    'node_memory_MemFree_bytes':      'kubernetes.memory.usage',   # inverse — DD lacks a "free" metric
-    'node_memory_MemAvailable_bytes': 'kubernetes.memory.usage',
-    'node_cpu_seconds_total':         'kubernetes.cpu.usage.total',
+def _dd_tag_value(value) -> str:
+    """A tag value as Datadog stores it: lowercase, other characters as "_".
+
+    Datadog keeps "organisation_name:Acme Cloud" as "acme_cloud", and a
+    query naming "Acme Cloud" is not even parsed (the space ends it), so an
+    organisation with a space in its name got no metrics at all.
+    """
+    v = re.sub(r"[^a-z0-9_:./-]", "_", str(value).lower())
+    return re.sub(r"_+", "_", v).strip("_")
+
+
+def _tag_filter(labels: dict) -> str:
+    return ",".join(f"{k}:{_dd_tag_value(v)}" for k, v in labels.items() if v)
+
+
+# Kubernetes topology mode: the container metrics the Datadog Agent sends
+# (container check, on by default), summed per service like the Prometheus
+# templates. Found against a real Agent (7.x, datadog/datadog chart): it sends
+# no kubernetes.cpu.usage.total nor kubernetes.memory.usage, and no
+# service_name tag. Every container carries `service` (the deployment name
+# unless Unified Service Tagging sets it).
+#   CPU     container.cpu.usage is nanocores: / 1e9 gives cores, which the
+#           pipeline turns into "% of one core" as for Prometheus.
+#   Memory  free = limit - usage (no "free" metric in container land).
+K8S_METRIC_QUERIES = {
+    'node_memory_MemTotal_bytes':     'sum:container.memory.limit{sel} by {{service}}',
+    'node_memory_MemFree_bytes':      ('sum:container.memory.limit{sel} by {{service}} - '
+                                       'sum:container.memory.usage{sel} by {{service}}'),
+    'node_memory_MemAvailable_bytes': ('sum:container.memory.limit{sel} by {{service}} - '
+                                       'sum:container.memory.usage{sel} by {{service}}'),
+    'node_cpu_seconds_total':         'sum:container.cpu.usage{sel} by {{service}} / 1000000000',
 }
 
 
@@ -49,18 +72,24 @@ class DatadogMetricProvider(MetricProvider):
         max_query_window_days=15,
     )
 
+    @property
+    def cpu_is_percent(self) -> bool:
+        """system.cpu.user is a percentage, not a seconds counter."""
+        return self._topology_mode != "kubernetes"
+
     def __init__(self, config: dict = None):
         super().__init__(config)
-        site = self._config.get("site", "datadoghq.com")
-        self.base_url = f"https://api.{site}"
+        from integrations.adapters.datadog_logs import datadog_site
+        self.base_url = f"https://api.{datadog_site(self._config)}"
+        self.last_error = None
         self._session = requests.Session()
         self._session.headers.update({
             "DD-API-KEY": self._config.get("api_key", ""),
             "DD-APPLICATION-KEY": self._config.get("app_key", ""),
             "Content-Type": "application/json",
         })
-        # Topology mode: 'vm' (system.mem/cpu metrics) | 'kubernetes'
-        # (kubernetes.* metrics aggregated by service_name).
+        # Topology mode: 'vm' (system.mem/cpu metrics, one series per host) |
+        # 'kubernetes' (container.* metrics, one series per service).
         self._topology_mode = self._config.get("topology_mode", "vm")
 
     # ------------------------------------------------------------------
@@ -68,15 +97,27 @@ class DatadogMetricProvider(MetricProvider):
     # ------------------------------------------------------------------
 
     def health_check(self) -> bool:
-        """Validate API key."""
+        """The API key is valid on this site AND the application key can
+        query metrics (timeseries_query scope)."""
+        import time
+        self.last_error = None
         try:
-            resp = self._session.get(
-                f"{self.base_url}/api/v1/validate",
-                timeout=self.timeout_seconds,
-            )
-            return resp.status_code == 200
+            resp = self._session.get(f"{self.base_url}/api/v1/validate", timeout=self.timeout_seconds)
+            if resp.status_code != 200:
+                self.last_error = (f"The API key is not valid on {self.base_url.replace('https://api.', '')}. "
+                                   "Check the key and the Datadog site (e.g. datadoghq.eu).")
+                return False
+            now = int(time.time())
+            resp = self._session.get(f"{self.base_url}/api/v1/query", timeout=self.timeout_seconds,
+                                     params={"from": now - 300, "to": now, "query": "avg:system.cpu.user{*}"})
+            if resp.status_code in (401, 403):
+                self.last_error = ("The application key cannot query metrics. Give it the "
+                                   "timeseries_query scope.")
+                return False
+            return True
         except RequestException as exc:
             logger.error("Datadog Metrics health check failed: %s", exc)
+            self.last_error = f"Datadog is not reachable: {exc}"
             return False
 
     def query_range(
@@ -91,8 +132,8 @@ class DatadogMetricProvider(MetricProvider):
 
         VM mode builds a DD query like:
             avg:system.mem.total{organisation_name:acme,environment:prod}
-        Kubernetes mode uses `kubernetes.*` metrics aggregated by service:
-            avg:kubernetes.cpu.usage.total{organisation_name:acme} by {service_name}
+        Kubernetes mode uses the container metrics summed per service:
+            sum:container.cpu.usage{organisation_name:acme} by {service} / 1000000000
         """
         dd_query = self._build_metric_query(metric, labels, topology_mode=self._topology_mode)
         params = {
@@ -109,7 +150,13 @@ class DatadogMetricProvider(MetricProvider):
             )
             resp.raise_for_status()
             data = resp.json()
-            return self._parse_series(data, metric)
+            series = self._parse_series(data, metric)
+            if self._topology_mode == 'kubernetes':
+                # The pipeline keys per-service series on service_name.
+                for ts in series:
+                    if 'service' in ts.labels:
+                        ts.labels.setdefault('service_name', ts.labels['service'])
+            return series
 
         except RequestException as exc:
             logger.error("Datadog query_range failed: %s", exc)
@@ -183,28 +230,23 @@ class DatadogMetricProvider(MetricProvider):
 
         Kubernetes mode:
             _build_metric_query("node_cpu_seconds_total", {"organisation_name": "acme"}, topology_mode='kubernetes')
-            → 'avg:kubernetes.cpu.usage.total{organisation_name:acme} by {service_name}'
+            → 'sum:container.cpu.usage{organisation_name:acme} by {service} / 1000000000'
 
         Unknown metrics in K8s mode fall through to the VM name map so
         callers passing custom metrics still get a query (just not
         aggregated by service).
         """
         if topology_mode == 'kubernetes':
-            k8s_metric = K8S_METRIC_NAME_MAP.get(metric)
-            if k8s_metric:
-                if labels:
-                    tag_filter = ",".join(f"{k}:{v}" for k, v in labels.items() if v)
-                    selector = f"{{{tag_filter}}}"
-                else:
-                    selector = "{*}"
-                return f"avg:{k8s_metric}{selector} by {{service_name}}"
+            template = K8S_METRIC_QUERIES.get(metric)
+            if template:
+                return template.format(sel=f"{{{_tag_filter(labels) or '*'}}}")
             # Fall through to VM path for unmapped metrics.
 
+        # One series per host: averaged over every host, one host running out
+        # of memory read as a fleet at half capacity.
         dd_metric = cls.METRIC_NAME_MAP.get(metric, metric)
-        if labels:
-            tag_filter = ",".join(f"{k}:{v}" for k, v in labels.items() if v)
-            return f"avg:{dd_metric}{{{tag_filter}}}"
-        return f"avg:{dd_metric}{{*}}"
+        selector = f"{{{_tag_filter(labels)}}}" if _tag_filter(labels) else "{*}"
+        return f"avg:{dd_metric}{selector} by {{host}}"
 
     @staticmethod
     def _parse_series(data: dict, metric_name: str) -> List[TimeSeries]:
@@ -227,7 +269,7 @@ class DatadogMetricProvider(MetricProvider):
 
             points = [
                 TimeSeriesPoint(
-                    timestamp=datetime.fromtimestamp(point[0] / 1000),
+                    timestamp=datetime.fromtimestamp(point[0] / 1000, tz=timezone.utc),
                     value=float(point[1]) if point[1] is not None else 0.0,
                 )
                 for point in series.get("pointlist", [])
