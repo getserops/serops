@@ -1074,12 +1074,14 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
 
                 # Search using the provider abstraction
                 cicd_results = []
+                cicd_location = provider.stream_location(cicd_stream)
                 try:
+                    # A store SerOps writes no CI/CD events to has none to read.
                     cicd_results = provider.search(
-                        index=provider.stream_location(cicd_stream),
+                        index=cicd_location,
                         query=cicd_query,
                         size=100,
-                    )
+                    ) if cicd_location else []
                 except Exception as e:
                     logger.debug(f"CI/CD search on {provider.stream_location(cicd_stream)} failed: {e}")
 

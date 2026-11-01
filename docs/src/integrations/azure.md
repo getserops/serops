@@ -108,8 +108,8 @@ The `default_table` sets what `LogQuery`-driven searches query. The three you'll
 
 | Table | Content | When to use |
 |---|---|---|
-| `AppTraces` | Application Insights `trace()` calls | Default. Best for OpenTelemetry / App Insights instrumented apps. |
-| `ContainerLog` | Log lines from AKS pods | Kubernetes workloads |
+| `AppTraces` | Application Insights `trace()` calls, OpenTelemetry logs | Default. Tested with an OpenTelemetry collector (filelog receiver, `azuremonitor` exporter): `service.name` becomes `AppRoleName`, resource and log attributes become `Properties`. Lines shipped without a severity arrive as Information; SerOps reads their level from the text. |
+| `ContainerLogV2` | Log lines from AKS pods (Container Insights) | Kubernetes workloads; found automatically |
 | `Perf` | VM performance counters | VM CPU / memory / disk baselines |
 | `Syslog` | Linux syslog | On-prem VMs, network devices |
 
@@ -127,38 +127,49 @@ Callers can always supply a raw KQL string instead — the adapter accepts `sear
 
 ## Kubernetes (AKS) mode
 
-!!! warning "Not yet validated on a live AKS cluster"
-    This mode is implemented and unit-tested, but has not yet run against a
-    live AKS cluster. See [Tested environments](overview.md#tested-environments).
+!!! note "Tested on a live AKS cluster"
+    Checked in November 2026 on AKS (Kubernetes 1.36, one node, then two
+    nodes with each service on both) with Container Insights, from the UI:
+    the integration, Test connection, Check my data and an investigation of
+    a bad deploy, logs and per-service metrics read from Azure.
+    See [Tested environments](overview.md#tested-environments).
 
-For AKS clusters, set the integration's `topology_mode` to
-`kubernetes` and point `default_resource_uri` at the **AKS cluster**
-resource (not a VM). SerOps will then:
+Enable **Container Insights** on the cluster (portal → *Monitoring* →
+*Insights*, or `az aks enable-addons -a monitoring --workspace-resource-id
+<workspace>`). It ships the container logs to the `ContainerLogV2` table and
+per-container CPU and memory to the `Perf` table of the workspace.
 
-- Route canonical `node_cpu_seconds_total` / `container_*` names to
-  the Azure Monitor Container Insights metric names
-  (`node_cpu_usage_percentage`, `container_cpu_usage_percentage`,
-  `container_memory_working_set_bytes`, …).
-- Build an Azure dimension `filter` string per query so metric
-  results narrow to the right workload. Canonical SerOps labels are
-  aliased automatically:
+In the integration, set **Topology mode** to **Kubernetes** and give the
+**Log Analytics workspace ID** of that workspace. The **Default resource URI**
+is optional (the AKS cluster's resource ID).
 
-  | SerOps label | Azure dimension |
-  |---|---|
-  | `service_name` / `service` | `controllerName` |
-  | `namespace` | `kubernetesNamespace` |
-  | `pod` | `podName` |
-  | `container` | `containerName` |
-  | `node` | `node` |
+**Logs.** SerOps finds the tables of the workspace that received records
+(`AppTraces`, `ContainerLogV2`) and reads each with its own columns: the line
+from `LogMessage`, the service from `ContainerName`, the level from
+`LogLevel`, a JSON `level` field or the line's words (Container Insights
+writes `LogLevel` *info* for plain-text lines, `ERROR` ones included).
+Container Insights does not collect pod labels: open the project's **Data**
+tab, run **Check my data** and accept the rule it offers,
+`PodNamespace = production`. A rule whose value names the environment also
+puts the logs in it.
 
-- Values are quoted; any value containing a double-quote is
-  **silently dropped** rather than sent into the filter (defence in
-  depth against a hostile label).
+**Metrics.** With the workspace, SerOps reads Container Insights' counters
+per container, summed over the pods of each service, in the namespace named
+after the project or the environment:
 
-Prerequisite: **Azure Monitor Container Insights** must be enabled
-on the AKS cluster (portal → *Insights* → *Enable*, or via
-`az aks enable-addons -a monitoring`). The service principal needs
-`Monitoring Reader` on the AKS resource.
+| SerOps reads | From `Perf` (`ObjectName == "K8SContainer"`) |
+|---|---|
+| Memory total | `memoryLimitBytes` (the node's allocatable when no limit is set) |
+| Memory free | limit minus `memoryWorkingSetBytes` |
+| CPU | `cpuUsageNanoCores`, in cores |
+
+Without a workspace, Azure Monitor's AKS metrics are per node only: SerOps
+reads the cluster as a whole (`kube_node_status_allocatable_memory_bytes`,
+`node_memory_working_set_bytes`, `node_cpu_usage_millicores`) and cannot tell
+services apart.
+
+The service principal needs `Log Analytics Reader` on the workspace, and
+`Monitoring Reader` on the cluster when a resource URI is set.
 
 ## Related Pages
 

@@ -42,7 +42,7 @@ Last full run: **2026-10-24**, SerOps `main` after 1.2.5, Kubernetes 1.31
 | [Datadog](datadog.md) | Cloud service | Datadog EU, Agent 7 (Helm chart 3.264) | Live-tested |
 | [AWS CloudWatch](cloudwatch.md) | Cloud service (Logs Insights) | `eu-central-1`: ECS and Lambda log groups, Container Insights (Fluent Bit 3.0) | Live-tested |
 | [Google Cloud Logging](gcp.md) | Cloud service | — | Unit-tested |
-| [Azure Monitor](azure.md) | Cloud service (Log Analytics) | — | Unit-tested |
+| [Azure Monitor](azure.md) | Cloud service (Log Analytics) | AKS Container Insights (`ContainerLogV2`), Application Insights from an OpenTelemetry collector (`AppTraces`) | Live-tested |
 
 Log shippers used in the tests, with the configurations on the integration
 pages: Promtail 3.5.0 (Loki), Fluent Bit 3.1.9 (Elasticsearch, OpenSearch,
@@ -58,7 +58,7 @@ and Splunk through HEC).
 | [Datadog](datadog.md) | Cloud service | Datadog EU, Agent 7: host and Kubernetes container metrics | Live-tested |
 | [AWS CloudWatch](cloudwatch.md) | Cloud service | `eu-central-1`: CloudWatch agent 1.300074, host and Container Insights metrics | Live-tested |
 | [Google Cloud Monitoring](gcp.md) | Cloud service | — | Unit-tested |
-| [Azure Monitor](azure.md) | Cloud service | — | Unit-tested |
+| [Azure Monitor](azure.md) | Cloud service | AKS: per-container metrics from Container Insights, cluster metrics. VM metrics not yet live-tested | Live-tested |
 
 ## Traces
 
@@ -68,14 +68,14 @@ and Splunk through HEC).
 | [Jaeger](traces.md) (pull) | Query API of 1.x | 1.62.0 | Live-tested |
 | [Zipkin](traces.md) (pull) | API v2 | 3.4 | Live-tested |
 | [Grafana Tempo](traces.md) (pull) | 2.x | 2.6.1 | Live-tested |
-| [Datadog APM](datadog.md) (pull) | Cloud service | — | Unit-tested |
+| [Datadog APM](datadog.md) (pull) | Cloud service | Datadog EU, Agent 7 receiving OTLP | Live-tested |
 
 ## Alerts
 
 | Integration | Supported | Tested end to end | Maturity |
 |---|---|---|---|
 | [Prometheus Alertmanager](alerts.md) | Webhook payload v4 | 0.27.0 | Live-tested |
-| [Grafana alerts](alerts.md) | Grafana 9 and later (documented) | — | Unit-tested |
+| [Grafana alerts](alerts.md) | Grafana 9 and later (documented) | 11.3.0 (contact point + rule, alert and resolution) | Live-tested |
 | [Datadog monitors](alerts.md) | Webhook integration | — | Unit-tested |
 | [Sentry](alerts.md#sentry) | Internal integration webhooks (signed) | — | Unit-tested |
 

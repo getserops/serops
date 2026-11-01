@@ -243,6 +243,8 @@ class AzureQueryRangeTest(TestCase):
         provider._topology_mode = topology_mode
         provider._client = MagicMock()
         provider._client.query_resource.return_value = MagicMock(metrics=[])
+        provider._workspace_id = None
+        provider._logs = None
         return provider
 
     def _install_azure_stub(self):
@@ -265,14 +267,17 @@ class AzureQueryRangeTest(TestCase):
         # VM mode does NOT build a dim filter — kwarg absent.
         self.assertNotIn('filter', kwargs)
 
-    def test_k8s_mode_uses_aks_metric_and_filter(self):
+    def test_k8s_mode_without_workspace_reads_the_cluster_cpu_in_millicores(self):
+        """AKS platform metrics carry node / nodepool dimensions only (live,
+        2026-11-01): a controllerName filter is refused. CPU is read in
+        millicores and returned in cores."""
         p = self._make_provider('kubernetes')
         with self._install_azure_stub():
             p.query_range('node_cpu_seconds_total', {'service_name': 'checkout'},
                           datetime.utcnow(), datetime.utcnow() + timedelta(minutes=5))
         kwargs = p._client.query_resource.call_args.kwargs
-        self.assertEqual(kwargs['metric_names'], ['node_cpu_usage_percentage'])
-        self.assertEqual(kwargs['filter'], 'controllerName eq "checkout"')
+        self.assertEqual(kwargs['metric_names'], ['node_cpu_usage_millicores'])
+        self.assertNotIn('filter', kwargs)
 
     def test_k8s_mode_no_matching_labels_no_filter(self):
         """If we're in K8s mode but no K8s labels are supplied, don't pass

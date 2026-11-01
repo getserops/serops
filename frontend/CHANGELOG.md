@@ -10,6 +10,12 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.2.13] - 2026-11-01
+
+### Changed
+
+- Azure Monitor integration form: the workspace and resource URI fields say what each is for (the workspace also gives per-service AKS metrics; the resource URI is optional for AKS).
+
 ## [1.2.12] - 2026-10-31
 
 ### Fixed

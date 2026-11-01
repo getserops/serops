@@ -290,3 +290,83 @@ class DatadogAdapterTest(TestCase):
         # span0 has parent_id "0" → treated as root (empty parent).
         root = next(s for s in traces[0].spans if not s.parent_span_id)
         self.assertTrue(root.span_id.endswith('span0'))
+
+
+class DatadogHealthCheckTest(TestCase):
+    """Test connection must try a span search: an application key scoped for
+    logs and metrics only passed /api/v1/validate, then every fetch got 403."""
+
+    def setUp(self):
+        self.adapter = DatadogTraceAdapter(config={
+            'extra_config': {'api_key': 'k', 'app_key': 'a', 'site': 'datadoghq.eu'},
+        })
+
+    def test_an_application_key_without_apm_read_fails_and_says_so(self):
+        with patch.object(self.adapter._session, 'get', return_value=_mock_response(200, {'valid': True})), \
+                patch.object(self.adapter._session, 'post', return_value=_mock_response(403, {'errors': ['Forbidden']})):
+            self.assertFalse(self.adapter.health_check())
+        self.assertIn('apm_read', self.adapter.last_error)
+
+    def test_a_key_that_can_search_spans_is_healthy(self):
+        with patch.object(self.adapter._session, 'get', return_value=_mock_response(200, {'valid': True})), \
+                patch.object(self.adapter._session, 'post', return_value=_mock_response(200, {'data': []})) as post:
+            self.assertTrue(self.adapter.health_check())
+        self.assertIn('/api/v2/spans/events/search', post.call_args.args[0])
+        self.assertIsNone(self.adapter.last_error)
+
+    def test_an_invalid_api_key_fails_and_names_the_site(self):
+        with patch.object(self.adapter._session, 'get', return_value=_mock_response(403, {})):
+            self.assertFalse(self.adapter.health_check())
+        self.assertIn('datadoghq.eu', self.adapter.last_error)
+
+
+class DatadogLiveShapeTest(TestCase):
+    """The request and span shape of the real Datadog EU API (2026-10-31)."""
+
+    # A span as /api/v2/spans/events/search returns it for an OTLP-fed
+    # service: decimal span ids, start and end, no duration.
+    LIVE = {'data': [{'id': 'x', 'type': 'spans', 'attributes': {
+        'service': 'payments', 'resource_name': 'GET /charge', 'operation_name': 'server',
+        'trace_id': 'ad2afdbd7a3e7584e57dbb9f764f613f', 'span_id': '8779938157922599378',
+        'parent_id': '14205786948509074645', 'start_timestamp': '2026-10-31T22:22:38.78Z',
+        'end_timestamp': '2026-10-31T22:22:39.074Z', 'status': 'ok', 'error': 0, 'env': 'production',
+        'custom': {}, 'tags': [], 'type': 'web'}}]}
+
+    def setUp(self):
+        self.adapter = DatadogTraceAdapter(config={
+            'extra_config': {'api_key': 'k', 'app_key': 'a', 'site': 'datadoghq.eu'},
+        })
+
+    def test_every_search_says_it_is_a_search_request(self):
+        """Without it Datadog answers 400: every fetch had failed."""
+        with patch.object(self.adapter._session, 'post', return_value=_mock_response(200, self.LIVE)) as post:
+            self.adapter.fetch_traces('payments', datetime(2026, 10, 31, 22, tzinfo=timezone.utc),
+                                      datetime(2026, 10, 31, 23, tzinfo=timezone.utc))
+            self.adapter.fetch_trace('ad2afdbd7a3e7584e57dbb9f764f613f')
+        for call in post.call_args_list:
+            self.assertEqual(call.kwargs['json']['data']['type'], 'search_request')
+        # A trace looked up by id is searched beyond Datadog's 15-minute default.
+        self.assertEqual(post.call_args_list[1].kwargs['json']['data']['attributes']['filter']['from'], 'now-15d')
+
+    def test_a_live_span_gets_its_duration_and_hex_ids(self):
+        with patch.object(self.adapter._session, 'post', return_value=_mock_response(200, self.LIVE)):
+            [trace] = self.adapter.fetch_traces('payments', datetime(2026, 10, 31, 22, tzinfo=timezone.utc),
+                                                datetime(2026, 10, 31, 23, tzinfo=timezone.utc))
+        [span] = trace.spans
+        self.assertEqual(span.duration_ms, 294)
+        self.assertEqual(span.span_id, format(8779938157922599378, 'x').rjust(16, '0'))
+        self.assertEqual(span.status_code, 'OK')
+
+    def test_the_error_flag_marks_an_error_span(self):
+        live = {'data': [{**self.LIVE['data'][0], 'attributes': {
+            **self.LIVE['data'][0]['attributes'], 'status': 'ok', 'error': 1}}]}
+        with patch.object(self.adapter._session, 'post', return_value=_mock_response(200, live)):
+            [trace] = self.adapter.fetch_traces('payments', datetime(2026, 10, 31, 22, tzinfo=timezone.utc),
+                                                datetime(2026, 10, 31, 23, tzinfo=timezone.utc))
+        self.assertEqual(trace.error_span_count, 1)
+
+    def test_a_refused_search_fails_the_health_check(self):
+        with patch.object(self.adapter._session, 'get', return_value=_mock_response(200, {'valid': True})), \
+                patch.object(self.adapter._session, 'post', return_value=_mock_response(400, {})):
+            self.assertFalse(self.adapter.health_check())
+        self.assertIn('400', self.adapter.last_error)

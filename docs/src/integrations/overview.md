@@ -71,10 +71,11 @@ and tested per integration: [Compatibility](compatibility.md).
 | Self-hosting | Docker Compose and the Helm chart, verified end to end. |
 | Kubernetes workloads | Verified on **single-node** clusters (minikube, KinD): Fluent Bit → Elasticsearch, Promtail → Loki, Prometheus with cAdvisor and kube-state-metrics, and OTLP traces. |
 | Live-tested backends | Elasticsearch, OpenSearch, Grafana Loki, Splunk, Prometheus, VictoriaMetrics, Grafana Mimir, Jaeger, Zipkin, Tempo, Alertmanager, GitLab, Jenkins, Argo CD, Flux, Keycloak (versions in [Compatibility](compatibility.md)). |
-| Managed Kubernetes (EKS, GKE, AKS) | **Not yet validated.** The Datadog and CloudWatch Container Insights Kubernetes modes ran on a local cluster sending to the real service (see below), not on a managed one. Cloud Monitoring for GKE and Azure Monitor Container Insights are implemented and unit-tested only. Use the credentials each integration page describes: Google Cloud and Azure deliberately never use the host's own cloud identity (GKE Workload Identity, AKS managed identity), so one organisation on a shared instance cannot borrow it. |
-| Multi-node clusters | **Not yet validated.** All the Kubernetes testing above ran on one node. |
+| Managed Kubernetes (EKS, GKE, AKS) | **AKS validated** (November 2026: one node, then two, with Container Insights). EKS and GKE not yet: the Datadog and CloudWatch Container Insights Kubernetes modes ran on a local cluster sending to the real service, Cloud Monitoring for GKE is unit-tested only. Use the credentials each integration page describes: Google Cloud and Azure deliberately never use the host's own cloud identity (GKE Workload Identity, AKS managed identity), so one organisation on a shared instance cannot borrow it. |
+| Multi-node clusters | **AKS with two nodes** (each service on both): logs and per-service metrics summed over pods on different nodes. The other Kubernetes testing ran on one node. |
 | Datadog, AWS CloudWatch | Run against a live account (Datadog EU, AWS `eu-central-1`, October 2026): logs, host metrics, ECS and Lambda log groups. On Kubernetes, the full journey from the UI (add the integration, Check my data, investigate a bad deploy) with the Datadog Agent Helm chart and with AWS's Container Insights quickstart, on a single-node local cluster. |
-| Google Cloud, Azure Monitor | Implemented and unit-tested against mocked API responses; not yet run against a live account. |
+| Azure Monitor | Run against a live account (November 2026): AKS Container Insights logs and metrics, Application Insights logs from an OpenTelemetry collector. VM metrics not yet. |
+| Google Cloud | Implemented and unit-tested against mocked API responses; not yet run against a live account. |
 
 If you run SerOps on one of the unvalidated setups, an
 [issue](https://github.com/getserops/serops/issues) saying what worked and

@@ -1064,7 +1064,8 @@ class DeleteAccountView(APIView):
                 AuthToken.objects.filter(user=user).delete()
 
                 if delete_org:
-                    org.delete()
+                    from Organisations.deletion import delete_organisation
+                    delete_organisation(org)
                 else:
                     user.delete()
         except Exception as e:

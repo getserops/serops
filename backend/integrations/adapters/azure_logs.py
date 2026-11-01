@@ -17,11 +17,14 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 
-from integrations.base import LogProvider, LogProviderCapabilities
+from integrations.base import LogProvider, LogProviderCapabilities, LogSearchError
 from integrations.schemas import (
     LogEntry,
     LogQuery,
+    _AZ_TABLES,
     _detect_level,
+    _detect_level_from_line,
+    level_of,
 )
 
 logger = logging.getLogger(__name__)
@@ -111,6 +114,7 @@ class AzureLogAnalyticsProvider(LogProvider):
 
     def health_check(self) -> bool:
         """One-row metadata query — cheapest authenticated call."""
+        self.last_error = None
         try:
             self._client.query_workspace(
                 workspace_id=self._workspace_id,
@@ -120,6 +124,7 @@ class AzureLogAnalyticsProvider(LogProvider):
             return True
         except Exception as exc:
             logger.error("Azure Log Analytics health check failed: %s", exc)
+            self.last_error = _azure_error(exc)
             return False
 
     def search(
@@ -134,7 +139,16 @@ class AzureLogAnalyticsProvider(LogProvider):
         ``index`` is used as the KQL table name when a ``LogQuery`` is
         supplied — matches the SPL adapter's index concept.
         """
-        table = index or self._default_table
+        # The scheduler passes every table get_indices found, comma-joined.
+        # Tables have different columns: one query each, merged.
+        tables = [t.strip() for t in (index or "").split(",") if t.strip()] or [self._default_table]
+        if isinstance(query, LogQuery) and len(tables) > 1:
+            merged: List[LogEntry] = []
+            for one in tables:
+                merged += self.search(one, query, time_range, size)
+            merged.sort(key=lambda e: e.timestamp, reverse=True)
+            return merged[:query.max_results]
+        table = tables[0]
 
         if isinstance(query, LogQuery):
             if not query.time_range and time_range:
@@ -166,39 +180,45 @@ class AzureLogAnalyticsProvider(LogProvider):
                 timespan=timespan,
             )
         except Exception as exc:
+            # A refused query is not "no logs": analyses and Check my data
+            # said there were no errors while every query failed.
             logger.error("Azure Log Analytics query_workspace failed: %s", exc)
-            return []
+            raise LogSearchError(_azure_error(exc)) from exc
 
         return self._parse_response(response, table, size)
 
-    def get_indices(self, project) -> List[str]:
-        """List Log Analytics table names visible to the service principal.
+    def stream_location(self, stream) -> str:
+        """SerOps writes no stream to Log Analytics (no CI/CD events there)."""
+        return ""
 
-        We use a KQL metadata query — ``getschema | distinct TableName``
-        would be ideal but doesn't work for cross-table introspection.
-        Instead we run a fixed query that returns table names from the
-        workspace schema.
+    def get_indices(self, project) -> List[str]:
+        """The log tables of the workspace that received records in the
+        last day, among those SerOps reads (AppTraces, ContainerLogV2) and
+        the configured default.
+
+        The former metadata query was not valid KQL: it always came back
+        empty and the scheduler found nowhere to read logs.
         """
         # `project` is intentionally ignored — the integration record
         # already scopes to a single workspace.
-        query = "search *\n| take 0\n| getschema | project TableName | distinct TableName"
+        known = list(dict.fromkeys([self._default_table, *_AZ_TABLES]))
+        query = ("union isfuzzy=true withsource=SerOpsTable " + ", ".join(known) +
+                 "\n| where TimeGenerated > ago(1d)\n| distinct SerOpsTable")
         try:
             response = self._client.query_workspace(
                 workspace_id=self._workspace_id,
                 query=query,
-                timespan=timedelta(minutes=1),
+                timespan=timedelta(days=1),
             )
         except Exception as exc:
             logger.warning("Azure get_indices failed: %s", exc)
-            return []
-        # Best-effort — the exact shape depends on SDK response class.
-        tables = getattr(response, "tables", None) or []
+            return [self._default_table]
         names: list = []
-        for table in tables:
+        for table in getattr(response, "tables", None) or []:
             for row in getattr(table, "rows", []) or []:
                 if row and isinstance(row[0], str):
                     names.append(row[0])
-        return sorted(set(names))
+        return sorted(set(names)) or [self._default_table]
 
     # ------------------------------------------------------------------
     # Internal
@@ -225,6 +245,9 @@ class AzureLogAnalyticsProvider(LogProvider):
                 if len(entries) >= size:
                     return entries
                 fields = dict(zip(columns, row))
+                if table_name == "ContainerLogV2":
+                    entries.append(_container_log_entry(fields, table_name))
+                    continue
                 # Standard AppTraces columns; fall back gracefully for
                 # other tables.
                 ts = fields.get("TimeGenerated")
@@ -267,9 +290,11 @@ class AzureLogAnalyticsProvider(LogProvider):
                             or fields.get("RenderedMessage")
                             or fields.get("_ResourceId", "")
                         ),
-                        level=_detect_level(raw_level),
+                        level=_apptraces_level(raw_level, str(fields.get("Message") or "")),
                         service=str(
                             properties.get("service_name")
+                            # OpenTelemetry's service.name lands in AppRoleName.
+                            or fields.get("AppRoleName")
                             or fields.get("ServiceName", "")
                             or ""
                         ),
@@ -291,7 +316,79 @@ class AzureLogAnalyticsProvider(LogProvider):
                                 )
                             },
                             **{f"properties.{k}": v for k, v in properties.items()},
+                            # Also under their own names: project rules and
+                            # Check my data look fields up by name
+                            # (k8s.namespace.name), never with a prefix.
+                            **{k: v for k, v in properties.items() if k not in fields},
                         },
                     )
                 )
         return entries
+
+
+def _azure_error(exc) -> str:
+    """What to tell the person when Log Analytics refuses a call."""
+    text = str(exc)
+    if any(k in text for k in ("AuthorizationFailed", "InsufficientAccessError", "403", "Forbidden")):
+        return ("The service principal cannot read this workspace. Give it the Log Analytics Reader "
+                "role on the workspace.")
+    if any(k in text for k in ("AADSTS", "invalid_client", "ClientAuthenticationError", "401")):
+        return "Azure refused the service principal: check the tenant ID, client ID and client secret."
+    if "PathNotFoundError" in text or "WorkspaceNotFound" in text or "404" in text:
+        return "The Log Analytics workspace ID is not found: copy it from the workspace's Overview page."
+    first = text.strip().splitlines()[0] if text.strip() else type(exc).__name__
+    return f"Log Analytics refused the query: {first[:300]}"
+
+
+def _apptraces_level(raw_level: str, message: str) -> str:
+    """AppTraces SeverityLevel, or the line's own level when it says no more
+    than Information: a collector shipping plain-text lines (filelog) sets
+    no severity, and "ERROR payments ..." arrived as SeverityLevel 1."""
+    level = _detect_level(raw_level)
+    if level in ("INFO", "DEBUG"):
+        return _detect_level_from_line(message, default=level)
+    return level
+
+
+def _record_id(container, ts, message) -> str:
+    import hashlib
+    key = f"{container}|{ts.isoformat() if isinstance(ts, datetime) else ts}|{message}"
+    return hashlib.sha1(key.encode("utf-8", "replace")).hexdigest()
+
+
+def _container_log_entry(fields: dict, table_name: str) -> LogEntry:
+    """A Container Insights (ContainerLogV2) record.
+
+    LogMessage is the container's line: a string, or a dict when the line
+    is JSON. LogLevel is "info" or "unknown" for plain text, so the level
+    is read from the JSON or the line itself.
+    """
+    import json
+    ts = fields.get("TimeGenerated")
+    if not isinstance(ts, datetime):
+        ts = datetime.min
+    raw = fields.get("LogMessage")
+    if isinstance(raw, str) and raw.lstrip().startswith("{"):
+        try:
+            raw = json.loads(raw)
+        except (TypeError, ValueError):
+            pass
+    doc = raw if isinstance(raw, dict) else {}
+    message = str(doc.get("message") or doc.get("msg") or (json.dumps(raw) if doc else raw or ""))
+    level = level_of(doc, message)
+    column_level = str(fields.get("LogLevel") or "").lower()
+    if column_level not in ("", "info", "unknown", "information"):
+        level = _detect_level(column_level)
+    meta = {k: v for k, v in fields.items() if k not in ("TimeGenerated", "LogMessage")}
+    return LogEntry(
+        timestamp=ts,
+        message=message,
+        level=level,
+        service=str(doc.get("service_name") or doc.get("service") or fields.get("ContainerName") or ""),
+        host=str(fields.get("Computer") or ""),
+        trace_id=str(doc.get("trace_id") or ""),
+        # ContainerLogV2 has no record id, and the batch pipeline drops a
+        # log without one: container + time + line identify it.
+        raw_id=_record_id(fields.get("ContainerId"), ts, message),
+        labels={"_index": table_name, **meta, **doc},
+    )

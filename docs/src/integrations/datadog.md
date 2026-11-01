@@ -51,6 +51,7 @@ Create the application key under **Organization Settings â†’ Application Keys â†
 | `logs_read_data` | Searching logs (analyses, Check my data) |
 | `logs_read_index_data` | Listing your log indexes. Without it SerOps searches every index |
 | `timeseries_query` | Querying metrics, when Datadog is also your metrics provider |
+| `apm_read` | Reading APM traces, when Datadog is also a trace provider. Without it every trace search is refused; **Test connection** says so |
 
 No basic auth (`username`/`password`) is used for Datadog.
 

@@ -435,6 +435,27 @@ class ObservabilityAPITests(APITestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.data['integrations'][0]['healthy'])
 
+    @patch('integrations.registry.IntegrationRegistry.get_trace_provider')
+    def test_health_check_tests_a_trace_source(self, mock_get):
+        """A traces-only integration (Datadog APM, Jaeger...) got no result."""
+        mock_provider = MagicMock()
+        mock_provider.health_check.return_value = False
+        mock_provider.last_error = 'The application key cannot read APM spans.'
+        mock_get.return_value = mock_provider
+
+        integration = ObservabilityIntegration.objects.create(
+            organisation=self.org,
+            provider='jaeger',
+            display_name='Jaeger',
+            capabilities=['traces'],
+        )
+        self.assertTrue(integration.trace_adapter_class)
+        resp = self.client.post(f'{self.base_url}{integration.id}/health-check/')
+        self.assertEqual(resp.status_code, 200)
+        [result] = resp.data['integrations']
+        self.assertEqual((result['provider_type'], result['healthy']), ('trace', False))
+        self.assertIn('APM spans', result['message'])
+
     def test_unauthenticated_rejected(self):
         client = APIClient()  # no auth
         resp = client.get(self.base_url)

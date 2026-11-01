@@ -120,7 +120,7 @@ class ObservabilityIntegrationViewSet(viewsets.ModelViewSet):
         """
         Run health checks on the integration's configured providers.
 
-        Checks log and/or metric provider depending on capabilities.
+        Checks the log, metric and trace providers the capabilities name.
         """
         integration = self.get_object()
 
@@ -170,6 +170,21 @@ class ObservabilityIntegrationViewSet(viewsets.ModelViewSet):
                     results.append({
                         'provider': type(provider).__name__,
                         'provider_type': 'metric',
+                        'healthy': healthy,
+                        'message': 'OK' if healthy else (getattr(provider, 'last_error', None) or 'Health check failed'),
+                    })
+                elif cap == 'traces' and integration.trace_adapter_class:
+                    # A trace source (Datadog APM, Jaeger, Zipkin, Tempo) was
+                    # never tested: a traces-only integration got no result.
+                    provider = IntegrationRegistry.get_trace_provider(
+                        integration.trace_adapter_class,
+                        integration.get_config(),
+                        org_id=integration.organisation_id,
+                    )
+                    healthy = provider.health_check()
+                    results.append({
+                        'provider': type(provider).__name__,
+                        'provider_type': 'trace',
                         'healthy': healthy,
                         'message': 'OK' if healthy else (getattr(provider, 'last_error', None) or 'Health check failed'),
                     })

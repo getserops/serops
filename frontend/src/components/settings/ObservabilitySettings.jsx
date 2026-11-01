@@ -157,8 +157,8 @@ const PROVIDERS = {
             { name: "extra_config.tenant_id", label: "Tenant ID", required: true },
             { name: "extra_config.client_id", label: "Client ID", required: true },
             { name: "password", label: "Client secret", type: "password", required: true },
-            { name: "extra_config.workspace_id", label: "Log Analytics workspace ID", placeholder: "For logs" },
-            { name: "extra_config.default_resource_uri", label: "Default resource URI", placeholder: "For metrics (optional)" },
+            { name: "extra_config.workspace_id", label: "Log Analytics workspace ID", placeholder: "For logs, and per-service AKS metrics" },
+            { name: "extra_config.default_resource_uri", label: "Default resource URI", placeholder: "For VM metrics; optional for AKS with a workspace" },
         ],
     },
     // Trace stores SerOps pulls from (traces.md). OTLP sent to SerOps

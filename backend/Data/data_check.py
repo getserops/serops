@@ -59,6 +59,7 @@ GROUPING_FIELDS = [
     'k8s.namespace.name',                       # OpenTelemetry Kubernetes attributes
     'namespace',                                # Promtail / Loki label
     'kube_namespace',                           # Datadog Agent tag
+    'PodNamespace',                             # Azure Container Insights (ContainerLogV2)
     'kube_app_part_of',                         # Datadog Agent tag (app.kubernetes.io/part-of)
     'kubernetes.labels.app_kubernetes_io/part-of',  # Fluent Bit, Replace_Dots
     'kubernetes.labels.app.kubernetes.io/part-of',

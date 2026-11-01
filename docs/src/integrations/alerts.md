@@ -23,6 +23,10 @@ Sentry, the exception, release and stack frames go into the analysis
 alongside the logs, metrics and traces of the window. An alert alone is
 enough for an analysis, so a team that only has Sentry still gets one.
 
+Only a firing alert starts an analysis. A resolved one (Alertmanager and
+Grafana send them by default, Datadog's **Recovered**, Sentry's resolved
+issue) is recorded and starts none: the system has already recovered.
+
 ## 1. Get a webhook secret
 
 Inbound alerts authenticate with a bearer token. There are two ways to
@@ -111,10 +115,16 @@ route:
 *Alerting → Contact points → New*. Type = Webhook.
 
 - URL: `https://your-serops-host/api/webhooks/alerts/grafana/42/`
-- Auth: HTTP header, `Authorization: Bearer <secret>`
+- Optional settings → Authorization Header: scheme `Bearer`, credentials
+  `<secret>`
+- Leave **Disable resolved message** off: SerOps records the resolution
+  (it starts no analysis).
 
-Grafana emits the Alertmanager v4 payload, so it lands through the
-same parser.
+Then route your alerts to that contact point (*Notification policies*) and
+give the alert rule the labels SerOps routes by: `service` (or `job`) and
+`environment`. Grafana emits the Alertmanager v4 payload, so it lands through
+the same parser. Tested with Grafana 11.3: a rule on Prometheus fired, SerOps
+emailed on-call the root cause, and the resolution was recorded.
 
 ### Datadog Monitors
 
@@ -123,9 +133,28 @@ create the webhook integration:
 
 - URL: `https://your-serops-host/api/webhooks/alerts/datadog/42/`
 - Custom headers: `Authorization: Bearer <secret>`
+- Payload: Datadog's default payload carries no tags. It works for a
+  multi-alert monitor grouped by `service` and `env` (SerOps reads them from
+  the title, `[Triggered on {env:production,service:payments}] …`); for any
+  other monitor, use this custom payload:
 
-Add `service:<name>` and `env:<name>` tags to the monitor so SerOps
-can route the analysis to the right project.
+```json
+{
+  "id": "$ID",
+  "title": "$EVENT_TITLE",
+  "body": "$EVENT_MSG",
+  "event_type": "$EVENT_TYPE",
+  "alert_id": "$ALERT_ID",
+  "alert_transition": "$ALERT_TRANSITION",
+  "alert_priority": "$ALERT_PRIORITY",
+  "alert_scope": "$ALERT_SCOPE",
+  "tags": "$TAGS"
+}
+```
+
+Tag the monitor (or group it) with `service:<name>` and `env:<name>` so
+SerOps can route the analysis to the right project. A **Recovered**
+notification is recorded but starts no analysis.
 
 ### Sentry
 

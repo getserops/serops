@@ -407,7 +407,8 @@ class OrganisationDeleteView(APIView):
                 )
 
             organisation_name = organisation.name
-            organisation.delete()
+            from Organisations.deletion import delete_organisation
+            delete_organisation(organisation)
             logger.info(f"Organisation {organisation_name} deleted successfully")
             return Response(status=status.HTTP_204_NO_CONTENT)
 

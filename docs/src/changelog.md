@@ -16,6 +16,36 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.2.13] - 2026-11-01
+
+Integrations release, no migration. Set `SEROPS_VERSION=1.2.13` or
+`--version 1.2.13`.
+
+Azure Monitor, Datadog APM and Grafana alerts now run end to end against real
+services: Azure on AKS (one and two nodes) with Container Insights and
+Application Insights, Datadog APM through the Datadog Agent, Grafana 11.3
+alerting. See [Compatibility](integrations/compatibility.md).
+
+### Fixed
+
+- **Azure Monitor**: AKS logs never reached SerOps (the query used columns
+  Container Insights does not have, and the failure read as "no logs"); the
+  scheduler found no log table; AKS metrics had the wrong units. Logs and
+  per-service CPU and memory now come from Container Insights, Application
+  Insights logs from an OpenTelemetry collector are read with their level,
+  and refused queries say what to fix.
+- **Datadog APM**: no trace was ever pulled (every span search was refused).
+  **Test connection** now checks trace sources (Datadog APM, Jaeger, Zipkin,
+  Tempo), and for Datadog names the missing `apm_read` scope.
+- **Alerts**: a resolved alert no longer starts a second analysis; a
+  resolution arriving within 5 minutes of its alert is no longer dropped as a
+  duplicate; Datadog's default monitor payload and its **Recovered**
+  notifications are read correctly.
+- **Organisations**: "Delete organisation" and "Delete my account" no longer
+  fail while the organisation's apps are still sending traces.
+
+---
+
 ## [1.2.12] - 2026-10-31
 
 Cloud integrations release, no migration. Set `SEROPS_VERSION=1.2.12` or

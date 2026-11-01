@@ -108,6 +108,9 @@ class DatadogTraceAdapter(TraceProvider):
         query = f'service:{service_name} -_dd.origin:appsec'
         body = {
             'data': {
+                # Datadog refuses a search without it (400 "expected one of
+                # search_request"): every fetch had failed, live-tested.
+                'type': 'search_request',
                 'attributes': {
                     'filter': {
                         'query': query,
@@ -127,7 +130,9 @@ class DatadogTraceAdapter(TraceProvider):
             )
             resp.raise_for_status()
         except RequestException as exc:
-            logger.warning('Datadog fetch_traces failed: %s', exc)
+            logger.warning('Datadog fetch_traces failed: %s%s', exc,
+                           ' (the application key needs the apm_read scope)'
+                           if getattr(exc.response, 'status_code', None) in (401, 403) else '')
             return []
 
         payload = resp.json() or {}
@@ -146,8 +151,10 @@ class DatadogTraceAdapter(TraceProvider):
             return None
         body = {
             'data': {
+                'type': 'search_request',
                 'attributes': {
-                    'filter': {'query': f'trace_id:{trace_id}'},
+                    # Without a range Datadog searches the last 15 minutes.
+                    'filter': {'query': f'trace_id:{trace_id}', 'from': 'now-15d', 'to': 'now'},
                     'page': {'limit': 1000},
                 }
             }
@@ -171,13 +178,38 @@ class DatadogTraceAdapter(TraceProvider):
         return self._assemble_trace(trace_id, spans)
 
     def health_check(self):
+        """The API key is valid on this site AND the application key can
+        search spans. Checking the API key alone said "healthy" with an
+        application key scoped for logs and metrics only (the scopes the docs
+        listed), and every trace fetch then came back empty on a 403."""
+        self.last_error = None
         try:
             resp = self._session.get(
                 f'{self.base_url}/api/v1/validate',
                 timeout=min(self.timeout_seconds, 5),
             )
-            return resp.status_code == 200
-        except RequestException:
+            if resp.status_code != 200:
+                self.last_error = (f"The API key is not valid on {self.base_url.replace('https://api.', '')}. "
+                                   "Check the key and the Datadog site (e.g. datadoghq.eu).")
+                return False
+            resp = self._session.post(
+                f'{self.base_url}/api/v2/spans/events/search',
+                json={'data': {'type': 'search_request',
+                               'attributes': {'filter': {'query': '*', 'from': 'now-1m', 'to': 'now'},
+                                              'page': {'limit': 1}}}},
+                timeout=self.timeout_seconds,
+            )
+            if resp.status_code in (401, 403):
+                self.last_error = ('The application key cannot read APM spans. Give it the apm_read scope '
+                                   '(Organization Settings → Application Keys).')
+                return False
+            if resp.status_code != 200:
+                self.last_error = f'Datadog refused the span search ({resp.status_code}): {resp.text[:200]}'
+                return False
+            return True
+        except RequestException as exc:
+            logger.error('Datadog APM health check failed: %s', exc)
+            self.last_error = f'Datadog is not reachable: {exc}'
             return False
 
     # ------------------------------------------------------------------
@@ -208,13 +240,17 @@ class DatadogTraceAdapter(TraceProvider):
             duration_ms = max(0, int(duration_ns) // 1_000_000)
         except (TypeError, ValueError):
             duration_ms = 0
+        # The spans search sends start and end, no duration.
+        if not duration_ms and start and end:
+            duration_ms = max(0, int((end - start).total_seconds() * 1000))
         # If DD didn't give us end, derive from start + duration.
         if start and not end:
             from datetime import timedelta
             end = start + timedelta(milliseconds=duration_ms)
 
         status = str(attrs.get('status') or '').lower()
-        status_code = 'ERROR' if status == 'error' else ('OK' if status == 'ok' else 'UNSET')
+        errored = status == 'error' or str(attrs.get('error', '')).lower() in ('1', 'true')
+        status_code = 'ERROR' if errored else ('OK' if status == 'ok' else 'UNSET')
 
         custom = attrs.get('custom') or {}
         return SpanEntry(

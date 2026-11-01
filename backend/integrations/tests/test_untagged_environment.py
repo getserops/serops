@@ -27,7 +27,7 @@ class UntaggedEnvironmentTest(SimpleTestCase):
         self.assertNotIn("NOT environment=*", query(False).to_splunk_spl())
 
     def test_azure(self):
-        self.assertIn("isempty(tostring(Properties.environment))", query(True).to_azure_kql())
+        self.assertIn("isempty(tostring(Properties[\"environment\"]))", query(True).to_azure_kql())
         self.assertNotIn("isempty", query(False).to_azure_kql())
 
     def test_gcp(self):

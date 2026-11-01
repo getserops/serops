@@ -99,12 +99,12 @@ class TestLogQueryToAzureKql(SimpleTestCase):
 
     def test_project_and_env(self):
         kql = LogQuery(project="acme", environment="prod").to_azure_kql()
-        self.assertIn('| where Properties.project_name == "acme"', kql)
-        self.assertIn('| where tostring(Properties.environment) in~ ("prod", "production", "prd")', kql)
+        self.assertIn('| where tostring(Properties["project_name"]) == "acme"', kql)
+        self.assertIn('| where (tostring(Properties["environment"]) in~ ("prod", "production", "prd")', kql)
 
     def test_services_in_clause(self):
         kql = LogQuery(services=["api", "worker"]).to_azure_kql()
-        self.assertIn('| where Properties.service_name in ("api", "worker")', kql)
+        self.assertIn('| where tostring(Properties["service_name"]) in ("api", "worker") or AppRoleName in ("api", "worker")', kql)
 
     def test_severity_ordinal_threshold(self):
         # ERROR = 3 → >= 3
@@ -127,7 +127,7 @@ class TestLogQueryToAzureKql(SimpleTestCase):
     def test_injection_in_value_is_escaped(self):
         kql = LogQuery(project='foo" or true //').to_azure_kql()
         # The escaped payload stays inside the quoted string literal.
-        self.assertIn('Properties.project_name == "foo\\" or true //"', kql)
+        self.assertIn('tostring(Properties["project_name"]) == "foo\\" or true //"', kql)
 
     def test_max_results_bounded(self):
         kql = LogQuery(max_results=42).to_azure_kql()
@@ -215,7 +215,7 @@ class TestAzureLogAnalyticsProvider(SimpleTestCase):
         sent = client.query_workspace.call_args.kwargs
         self.assertEqual(sent["workspace_id"], "wsid")
         self.assertIn("Perf", sent["query"])
-        self.assertIn('Properties.project_name == "acme"', sent["query"])
+        self.assertIn('tostring(Properties["project_name"]) == "acme"', sent["query"])
 
     def test_search_string_query_passes_through(self):
         client = MagicMock()

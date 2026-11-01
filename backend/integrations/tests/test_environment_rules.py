@@ -58,7 +58,7 @@ class EnvironmentRulesTest(SimpleTestCase):
         self.assertEqual(query().to_splunk_spl().count('kubernetes.namespace_name IN ("production")'), 2)
 
     def test_azure(self):
-        self.assertIn('tostring(Properties.environment) in~ ("production", "prod", "prd") or '
+        self.assertIn('tostring(Properties["env"]) in~ ("production", "prod", "prd")) or '
                       'tostring(Properties["kubernetes.namespace_name"]) == "production"', query().to_azure_kql())
 
     def test_gcp(self):

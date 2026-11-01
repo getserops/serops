@@ -46,6 +46,7 @@ Payload notes per provider:
 """
 
 import hmac
+import re
 import logging
 from datetime import timedelta
 
@@ -169,34 +170,56 @@ def _parse_alertmanager(payload: dict) -> list:
     return out
 
 
-def _parse_datadog(payload: dict) -> list:
-    """Datadog Monitor webhook format — one alert per POST."""
-    # Datadog wraps user's message under different keys depending on
-    # setup; accept the common ones.
-    event_type = str(payload.get('event_type') or payload.get('alert_type') or 'firing').lower()
-    state = 'resolved' if 'recover' in event_type else 'firing'
+# A Datadog monitor notification's title: "[Triggered] High error rate", or
+# for a multi-alert monitor "[Recovered on {env:production,service:payments}]
+# High error rate". The default webhook payload carries no tags: the title is
+# where the transition and the group are.
+_DD_TITLE = re.compile(r'^\[(?P<transition>[^\]{]+?)(?:\s+on\s+\{(?P<scope>[^}]*)\})?\]\s*(?P<name>.*)$')
+_DD_RESOLVED = ('recovered',)
 
-    tags = payload.get('tags') or ''
-    if isinstance(tags, str):
-        tag_pairs = [t.strip() for t in tags.split(',') if t.strip()]
-    elif isinstance(tags, list):
-        tag_pairs = [str(t) for t in tags]
-    else:
-        tag_pairs = []
-    tag_dict = {}
-    for pair in tag_pairs:
-        if ':' in pair:
-            k, v = pair.split(':', 1)
-            tag_dict[k.strip()] = v.strip()
+
+def _dd_tags(*values) -> dict:
+    """``env:production,service:payments`` strings or lists → dict, first wins."""
+    out = {}
+    for value in values:
+        items = value.split(',') if isinstance(value, str) else (value if isinstance(value, list) else [])
+        for pair in (str(i).strip() for i in items):
+            if ':' in pair:
+                k, v = pair.split(':', 1)
+                out.setdefault(k.strip(), v.strip())
+    return out
+
+
+def _parse_datadog(payload: dict) -> list:
+    """Datadog Monitor webhook — one alert per POST.
+
+    Works with the default payload (``title``, ``event_type``, ``body``,
+    ``id``) and with the richer one the docs give (``$ALERT_TRANSITION``,
+    ``$TAGS``, ``$ALERT_SCOPE``, ``$ALERT_PRIORITY``, ``$ALERT_ID``).
+    ``$EVENT_TYPE`` is the monitor type (``query_alert_monitor``), never the
+    transition: a recovery used to be read as a new alert.
+    """
+    title = str(payload.get('alert_title') or payload.get('title') or '')
+    m = _DD_TITLE.match(title)
+    transition = str(payload.get('alert_transition') or (m.group('transition') if m else '') or '').strip()
+    event_type = str(payload.get('event_type') or payload.get('alert_type') or '').lower()
+    resolved = transition.lower() in _DD_RESOLVED or 'recover' in event_type
+    tags = _dd_tags(payload.get('alert_scope') or '', m.group('scope') if m and m.group('scope') else '',
+                    payload.get('tags') or '')
+    name = (m.group('name') if m else '') or title or 'datadog-alert'
+    # The monitor and its group, so a recovery and its alert share a key.
+    monitor = str(payload.get('alert_id') or '')
+    external = f"{monitor}:{payload.get('alert_scope') or (m.group('scope') if m else '') or ''}" if monitor else ''
 
     return [{
-        'alertname': str(payload.get('alert_title') or payload.get('title') or 'datadog-alert'),
-        'state': state,
-        'severity': str(payload.get('priority') or ''),
-        'service': tag_dict.get('service', ''),
-        'environment': tag_dict.get('env', tag_dict.get('environment', '')),
+        'alertname': name[:255],
+        'state': 'resolved' if resolved else 'firing',
+        'severity': str(payload.get('alert_priority') or payload.get('priority') or ''),
+        'service': tags.get('service', ''),
+        'environment': tags.get('env', tags.get('environment', '')),
         'summary': str(payload.get('body') or payload.get('message') or '')[:2000],
-        'external_id': str(payload.get('id') or payload.get('alert_transition_id') or ''),
+        # $ID is one notification: a retry of it is the duplicate to drop.
+        'external_id': str(payload.get('id') or external or '')[:255],
     }]
 
 
@@ -311,10 +334,15 @@ def _is_duplicate(source: str, organisation, parsed: dict) -> bool:
     event id); falls back to a synthetic key otherwise so a
     fingerprint-less provider still can't spam-retry us into 100
     duplicate analyses.
+
+    The state is part of the key: Alertmanager and Grafana send the
+    resolution with the alert's fingerprint, and one arriving within the
+    window was dropped as a retry of the alert.
     """
     cutoff = timezone.now() - _DEDUP_WINDOW
     qs = AlertEvent.objects.filter(
         organisation=organisation, source=source, received_at__gte=cutoff,
+        state=parsed.get('state', 'firing'),
     )
     ext_id = parsed.get('external_id')
     if ext_id:
@@ -416,6 +444,12 @@ class AlertWebhookView(APIView):
         # Fire the on-demand analysis task (Item #14) — one per new alert.
         # Wrapped so a Celery / broker outage doesn't turn 200 into 500.
         for event in events:
+            if event.state == 'resolved':
+                # Kept for the record; analysing a recovered system only
+                # produced a second, misleading analysis per incident
+                # (Alertmanager sends resolutions by default).
+                AlertEvent.objects.filter(pk=event.pk).update(processed_at=timezone.now())
+                continue
             try:
                 from Data.tasks import analyze_alert_ondemand
                 analyze_alert_ondemand.delay(event.pk)

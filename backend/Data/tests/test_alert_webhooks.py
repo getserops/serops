@@ -251,3 +251,101 @@ class AlertmanagerLabelTest(TestCase):
             'annotations': {}}]})
         self.assertEqual(parsed[0]['service'], 'payments')
         self.assertEqual(parsed[0]['environment'], 'production')
+
+
+@override_settings(ALERT_WEBHOOK_SECRETS=_TEST_SECRETS)
+class DatadogMonitorPayloadTest(TestCase):
+    """Datadog's documented webhook payloads. The default one is
+    {body, last_updated, event_type, title, date, org, id}: no tags, and
+    $EVENT_TYPE is the monitor type, never the transition."""
+
+    def setUp(self):
+        self.org = Organisations.objects.create(name='DDOrg')
+        self.client = APIClient()
+
+    def _post(self, payload):
+        return self.client.post(f'/api/webhooks/alerts/datadog/{self.org.pk}/', payload,
+                                format='json', HTTP_AUTHORIZATION='Bearer dd-secret')
+
+    def _default(self, transition, event_id):
+        return {
+            'body': '%%%\nError rate above 5% on payments\n%%%',
+            'last_updated': '1793500000000',
+            'event_type': 'query_alert_monitor',
+            'title': f'[{transition} on {{env:production,service:payments}}] Payments error rate',
+            'date': '1793500000000',
+            'org': {'id': '123', 'name': 'Acme'},
+            'id': event_id,
+        }
+
+    @patch('Data.tasks.analyze_alert_ondemand.delay')
+    def test_default_payload_gets_service_and_environment_from_the_title(self, delay_mock):
+        self.assertEqual(self._post(self._default('Triggered', '7001')).status_code, 200)
+        event = AlertEvent.objects.get()
+        self.assertEqual((event.alertname, event.state, event.service, event.environment),
+                         ('Payments error rate', 'firing', 'payments', 'production'))
+        delay_mock.assert_called_once_with(event.pk)
+
+    @patch('Data.tasks.analyze_alert_ondemand.delay')
+    def test_a_recovery_is_resolved_and_not_analysed(self, delay_mock):
+        self._post(self._default('Recovered', '7002'))
+        event = AlertEvent.objects.get()
+        self.assertEqual(event.state, 'resolved')
+        self.assertIsNotNone(event.processed_at)
+        delay_mock.assert_not_called()
+
+    @patch('Data.tasks.analyze_alert_ondemand.delay')
+    def test_a_simple_monitor_title_and_warn_fire(self, delay_mock):
+        payload = self._default('Warn', '7003')
+        payload['title'] = '[Warn] Payments latency'
+        self._post(payload)
+        event = AlertEvent.objects.get()
+        self.assertEqual((event.alertname, event.state, event.service), ('Payments latency', 'firing', ''))
+
+    @patch('Data.tasks.analyze_alert_ondemand.delay')
+    def test_the_documented_rich_payload(self, delay_mock):
+        self._post({
+            'id': '7004', 'title': '[Triggered on {service:payments}] Payments errors',
+            'body': 'Errors', 'event_type': 'query_alert_monitor',
+            'alert_id': '555', 'alert_transition': 'Triggered', 'alert_priority': 'P1',
+            'alert_scope': 'service:payments', 'tags': 'env:production,team:pay',
+        })
+        event = AlertEvent.objects.get()
+        self.assertEqual((event.service, event.environment, event.severity), ('payments', 'production', 'P1'))
+
+
+@override_settings(ALERT_WEBHOOK_SECRETS=_TEST_SECRETS)
+class ResolutionIsNotADuplicateTest(TestCase):
+    """Grafana and Alertmanager resolve with the alert's fingerprint: a
+    resolution within the dedup window was dropped as a retry (found with
+    Grafana in the journey suite)."""
+
+    @patch('Data.tasks.analyze_alert_ondemand.delay')
+    def test_grafana_firing_then_resolved_with_the_same_fingerprint(self, delay_mock):
+        org = Organisations.objects.create(name='GrafOrg')
+
+        def post(status):
+            return APIClient().post(f'/api/webhooks/alerts/grafana/{org.pk}/', {'status': status, 'alerts': [{
+                'status': status, 'fingerprint': 'f00d', 'labels': {'alertname': 'PaymentsErrorRateHigh',
+                                                                    'service': 'payments'}, 'annotations': {}}]},
+                format='json', HTTP_AUTHORIZATION='Bearer graf-secret').json()
+        self.assertEqual(post('firing'), {'accepted': 1, 'deduplicated': 0})
+        self.assertEqual(post('firing'), {'accepted': 0, 'deduplicated': 1})   # a retry is still dropped
+        self.assertEqual(post('resolved'), {'accepted': 1, 'deduplicated': 0})
+        self.assertEqual(sorted(AlertEvent.objects.values_list('state', flat=True)), ['firing', 'resolved'])
+        self.assertEqual(delay_mock.call_count, 1)
+
+
+@override_settings(ALERT_WEBHOOK_SECRETS=_TEST_SECRETS)
+class ResolvedAlertsAreNotAnalysedTest(TestCase):
+    """Alertmanager sends resolutions by default: each incident used to get a
+    second analysis, of a system already recovered."""
+
+    @patch('Data.tasks.analyze_alert_ondemand.delay')
+    def test_alertmanager_resolved(self, delay_mock):
+        org = Organisations.objects.create(name='AMOrg')
+        APIClient().post(f'/api/webhooks/alerts/alertmanager/{org.pk}/', {'alerts': [{
+            'status': 'resolved', 'fingerprint': 'r1', 'labels': {'alertname': 'HighCpu', 'service': 'api'},
+            'annotations': {}}]}, format='json', HTTP_AUTHORIZATION='Bearer am-secret')
+        self.assertEqual(AlertEvent.objects.get().state, 'resolved')
+        delay_mock.assert_not_called()

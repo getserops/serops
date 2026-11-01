@@ -682,35 +682,48 @@ class LogQuery:
             lines.append(f"| where TimeGenerated >= datetime({_kql_datetime(start_iso)})")
             lines.append(f"| where TimeGenerated <= datetime({_kql_datetime(end_iso)})")
 
-        # Label filters — AppTraces stores custom properties under
-        # Properties.<name>. Perf / Syslog use flat columns; those
-        # operators would rewrite these via a custom KQL block.
+        # Each table stores the fields SerOps filters on in its own place
+        # (see _AZ_TABLES): AppTraces under Properties, Container Insights'
+        # ContainerLogV2 in columns (PodNamespace...) and in the JSON of
+        # LogMessage. Properties.* on ContainerLogV2 failed the query.
+        profile = _az_profile(table)
+
+        def field(name):
+            return _az_field(profile, name)
+
+        def any_of(names, values):
+            vlist = ", ".join(f'"{_kql_escape(v)}"' for v in values)
+            return "(" + " or ".join(f"{field(n)} in~ ({vlist})" for n in names) + ")"
+
         if self.project:
-            ors = [f'Properties.project_name == "{_kql_escape(self.project)}"'] + [
-                f'tostring(Properties["{_kql_escape(field)}"]) == "{_kql_escape(value)}"'
-                for field, value in (self.project_rules or [])]
+            ors = [f'{field("project_name")} == "{_kql_escape(self.project)}"'] + [
+                f'{field(f)} == "{_kql_escape(v)}"' for f, v in (self.project_rules or [])]
             lines.append('| where ' + ' or '.join(ors))
         if self.environment:
-            env_list = ", ".join(f'"{_kql_escape(v)}"' for v in self.environment_values())
-            clause = f'tostring(Properties.environment) in~ ({env_list})'
-            for field, value in self.environment_rules():
-                clause += f' or tostring(Properties["{_kql_escape(field)}"]) == "{_kql_escape(value)}"'
+            names = ("environment", "env")
+            clause = any_of(names, self.environment_values())
+            for f, v in self.environment_rules():
+                clause += f' or {field(f)} == "{_kql_escape(v)}"'
             if self.environment_untagged:
-                clause = f'isempty(tostring(Properties.environment)) or {clause}'
+                absent = " and ".join(f"isempty({field(n)})" for n in names)
+                clause = f'({absent}) or {clause}'
             lines.append(f'| where {clause}')
         if self.category:
-            lines.append(f'| where Properties.category == "{_kql_escape(self.category)}"')
+            lines.append(f'| where {field("category")} == "{_kql_escape(self.category)}"')
         if self.event_type:
-            lines.append(f'| where Properties.event_type == "{_kql_escape(self.event_type)}"')
+            lines.append(f'| where {field("event_type")} == "{_kql_escape(self.event_type)}"')
 
         if self.services:
             svc_list = ", ".join(f'"{_kql_escape(s)}"' for s in self.services)
-            lines.append(f'| where Properties.service_name in ({svc_list})')
+            clause = f'{field("service_name")} in ({svc_list})'
+            if profile["service"]:
+                clause = f'{clause} or {profile["service"]} in ({svc_list})'
+            lines.append(f'| where {clause}')
 
-        # SeverityLevel in AppTraces: Verbose=0, Information=1,
-        # Warning=2, Error=3, Critical=4. Requesting ["ERROR", "WARN"]
-        # becomes >= 2 (the min).
-        if self.severity:
+        if self.severity and profile["level"] == "SeverityLevel":
+            # SeverityLevel in AppTraces: Verbose=0, Information=1,
+            # Warning=2, Error=3, Critical=4. Requesting ["ERROR", "WARN"]
+            # becomes >= 2 (the min).
             sev_map = {
                 "DEBUG": 0, "TRACE": 0, "VERBOSE": 0,
                 "INFO": 1, "NOTICE": 1,
@@ -720,11 +733,28 @@ class LogQuery:
             }
             requested = [sev_map.get(s.upper(), 3) for s in self.severity]
             threshold = min(requested)
-            # threshold is an int we control — no injection surface
-            lines.append(f"| where SeverityLevel >= {int(threshold)}")
+            # threshold is an int we control — no injection surface.
+            # A line shipped without a severity (an OpenTelemetry filelog
+            # receiver) is Information: its words say the level.
+            words = ", ".join(f'"{w}"' for w in SEVERITY_MESSAGE_WORDS)
+            lines.append(f"| where SeverityLevel >= {int(threshold)} or "
+                         f"(SeverityLevel <= 1 and {profile['message']} has_any ({words}))")
+        elif self.severity:
+            # Container Insights writes LogLevel "info" or "unknown" for
+            # plain-text lines, "ERROR payments ..." included: the level is
+            # also read from a JSON level field and from the line's words.
+            spellings = [v.lower() for v in severity_spellings(self.severity)]
+            spellings = list(dict.fromkeys(spellings))
+            clauses = [any_of(("log_level", "level", "severity"), spellings)]
+            if profile["level"]:
+                vlist = ", ".join(f'"{_kql_escape(v)}"' for v in spellings)
+                clauses.append(f'{profile["level"]} in~ ({vlist})')
+            words = ", ".join(f'"{w}"' for w in SEVERITY_MESSAGE_WORDS)
+            clauses.append(f'{profile["message"]} has_any ({words})')
+            lines.append('| where ' + ' or '.join(clauses))
 
         if self.text_search:
-            lines.append(f'| where Message contains "{_kql_escape(self.text_search)}"')
+            lines.append(f'| where {profile["message"]} contains "{_kql_escape(self.text_search)}"')
 
         # `top N by TimeGenerated desc` gives us newest-first bounded
         # results — matches how Detail.jsx expects to render.
@@ -1239,6 +1269,42 @@ def _kql_escape(value: str) -> str:
     if not isinstance(value, str):
         raise TypeError(f"KQL escape expects str, got {type(value).__name__}")
     return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+# How each Log Analytics table stores what SerOps filters on and reads.
+# ``fields``: where custom fields live (a dynamic column); ``columns``: field
+# names that are real columns; ``level``: the level column; ``service``: the
+# column naming the service.
+_AZ_TABLES = {
+    "AppTraces": {
+        "message": "Message", "fields": "Properties", "level": "SeverityLevel",
+        "service": "AppRoleName", "columns": {},
+    },
+    # Container Insights (AKS). Pod labels are not collected by default.
+    "ContainerLogV2": {
+        "message": "tostring(LogMessage)", "fields": "LogMessage", "level": "LogLevel",
+        "service": "ContainerName",
+        "columns": {
+            "PodNamespace": "PodNamespace", "ContainerName": "ContainerName", "PodName": "PodName",
+            "kubernetes.namespace_name": "PodNamespace", "kubernetes.namespace": "PodNamespace",
+            "k8s.namespace.name": "PodNamespace", "namespace": "PodNamespace", "kube_namespace": "PodNamespace",
+            "kubernetes.container_name": "ContainerName", "kubernetes.pod_name": "PodName",
+        },
+    },
+}
+
+
+def _az_profile(table: str) -> dict:
+    """The table's profile; any other table is read like AppTraces."""
+    return _AZ_TABLES.get(table, _AZ_TABLES["AppTraces"])
+
+
+def _az_field(profile: dict, name: str) -> str:
+    """The KQL expression for one SerOps field in a table."""
+    column = profile["columns"].get(name)
+    if column:
+        return column
+    return f'tostring({profile["fields"]}["{_kql_escape(name)}"])'
 
 
 def _kql_bareword(value: str) -> str:

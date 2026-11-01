@@ -7,6 +7,40 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.2.13] - 2026-11-01
+
+Integrations release, no migration. Set `SEROPS_VERSION=1.2.13` or `--version 1.2.13`. Azure Monitor (AKS with Container Insights, Application Insights), Datadog APM and Grafana alerts now run end to end against real services.
+
+### Fixed
+
+Found with Grafana alerting (journey suite):
+
+- An alert's resolution from Alertmanager or Grafana arriving within 5 minutes of the alert was dropped as a duplicate (it carries the alert's fingerprint), so the alert never showed as resolved. The state is part of the duplicate check.
+
+Found against a live Azure account, AKS with Container Insights and Application Insights (journey suite):
+
+- AKS logs never reached SerOps: Container Insights' `ContainerLogV2` has no `Properties` or `SeverityLevel`, so every query failed, and the failure was reported as no logs. Queries and parsing follow each table (line from `LogMessage`, service from `ContainerName`, level from the line); Check my data offers `PodNamespace` as a project rule; records get an id (the analysis dropped them all without one).
+- The scheduler found no Azure log table (its discovery query was not valid KQL). It lists the tables with records, and searches them one by one.
+- A refused Azure query was reported as no logs; it names what to fix (role, client secret, workspace id), and so does Test connection.
+- AKS metrics were wrong: a percentage read as bytes, memory in use read as free, a CPU percentage read as cores, one series for the whole cluster. With the workspace, CPU and memory come per service from Container Insights; without it, the cluster in bytes and cores.
+- Application Insights logs shipped by an OpenTelemetry collector arrive with SeverityLevel Information, `ERROR` lines included, and were never fetched. Their level is read from the text; OpenTelemetry's `service.name` (`AppRoleName`) names the service.
+- CI/CD events were searched on Log Analytics, where SerOps writes none, with an invalid query on every run.
+
+Found in the journey suite (organisation deletion):
+
+- "Delete organisation" and "Delete my account" failed with an error while the organisation's apps were still sending traces (or a scheduled analysis was being written): a row arriving during the deletion broke it. The ingest keys are deactivated first and the organisation is locked while it is deleted.
+
+
+Found pulling traces from a real Datadog APM account (journey suite):
+
+- No trace was ever pulled from Datadog APM: every span search lacked `data.type = search_request` and Datadog answered 400. Span durations read 0 (Datadog sends start and end, no duration), and a trace looked up by id was searched over the last 15 minutes only.
+- "Test connection" never tested a trace source (Datadog APM, Jaeger, Zipkin, Tempo): a traces-only integration got no result. For Datadog it now tries a span search and names the missing `apm_read` scope, which the docs' scope list lacked.
+
+Found checking Datadog's documented monitor webhook payloads:
+
+- A Datadog **Recovered** notification was read as a new alert, and service and environment were always empty with the default payload (no tags; `$EVENT_TYPE` is the monitor type). They are read from the notification title (`[Recovered on {env:production,service:payments}] …`), or from `$ALERT_TRANSITION`, `$ALERT_SCOPE` and `$TAGS` in the custom payload the docs now give.
+- A resolved alert, from any source, started a second analysis of a system already recovered (Alertmanager sends resolutions by default). It is recorded and starts none.
+
 ## [1.2.12] - 2026-10-31
 
 Cloud integrations release, no migration. Set `SEROPS_VERSION=1.2.12` or `--version 1.2.12`. Datadog and AWS CloudWatch were run end to end against real accounts, including Kubernetes with the Datadog Agent and Container Insights.
