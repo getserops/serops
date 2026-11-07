@@ -35,7 +35,7 @@ description: "SerOps is open-source AI root cause analysis: it correlates logs, 
 
     ---
 
-    All data is scanned for PII and credentials before AI analysis. SSO, RBAC, and full audit logging included.
+    Log, trace and code-diff context is scanned for credentials and personal data, and masked, before batch analysis. SSO, RBAC, and full audit logging included.
 
     [:octicons-arrow-right-24: Data Protection](security/data-protection.md)
 
@@ -66,7 +66,7 @@ graph LR
 
 Traces are the one signal that can arrive either way: ship them to SerOps
 directly over OTLP, or leave them where they are and let SerOps query Jaeger,
-Zipkin or Datadog APM. Nothing reaches an AI provider raw — see
+Zipkin or Datadog APM. Raw signals are not sent to the model as they are — see
 [preprocessing](#what-happens-before-the-ai-sees-anything) below.
 
 **Example**: SerOps detects a spike in database connection errors in your production logs, correlates it with a CPU spike from Prometheus, sees from the traces that the latency is concentrated in one downstream call, and links it to a commit pushed 30 minutes ago — then alerts your team via Slack with a root cause analysis and fix recommendation.
@@ -79,7 +79,7 @@ hop.
 ## What happens before the AI sees anything
 
 Raw signals do not go to the model. Each batch is prepared first, which is what
-keeps analysis affordable and keeps your data out of a third party's hands:
+keeps analysis affordable and limits what reaches a third party:
 
 | Step | What it does |
 |---|---|
@@ -88,21 +88,21 @@ keeps analysis affordable and keeps your data out of a third party's hands:
 | **Signal filtering** | ERROR / WARNING / CRITICAL lines and error-shaped messages keep their slot in the prompt; a 100-signature cap stops one noisy loop crowding out everything else |
 | **Metric preprocessing** | Per-service statistics and sustained-anomaly detection, rather than raw time series |
 | **Trace summarisation** | Thousands of spans reduce to the slowest and the failing ones, with the services they touched |
-| **PII redaction** | Emails, tokens and secrets are masked **before** anything leaves for an AI provider, traces included. See [Data Protection](security/data-protection.md) |
-| **Sentinel cost gating** | A quiet batch, judged against a rolling baseline, skips the AI call entirely |
+| **PII redaction** | Emails, tokens and secrets are masked in every AI call (analysis, chat, re-analysis, CI/CD errors, post-mortems); if masking fails, nothing is sent. Regex-based, so see [Data Protection](security/data-protection.md#current-limits) for what it recognises |
+| **Sentinel cost gating** | A quiet batch, judged against a rolling baseline, skips the AI call entirely (active mode, the default). Error spikes, deployments, new patterns and trace latency or error spikes still trigger an analysis. See [Sentinel](how-to/sentinel.md) |
 
 ## Key Features
 
 | Feature | Description |
 |---------|-------------|
 | **Issue Detection** | AI classifies 26+ issue types with smart fingerprinting and deduplication |
-| **Commit Correlation** | Links production issues to the exact code changes and deployments that caused them |
+| **Commit Correlation** | Links production issues to the commits shipped by the deployments to that environment, ranked by how close each deployment is to the errors |
 | **Metric Correlation** | Detects infrastructure anomalies (CPU, memory) that coincide with application errors |
 | **Trace Correlation** | Attributes latency to a specific service hop from span durations, including incidents that produce no error log at all |
 | **Multi-Environment** | Separate analysis for development, staging, and production with branch pattern matching |
 | **AI Chat** | Conversational AI for investigating issues with full context from logs, metrics, traces, and code |
 | **Model Comparison** | Re-analyse batches with different AI models and compare results side-by-side |
-| **PII Redaction** | Automatic scanning and masking of sensitive data before AI processing |
+| **PII Redaction** | Regex-based masking of credentials and personal data in batch analysis context, with known gaps listed in [Data Protection](security/data-protection.md#current-limits) |
 | **Notifications** | Slack, Teams, PagerDuty, OpsGenie and email, with routing rules, quiet hours, digests and escalation |
 | **Issue Lifecycle** | Muting, auto-resolution, acknowledgement, and MTTR tracking |
 | **Integrations** | Log, metric and trace backends, SCM and CI/CD providers, GitOps deployment sources — see [Integrations](integrations/overview.md). Credentials are encrypted at rest |

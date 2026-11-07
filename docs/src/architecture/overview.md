@@ -129,13 +129,15 @@ instead and nothing is stored — see [OTLP Traces](../integrations/traces.md).
       container saturating its limit disappears into a project-wide average.
     - **Traces** — thousands of spans reduce to the slowest and the failing ones,
       plus the services they touched.
-    - **Redaction** — emails, tokens and secrets are masked **before** anything
-      leaves the security boundary, span summaries included.
-    - **Memory** — root causes from recently resolved issues on the same project
-      are attached as diagnostic hints.
-6.  **Sentinel gating**: The batch is scored against a rolling baseline. A quiet
-    batch skips the AI call entirely; rule-based detection still runs, so quiet
-    does not mean unexamined.
+    - **Redaction** — emails, tokens and secrets in logs, span summaries and
+      diff excerpts are masked before the analysis call (regex-based; see
+      [Current limits](../security/data-protection.md#current-limits)).
+    - **Memory** — root causes from the most similar resolved issues on the
+      same project are attached as diagnostic hints.
+6.  **Sentinel gating**: The batch is scored against a rolling baseline. In
+    active mode a quiet batch skips the AI call; rule-based detection still
+    runs, so quiet does not mean unexamined. Active mode is the default;
+    in shadow mode the decision is recorded and the AI call always runs.
 7.  **Analysis**: The prepared prompt goes to the configured AI model, with
     automatic fallback to a secondary provider. Token usage and cost are recorded
     per call and counted against the organisation's monthly budget.
@@ -157,13 +159,13 @@ Data is strictly isolated at the storage and query level:
 
 ### AI Analysis & Correlation
 The core value prop is correlating disparate data points:
--   **Temporal Correlation**: Matching logs to code changes based on *Deployment Time*, not Commit Time.
+-   **Temporal Correlation**: Deployments to the batch's environment decide which commits are considered; the log-to-commit correlation then scores each commit by the time it was deployed there (its commit time only when no deployment is recorded).
 -   **Contextual Analysis**: AI receives a context window containing logs + recent code changes + health metrics.
 
 ### Data Protection & Redaction
-*Key Principle: No sensitive PII/Secrets sent to AI.*
+*Goal: keep secrets and personal data out of AI prompts. Masking is regex-based and does not yet cover every path; see [Current limits](../security/data-protection.md#current-limits).*
 
-The **Redaction Service** intercepts data before it leaves the security boundary:
+The **Redaction Service** processes batch analysis context before it is sent:
 1.  **Scanning**: Regex-based detection for emails, IP addresses, API keys (AWS, Stripe, generic tokens).
 2.  **Masking**: Sensitive strings replaced with `[REDACTED: EMAIL]`.
 3.  **Logging**: Redaction activity is logged for compliance auditing.

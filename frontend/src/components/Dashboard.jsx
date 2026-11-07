@@ -33,7 +33,7 @@ import { usePermissions } from '../utils/permissions';
 const Dashboard = () => {
   const { t } = useTranslation();
   const location = useLocation();
-  const isRootDashboard = location.pathname === "/dash";
+  const isRootDashboard = location.pathname.replace(/\/+$/, "") === "/dash";
   const isSmallScreen = useMediaQuery("(max-width: 860px)");
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(!isSmallScreen);
   const [showOnboarding, setShowOnboarding] = React.useState(true);

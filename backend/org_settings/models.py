@@ -361,9 +361,12 @@ class SentinelConfig(models.Model):
         related_name='sentinel_config'
     )
 
-    # Master switch
+    # Master switch. Active by default (migration 0021): shadow mode as the
+    # default meant an AI call for every window on a fresh install — up to
+    # 96 a day per project and environment at a 15-minute interval — while
+    # the docs promised quiet windows skip the AI (external review of v1.2.13).
     active_mode = models.BooleanField(
-        default=False,
+        default=True,
         help_text="When True, quiet batches skip AI analysis. When False, shadow mode."
     )
 

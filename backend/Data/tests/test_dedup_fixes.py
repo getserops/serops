@@ -724,6 +724,25 @@ class TestFindOrCreateDeduplicated(RobustTransactionTestCase):
         issue2.refresh_from_db()
         self.assertEqual(issue2.status, 'OPEN')
 
+    def test_a_recurrence_shows_the_newest_analysis(self):
+        """The page of today's incident must not show yesterday's words."""
+        first = {'issue_type': 'MEMORY_HIGH', 'scope': 'SERVICE', 'component': 'recs',
+                 'severity': 'WARNING', 'error_class': 'OUT_OF_MEMORY', 'error_target': '',
+                 'description': 'recs spiked to 91% at 00:35', 'root_cause': 'old cause',
+                 'recommended_action': 'old fix', 'reasoning': ['old step']}
+        issue, _ = Issue.find_or_create_deduplicated(first, self.batch, self.project, 'production')
+        second = {**first, 'description': 'recs spiked to 90% after its 07:41 rollout',
+                  'root_cause': 'the rollout cut the memory limit', 'recommended_action': '',
+                  'reasoning': None}
+        again, created = Issue.find_or_create_deduplicated(second, self.batch, self.project, 'production')
+        self.assertFalse(created)
+        self.assertEqual(again.pk, issue.pk)
+        self.assertEqual(again.description, 'recs spiked to 90% after its 07:41 rollout')
+        self.assertEqual(again.root_cause, 'the rollout cut the memory limit')
+        # Nothing new to say: the stored text stays.
+        self.assertEqual(again.recommendation, 'old fix')
+        self.assertIn('old step', again.reasoning)
+
     def test_infrastructure_promotion(self):
         """INFRASTRUCTURE issue promoted to SERVICE scope when service-level issue arrives."""
         # Create infrastructure-level issue

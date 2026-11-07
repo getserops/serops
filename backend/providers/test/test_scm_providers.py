@@ -562,6 +562,7 @@ class TestJenkinsProvider(unittest.TestCase):
             "https://jenkins.company.com/job/my-job/42/consoleText",
             auth=("admin", "jenkins-token"),
             timeout=30,
+            allow_redirects=False,
         )
 
     @patch('requests.get')
@@ -715,3 +716,32 @@ class TestProviderFactory(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class GitHubNumericRepositoryIdTest(unittest.TestCase):
+    """The repository list (and the Add Service wizard) stores GitHub's numeric
+    id; /repos/<id>/... is a 404 (checked live), so those repositories fetched
+    no commit. A numeric id goes through /repositories/<id>."""
+
+    def test_numeric_id_uses_repositories_path(self):
+        from providers.scm_providers import GitHubProvider
+        p = GitHubProvider('144001', 'token')
+        self.assertEqual(p.repo_path, 'repositories/144001')
+        resp = Mock(status_code=200, headers={})
+        resp.json.return_value = []
+        with patch.object(p, '_make_request', return_value=resp) as req:
+            p.get_commits()
+        self.assertIn('/repositories/144001/commits', str(req.call_args))
+
+    def test_the_github_url_from_the_form_means_the_api(self):
+        """The form fills https://github.com; /user there is an HTML page."""
+        from providers.scm_providers import GitHubProvider
+        for typed in (None, '', 'https://github.com', 'https://github.com/', 'github.com', 'https://api.github.com'):
+            self.assertEqual(GitHubProvider.api_base(typed), 'https://api.github.com', typed)
+        self.assertEqual(GitHubProvider.api_base('https://git.acme.corp'), 'https://git.acme.corp/api/v3')
+        self.assertEqual(GitHubProvider.api_base('https://git.acme.corp/api/v3/'), 'https://git.acme.corp/api/v3')
+        self.assertEqual(GitHubProvider('acme/payments', 't', 'https://github.com').base_url, 'https://api.github.com')
+
+    def test_owner_repo_keeps_repos_path(self):
+        from providers.scm_providers import GitHubProvider
+        self.assertEqual(GitHubProvider('acme/payments', 'token').repo_path, 'repos/acme/payments')

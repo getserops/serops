@@ -38,7 +38,10 @@ const Traces = () => {
         try {
             setLoading(true);
             setError(null);
-            const data = await TracesService.Traces.list(filters);
+            // 20 a page on a phone: each trace is a card there, and 50 of
+            // them made a page about 13,000 px long.
+            const phone = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 767px)').matches;
+            const data = await TracesService.Traces.list(phone ? { ...filters, page_size: 20 } : filters);
             setTraces(data.results || []);
             setPageInfo({
                 count: data.count || 0,

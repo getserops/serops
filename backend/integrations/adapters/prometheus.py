@@ -9,6 +9,8 @@ from datetime import datetime
 from typing import List, Optional
 
 import requests
+
+from Utils.outbound import GuardedSession
 from requests.exceptions import RequestException
 
 from integrations.base import MetricProvider, MetricProviderCapabilities
@@ -48,36 +50,6 @@ logger = logging.getLogger(__name__)
 # drivers `/kubepods.slice/...`, and Prometheus regexes are fully anchored, so
 # `/kubepods.*` matches both while excluding the `/docker/...` duplicate.
 ROOT_CGROUP_MATCHER = 'id=~"/kubepods.*"'
-
-# Container lifecycle signals from kube-state-metrics.
-#
-# An OOMKill is a KUBELET event, not an application log line: the container's
-# logs simply stop mid-stream. Without these, a memory exhaustion looks to the
-# AI like a dependency that suddenly stopped responding, and it correctly
-# describes the resulting cascade while never naming the cause. Measured on
-# the chaos suite: a01 and b02 both failed exactly that way.
-#
-# kube-state-metrics is part of kube-prometheus-stack, so this is usually
-# already scraped. When it is absent these queries return nothing and the
-# summary simply omits the section.
-#
-# `last_terminated_reason` is NOT time-bounded: it reports the most recent
-# termination for as long as the pod lives. Reported unfiltered it attributes
-# an OOMKill from an hour ago to whatever incident is being analysed now —
-# measured on the chaos suite, an unrelated exception scenario came back with
-# two fabricated MEMORY_HIGH issues inherited from the previous run. So the
-# reason is only reported for containers whose restart counter actually moved
-# during the batch window, which `increase()` gives us.
-K8S_LIFECYCLE_EXPR_TEMPLATES = {
-    'container_last_terminated_reason': (
-        'max by (container, reason) '
-        '(kube_pod_container_status_last_terminated_reason{{{labels}}} > 0)'
-    ),
-    'container_restarts_in_window': (
-        'max by (container) '
-        '(increase(kube_pod_container_status_restarts_total{{{labels}}}[{window}]) > 0)'
-    ),
-}
 
 # Peak utilisation of the WORST SINGLE POD in a service.
 #
@@ -173,7 +145,10 @@ class PrometheusMetricProvider(MetricProvider):
         self.base_url = self._config.get(
             "host", "http://prometheus:9090"
         ).rstrip("/")
-        self._session = requests.Session()
+        # Re-validates the host before every request and each redirect hop,
+        # and never follows a redirect to another host (security review
+        # 2026-11, finding 3).
+        self._session = GuardedSession()
         # Optional basic auth
         username = self._config.get("username")
         password = self._config.get("password")

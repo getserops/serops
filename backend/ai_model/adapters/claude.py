@@ -156,8 +156,11 @@ class ClaudeAdapter(BaseProviderAdapter):
         if 'timeout' in msg or 'timed out' in msg:
             return AIServiceError.from_type('timeout', raw_error=str(e)[:500])
         # Rate limit
+        # No credit left is not a rate limit: it does not reset on its own.
+        if AIServiceError.is_out_of_credit(str(e)):
+            return AIServiceError.from_type('out_of_credit', raw_error=str(e)[:500])
         if '429' in msg or 'rate' in msg:
-            return AIServiceError.from_type('quota_exceeded', raw_error=str(e)[:500])
+            return AIServiceError.quota_exceeded(str(e))
         # Workspace-scoped key missing header (Anthropic 400 with a
         # very specific message). Surfaces as auth_error but with a
         # more actionable hint so users know to set ``workspace_id``

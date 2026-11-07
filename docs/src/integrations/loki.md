@@ -168,6 +168,32 @@ The report shows whether Loki streams have `service_name` / `project_name` /
 line parsing, not from a Loki label, so it reads as present even though the
 config above never sets it.
 
+### More than one project
+
+The constant `project_name` above sends every pod's logs to one SerOps
+project. When a second team brings its application, give its namespace
+its own project: add one rule per namespace **after** the constant
+`project_name` rule (Promtail applies rules in order, so the later one
+wins), and set its environment the same way if the namespace name is not
+the environment:
+
+```yaml
+      # Namespace "boutique" belongs to the SerOps project "boutique".
+      - source_labels: [__meta_kubernetes_namespace]
+        regex: boutique
+        target_label: project_name
+        replacement: boutique
+      - source_labels: [__meta_kubernetes_namespace]
+        regex: boutique
+        target_label: environment
+        replacement: production
+```
+
+Do the same in Prometheus (`metric_relabel_configs` of the cAdvisor job,
+with `source_labels: [namespace]`) so the project's metrics follow. Then
+open the project in SerOps, **Data** tab, and run **Check my data**: it
+shows which project and environment values your logs carry.
+
 ### Docker runtime
 
 The configuration above is written for containerd, where the kubelet

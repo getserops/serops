@@ -69,9 +69,9 @@ class ProviderIntegrationSerializer(serializers.ModelSerializer):
         """Self-hosted servers on private networks are allowed; cloud
         metadata endpoints are not (the server calls this URL)."""
         if value:
-            from Utils.url_validator import validate_internal_url_no_metadata
+            from Utils.url_validator import validate_outbound_url
             try:
-                validate_internal_url_no_metadata(value)
+                validate_outbound_url(value)
             except ValueError as e:
                 raise serializers.ValidationError(str(e))
         return value

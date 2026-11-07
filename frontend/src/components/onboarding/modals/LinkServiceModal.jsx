@@ -124,7 +124,7 @@ export default function LinkServiceModal({ open, onClose, onSaved }) {
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
                 {loadingProjects ? (
-                    <CircularProgress sx={{ mx: 'auto', display: 'block', my: 3 }} />
+                    <CircularProgress aria-label="Loading" sx={{ mx: 'auto', display: 'block', my: 3 }} />
                 ) : projects.length === 0 ? (
                     <Alert severity="warning">
                         No projects yet — create one before linking a service.
@@ -186,7 +186,7 @@ export default function LinkServiceModal({ open, onClose, onSaved }) {
                     variant="contained"
                     onClick={handleSave}
                     disabled={!canSubmit()}
-                    startIcon={saving ? <CircularProgress size={16} /> : null}
+                    startIcon={saving ? <CircularProgress aria-label="Loading" size={16} /> : null}
                 >
                     Link service
                 </Button>

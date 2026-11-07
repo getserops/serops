@@ -384,7 +384,7 @@ const ChatIssues = () => {
   // selection. Unknown ids are shown as-is.
   const modelName = (id) => {
     const model = (availableModels || []).find(m => m.id === id);
-    return model ? model.name : id;
+    return model ? model.name : (id || 'SerOps');
   };
 
   return (

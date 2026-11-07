@@ -19,7 +19,7 @@ serops/
 ├── frontend/    # React 19 + Vite + Bootstrap — the dashboard
 ├── docs/        # MkDocs Material — https://serops.ai/docs
 └── deploy/
-    ├── quick-start/    # docker-compose self-host (5-minute install)
+    ├── quick-start/    # docker-compose self-host (about 10 minutes)
     └── helm/serops/    # Kubernetes Helm chart
 ```
 
@@ -44,7 +44,7 @@ helm install serops oci://ghcr.io/getserops/charts/serops \
   --set devServices.redis.enabled=true
 ```
 
-**AI provider keys are not set in `.env` or in Helm values.** Add them in the UI after first login under **Settings → AI Providers**. They are stored per organisation and encrypted at rest, so nothing reads `ANTHROPIC_API_KEY` or its siblings from the environment. SerOps needs at least one key — Anthropic, Google Gemini, OpenAI, DeepSeek, or Ollama (keyless, on-prem) — before it can analyse anything.
+**AI provider keys are not set in `.env` or in Helm values.** Add them in the UI after first login under **Settings → AI Providers**. They are stored per organisation and encrypted at rest, so nothing reads `ANTHROPIC_API_KEY` or its siblings from the environment. Similar-incident search uses the same organisation keys: embeddings from your AI provider when it offers them (OpenAI, Gemini, or Ollama `nomic-embed-text`), otherwise a local word-overlap match (see [Incident intelligence](https://serops.ai/docs/how-to/intelligence/)). SerOps needs at least one key — Anthropic, Google Gemini, OpenAI, DeepSeek, or Ollama (keyless, on-prem) — before it can analyse anything.
 
 Full guides in [docs/](docs/) or at https://serops.ai/docs.
 
@@ -56,7 +56,7 @@ Full guides in [docs/](docs/) or at https://serops.ai/docs.
 | **Celery workers** | Scheduled batch creation, AI analysis, deployment sync, notifications, retention |
 | **AI adapter system** | Pluggable providers (Anthropic Claude, Google Gemini, OpenAI-compatible) with circuit breaker, rate limiter, prompt caching |
 | **Integration adapters** | Pluggable log, metric and trace backends, an OTLP trace receiver, SCM, CI/CD and GitOps providers (current list above) |
-| **Sentinel** | Cost-controlled AI gating — skips analysis on "quiet" batches based on rolling baselines |
+| **Sentinel** | Cost-controlled AI gating — skips analysis on "quiet" batches based on rolling baselines, and fires on error spikes, deployments, new patterns and trace latency or error spikes (active mode by default; shadow mode analyses every batch) |
 | **Recent Resolutions Context** | Resolved issues from the same project become diagnostic hints in future AI prompts |
 | **Dashboard** | Role-aware React UI mirroring the backend RBAC matrix, English and French |
 
@@ -69,7 +69,7 @@ Full guides in [docs/](docs/) or at https://serops.ai/docs.
 - OIDC single sign-on with HttpOnly cookie token handoff
 - Knox token auth, password change/reset with full token revocation
 - GDPR right-to-erasure (`DELETE /api/auth/account`)
-- PII redaction before any data reaches third-party AI providers
+- Regex-based masking of secrets and personal data in every AI call (analysis, chat, re-analysis, CI/CD errors, post-mortems); if masking fails, nothing is sent — see [Data protection](https://serops.ai/docs/security/data-protection/#current-limits)
 
 ## What does not work yet
 

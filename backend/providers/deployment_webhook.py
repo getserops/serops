@@ -290,14 +290,19 @@ class GenericDeploymentWebhookHandler(APIView):
         """
         from .models import CodeChange
 
-        existing = CodeChange.objects.filter(commit_sha=payload['commit_sha']).first()
-        if existing:
-            return existing, False
-
         # Best-effort stub — pull org + provider from the binding chain.
         service = binding.project_service
         project = service.project
         organisation = getattr(project, 'organisation', None)
+
+        # Within the binding's organisation: the SHA comes from the payload,
+        # and another tenant's commit must not get this deployment
+        # (security review 2026-11, finding 2).
+        existing = CodeChange.objects.filter(
+            commit_sha=payload['commit_sha'], organisation=organisation,
+        ).first()
+        if existing:
+            return existing, False
 
         # Provider guess: use the integration's provider_type when it's one
         # of the SCM_PROVIDER_CHOICES; else default to 'gitlab' (the model's

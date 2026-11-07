@@ -112,14 +112,77 @@ def _is_disallowed_ip(ip):
 # Cloud metadata endpoints — the concrete SSRF prize. AWS/Azure/GCP all
 # share ``169.254.169.254`` on the link-local range; Alibaba uses
 # ``100.100.100.200``. Their IPv6 counterparts on some platforms sit
-# under fd00:ec2::. Kept as strings so we can compare against parsed
-# hostname / IP without materialising ``ipaddress`` for every match.
+# under fd00:ec2::. The whole link-local range is refused too (see
+# _is_metadata_ip): ECS task metadata lives at 169.254.170.2, and an exact
+# string match missed spellings such as ``::ffff:169.254.169.254``
+# (security review 2026-11, finding 3).
 _CLOUD_METADATA_HOSTS = frozenset({
     '169.254.169.254',           # AWS / Azure / GCP IMDS
     'fd00:ec2::254',             # AWS EC2 IPv6
     '100.100.100.200',           # Alibaba Cloud ECS
     'metadata.google.internal',  # GCP DNS alias
+    'metadata.goog',             # GCP DNS alias
 })
+_CLOUD_METADATA_IPS = frozenset(
+    ipaddress.ip_address(h) for h in ('fd00:ec2::254', '100.100.100.200')
+)
+
+
+def _is_metadata_ip(ip) -> bool:
+    """True for cloud metadata addresses and anything link-local.
+
+    IPv4-mapped and 6to4 IPv6 forms are unwrapped first so
+    ``::ffff:169.254.169.254`` is the same address as ``169.254.169.254``.
+    """
+    mapped = getattr(ip, 'ipv4_mapped', None) or getattr(ip, 'sixtofour', None)
+    if mapped is not None:
+        ip = mapped
+    return ip.is_link_local or ip in _CLOUD_METADATA_IPS
+
+
+def _allow_private() -> bool:
+    try:
+        from django.conf import settings
+        return bool(getattr(settings, 'OUTBOUND_ALLOW_PRIVATE_URLS', True))
+    except Exception:  # noqa: BLE001 — settings not configured (plain scripts)
+        return True
+
+
+def validate_outbound_url(url: str) -> str:
+    """Policy for URLs users configure as integration destinations.
+
+    Used on save and again before each request (see ``Utils.outbound``):
+
+    * http/https only;
+    * cloud metadata and link-local addresses are always refused;
+    * private and loopback addresses are allowed unless the install sets
+      ``SEROPS_OUTBOUND_ALLOW_PRIVATE=false`` (``OUTBOUND_ALLOW_PRIVATE_URLS``).
+      Self-hosted installs point at in-cluster Loki/Prometheus/Ollama; a
+      multi-tenant install should not let a tenant reach its network.
+    """
+    validate_internal_url_no_metadata(url)
+    if _allow_private():
+        return url
+    parsed = urlparse(url)
+    host = parsed.hostname
+    try:
+        literal = ipaddress.ip_address(host)
+    except ValueError:
+        literal = None
+    if literal is not None:
+        candidates = [literal]
+    else:
+        try:
+            candidates = [ipaddress.ip_address(ai[4][0]) for ai in socket.getaddrinfo(host, None)]
+        except (socket.gaierror, ValueError):
+            candidates = []
+    for ip in candidates:
+        if _is_disallowed_ip(ip):
+            raise ValueError(
+                f"URL points at a non-public address ({host}); this install "
+                f"only allows public destinations."
+            )
+    return url
 
 
 def validate_internal_url_no_metadata(url: str) -> str:
@@ -149,9 +212,17 @@ def validate_internal_url_no_metadata(url: str) -> str:
     if not host:
         raise ValueError("URL has no hostname.")
 
-    if host.lower() in _CLOUD_METADATA_HOSTS:
+    if host.lower().rstrip('.') in _CLOUD_METADATA_HOSTS:
         raise ValueError(
             f"URL points at a cloud metadata endpoint ({host}) — refused."
+        )
+    try:
+        literal = ipaddress.ip_address(host)
+    except ValueError:
+        literal = None
+    if literal is not None and _is_metadata_ip(literal):
+        raise ValueError(
+            f"URL points at a cloud metadata or link-local address ({host}) — refused."
         )
 
     # Also block hostnames that resolve to a metadata IP (e.g. a DNS
@@ -165,7 +236,11 @@ def validate_internal_url_no_metadata(url: str) -> str:
 
     for ai in addrinfo:
         ip_str = ai[4][0]
-        if ip_str in _CLOUD_METADATA_HOSTS:
+        try:
+            ip = ipaddress.ip_address(ip_str.split('%', 1)[0])
+        except ValueError:
+            continue
+        if _is_metadata_ip(ip):
             raise ValueError(
                 f"Hostname {host!r} resolves to metadata IP {ip_str} — refused."
             )

@@ -236,8 +236,8 @@ Controls the Sentinel tiered intelligence system that evaluates batches before A
 |---------|-------------|
 | **Enable Active Mode** | When ON, quiet batches skip AI analysis (saves cost). When OFF, shadow mode — all batches run AI. |
 
-!!! warning "Validate in Shadow Mode First"
-    Start with shadow mode (default) to observe Sentinel decisions for 1-2 weeks before enabling active mode. Check the dashboard Sentinel Intelligence card to verify decisions are accurate.
+!!! info "Active mode is the default"
+    Active mode is the default for new installations and organisations (shadow mode was the default up to v1.2.13). Switch to shadow mode to compare Sentinel's decisions with a full analysis of every window, at the cost of an AI call per window. Check the dashboard Sentinel Intelligence card to verify decisions are accurate.
 
 ### Threshold Overrides
 

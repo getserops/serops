@@ -207,7 +207,7 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
 
                 {loadingProviders ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-                        <CircularProgress />
+                        <CircularProgress aria-label="Loading" />
                     </Box>
                 ) : (
                     <>
@@ -312,7 +312,7 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
                 <Button
                     onClick={handleTest}
                     disabled={!selectedProvider || testing || saving || (requiresKey && !apiKey.trim())}
-                    startIcon={testing ? <CircularProgress size={16} /> : null}
+                    startIcon={testing ? <CircularProgress aria-label="Loading" size={16} /> : null}
                 >
                     Test connection
                 </Button>
@@ -320,7 +320,7 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
                     variant="contained"
                     onClick={handleSave}
                     disabled={!canSubmit()}
-                    startIcon={saving ? <CircularProgress size={16} /> : null}
+                    startIcon={saving ? <CircularProgress aria-label="Loading" size={16} /> : null}
                 >
                     Save
                 </Button>

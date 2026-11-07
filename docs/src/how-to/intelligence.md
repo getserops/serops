@@ -27,28 +27,47 @@ by cosine similarity.
 ### How it works
 
 * **On resolve**: an OPEN → RESOLVED transition enqueues a Celery
-  task (`embed_resolved_issue`, priority 3, standard queue). The
-  task calls the embedding backend and stores a 1536-dim vector on
-  `Issue.embedding`.
-* **Backend selection**:
-  * If `OPENAI_API_KEY` is set → OpenAI `text-embedding-3-small`
-    (real semantic similarity).
-  * Otherwise → deterministic hash embedding (reproducible for
-    tests + demos, not semantically meaningful).
-* **Similarity search** runs in Python via numpy cosine similarity,
-  scoped to the caller's org. Fine at MVP scale (~thousands of
-  resolved issues per org). Migration to `pgvector` is tracked in
-  the quality backlog for orgs pushing past ~50K resolved.
-* **Threshold**: `min_similarity=0.75` by default — strong-match
-  bar for text-embedding-3-small on RCA text.
+  task (`embed_resolved_issue`, priority 3, standard queue) that
+  embeds the issue text and stores the vector on `Issue.embedding`,
+  with the model that produced it on `Issue.embedding_model`. Open
+  issues are embedded on demand the first time their similar
+  incidents are requested.
+* **Backend selection** — no environment variable involved:
+  * Your organisation's AI provider (**Settings → AI Providers**),
+    default first, then fallback, when it offers embeddings: OpenAI
+    (`text-embedding-3-small`), Google Gemini (`gemini-embedding-001`)
+    or Ollama (`nomic-embed-text`, run `ollama pull nomic-embed-text`).
+    Set `embedding_model` in the provider key's extra config to use
+    another model. Anthropic Claude and DeepSeek have no embeddings
+    API.
+  * Otherwise, or if the provider call fails → **local lexical
+    similarity**: word, word-pair and character n-grams, hashed into
+    a vector. Deterministic, no network, no model download; it
+    matches incidents described with the same words (e.g. "connection
+    pool exhausted" vs "ran out of DB connections in the pool"), not
+    paraphrases with no word in common.
+* **Similarity search** runs in Python, scoped to the caller's org.
+  Vectors are only compared when they come from the same model and
+  dimension; anything else (another provider, older rows) is compared
+  lexically, so switching provider never mixes vector spaces. Fine at
+  MVP scale (~thousands of resolved issues per org). Migration to
+  `pgvector` is tracked in the quality backlog for orgs pushing past
+  ~50K resolved.
+* **Thresholds**: cosine 0.75 for provider embeddings, 0.25 for
+  lexical vectors (paraphrased incidents score ~0.5-0.75, unrelated
+  ones under 0.1).
+* **AI prompt memory**: the resolved issues injected into an
+  analysis are the ones most similar to the batch's errors (same
+  project, `memory_window_days`, up to `memory_max_items`), ties going
+  to the same environment, team-confirmed root causes, then the most
+  recent. At most one recent non-matching issue fills a free slot.
 
 ### Privacy
 
-Resolved-issue text is sent to the configured embedding provider
-(OpenAI by default). PII redaction runs via `Utils.data_redaction`
-before the API call — same policy as batch analysis. Set
-`OPENAI_API_KEY=""` to fall back to the hash backend and keep all
-data local.
+Resolved-issue text goes to your organisation's own AI provider, the
+same one that analyses your logs, after PII redaction via
+`Utils.data_redaction`. With Ollama, Claude, DeepSeek or no provider,
+nothing leaves the instance for embeddings.
 
 ## Post-mortem draft generator
 
@@ -97,5 +116,5 @@ curl -X POST -H "Authorization: Token $TOKEN" \
 
 Embeddings + post-mortem drafts both use the configured AI provider.
 Cost per resolved issue is negligible (~$0.00001 for
-text-embedding-3-small). Cost per post-mortem draft depends on
+text-embedding-3-small; free with Ollama or the lexical fallback). Cost per post-mortem draft depends on
 model — expect ~$0.01 with GPT-4o, ~$0.001 with GPT-4o-mini.

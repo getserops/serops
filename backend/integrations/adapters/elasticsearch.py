@@ -54,6 +54,11 @@ class ElasticsearchLogProvider(LogProvider):
         host = self._config.get('host')
         if not host:
              raise ValueError("Elasticsearch host not configured in integration settings")
+        # Checked again here, not only when saved: DNS can change after
+        # (security review 2026-11, finding 3). The client does not follow
+        # redirects.
+        from Utils.outbound import check_url
+        check_url(host if '://' in str(host) else f'http://{host}')
              
         connection_params = {
             "hosts": [host],

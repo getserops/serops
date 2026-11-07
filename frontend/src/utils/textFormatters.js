@@ -126,7 +126,7 @@ const createCollapsible = (title, content, isOpen = false, type = 'default') => 
 
     return `
         <div class="collapsible-section ${type} ${openClass}" data-id="${id}">
-            <button class="collapsible-header" onclick="this.parentElement.classList.toggle('open')">
+            <button type="button" class="collapsible-header">
                 <span class="collapsible-icon">${icon}</span>
                 <span class="collapsible-title">${title}</span>
                 <span class="collapsible-arrow">▼</span>
@@ -306,3 +306,18 @@ export const renderFormattedText = (text) => {
 };
 
 export default renderFormattedText;
+
+/**
+ * Collapsible sections rendered by createCollapsible open and close on
+ * click. One delegated listener instead of an inline onclick: the
+ * Content-Security-Policy allows no inline script.
+ */
+export const installCollapsibleToggle = (root = document) => {
+    const onClick = (event) => {
+        const header = event.target.closest?.('.collapsible-header');
+        const section = header?.parentElement;
+        if (section?.classList.contains('collapsible-section')) section.classList.toggle('open');
+    };
+    root.addEventListener('click', onClick);
+    return () => root.removeEventListener('click', onClick);
+};

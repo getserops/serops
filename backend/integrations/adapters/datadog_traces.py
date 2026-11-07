@@ -33,6 +33,8 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import requests
+
+from Utils.outbound import GuardedSession
 from requests.exceptions import RequestException
 
 from integrations.base import TraceProvider, TraceProviderCapabilities
@@ -85,7 +87,10 @@ class DatadogTraceAdapter(TraceProvider):
         # DD site is configurable — US1, US3, US5, EU1, US1-FED.
         from integrations.adapters.datadog_logs import datadog_site
         self.base_url = f'https://api.{datadog_site(self._config)}'
-        self._session = requests.Session()
+        # Re-validates the host before every request and each redirect hop,
+        # and never follows a redirect to another host (security review
+        # 2026-11, finding 3).
+        self._session = GuardedSession()
 
         extras = self._config.get('extra_config', {}) or {}
         api_key = self._config.get('api_key') or extras.get('api_key')

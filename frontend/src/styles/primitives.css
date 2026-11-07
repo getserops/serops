@@ -14,7 +14,6 @@
    the cascade wherever a class name overlaps.
    ============================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 /* Kept for legacy classes that already reference --font-mono */
 :root {
@@ -168,6 +167,17 @@
   background: var(--bg-sunken);
 }
 
+/* An icon-only button big enough for a thumb (WCAG 2.5.8 asks for 24 px;
+   32 leaves room for a finger). Utility padding such as p-0 / p-1 shrank
+   the issue menu and audit-log toggles to 15-22 px on phones. */
+.tap-target {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+}
+
 /* Tables that turn into one card per row on phones. Each <td> carries
    data-label with its column name; a cell without one (checkbox,
    actions, empty state) spans the card unlabelled. */
@@ -209,6 +219,19 @@
   .table-stack td > * { min-width: 0; max-width: 100%; }
   .table-stack td:not([data-label])::before { content: none; }
   .table-stack td:not([data-label]) { justify-content: flex-start; text-align: left !important; flex-wrap: wrap; }
+  /* Buttons keep their size: in a labelled cell they used to shrink into
+     what the label left, a "Services" button breaking letter by letter.
+     Several buttons wrap onto their own line under the label instead. */
+  .table-stack td > .btn, .table-stack td > button, .table-stack td > a.btn {
+    flex: none;
+    max-width: none;
+    white-space: nowrap;
+  }
+  .table-stack td:has(> .btn ~ .btn) {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: var(--space-2);
+  }
 }
 
 /* =============================================================

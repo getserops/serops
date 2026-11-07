@@ -284,7 +284,9 @@ class ObservabilityIntegration(models.Model):
     # Shared connection config
     host = models.CharField(max_length=500, blank=True, help_text='Provider host URL')
     username = models.CharField(max_length=255, blank=True)
-    password = models.CharField(max_length=1000, blank=True, help_text='Encrypted at rest via Fernet')
+    # Text, not 1000 characters: a Google service-account key is ~2.3k, ~3.2k
+    # once encrypted, and could not be saved (GKE live test, 2026-11-05).
+    password = models.TextField(blank=True, help_text='Encrypted at rest via Fernet')
     extra_config = models.JSONField(
         default=dict,
         blank=True,

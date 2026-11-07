@@ -8,9 +8,10 @@ from Data.serializers import AIAnalyzedBatchSerializer, AIAnalyzedBatchListSeria
 from rest_framework.response import Response
 from rest_framework import status
 import logging
-from .models import AIAnalyzedBatch, Issue
+from .models import AIAnalyzedBatch, Issue, IssueOccurrence
 from integrations.registry import IntegrationRegistry
-from django.db.models import Count, Q, Case, When, Value, IntegerField
+from django.db.models import Count, Q, Case, When, Value, IntegerField, F, OuterRef, Subquery
+from django.db.models.functions import Coalesce, NullIf
 from django.conf import settings
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from datetime import timedelta
@@ -119,6 +120,17 @@ class BatchReanalyzeView(APIView):
                         status=status.HTTP_404_NOT_FOUND,
                     )
                 batches.append(batch)
+
+            # Re-analysis and compare call the model outside
+            # generate_for_organisation and used to skip the monthly budget
+            # (security review 2026-11, finding 4). Refuse before queueing so
+            # the user is told, instead of a task failing silently.
+            from ai_model.budget import OVER_BUDGET_CODE, OVER_BUDGET_MESSAGE, budget_allows
+            if not budget_allows(user_org):
+                return Response(
+                    {'error': OVER_BUDGET_MESSAGE, 'code': OVER_BUDGET_CODE},
+                    status=status.HTTP_409_CONFLICT,
+                )
 
             # Queue re-analysis for each batch
             from ai_model.tasks import reanalyze_batch_with_model
@@ -388,75 +400,6 @@ class MetricCorrelationView(APIView):
                 {'correlations': [], 'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-class FluentdLogView(APIView):
-    permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
-
-    def get(self, request):
-        """
-        Retrieve logs for the authenticated user's organisation.
-        Query parameters:
-        - index: Index pattern to search (default: org's configured index)
-        - size:  Number of results (default 10000)
-        """
-        try:
-            logger.debug("Getting logs via LogProvider")
-
-            user_org = getattr(request.user, 'organisation', None)
-            if not user_org:
-                return Response(
-                    {'error': 'User has no organisation'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            index = request.query_params.get('index', elastic_index)
-            size = int(request.query_params.get('size', 10000))
-
-            # Resolve per-org log provider
-            provider = IntegrationRegistry.get_log_provider_for_org(user_org)
-
-            # Build query (LogProvider expects dict)
-            query = {
-                "query": {
-                    "match_all": {}
-                },
-                "size": size,
-                "sort": [
-                    {
-                        "@timestamp": {
-                            "order": "desc"
-                        }
-                    }
-                ]
-            }
-
-            # Fetch via provider
-            log_entries = provider.search(index, query, size=size)
-
-            # Convert to legacy ES response format
-            hits = [entry.to_legacy_dict() for entry in log_entries]
-
-            response = {
-                'took': 0,
-                'timed_out': False,
-                '_shards': {'total': 1, 'successful': 1, 'skipped': 0, 'failed': 0},
-                'hits': {
-                    'total': {'value': len(hits), 'relation': 'eq'},
-                    'max_score': 1.0,
-                    'hits': hits
-                }
-            }
-
-            logger.info(f"Successfully fetched {len(hits)} logs from index {index} via provider")
-            return Response(response, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            logger.exception(f"Error fetching logs from index {index}")
-            return Response(
-                {'error': 'Log retrieval failed', 'details': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
 
 class LogBatchView(OrgFilterMixin, APIView):
     """
@@ -941,7 +884,7 @@ def _apply_issue_search(queryset, search_term):
     return queryset
 
 
-def _apply_issue_sorting(queryset, sort_by, sort_dir):
+def _apply_issue_sorting(queryset, sort_by, sort_dir, severity_field='severity'):
     """Apply sorting with semantic severity ordering."""
     sort_mapping = {
         'timestamp': 'batch__timestamp',
@@ -958,9 +901,9 @@ def _apply_issue_sorting(queryset, sort_by, sort_dir):
         # Semantic severity ordering: CRITICAL=0, WARNING=1, INFO=2, UNKNOWN=3
         queryset = queryset.annotate(
             severity_order=Case(
-                When(severity='CRITICAL', then=Value(0)),
-                When(severity='WARNING', then=Value(1)),
-                When(severity='INFO', then=Value(2)),
+                When(**{severity_field: 'CRITICAL'}, then=Value(0)),
+                When(**{severity_field: 'WARNING'}, then=Value(1)),
+                When(**{severity_field: 'INFO'}, then=Value(2)),
                 default=Value(3),
                 output_field=IntegerField(),
             )
@@ -975,7 +918,7 @@ def _apply_issue_sorting(queryset, sort_by, sort_dir):
     return queryset.order_by(model_sort_field)
 
 
-def _build_issue_summary(base_queryset, include_batch_count=False, cache_key=None):
+def _build_issue_summary(base_queryset, include_batch_count=False, cache_key=None, severity_field='severity'):
     """Build summary stats with severity/status distributions in a single query.
 
     Uses cache (30s TTL) when cache_key is provided to avoid expensive aggregate
@@ -990,10 +933,10 @@ def _build_issue_summary(base_queryset, include_batch_count=False, cache_key=Non
     # Single aggregate query for all summary stats (avoids multiple round-trips)
     agg = base_queryset.aggregate(
         # Severity counts
-        sev_critical=Count('id', filter=Q(severity='CRITICAL')),
-        sev_warning=Count('id', filter=Q(severity='WARNING')),
-        sev_info=Count('id', filter=Q(severity='INFO')),
-        sev_unknown=Count('id', filter=Q(severity='UNKNOWN')),
+        sev_critical=Count('id', filter=Q(**{severity_field: 'CRITICAL'})),
+        sev_warning=Count('id', filter=Q(**{severity_field: 'WARNING'})),
+        sev_info=Count('id', filter=Q(**{severity_field: 'INFO'})),
+        sev_unknown=Count('id', filter=Q(**{severity_field: 'UNKNOWN'})),
         # Status counts
         st_open=Count('id', filter=Q(status='OPEN')),
         st_muted=Count('id', filter=Q(status='MUTED')),
@@ -1239,6 +1182,13 @@ class BatchIssuesView(OrgFilterMixin, APIView):
             queryset = Issue.objects.filter(occurrences__batch=batch).distinct().select_related('batch').defer(
                 'batch__data', 'batch__analysis_text', 'batch__analysis_history', 'batch__indices_covered'
             )
+            # The severity THIS analysis reported, not the issue's highest
+            # ever: a recurring issue once CRITICAL stayed CRITICAL on every
+            # later analysis, even one that rated it WARNING.
+            queryset = queryset.annotate(batch_severity=Coalesce(
+                NullIf(Subquery(IssueOccurrence.objects.filter(issue=OuterRef('pk'), batch=batch)
+                                .values('severity')[:1]), Value('')),
+                F('severity')))
 
             # If no Issue records found, fallback to parsing analysis_text (legacy batches)
             if not queryset.exists() and batch.analysis_text:
@@ -1246,13 +1196,13 @@ class BatchIssuesView(OrgFilterMixin, APIView):
                 return self._get_issues_from_analysis_text(batch, severity_filter, page, page_size)
 
             # Build summary from unfiltered batch queryset (before filters)
-            summary = _build_issue_summary(queryset)
+            summary = _build_issue_summary(queryset, severity_field='batch_severity')
             summary['batches_with_issues'] = 1 if queryset.exists() else 0
             summary['filter_applied'] = severity_filter
 
             # Apply Severity Filter
             if severity_filter != 'ALL':
-                queryset = queryset.filter(severity=severity_filter)
+                queryset = queryset.filter(batch_severity=severity_filter)
 
             # Apply Status Filter
             if status_filter != 'ALL':
@@ -1262,7 +1212,7 @@ class BatchIssuesView(OrgFilterMixin, APIView):
             queryset = _apply_issue_search(queryset, search)
 
             # Apply Sorting (semantic severity order)
-            queryset = _apply_issue_sorting(queryset, sort_by, sort_dir)
+            queryset = _apply_issue_sorting(queryset, sort_by, sort_dir, severity_field='batch_severity')
 
             # Pagination
             paginator = Paginator(queryset, page_size)
@@ -1273,6 +1223,8 @@ class BatchIssuesView(OrgFilterMixin, APIView):
 
             # Serialize
             from Data.serializers import IssueSerializer
+            for issue in issues_page:
+                issue.severity = issue.batch_severity
             serializer = IssueSerializer(issues_page, many=True)
 
             response_data = {
@@ -1642,12 +1594,12 @@ class SimilarIssuesView(OrgFilterMixin, APIView):
     GET /api/data/issues/<id>/similar/  — Item #27.
 
     Returns up to N (default 5) similar past resolved issues for a
-    given issue, ranked by embedding cosine similarity. Org-scoped
+    given issue, ranked by similarity (org provider embeddings or
+    local lexical similarity, see ``Issue.find_similar``). Org-scoped
     via the 404-oracle pattern.
 
-    Response ``results`` is empty when the issue has no embedding
-    (still being computed, or embedding failed) — callers don't
-    need to distinguish "no matches" from "no embedding".
+    An issue without a stored embedding (any open issue) is embedded
+    on the first request rather than returning nothing.
     """
     permission_classes = [IsAuthenticated, Requires(GET='issue.read')]
 
@@ -1855,8 +1807,14 @@ class DeleteOldBatchesView(APIView):
                     status=400
                 )
 
+            if not request.user.organisation_id:
+                return Response({"error": "No organisation."}, status=403)
             threshold = timezone.now() - timedelta(days=days)
-            old_batches = AIAnalyzedBatch.objects.filter(created_at__lt=threshold)
+            # This organisation's batches only: the filter had no organisation,
+            # so any org admin deleted every tenant's old batches (external
+            # review, 2026-11).
+            old_batches = AIAnalyzedBatch.objects.filter(
+                organisation=request.user.organisation, created_at__lt=threshold)
             count = old_batches.count()
             
             # Log the deletion

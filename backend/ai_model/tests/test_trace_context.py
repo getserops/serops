@@ -155,6 +155,28 @@ class TraceContextNativeTest(TestCase):
         self.assertIsNone(summary)
 
 
+    def test_another_org_holding_the_same_trace_id_adds_none_of_its_spans(self):
+        # Security review 2026-11, finding 1: a trace id is unique per org
+        # only, so the span lookup must go by trace row, not trace id.
+        twin = Trace.objects.create(
+            trace_id='a' * 32, organisation=self.other_org,
+            root_service_name='checkout', root_operation='op',
+            start_time=self.trace.start_time, end_time=self.trace.end_time,
+            duration_ms=5000,
+        )
+        Span.objects.create(
+            trace=twin, span_id='7' * 16, service_name='checkout',
+            operation_name='foreign-op', start_time=self.trace.start_time,
+            end_time=self.trace.end_time, duration_ms=5000, status_code='ERROR',
+        )
+
+        summary = build_trace_context(_fake_batch(self.project, self.window_end))
+
+        self.assertEqual(summary['span_count'], 2)
+        self.assertNotIn('foreign-op', {s['operation_name'] for s in summary['top_slow']})
+        self.assertEqual(summary['top_slow'][0]['trace_id'], 'a' * 32)
+
+
 class TraceContextExternalFallbackTest(TestCase):
 
     @classmethod
@@ -341,3 +363,153 @@ class TraceContextFormatterTest(TestCase):
         self.assertIn('Services in window: api, checkout', text)
         self.assertIn('900ms', text)
         self.assertIn('timeout', text)
+
+
+class ServiceTimingsTest(TestCase):
+    """Self time puts latency on the service it happens in, not on its callers
+    (production scenario B4 on Online Boutique: the top-5 slowest spans were
+    all the frontend waiting on a slow catalogue, and the frontend was blamed)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = Organisations.objects.create(name='TimingOrg')
+        cls.project = Project.objects.create(organisation=cls.org, name='shop')
+        from Projects.models import ProjectService
+        for name in ('frontend', 'catalog', 'cart'):
+            ProjectService.objects.create(project=cls.project, name=name, service_type='application')
+        cls.base = datetime(2026, 11, 2, 12, 0, tzinfo=timezone.utc)
+        cls.window_end = cls.base + timedelta(minutes=15)
+
+        def trace(n, at, catalog_ms):
+            t = Trace.objects.create(
+                trace_id=f'{n:032x}', organisation=cls.org, root_service_name='frontend',
+                root_operation='GET /product', start_time=at,
+                end_time=at + timedelta(milliseconds=catalog_ms + 10),
+                duration_ms=catalog_ms + 10)
+            # frontend server span -> frontend client span -> catalog server span
+            spans = [('a', '', 'frontend', 'GET /product', catalog_ms + 10),
+                     ('b', 'a', 'frontend', 'grpc.client/GetProduct', catalog_ms + 2),
+                     ('c', 'b', 'catalog', 'GetProduct', catalog_ms),
+                     ('d', 'a', 'cart', 'GetCart', 3)]
+            for sid, parent, svc, op, ms in spans:
+                Span.objects.create(
+                    trace=t, span_id=sid * 16, parent_span_id=parent * 16 if parent else '',
+                    service_name=svc, operation_name=op, start_time=at,
+                    end_time=at + timedelta(milliseconds=ms), duration_ms=ms, status_code='OK')
+
+        for i in range(10):    # the window before: healthy
+            trace(i, cls.base - timedelta(minutes=10, seconds=i), 5)
+        for i in range(10):    # this window: the catalog takes 3s
+            trace(100 + i, cls.base + timedelta(minutes=5, seconds=i), 3000)
+
+    def batch(self):
+        b = _fake_batch(self.project, self.window_end)
+        b.data = {'statistics': {'time_range': {
+            'start': '2026-11-02T12:00:00Z', 'end': '2026-11-02T12:15:00Z'}}}
+        return b
+
+    def test_latency_is_on_the_catalog_not_the_frontend(self):
+        summary = build_trace_context(self.batch())
+        rows = {r['service_name']: r for r in summary['per_service']}
+        self.assertEqual(summary['per_service'][0]['service_name'], 'catalog')
+        self.assertEqual(rows['catalog']['self_p95_ms'], 3000)
+        self.assertEqual(rows['catalog']['slowest_operation'], 'GetProduct')
+        # The frontend's total is slow, its own time is not.
+        self.assertEqual(rows['frontend']['p95_ms'], 3010)
+        self.assertLessEqual(rows['frontend']['self_p95_ms'], 10)
+
+    def test_each_service_is_compared_with_the_window_before(self):
+        summary = build_trace_context(self.batch())
+        catalog = next(r for r in summary['per_service'] if r['service_name'] == 'catalog')
+        self.assertEqual(catalog['baseline']['self_p95_ms'], 5)
+        self.assertEqual(catalog['baseline']['spans'], 10)
+
+    def test_the_prompt_lists_self_time_and_the_window_before(self):
+        text = format_trace_context_for_prompt(build_trace_context(self.batch()))
+        self.assertIn('Per-service timings', text)
+        self.assertIn('catalog: 10 spans (window before: 10), p50 3000ms, p95 3000ms, self p95 3000ms, 0 errors '
+                      '(window before: p95 5ms, self p95 5ms); slowest own time: GetProduct 3000ms', text)
+
+    def test_same_traffic_is_not_called_a_change(self):
+        text = format_trace_context_for_prompt(build_trace_context(self.batch()))
+        self.assertIn('Traffic: 40 spans in this window, 40 in the window before\n', text)
+
+    def test_parallel_children_never_give_negative_self_time(self):
+        from ai_model.trace_context import _service_timings
+        rows = [('t', 'p', '', 'api', 'GET /', 100, 'OK'),
+                ('t', 'c1', 'p', 'db', 'q1', 90, 'OK'),
+                ('t', 'c2', 'p', 'db', 'q2', 90, 'ERROR')]
+        timings = _service_timings(rows)
+        self.assertEqual(timings['api']['self_p95_ms'], 0)
+        self.assertEqual(timings['db']['errors'], 1)
+
+
+class TrafficChangeTest(TestCase):
+    """A traffic surge shows as a change in volume, counted past the 500-trace
+    cap the timings use (production scenario R9 on Online Boutique: a 5x
+    load-generator surge slowed every service and the analysis blamed one
+    service's client code)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = Organisations.objects.create(name='SurgeOrg')
+        cls.project = Project.objects.create(organisation=cls.org, name='shop')
+        from Projects.models import ProjectService
+        for name in ('frontend', 'catalog'):
+            ProjectService.objects.create(project=cls.project, name=name, service_type='application')
+        other = Organisations.objects.create(name='OtherOrg')
+        cls.base = datetime(2026, 11, 2, 12, 0, tzinfo=timezone.utc)
+        n = 0
+
+        def trace(org, at, ms):
+            nonlocal n
+            n += 1
+            t = Trace.objects.create(
+                trace_id=f'{n:032x}', organisation=org, root_service_name='frontend',
+                root_operation='GET /', start_time=at, end_time=at + timedelta(milliseconds=ms),
+                duration_ms=ms)
+            for sid, parent, svc in (('a', '', 'frontend'), ('b', 'a', 'catalog')):
+                Span.objects.create(
+                    trace=t, span_id=sid * 16, parent_span_id=parent * 16 if parent else '',
+                    service_name=svc, operation_name='op', start_time=at,
+                    end_time=at + timedelta(milliseconds=ms), duration_ms=ms, status_code='OK')
+
+        for i in range(4):     # the window before
+            trace(cls.org, cls.base - timedelta(minutes=10, seconds=i), 20)
+        for i in range(20):    # this window: five times the traffic, slower
+            trace(cls.org, cls.base + timedelta(minutes=5, seconds=i), 900)
+        for i in range(30):    # another organisation's traffic never counts
+            trace(other, cls.base + timedelta(minutes=5, seconds=i), 5)
+
+    def batch(self):
+        b = _fake_batch(self.project, self.base + timedelta(minutes=15))
+        b.data = {'statistics': {'time_range': {
+            'start': '2026-11-02T12:00:00Z', 'end': '2026-11-02T12:15:00Z'}}}
+        return b
+
+    def test_volume_per_service_and_in_total(self):
+        summary = build_trace_context(self.batch())
+        self.assertEqual(summary['traffic'], {'spans': 40, 'before': 8})
+        rows = {r['service_name']: r for r in summary['per_service']}
+        self.assertEqual(rows['catalog']['traffic'], {'spans': 20, 'before': 4})
+
+    def test_the_prompt_shows_the_surge(self):
+        text = format_trace_context_for_prompt(build_trace_context(self.batch()))
+        self.assertIn('Traffic: 40 spans in this window, 8 in the window before (x5.0)', text)
+        self.assertIn('catalog: 20 spans (window before: 4) (x5.0), p50 900ms', text)
+
+    def test_counts_are_not_capped_by_the_timing_sample(self):
+        # The timings read a capped sample of traces (500 in production);
+        # simulate a cap of 2 and the traffic still counts every span.
+        from ai_model import trace_context
+        real = trace_context._project_trace_pks
+        with patch.object(trace_context, '_project_trace_pks',
+                          side_effect=lambda *a: real(*a)[:2]):
+            summary = build_trace_context(self.batch())
+        rows = {r['service_name']: r for r in summary['per_service']}
+        self.assertEqual(rows['catalog']['spans'], 2)
+        self.assertEqual(summary['traffic'], {'spans': 40, 'before': 8})
+
+    def test_the_analysis_prompt_tells_the_model_to_check_traffic_first(self):
+        from ai_model.prompts import get_batch_analysis_system_prompt
+        self.assertIn('look at traffic before code', get_batch_analysis_system_prompt())

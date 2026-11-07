@@ -32,6 +32,7 @@ Security
 import gzip
 import json
 import zlib
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -299,6 +300,54 @@ class OtlpIngestTest(OtlpReceiverBase):
 # ============================================================================
 
 
+class OtlpTraceTenancyTest(OtlpReceiverBase):
+    """Security review 2026-11, finding 1: trace ids are unique per org only."""
+
+    def setUp(self):
+        super().setUp()
+        self.other_org = Organisations.objects.create(name='OtherOtlpOrg')
+        self.other_plaintext = IngestKey.generate_key()
+        other_key = IngestKey(organisation=self.other_org, name='other-collector')
+        other_key.set_key(self.other_plaintext)
+        other_key.save()
+
+    def test_same_trace_id_in_two_orgs_creates_two_traces(self):
+        self._post(self._payload(service_name='checkout'))
+        response = self._post(self._payload(service_name='intruder'), auth=self.other_plaintext)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Trace.objects.filter(trace_id='a' * 32).count(), 2)
+
+    def test_other_orgs_spans_never_attach_to_our_trace(self):
+        self._post(self._payload(service_name='checkout'))
+        self._post(self._payload(spans=[{
+            'traceId': 'a' * 32, 'spanId': 'c' * 16, 'parentSpanId': '',
+            'name': 'evil', 'kind': 'SPAN_KIND_SERVER',
+            'startTimeUnixNano': '1730000000000000000',
+            'endTimeUnixNano': '1730000009000000000',
+            'attributes': [], 'status': {'code': 'STATUS_CODE_ERROR'},
+        }], service_name='intruder'), auth=self.other_plaintext)
+
+        ours = Trace.objects.get(organisation=self.org, trace_id='a' * 32)
+        self.assertEqual(ours.span_count, 1)
+        self.assertEqual(ours.status_code, 'OK')
+        self.assertEqual(ours.root_service_name, 'checkout')
+        self.assertEqual(set(ours.spans.values_list('service_name', flat=True)), {'checkout'})
+
+    def test_resent_batch_from_the_same_org_extends_its_own_trace(self):
+        self._post(self._payload())
+        self._post(self._payload(spans=[{
+            'traceId': 'a' * 32, 'spanId': 'd' * 16, 'parentSpanId': 'b' * 16,
+            'name': 'child', 'kind': 'SPAN_KIND_INTERNAL',
+            'startTimeUnixNano': '1730000000000000000',
+            'endTimeUnixNano': '1730000000050000000',
+            'attributes': [], 'status': {'code': 'STATUS_CODE_OK'},
+        }]))
+
+        self.assertEqual(Trace.objects.count(), 1)
+        self.assertEqual(Trace.objects.get().spans.count(), 2)
+
+
 class IngestKeyCrudTest(TestCase):
 
     def setUp(self):
@@ -503,3 +552,37 @@ class OTLPCompressionTest(TestCase):
         )
         self.assertEqual(resp.status_code, 401)
         self.assertEqual(Span.objects.count(), 0)
+
+    # -- decompression bombs (security review 2026-11, finding 5) ------
+
+    def test_a_body_that_inflates_past_the_cap_gets_413_and_stores_nothing(self):
+        bomb = gzip.compress(b'\x00' * (2 * 1024 * 1024))
+        with patch('traces.otlp_views.OTLP_MAX_DECOMPRESSED_BYTES', 1024 * 1024):
+            resp = self._post(bomb, HTTP_CONTENT_ENCODING='gzip')
+        self.assertEqual(resp.status_code, 413)
+        self.assertEqual(Span.objects.count(), 0)
+
+    def test_a_deflate_body_that_inflates_past_the_cap_gets_413(self):
+        bomb = zlib.compress(b'\x00' * (2 * 1024 * 1024))
+        with patch('traces.otlp_views.OTLP_MAX_DECOMPRESSED_BYTES', 1024 * 1024):
+            resp = self._post(bomb, HTTP_CONTENT_ENCODING='deflate')
+        self.assertEqual(resp.status_code, 413)
+
+    def test_inflating_raises_as_soon_as_the_output_passes_the_cap(self):
+        from traces.otlp_views import DecompressedBodyTooLarge, _bounded_inflate
+        bomb = gzip.compress(b'\x00' * (8 * 1024 * 1024))
+        with self.assertRaises(DecompressedBodyTooLarge):
+            _bounded_inflate(bomb, 16 + zlib.MAX_WBITS, 4096)
+
+    def test_a_multi_member_gzip_body_is_inflated_whole(self):
+        payload = json.dumps(self._payload()).encode()
+        half = len(payload) // 2
+        body = gzip.compress(payload[:half]) + gzip.compress(payload[half:])
+        resp = self._post(body, HTTP_CONTENT_ENCODING='gzip')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(Span.objects.count(), 1)
+
+    def test_a_truncated_gzip_body_is_rejected_as_bad_encoding(self):
+        body = gzip.compress(json.dumps(self._payload()).encode())[:-12]
+        resp = self._post(body, HTTP_CONTENT_ENCODING='gzip')
+        self.assertEqual(resp.status_code, 415)

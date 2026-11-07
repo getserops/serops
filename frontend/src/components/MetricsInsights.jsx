@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Card, Col, Row, Table, Badge } from "react-bootstrap";
-import { FiAlertTriangle, FiActivity, FiZap } from "react-icons/fi";
+import { FiAlertTriangle, FiActivity, FiZap, FiGitCommit } from "react-icons/fi";
 
 /**
  * The analysis SerOps already computed for a batch's metrics.
@@ -57,7 +57,10 @@ const formatDuration = (seconds) => {
 export const deriveInsights = (summary) => {
     if (!summary) return null;
 
-    const { terminated = [], restarts = {}, anomalies = [], perService = {}, peakPodMemory = {} } = summary;
+    const {
+        terminated = [], restarts = {}, anomalies = [], perService = {}, peakPodMemory = {},
+        waiting = [], changes = [], unavailable = [], throttled = [], stuck = [],
+    } = summary;
 
     const busyRestarts = Object.entries(restarts).filter(([, n]) => n);
 
@@ -72,11 +75,12 @@ export const deriveInsights = (summary) => {
         }))
         .sort((a, b) => (b.mem.max || 0) - (a.mem.max || 0));
 
-    if (!terminated.length && !busyRestarts.length && !anomalies.length && !serviceRows.length) {
+    if (!terminated.length && !busyRestarts.length && !anomalies.length && !serviceRows.length
+        && !waiting.length && !changes.length && !unavailable.length && !throttled.length && !stuck.length) {
         return null;
     }
 
-    return { terminated, busyRestarts, anomalies, serviceRows };
+    return { terminated, busyRestarts, anomalies, serviceRows, waiting, changes, unavailable, throttled, stuck };
 };
 
 const MetricsInsights = ({ summary }) => {
@@ -85,7 +89,9 @@ const MetricsInsights = ({ summary }) => {
     const derived = deriveInsights(summary);
     if (!derived) return null;
 
-    const { terminated, busyRestarts, anomalies, serviceRows } = derived;
+    const { terminated, busyRestarts, anomalies, serviceRows, waiting, changes, unavailable, throttled, stuck } = derived;
+    const failing = terminated.length > 0 || busyRestarts.length > 0 || waiting.length > 0
+        || unavailable.length > 0 || throttled.length > 0 || stuck.length > 0;
 
     const label = (name) =>
         name === "default" ? t("metrics.unlabelledContainers") : name;
@@ -105,7 +111,7 @@ const MetricsInsights = ({ summary }) => {
             <Row className="g-3">
                 {/* Terminations first: a killed container is the most actionable
                     thing on this page, and the hardest to see anywhere else. */}
-                {(terminated.length > 0 || busyRestarts.length > 0) && (
+                {failing && (
                     <Col lg={6}>
                         <Card className="h-100 border-0 shadow-sm">
                             <Card.Body>
@@ -119,6 +125,40 @@ const MetricsInsights = ({ summary }) => {
                                     <div key={`${item.container}-${item.reason}`} className="mb-2">
                                         <span className="ds-mono fw-semibold">{label(item.container)}</span>{" "}
                                         <Badge bg="danger">{item.reason}</Badge>
+                                    </div>
+                                ))}
+
+                                {waiting.map((item) => (
+                                    <div key={`${item.container}-${item.reason}`} className="mb-2">
+                                        <span className="ds-mono fw-semibold">{label(item.container)}</span>{" "}
+                                        <Badge bg="danger">{item.reason}</Badge>
+                                    </div>
+                                ))}
+
+                                {unavailable.map((item) => (
+                                    <div key={item.workload} className="mb-2 small">
+                                        <span className="ds-mono fw-semibold">{item.workload}</span>{" "}
+                                        <span className="text-dark">
+                                            {item.now !== undefined && item.now >= item.desired
+                                                ? t("metrics.replicasRecovered", { available: item.available, desired: item.desired, now: item.now })
+                                                : t("metrics.replicasAvailable", { available: item.available, desired: item.desired })}
+                                        </span>
+                                    </div>
+                                ))}
+
+                                {stuck.map((item) => (
+                                    <div key={`stuck-${item.workload}`} className="mb-2 small">
+                                        <span className="ds-mono fw-semibold">{item.workload}</span>{" "}
+                                        <span className="text-dark">
+                                            {t("metrics.rolloutStuck", { notReady: item.not_ready, available: item.available, desired: item.desired })}
+                                        </span>
+                                    </div>
+                                ))}
+
+                                {throttled.map((item) => (
+                                    <div key={`throttled-${item.service}`} className="mb-2 small">
+                                        <span className="ds-mono fw-semibold">{label(item.service)}</span>{" "}
+                                        <span className="text-dark">{t("metrics.cpuThrottled", { percent: item.percent })}</span>
                                     </div>
                                 ))}
 
@@ -145,7 +185,7 @@ const MetricsInsights = ({ summary }) => {
                     </Col>
                 )}
 
-                <Col lg={terminated.length > 0 || busyRestarts.length > 0 ? 6 : 12}>
+                <Col lg={failing ? 6 : 12}>
                     <Card className="h-100 border-0 shadow-sm">
                         <Card.Body>
                             <h6 className="fw-bold text-uppercase small text-muted d-flex align-items-center gap-2">
@@ -179,6 +219,30 @@ const MetricsInsights = ({ summary }) => {
                         </Card.Body>
                     </Card>
                 </Col>
+
+                {changes.length > 0 && (
+                    <Col xs={12}>
+                        <Card className="border-0 shadow-sm">
+                            <Card.Body>
+                                <h6 className="fw-bold text-uppercase small text-muted d-flex align-items-center gap-2">
+                                    <FiGitCommit className="text-primary" aria-hidden="true" />
+                                    {t("metrics.changesTitle")}
+                                </h6>
+                                <p className="text-muted small">{t("metrics.changesHint")}</p>
+                                {changes.map((c) => (
+                                    <div key={`${c.workload}-${c.at}-${c.change}`} className="mb-2 small">
+                                        <span className="text-muted me-2">{new Date(c.at).toLocaleTimeString()}</span>
+                                        <span className="ds-mono fw-semibold">{c.workload}</span>{" "}
+                                        <Badge bg={c.change === "rollout" ? "primary" : "secondary"} className="me-2">
+                                            {c.change === "rollout" ? t("metrics.changeRollout") : t("metrics.changeScaled")}
+                                        </Badge>
+                                        <span className="text-dark text-break">{c.detail}</span>
+                                    </div>
+                                ))}
+                            </Card.Body>
+                        </Card>
+                    </Col>
+                )}
 
                 {serviceRows.length > 0 && (
                     <Col xs={12}>

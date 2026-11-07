@@ -81,10 +81,29 @@ class GenericOpenAIAdapter(BaseProviderAdapter):
             # to hang on a wedged provider (blocks the whole batch
             # pipeline). Clamp to a sane 120s default, override via
             # config.timeout_seconds for slow local Ollama boxes.
+            client_kwargs = {}
+            if base_url:
+                # The base URL can be set per organisation. Re-checked before
+                # each call, and redirects are not followed (the SDK follows
+                # them by default), so a server that passed the check cannot
+                # send the key on to another address (security review
+                # 2026-11, finding 3).
+                from Utils.outbound import BlockedOutboundURL, check_url
+                try:
+                    check_url(base_url)
+                except BlockedOutboundURL as exc:
+                    return None, AIServiceError(
+                        error_type='network_error', code='BASE_URL_REFUSED',
+                        message='The AI provider URL is not an allowed destination.',
+                        user_action='Change the base URL in Settings → AI.',
+                        raw_error=str(exc),
+                    ), 0, 0
+                client_kwargs['http_client'] = openai.DefaultHttpxClient(follow_redirects=False)
             client = openai.OpenAI(
                 api_key=api_key or "dummy", # Ollama might not need key
                 base_url=base_url,
                 timeout=config.get('timeout_seconds', 120),
+                **client_kwargs,
             )
 
             response = client.chat.completions.create(
@@ -133,8 +152,11 @@ class GenericOpenAIAdapter(BaseProviderAdapter):
         if 'timeout' in msg or 'timed out' in msg:
             return AIServiceError.from_type('timeout', raw_error=str(e)[:500])
         # Rate limit / quota
+        # No credit left is not a rate limit: it does not reset on its own.
+        if AIServiceError.is_out_of_credit(str(e)):
+            return AIServiceError.from_type('out_of_credit', raw_error=str(e)[:500])
         if '429' in msg or 'quota' in msg or 'rate limit' in msg:
-            return AIServiceError.from_type('quota_exceeded', raw_error=str(e)[:500])
+            return AIServiceError.quota_exceeded(str(e))
         # Auth
         if '401' in msg or 'auth' in msg or 'invalid api key' in msg:
             return AIServiceError.from_type('auth_error', raw_error=str(e)[:500])

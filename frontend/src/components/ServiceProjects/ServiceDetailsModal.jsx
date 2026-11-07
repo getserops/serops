@@ -80,14 +80,60 @@ const ServiceDetailsModal = ({
     // Argo CD and Flux could not be pointed at SerOps from the UI.
     const [newWebhook, setNewWebhook] = useState(null);
 
-    // Fetch integrations for CI/CD binding form
+    // Connecting a repository to a service that has none.
+    const [showConnectRepo, setShowConnectRepo] = useState(false);
+    const [repoForm, setRepoForm] = useState({ integration: '', repository: '' });
+    const [repos, setRepos] = useState([]);
+    const [reposState, setReposState] = useState({ loading: false, error: null });
+    const [connecting, setConnecting] = useState(false);
+    const SCM_PROVIDERS = ['gitlab', 'github', 'bitbucket', 'azure_devops'];
+    const scmIntegrations = integrations.filter(i => SCM_PROVIDERS.includes(i.provider_type) && i.is_active);
+
     useEffect(() => {
-        if (showAddCICD && integrations.length === 0) {
+        if (!repoForm.integration) { setRepos([]); return; }
+        setReposState({ loading: true, error: null });
+        IntegrationService.getRepos(repoForm.integration)
+            .then(data => {
+                const list = Array.isArray(data) ? data : data.results || data.repositories || [];
+                setRepos(list);
+                setReposState({ loading: false, error: null });
+            })
+            .catch(() => setReposState({ loading: false, error: 'Could not list the repositories of this integration.' }));
+    }, [repoForm.integration]);
+
+    const repoKey = (r) => String(r.id || r.full_name || r.path_with_namespace);
+    const handleConnectRepo = async () => {
+        const repo = repos.find(r => repoKey(r) === repoForm.repository);
+        if (!repoForm.integration || !repo) return;
+        setConnecting(true);
+        try {
+            await ProjectService.addSCMBinding(service.id, {
+                integration: repoForm.integration,
+                repository_id: repo.id || repo.full_name || repo.path_with_namespace,
+                repository_name: repo.full_name || repo.name || repo.path_with_namespace,
+                repository_url: repo.html_url || repo.web_url || repo.url || '',
+                default_branch: repo.default_branch,
+            });
+            setActionResult({ type: 'success', message: 'Repository connected.' });
+            setShowConnectRepo(false);
+            setRepoForm({ integration: '', repository: '' });
+            if (onRefresh) onRefresh();
+        } catch (err) {
+            const detail = err?.response?.data;
+            setActionResult({ type: 'danger', message: 'Could not connect the repository: ' + (detail ? JSON.stringify(detail) : err.message) });
+        } finally {
+            setConnecting(false);
+        }
+    };
+
+    // Fetch integrations for the CI/CD binding and repository forms
+    useEffect(() => {
+        if ((showAddCICD || showConnectRepo) && integrations.length === 0) {
             IntegrationService.getAll()
                 .then(data => setIntegrations(Array.isArray(data) ? data : data.results || []))
                 .catch(err => console.error('Failed to load integrations:', err));
         }
-    }, [showAddCICD]);
+    }, [showAddCICD, showConnectRepo]);
 
     // CI/CD provider types (must match SettingsIntegrations capability definitions)
     const CICD_PROVIDERS = ['gitlab', 'github', 'azure_devops', 'jenkins', 'bitbucket', ...GITOPS_PROVIDERS];
@@ -270,6 +316,57 @@ const ServiceDetailsModal = ({
                                                 </Col>
                                             </Row>
                                         </div>
+                                    </div>
+                                )}
+
+                                {!service.scm_binding && (
+                                    <div className="card shadow-sm border-0">
+                                        <div className="card-header bg-white border-bottom-0 pt-3 d-flex justify-content-between align-items-center">
+                                            <div className="d-flex align-items-center">
+                                                <FaGit className="text-secondary me-2" />
+                                                <h5 className="mb-0 text-dark">Code repository</h5>
+                                            </div>
+                                            <Button variant="outline-primary" size="sm" onClick={() => setShowConnectRepo(!showConnectRepo)}>
+                                                <FaLink className="me-1" /> Connect repository
+                                            </Button>
+                                        </div>
+                                        {showConnectRepo ? (
+                                            <Card.Body className="border-bottom bg-light">
+                                                <Row className="g-2 align-items-end">
+                                                    <Col md={4}>
+                                                        <Form.Label className="small mb-1" htmlFor="scm-binding-integration">Integration</Form.Label>
+                                                        <Form.Select id="scm-binding-integration" size="sm" value={repoForm.integration}
+                                                            onChange={(e) => setRepoForm({ integration: e.target.value, repository: '' })}>
+                                                            <option value="">Select…</option>
+                                                            {scmIntegrations.map(i => <option key={i.id} value={i.id}>{i.name} ({i.provider_type})</option>)}
+                                                        </Form.Select>
+                                                    </Col>
+                                                    <Col md={5}>
+                                                        <Form.Label className="small mb-1" htmlFor="scm-binding-repository">Repository</Form.Label>
+                                                        <Form.Select id="scm-binding-repository" size="sm" value={repoForm.repository}
+                                                            disabled={!repoForm.integration || reposState.loading}
+                                                            onChange={(e) => setRepoForm({ ...repoForm, repository: e.target.value })}>
+                                                            <option value="">{reposState.loading ? 'Loading…' : 'Select…'}</option>
+                                                            {repos.map(r => <option key={repoKey(r)} value={repoKey(r)}>{r.full_name || r.name || r.path_with_namespace}</option>)}
+                                                        </Form.Select>
+                                                    </Col>
+                                                    <Col md={3}>
+                                                        <Button size="sm" className="w-100" onClick={handleConnectRepo}
+                                                            disabled={connecting || !repoForm.repository}>
+                                                            {connecting ? <Spinner size="sm" animation="border" /> : 'Connect'}
+                                                        </Button>
+                                                    </Col>
+                                                </Row>
+                                                {reposState.error && <div className="text-danger small mt-2">{reposState.error}</div>}
+                                                {!scmIntegrations.length && integrations.length > 0 && (
+                                                    <div className="small text-muted mt-2">Add a source control integration first (Settings → Integrations → Source Control).</div>
+                                                )}
+                                            </Card.Body>
+                                        ) : (
+                                            <Card.Body className="pt-0 small text-muted">
+                                                No repository connected: the analysis cannot point at the commit that caused an incident.
+                                            </Card.Body>
+                                        )}
                                     </div>
                                 )}
 

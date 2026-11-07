@@ -126,6 +126,7 @@ class JenkinsWebhookHandler(BaseCICDWebhookHandler):
             job_name=job_name,
             explicit_env=payload.get('environment'),
             project_id=job_name,
+            organisation=self._binding_organisation(),
         )
         
         # Build job entry

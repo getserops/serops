@@ -18,7 +18,7 @@ your own for production:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.2.13 \
+  --version 1.2.14 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set database.url="postgres://serops:PASSWORD@your-pg-host:5432/serops" \
@@ -65,13 +65,6 @@ database:
 # External Redis.
 broker:
   existingSecret: serops-broker-secret   # key: broker-url
-
-# Optional: OpenAI key for semantic issue similarity (embeddings only,
-# NOT root-cause analysis). Omit it and SerOps falls back to
-# deterministic hash embeddings.
-ai:
-  embeddings:
-    existingSecret: serops-ai-keys   # key: openai-api-key
 
 # Django secret from an existing Secret you rotate quarterly.
 django:

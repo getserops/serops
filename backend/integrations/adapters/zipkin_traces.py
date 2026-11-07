@@ -24,6 +24,8 @@ from datetime import datetime
 from typing import Optional
 
 import requests
+
+from Utils.outbound import GuardedSession
 from requests.exceptions import RequestException
 
 from integrations.base import TraceProvider, TraceProviderCapabilities
@@ -71,7 +73,10 @@ class ZipkinTraceAdapter(TraceProvider):
     def __init__(self, config: dict = None):
         super().__init__(config)
         self.base_url = self._config.get('host', 'http://zipkin:9411').rstrip('/')
-        self._session = requests.Session()
+        # Re-validates the host before every request and each redirect hop,
+        # and never follows a redirect to another host (security review
+        # 2026-11, finding 3).
+        self._session = GuardedSession()
         username = self._config.get('username')
         password = self._config.get('password')
         if username and password:

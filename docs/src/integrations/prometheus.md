@@ -240,6 +240,43 @@ docker compose exec backend python manage.py check_ingest --integration <ID>
 
 The report shows what tags SerOps sees in your host discovery — flags any missing `service_name` / `organisation_name` / `project_name`.
 
+### What Kubernetes did: kube-state-metrics
+
+In Kubernetes mode SerOps also reads
+[kube-state-metrics](https://github.com/kubernetes/kube-state-metrics)
+(part of `kube-prometheus-stack`) for every analysis, and gives the AI what
+logs and container metrics cannot show:
+
+| Signal | From |
+|--------|------|
+| Restarts in the window, and why the container last stopped (`OOMKilled`, `Error`) | `kube_pod_container_status_restarts_total`, `kube_pod_container_status_last_terminated_reason` |
+| Containers that cannot start (`ImagePullBackOff`, `CrashLoopBackOff`, `CreateContainerConfigError`, ...) | `kube_pod_container_status_waiting_reason` |
+| Rollouts in the window and the 30 minutes before it, with the image, memory limit and CPU limit changes, or "image unchanged" for a configuration or environment change | `kube_deployment_metadata_generation` (StatefulSets and DaemonSets too), `kube_pod_container_info` |
+| Scale changes (`replicas 1 -> 0`) | `kube_deployment_spec_replicas`, `kube_statefulset_replicas` |
+| Deployments short of available replicas | `kube_deployment_status_replicas_available` |
+| Rollouts not completing while the previous version still serves (rated WARNING, not an outage) | `kube_deployment_status_replicas_updated` |
+| CPU throttling per service: share of time the kernel paused it for exceeding its CPU limit (25% or more) | cAdvisor `container_cpu_cfs_throttled_periods_total` / `container_cpu_cfs_periods_total` |
+
+They appear on the analysis page under **Metrics**, and a restart, a
+container that cannot start or a missing replica makes Sentinel analyse a
+window that has no new error line.
+
+Nothing to relabel: kube-state-metrics series keep their own `namespace`,
+`pod` and `container` labels. SerOps finds the project's namespaces from its
+cAdvisor series (the `namespace` label next to `project_name` /
+`environment`), and falls back to a namespace named like the environment.
+Names are reported per workload, from the pod name, so containers that are
+all called `server` or `app` still read as `checkoutservice` or `payments`.
+
+Check it is scraped:
+
+```promql
+count by (namespace) (kube_deployment_metadata_generation)
+```
+
+When kube-state-metrics is not there, these signals are simply missing from
+the analysis.
+
 ## Health Check
 
 ```

@@ -104,14 +104,6 @@ GET /api/data/cpu/raw/
 
 Returns raw node CPU samples from the configured metric provider.
 
-## Log Ingest (Fluentd)
-
-```
-POST /api/data/logs
-```
-
-Endpoint that accepts log documents from a Fluentd forwarder. Used only by the [self-managed data-collection agent](../how-to/configure-data-collection.md); regular API clients should query batches instead.
-
 ## Recommendation Stats
 
 ```

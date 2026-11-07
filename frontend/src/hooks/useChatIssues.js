@@ -210,7 +210,9 @@ export const useChatIssues = () => {
             : []
     );
     const [input, setInput] = useState("");
-    const [selectedModel, setSelectedModel] = useState("gemini");
+    // Set from the organisation's models once they load: a hard-coded
+    // "gemini" labelled the greeting with a provider the org may not have.
+    const [selectedModel, setSelectedModel] = useState(null);
     const [availableModels, setAvailableModels] = useState([]); // Dynamic models
     const [isLoading, setIsLoading] = useState(false);
     const isDemo = isDemoUser();
@@ -231,8 +233,11 @@ export const useChatIssues = () => {
     const [pendingMessage, setPendingMessage] = useState("");
 
     // Scroll to bottom
+    // Scroll the message list, not the page: scrollIntoView also scrolled
+    // every ancestor, and on a phone it pushed the top bar off the screen.
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        const list = messagesEndRef.current?.closest(".chat-messages-area");
+        if (list && list.scrollTo) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
     };
 
     useEffect(() => {

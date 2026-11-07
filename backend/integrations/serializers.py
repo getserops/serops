@@ -113,10 +113,10 @@ class ObservabilityIntegrationSerializer(serializers.ModelSerializer):
         """Private addresses are fine (most backends are in-cluster), cloud
         metadata endpoints are not: the host is fetched by the server."""
         if value:
-            from Utils.url_validator import validate_internal_url_no_metadata
+            from Utils.url_validator import validate_outbound_url
             url = value if '://' in value else f'http://{value}'
             try:
-                validate_internal_url_no_metadata(url)
+                validate_outbound_url(url)
             except ValueError as e:
                 raise serializers.ValidationError(str(e))
         return value
@@ -268,6 +268,20 @@ class ObservabilityIntegrationSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         raw_password = validated_data.pop('password', None)
         scope_data = validated_data.pop('scope', None)
+        new_host = validated_data.get('host')
+        if new_host is not None and (new_host or '').strip().rstrip('/') != (instance.host or '').strip().rstrip('/'):
+            # Stored credentials stay with the address they were entered for.
+            # Kept on a host change, anyone allowed to edit integrations could
+            # send another admin's key to a server of their own (review
+            # 2026-11-05).
+            stored_secrets = sorted(SECRET_EXTRA_CONFIG_KEYS & {
+                k for k, v in (instance.extra_config or {}).items() if v})
+            incoming = dict(validated_data.get('extra_config') or {})
+            missing = (['password'] if instance.password and not raw_password else []) + [
+                k for k in stored_secrets if not incoming.get(k)]
+            if missing:
+                raise serializers.ValidationError({
+                    'host': 'Enter the credentials again when changing the host: ' + ', '.join(missing) + '.'})
         if 'extra_config' in validated_data:
             # The client never sees stored secrets, so an edit form sends
             # them back blank or not at all. Keep the stored value then,

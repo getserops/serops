@@ -179,11 +179,14 @@ class AvailableModelsView(APIView):
         # Get all active providers (system-wide active)
         active_providers = AIModelProvider.objects.filter(is_active=True)
 
-        # Only include providers the org can actually use (has API key or env var)
+        # Only providers the org can actually use: a key, or for a keyless
+        # provider (Ollama, a local OpenAI-compatible endpoint) its saved
+        # URL. Keyless ones used to be left out, so an install analysing
+        # with a local model had "No AI provider" in the chat.
         models = []
         for p in active_providers:
-            api_key, _, _ = get_api_key_for_org(user_org, p.name)
-            if api_key:
+            api_key, base_url, _ = get_api_key_for_org(user_org, p.name)
+            if api_key or (not p.requires_api_key and base_url):
                 models.append({'id': p.name, 'name': p.display_name})
 
         return Response({'models': models})
@@ -325,7 +328,7 @@ class OllamaProbeView(APIView):
 
     def post(self, request):
         import requests
-        from Utils.url_validator import validate_internal_url_no_metadata
+        from Utils.url_validator import validate_outbound_url
 
         base_url = str(request.data.get('base_url') or '').strip()
         if not base_url:
@@ -341,7 +344,7 @@ class OllamaProbeView(APIView):
         # helper that allows private ranges but blocks the metadata
         # endpoints attackers actually want.
         try:
-            validate_internal_url_no_metadata(base_url)
+            validate_outbound_url(base_url)
         except ValueError as exc:
             return Response(
                 {'reachable': False, 'models': [], 'error': str(exc)},
@@ -349,7 +352,9 @@ class OllamaProbeView(APIView):
             )
         url = base_url.rstrip('/') + '/models'
         try:
-            resp = requests.get(url, timeout=5)
+            # No redirects: the check above covers this URL only (security
+            # review 2026-11, finding 3).
+            resp = requests.get(url, timeout=5, allow_redirects=False)
             resp.raise_for_status()
             data = resp.json() or {}
             models = [
@@ -519,9 +524,9 @@ class TestAIConnectionView(APIView):
             # A base URL typed but not saved yet (Ollama in the wizard).
             custom_base_url = (serializer.validated_data.get('base_url') or '').strip()
             if custom_base_url:
-                from Utils.url_validator import validate_internal_url_no_metadata
+                from Utils.url_validator import validate_outbound_url
                 try:
-                    validate_internal_url_no_metadata(custom_base_url)
+                    validate_outbound_url(custom_base_url)
                 except ValueError as exc:
                     return Response({'success': False, 'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
                 base_url = custom_base_url

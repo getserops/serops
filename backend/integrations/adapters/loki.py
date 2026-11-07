@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from typing import List, Tuple, Optional
 
 import requests
+
+from Utils.outbound import GuardedSession
 from requests.exceptions import RequestException
 
 from integrations.base import LogProvider, LogProviderCapabilities
@@ -73,7 +75,10 @@ class LokiLogProvider(LogProvider):
         # 400 from Loki. Callers that need to tell the two apart read
         # last_error; nothing is forced to.
         self.last_error = None
-        self._session = requests.Session()
+        # Re-validates the host before every request and each redirect hop,
+        # and never follows a redirect to another host (security review
+        # 2026-11, finding 3).
+        self._session = GuardedSession()
         # Auth
         username = self._config.get("username")
         password = self._config.get("password")
@@ -241,6 +246,11 @@ class LokiLogProvider(LogProvider):
             self.last_error = f'Loki query failed ({logql}): {exc}'
             logger.error("Loki search failed: %s", exc)
             return []
+
+    # Queries select streams by label: a search needs no index or stream
+    # list, so Check my data can sample a project's logs before they carry
+    # its tag (Data.data_check).
+    NEEDS_LOG_LOCATION = False
 
     def get_indices(self, project) -> List[str]:
         """

@@ -151,6 +151,32 @@ class TestDataRedactionService(SimpleTestCase):
             findings = self.service.scan(text)
             assert any(f.pattern_type.startswith('phone') for f in findings), text
 
+    def test_bare_numbers_are_not_phones_or_ssns(self):
+        """Byte counts, timestamps, counters and diff hunks stay readable:
+        the whole prompt is redacted, and an OOM analysis needs the limit."""
+        for text in [
+            "memory working set 1073741824 bytes, limit 1610612736 bytes",
+            "iat=1792332094, now=1792332000",
+            "container_cpu_cfs_throttled_seconds_total 123456789",
+            "deployed by pipeline 1234567890",
+            "@@ -54,11 +54,15 @@ class StockService:",
+            "build 20261104.3, 3001ms, 1840 spans",
+        ]:
+            redacted, _ = self.service.redact(text)
+            assert '[PHONE]' not in redacted and '[SSN]' not in redacted, (text, redacted)
+
+    def test_an_unset_database_url_message_stays_readable(self):
+        redacted, _ = self.service.redact("Error: DATABASE_URL is not set")
+        assert redacted == "Error: DATABASE_URL is not set"
+        redacted, _ = self.service.redact("DATABASE_URL=postgres://u:pw@db/x")
+        assert 'pw' not in redacted
+
+    def test_labeled_phone_and_ssn_without_formatting_are_found(self):
+        for text, kind in [("phone=5551234567", 'phone'), ('"mobile": "+33612345678"', 'phone'),
+                           ("tel: 0612345678", 'phone'), ("ssn=123456789", 'ssn'), ("+33 6 12 34 56 78", 'phone')]:
+            findings = self.service.scan(text)
+            assert any(f.pattern_type.startswith(kind) for f in findings), text
+
     def test_detects_ssn(self):
         """Should detect social security numbers."""
         text = "SSN: 123-45-6789"
@@ -448,3 +474,126 @@ class TestGenericSecretLeavesProseAlone(SimpleTestCase):
             with self.subTest(text=text):
                 redacted, _ = self.service.redact(text)
                 self.assertNotIn(secret, redacted)
+
+
+class TestReviewFindingPatterns(SimpleTestCase):
+    """External review (v1.2.13) ran the redactor directly and found these
+    secrets left intact. Each must now be masked; the prose and diagnostic
+    values next to them must not be."""
+
+    PEM = (
+        "-----BEGIN RSA PRIVATE KEY-----\n"
+        "MIIEowIBAAKCAQEAu1SU1LfVLPHCozMxH2Mo4lgOEePzNm0tRgeLezV6ffAt0gun\n"
+        "VTLw7onLRnrq0/IzW7yWR7QkrmBL7jTKEn5u+qKhbwKfBstIs+bMY2Zkp18gnTxK\n"
+        "-----END RSA PRIVATE KEY-----"
+    )
+
+    def setUp(self):
+        self.service = DataRedactionService()
+
+    def redact(self, text):
+        return self.service.redact(text)[0]
+
+    def test_docker_login_password_flag_is_masked_and_the_command_kept(self):
+        out = self.redact('docker login -u ci -p S3cr3tPassw0rd registry.example.com')
+        self.assertEqual(out, 'docker login -u ci -p ***** registry.example.com')
+
+    def test_docker_login_long_password_flag_is_masked(self):
+        out = self.redact('docker login --password=hunter22 reg.io')
+        self.assertNotIn('hunter22', out)
+
+    def test_docker_login_password_stdin_is_left_alone(self):
+        text = 'echo $TOKEN | docker login --password-stdin -u ci reg.io'
+        self.assertEqual(self.redact(text), text)
+
+    def test_authorization_basic_header_is_masked(self):
+        out = self.redact('Authorization: Basic dXNlcjpwYXNzd29yZA==')
+        self.assertEqual(out, 'Authorization: Basic [REDACTED]')
+
+    def test_other_authorization_schemes_are_masked(self):
+        out = self.redact('authorization: Token 9f8e7d6c5b4a')
+        self.assertNotIn('9f8e7d6c5b4a', out)
+
+    def test_bare_basic_credentials_are_masked_but_prose_is_not(self):
+        self.assertNotIn('dXNlcjpwYXNzd29yZA', self.redact('sent Basic dXNlcjpwYXNzd29yZA== upstream'))
+        prose = 'Basic authentication failed for user'
+        self.assertEqual(self.redact(prose), prose)
+
+    def test_anthropic_key_is_masked_with_or_without_a_key_word(self):
+        key = 'sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-abcdEFGH'
+        for text in (f'key={key}', f'using {key} now', key):
+            self.assertNotIn(key[10:], self.redact(text), text)
+
+    def test_openai_keys_are_masked(self):
+        for key in ('sk-proj-abcdefghijklmnopqrstuvwx1234567890',
+                    'sk-abcdefghijklmnopqrstuvwxyz0123456789ABCD'):
+            self.assertEqual(self.redact(key), 'sk-[REDACTED]')
+
+    def test_a_word_ending_in_sk_is_not_a_key(self):
+        text = 'task-abcdefghijklmnopqrstuvwxyz0123 finished'
+        self.assertEqual(self.redact(text), text)
+
+    def test_google_api_key_is_masked(self):
+        key = 'AIzaSyA1234567890abcdefghijklmnopqrstuv'
+        self.assertNotIn(key, self.redact(f'gemini key {key}'))
+
+    def test_french_and_other_password_key_words_are_masked(self):
+        for text in ('mot de passe: hunter2', 'mot de passe : hunter22', 'mdp=hunter22',
+                     'Passwort: geheim123', 'contraseña=secreto1', 'senha: segredo1'):
+            out = self.redact(text)
+            self.assertNotIn(text.split(':')[-1].split('=')[-1].strip(), out, text)
+
+    def test_public_ipv4_is_masked(self):
+        self.assertEqual(self.redact('connect to 8.8.8.8 failed'), 'connect to [PUBLIC_IP] failed')
+        self.assertEqual(self.redact('from 203.0.113.45:443.'), 'from [PUBLIC_IP]:443.')
+
+    def test_private_ips_keep_their_own_mask(self):
+        self.assertEqual(self.redact('host 10.0.0.5'), 'host [PRIVATE_IP]')
+        self.assertEqual(self.redact('host 192.168.1.20'), 'host [PRIVATE_IP]')
+
+    def test_loopback_link_local_netmask_and_versions_are_not_ips_to_hide(self):
+        for text in ('connection refused 127.0.0.1:5432', 'bind 0.0.0.0:8080',
+                     'metadata 169.254.169.254 timed out', 'netmask 255.255.255.0',
+                     'image v1.2.3.4', 'version 1.2.3.4.5'):
+            self.assertEqual(self.redact(text), text, text)
+
+    def test_the_whole_private_key_block_is_masked_including_the_body(self):
+        out = self.redact(f'loaded key\n{self.PEM}\ndone')
+        self.assertEqual(out, 'loaded key\n[PRIVATE_KEY]\ndone')
+
+    def test_a_private_key_cut_off_before_its_footer_is_masked_to_the_end(self):
+        out = self.redact(self.PEM.split('-----END')[0])
+        self.assertEqual(out, '[PRIVATE_KEY]')
+
+    def test_other_private_key_flavours_are_masked(self):
+        for header in ('PRIVATE KEY', 'ENCRYPTED PRIVATE KEY', 'OPENSSH PRIVATE KEY',
+                       'PGP PRIVATE KEY BLOCK'):
+            text = f'-----BEGIN {header}-----\nAAAAB3NzaC1yc2E\n-----END {header}-----'
+            self.assertEqual(self.redact(text), '[PRIVATE_KEY]', header)
+
+    def test_credentials_in_a_url_are_masked_and_the_scheme_and_user_kept(self):
+        out = self.redact('pull via http://proxy:p4ss!w0rd@10.0.0.9:3128 failed')
+        self.assertEqual(out, 'pull via http://proxy:*****@[PRIVATE_IP]:3128 failed')
+        # ``password@host.tld`` also reads as an e-mail address; the merged
+        # mask then covers the host too, which is more redaction, not less.
+        out = self.redact('git clone https://oauth2:glpat-abcdefghij0123456789@gitlab.example.com/x.git')
+        self.assertNotIn('glpat-abcdefghij0123456789', out)
+        self.assertIn('git clone https://oauth2:', out)
+
+    def test_redacting_twice_gives_the_same_text_as_redacting_once(self):
+        """``generate_text_unified`` redacts text that callers may already have
+        redacted; no mask may be re-mangled by a second pass."""
+        text = (
+            f'docker login -u ci -p S3cr3t1 r.io; Authorization: Basic dXNlcjpwYXNz; '
+            f'sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123; mot de passe: hunter2; '
+            f'8.8.8.8 10.0.0.1; https://u:p4ss@h.io; password=abc12345; '
+            f'Bearer abcdefghijklmnopqrstuvwxyz; glpat-abcdefghijklmnopqrst; '
+            f'AKIAIOSFODNN7EXAMPLE; a@b.io; s3://bucket/key; export FOO=bar; '
+            f'postgres://u:p@db/x; token=abcdefgh1234; {self.PEM}'
+        )
+        once = self.redact(text)
+        self.assertEqual(self.redact(once), once)
+
+    def test_every_mask_is_stable_under_redaction(self):
+        for name, mask in DataRedactionService.MASKS.items():
+            self.assertEqual(self.redact(mask), mask, name)

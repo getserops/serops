@@ -484,6 +484,11 @@ const Detail = () => {
   // The failing span closest to this issue, when the batch has traces.
   const failingTrace = primary?.related_traces?.top_errors?.[0]?.trace_id;
   const evidenceChips = failingTrace ? [...correlations, { type: 'trace', value: failingTrace }] : correlations;
+  // Three ways to have no incident: Sentinel skipped the AI, the AI ran and
+  // found nothing, or it has not run yet. They used to share "Sentinel
+  // skipped AI analysis", shown next to the model and token count of an
+  // analysis that did run.
+  const noIncident = batchMeta?.ai_skipped ? 'quiet' : batchMeta?.analyzed_at ? 'clear' : 'pending';
 
   return (
     <div className="detail-page incident-page">
@@ -492,7 +497,7 @@ const Detail = () => {
           { label: t('nav.analyses'), to: '/dash/data' },
           { label: batchId, mono: true },
         ]}
-        title={batchMeta ? (incidentTitle || t('detail.incident.quietTitle')) : batchId}
+        title={batchMeta ? (incidentTitle || t(`detail.incident.${noIncident}Title`)) : batchId}
         badges={batchMeta && (
           <>
             <span className={`ds-chip ds-dot ${status.klass}`}>{status.label}</span>
@@ -563,7 +568,7 @@ const Detail = () => {
                 {narrative ? (
                   <p className="incident-narrative">{narrative}</p>
                 ) : !analysisText && (
-                  <p className="incident-narrative incident-muted">{t('detail.incident.quietBody')}</p>
+                  <p className="incident-narrative incident-muted">{t(`detail.incident.${noIncident}Body`)}</p>
                 )}
                 {evidence.length > 0 && (
                   <>
@@ -586,9 +591,9 @@ const Detail = () => {
                   </div>
                 )}
                 <div className="incident-model">
-                  {batchMeta.model_name && <span className="ds-mono">{batchMeta.model_name}</span>}
+                  {batchMeta.model_name && !batchMeta.ai_skipped && <span className="ds-mono">{batchMeta.model_name}</span>}
                   {typeof batchMeta.logs_analyzed === 'number' && <span>{t('detail.incident.logsAnalysed', { count: batchMeta.logs_analyzed })}</span>}
-                  {typeof batchMeta.token_count === 'number' && batchMeta.token_count > 0 && (
+                  {!batchMeta.ai_skipped && typeof batchMeta.token_count === 'number' && batchMeta.token_count > 0 && (
                     <span>{t('detail.incident.tokens', { count: batchMeta.token_count, formatted: batchMeta.token_count.toLocaleString() })}</span>
                   )}
                   {(batchMeta.sentinel_triggers || []).slice(0, 3).map((tr) => (
@@ -1112,7 +1117,7 @@ const Detail = () => {
                 </td>
                 <td
                   style={{ fontSize: "13px", textAlign: "left" }}
-                  className="align-middle"
+                  className="align-middle detail-log-message"
                 >
                   {/* Icon retired 2026-09-21: LEVEL column now owns
                       severity signal via chips. Message stays pure text. */}

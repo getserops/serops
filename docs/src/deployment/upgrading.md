@@ -78,6 +78,14 @@ upgrades are safe with a brief restart.
 
 Releases that need something from you after upgrading. Migrations run on their own (`docker compose up` / the Helm migrate job).
 
+### 1.2.14: security release
+
+- **SSO accounts only for listed domains.** A first SSO sign-in creates an account only when the email's domain is in *Email domains that can join* (Settings → Security → Single Sign-On). With no domain listed, only invited and existing members sign in. On an install with several organisations, only the operator (a staff user) sets these domains.
+- **Alert webhooks on an install with several organisations** need a per-organisation secret: `POST /api/organisation/alert-secret/rotate/`, then update the sender. The global `ALERT_WEBHOOK_SECRETS` and Sentry's client secret still work on a single-organisation install.
+- **Changing an integration's host** asks for its credentials again.
+- **Activation links** sent before the upgrade no longer work; resend them from the login page.
+- Behind HTTPS (Helm with an HTTPS public URL, the quick-start), cookies become Secure and responses send HSTS. Nothing to do.
+
 ### 1.2.9: containers run as non-root
 
 - The images no longer run as root: the backend as uid 10001, the frontend's nginx as uid 101 (listening on 3000 as before).

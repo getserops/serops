@@ -32,6 +32,7 @@ from integrations.schemas import (
     LogEntry,
     LogQuery,
     _detect_level,
+    _detect_level_from_line,
     _parse_timestamp,
 )
 
@@ -65,15 +66,16 @@ def _load_credentials(config: dict):
             info = json.loads(raw)
         except (TypeError, ValueError) as exc:
             raise ValueError(
-                "GCP Cloud Logging credentials: password field is not "
+                "GCP credentials: password field is not "
                 "valid JSON"
             ) from exc
 
     if not isinstance(info, dict) or info.get("type") != "service_account":
         raise ValueError(
-            "GCP Cloud Logging credentials: expected a service-account "
+            "GCP credentials: expected a service-account "
             "JSON key (with type='service_account')"
         )
+    info = _checked_key_info(info)
 
     try:
         from google.oauth2 import service_account
@@ -98,6 +100,42 @@ def _build_client(project_id: str, credentials):
     return logging_v2.Client(project=project_id, credentials=credentials)
 
 
+GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
+
+
+def _checked_key_info(info: dict) -> dict:
+    """The key with Google's token endpoint, or ValueError.
+
+    The key file names the URL the SDK sends the signed token to. A key
+    pointing it anywhere but Google made the server POST to an internal
+    address and showed part of the answer in the health check (review
+    2026-11-05). Only Google's own token endpoint and domain are accepted.
+    """
+    token_uri = info.get("token_uri") or GOOGLE_TOKEN_URI
+    if token_uri != GOOGLE_TOKEN_URI:
+        raise ValueError(f"GCP credentials: token_uri must be {GOOGLE_TOKEN_URI}")
+    if info.get("universe_domain", "googleapis.com") != "googleapis.com":
+        raise ValueError("GCP credentials: universe_domain must be googleapis.com")
+    return {**info, "token_uri": GOOGLE_TOKEN_URI}
+
+
+def _health_reason(exc: Exception, project_id: str, role: str) -> str:
+    """What the health check shows when Google refuses: the reason, not
+    "Health check failed" (a project ID typo looked like a broken key)."""
+    text = str(exc)
+    if "403" in text or "PermissionDenied" in type(exc).__name__ or "permission" in text.lower():
+        return (f"Google refused access to project {project_id}: check the project ID, "
+                f"and that the service account has the {role} role on it.")
+    if "404" in text or "NotFound" in type(exc).__name__:
+        return f"Google found no project {project_id}: check the project ID."
+    # Never the exception text: it can carry another server's answer.
+    return "Google Cloud refused the request; the backend log has the details."
+
+
+def _is_audit_log(log_name: str) -> bool:
+    return "cloudaudit.googleapis.com" in (log_name or "")
+
+
 class GcpCloudLoggingProvider(LogProvider):
     """
     GCP Cloud Logging (formerly Stackdriver) log provider.
@@ -119,6 +157,10 @@ class GcpCloudLoggingProvider(LogProvider):
     )
 
     DEFAULT_PAGE_SIZE = 1000
+
+    # Cloud Logging selects by filter, like Loki: no location is needed, and
+    # none is discovered (see get_indices).
+    NEEDS_LOG_LOCATION = False
 
     def __init__(self, config: Optional[dict] = None):
         super().__init__(config)
@@ -154,9 +196,11 @@ class GcpCloudLoggingProvider(LogProvider):
             )
             for _ in iterator:
                 break
+            self.last_error = None
             return True
         except Exception as exc:
             logger.error("GCP Cloud Logging health check failed: %s", exc)
+            self.last_error = _health_reason(exc, self._project_id, "Logs Viewer")
             return False
 
     def search(
@@ -187,19 +231,9 @@ class GcpCloudLoggingProvider(LogProvider):
                 f"{type(query).__name__}"
             )
 
-        if index:
-            # log_name filter uses the fully-qualified form. If the
-            # caller passes a short name we prefix it; if they pass a
-            # full path we keep it. Never inline as a bareword.
-            from integrations.schemas import _gcp_escape
-            if index.startswith("projects/"):
-                log_name = index
-            else:
-                log_name = f"projects/{self._project_id}/logs/{index}"
-            log_clause = f'logName="{_gcp_escape(log_name)}"'
-            gcp_filter = (
-                f"{log_clause} AND {gcp_filter}" if gcp_filter else log_clause
-            )
+        log_clause = self._log_name_clause(index)
+        if log_clause:
+            gcp_filter = f"{log_clause} AND {gcp_filter}" if gcp_filter else log_clause
 
         try:
             iterator = self._client.list_entries(
@@ -229,35 +263,39 @@ class GcpCloudLoggingProvider(LogProvider):
         return entries
 
     def get_indices(self, project) -> List[str]:
-        """List the *distinct log names* seen in the configured project.
+        """No locations: the project's logs are found by filter.
 
-        Cloud Logging doesn't really have "indexes" in the ES sense;
-        the closest analogue for a UI picker is the set of log names
-        (``logName`` field) present in the project. We cap the number
-        we list because pathological projects can have thousands.
+        This listed the log names of the last 100 entries, and callers then
+        searched only those. Whichever log was busiest at that moment decided
+        what an analysis could see: once a GKE cluster's VMs logged their
+        integrity checks, its container logs (stdout, stderr) dropped out and
+        every search returned nothing (GKE live test, 2026-11-05).
         """
-        # `project` is intentionally ignored — the ObservabilityIntegration
-        # already scopes to a single GCP project via project_id.
-        try:
-            names: set = set()
-            iterator = self._client.list_entries(
-                page_size=100,
-                max_results=100,
-                order_by="timestamp desc",
-            )
-            for entry in iterator:
-                if getattr(entry, "log_name", None):
-                    names.add(entry.log_name)
-                if len(names) >= 50:
-                    break
-            return sorted(names)
-        except Exception as exc:
-            logger.warning("GCP Cloud Logging get_indices failed: %s", exc)
-            return []
+        return []
 
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
+
+    def _log_name_clause(self, index: str) -> str:
+        """``logName`` filter for one location or several, comma-separated.
+
+        Callers join every location with commas (Check my data, batch
+        collection), and that string used to become a single
+        ``logName="a,b,c"`` matching nothing: on GKE, Check my data said
+        "no logs at all" next to thousands of container logs. Audit logs
+        are left out unless asked for alone: they are Google's record of
+        API calls (most of a GKE project's volume), not application logs.
+        """
+        from integrations.schemas import _gcp_escape
+        names = [n.strip() for n in (index or "").split(",") if n.strip()]
+        if len(names) > 1:
+            names = [n for n in names if not _is_audit_log(n)]
+        if not names:
+            return 'NOT logName:"cloudaudit.googleapis.com"'
+        full = [n if n.startswith("projects/") else f"projects/{self._project_id}/logs/{n}" for n in names]
+        ors = [f'logName="{_gcp_escape(n)}"' for n in full]
+        return ors[0] if len(ors) == 1 else "(" + " OR ".join(ors) + ")"
 
     @staticmethod
     def _to_log_entry(gcp_entry, index_hint: str = "") -> LogEntry:
@@ -311,20 +349,43 @@ class GcpCloudLoggingProvider(LogProvider):
             }
             raw_severity = severity_by_ord.get(raw_severity, "INFO")
 
+        level = _detect_level(raw_severity)
+        k8s = getattr(resource, "type", "") == "k8s_container"
+        if k8s and isinstance(payload, str) and str(getattr(gcp_entry, "log_name", "")).endswith("/stderr"):
+            # GKE rates every plain-text stderr line ERROR (and stdout INFO):
+            # the stream, not the line. Read the line's own level instead; a
+            # line naming none stays INFO. Observed on GKE: an OpenTelemetry
+            # collector's 660 ordinary lines a hour all showed as errors.
+            level = _detect_level_from_line(message, default="INFO")
+
+        # GKE names the workload in pod labels and the namespace on the
+        # resource; nothing carries service_name. Without this every GKE log
+        # had no service and no host (GKE live test, 2026-11-05).
+        service = (sdk_labels.get("service_name")
+                   or labels_from_payload.get("service_name")
+                   or resource_labels.get("service_name", ""))
+        if k8s and not service:
+            service = (sdk_labels.get("k8s-pod/app")
+                       or sdk_labels.get("k8s-pod/app_kubernetes_io/name")
+                       or sdk_labels.get("logging.gke.io/top_level_controller_name")
+                       or resource_labels.get("container_name", ""))
+        k8s_labels = {}
+        if k8s and resource_labels.get("namespace_name"):
+            # What Check my data groups by and offers as a project rule.
+            k8s_labels["namespace"] = resource_labels["namespace_name"]
+
         return LogEntry(
             timestamp=timestamp,
             message=message,
-            level=_detect_level(raw_severity),
-            service=(
-                sdk_labels.get("service_name")
-                or labels_from_payload.get("service_name")
-                or resource_labels.get("service_name", "")
-            ),
-            host=resource_labels.get("instance_id", ""),
+            level=level,
+            service=service,
+            host=(sdk_labels.get("compute.googleapis.com/resource_name")
+                  or resource_labels.get("instance_id", "")),
             trace_id=str(getattr(gcp_entry, "trace", "") or ""),
             raw_id=str(getattr(gcp_entry, "insert_id", "") or ""),
             labels={
                 "_index": index_hint or getattr(gcp_entry, "log_name", "") or "",
+                **k8s_labels,
                 **sdk_labels,
                 **{f"resource.{k}": v for k, v in resource_labels.items()},
                 **{k: v for k, v in labels_from_payload.items() if k not in (

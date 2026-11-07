@@ -65,7 +65,7 @@ export default function SCMStep({ status, onDone, onSkip }) {
                             variant="outlined"
                             onClick={handleSkip}
                             disabled={skipping || open}
-                            startIcon={skipping ? <CircularProgress size={16} /> : null}
+                            startIcon={skipping ? <CircularProgress aria-label="Loading" size={16} /> : null}
                         >
                             Skip for now
                         </Button>

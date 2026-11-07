@@ -10,6 +10,19 @@ class ProjectSerializer(serializers.ModelSerializer):
         extra_kwargs = {'access_token': {'write_only': True}}
         ref_name = "GitlabProject"  # Add this line to distinguish it
 
+    def validate_gitlab_url(self, value):
+        """The project's API calls go to this URL with its token. Creation
+        checked it, but an update (``ProjectDetail.put``) saved any value
+        (security review 2026-11, finding 3)."""
+        if value:
+            from Utils.url_validator import validate_outbound_url
+            url = value if '://' in value else f'https://{value}'
+            try:
+                validate_outbound_url(url)
+            except ValueError as exc:
+                raise serializers.ValidationError(str(exc))
+        return value
+
 class PipelineSerializer(serializers.ModelSerializer):
     class Meta:
         model = Pipeline

@@ -172,6 +172,11 @@ class DeploymentService:
         for deployment in query:
             sha = deployment.code_change.commit_sha
             if sha not in seen_shas:
+                # Ordered by deployed_at, so the first row is when this
+                # commit reached the environment in the window. Kept on
+                # the instance for the correlator (review v1.2.13: it
+                # timed incidents against the commit, not the deploy).
+                deployment.code_change.deployed_at_in_env = deployment.deployed_at
                 code_changes.append(deployment.code_change)
                 seen_shas.add(sha)
         
@@ -231,10 +236,15 @@ class DeploymentService:
                     )
                     continue
 
+                # Within the pipeline's organisation: the project id and SHAs
+                # come from a webhook payload, and another tenant's commit
+                # must not be deployed by this pipeline (security review
+                # 2026-11, finding 2).
                 code_change = CodeChange.objects.filter(
+                    organisation=pipeline.organisation,
                     commit_sha=commit_sha,
                     project_id=str(pipeline.external_project_id),
-                ).first()
+                ).first() if pipeline.organisation_id else None
                 if not code_change:
                     logger.warning(
                         f"CodeChange not found for SHA: {commit_sha} "

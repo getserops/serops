@@ -29,3 +29,24 @@ describe('renderFormattedText never emits executable HTML', () => {
     });
   }
 });
+
+describe('no inline event handlers (CSP allows no inline script)', () => {
+    it('a collapsible section toggles through the delegated listener', async () => {
+        const { renderFormattedText, installCollapsibleToggle } = await import('../textFormatters');
+        const html = renderFormattedText('Traceback (most recent call last):\n  File "app.py", line 1, in <module>\nValueError: boom');
+        expect(html).not.toMatch(/\son[a-z]+=/i);
+        const root = document.createElement('div');
+        root.innerHTML = html;
+        document.body.appendChild(root);
+        const uninstall = installCollapsibleToggle(root);
+        const header = root.querySelector('.collapsible-header');
+        if (header) {
+            const section = header.parentElement;
+            const before = section.classList.contains('open');
+            header.click();
+            expect(section.classList.contains('open')).toBe(!before);
+        }
+        uninstall();
+        root.remove();
+    });
+});

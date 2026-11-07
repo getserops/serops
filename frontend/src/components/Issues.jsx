@@ -1048,7 +1048,7 @@ const Issues = () => {
                       <td className="text-center issue-col-actions">
                         <Dropdown className="issue-actions-dropdown" align="end">
                           <Dropdown.Toggle
-                            variant="link" size="sm" className="text-muted p-1"
+                            variant="link" size="sm" className="text-muted tap-target"
                             aria-label={`Actions for issue ${issue.id}`}
                           >
                             <FaEllipsisV size={14} aria-hidden="true" />

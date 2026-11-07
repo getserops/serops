@@ -752,6 +752,8 @@ class SCMBindingViewSet(viewsets.ModelViewSet):
                     project_id=binding.repository_id,
                     commits=commits,
                     gitlab_project=None,
+                    organisation=binding.project_service.project.organisation,
+                    default_branch=binding.default_branch or 'main',
                 )
 
             # Update sync status
@@ -998,7 +1000,8 @@ class CICDBindingViewSet(viewsets.ModelViewSet):
         try:
             from providers.scm_providers import SCMProviderError, CICD_PROVIDERS
             from datetime import datetime
-            import requests as http_requests
+            import requests as http_requests  # noqa: F401
+            from Utils.outbound import BlockedOutboundURL, guarded_request
 
             provider_type = binding.integration.provider_type
             from providers.models import ProviderIntegration
@@ -1032,7 +1035,7 @@ class CICDBindingViewSet(viewsets.ModelViewSet):
 
                 base_url = binding.integration.get_decrypted_base_url()
                 headers = {'PRIVATE-TOKEN': binding.integration.get_decrypted_token()}
-                resp = http_requests.get(
+                resp = guarded_request('GET', 
                     f'{base_url}/api/v4/projects/{project_id}/pipelines',
                     headers=headers,
                     params={'per_page': 20, 'order_by': 'updated_at', 'sort': 'desc'},
@@ -1069,13 +1072,18 @@ class CICDBindingViewSet(viewsets.ModelViewSet):
                 if not repo:
                     return Response({'success': False, 'error': 'No repository configured'}, status=400)
 
-                base_url = binding.integration.get_decrypted_base_url() or 'https://api.github.com'
+                from providers.scm_providers import GitHubProvider
+                # The form's https://github.com and a numeric repository id
+                # both need the provider's mapping (api.github.com,
+                # /repositories/<id>).
+                github = GitHubProvider(str(repo), binding.integration.get_decrypted_token(),
+                                        binding.integration.get_decrypted_base_url())
                 headers = {
                     'Authorization': f'Bearer {binding.integration.get_decrypted_token()}',
                     'Accept': 'application/vnd.github+json',
                 }
-                resp = http_requests.get(
-                    f'{base_url}/repos/{repo}/actions/runs',
+                resp = guarded_request('GET', 
+                    f'{github.base_url}/{github.repo_path}/actions/runs',
                     headers=headers,
                     params={'per_page': 20},
                     timeout=15,
@@ -1116,13 +1124,20 @@ class CICDBindingViewSet(viewsets.ModelViewSet):
                 'success': False,
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.exception(f"CI/CD sync failed: {e}")
+        except BlockedOutboundURL as e:
             binding.sync_error = str(e)
             binding.save()
+            return Response({'success': False, 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.exception(f"CI/CD sync failed: {e}")
+            binding.sync_error = 'Sync failed'
+            binding.save()
+            # Not the exception text: a connection error names the address
+            # and port, which turned the sync into a port scanner (review
+            # 2026-11-05); the log has the detail.
             return Response({
                 'success': False,
-                'error': f'Sync failed: {str(e)}'
+                'error': 'Sync failed: the CI/CD provider could not be reached or answered with an error.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'], url_path='trigger')

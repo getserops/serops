@@ -2,7 +2,7 @@
 
 Data model:
 
-* ``Trace``      — one per OTEL trace_id (32-hex-char, 128-bit).
+* ``Trace``      — one per (organisation, OTEL trace_id) (32-hex-char, 128-bit).
                    Rolls up span-level metrics (duration, error count,
                    root service/operation) for fast list/timeline queries.
 * ``Span``       — one per OTEL span_id (16-hex-char, 64-bit) within a trace.
@@ -51,8 +51,13 @@ from Organisations.models import Organisations
 class Trace(models.Model):
     """One OpenTelemetry trace — rolls up its spans."""
 
-    # OTEL trace_id is a 128-bit hex string (32 chars).
-    trace_id = models.CharField(max_length=32, primary_key=True)
+    # Surrogate key. trace_id used to be the primary key, which made it
+    # global across tenants: org A ingesting a trace id org B already had
+    # attached A's spans to B's trace (security review 2026-11, finding 1).
+    # A trace's identity is (organisation, trace_id) — see Meta.constraints.
+    id = models.BigAutoField(primary_key=True)
+    # OTEL trace_id is a 128-bit hex string (32 chars), unique per org only.
+    trace_id = models.CharField(max_length=32)
     organisation = models.ForeignKey(
         Organisations,
         on_delete=models.CASCADE,
@@ -79,6 +84,11 @@ class Trace(models.Model):
 
     class Meta:
         db_table = 'traces_trace'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organisation', 'trace_id'], name='trace_org_trace_id_uniq',
+            ),
+        ]
         indexes = [
             # Primary access pattern: list traces for an org in a time window.
             models.Index(fields=['organisation', '-start_time'], name='trace_org_start_idx'),

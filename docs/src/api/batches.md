@@ -15,7 +15,7 @@ GET /api/data/batches
 ```
 
 !!! note "No trailing slash"
-    This route, along with `GET /api/data/metrics` and `POST /api/data/logs`, is registered without a trailing slash. Requesting `/api/data/batches/` will not match.
+    This route, along with `GET /api/data/metrics`, is registered without a trailing slash. Requesting `/api/data/batches/` will not match.
 
 **Query parameters:**
 
@@ -160,14 +160,6 @@ DELETE /api/data/delete-old-batches/?days=30
 Deletes every batch older than `days` (positive integer, default `30`) within the caller's organisation. Returns the number of deleted rows.
 
 For automatic cleanup, configure a retention policy instead — see [Settings & Admin](settings.md).
-
-## Ingest Logs
-
-```
-POST /api/data/logs
-```
-
-Direct log ingestion endpoint used by Fluentd-style shippers. Most deployments send logs to a provider (Elasticsearch, Loki, Datadog…) and let SerOps query it instead — see [Configure Data Collection](../how-to/configure-data-collection.md).
 
 ## Raw Metrics
 

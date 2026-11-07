@@ -21,6 +21,8 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
     spec:
+      # SerOps never calls the Kubernetes API: no token in the pod.
+      automountServiceAccountToken: false
       {{- include "serops.backendPodSecurity" . | nindent 6 }}
       containers:
         - name: worker
@@ -63,16 +65,6 @@ spec:
                   key: smtp-password
                   optional: true
             {{- end }}
-            {{- /* RCA provider keys are per-org in the DB, never env vars.
-                   This is the embeddings key only — see values.yaml. */}}
-            {{- if or .Values.ai.embeddings.existingSecret .Values.ai.embeddings.openaiApiKey }}
-            - name: OPENAI_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.ai.embeddings.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
-                  key: openai-api-key
-                  optional: true
-            {{- end }}
           {{- with .Values.celeryWorker.livenessProbe }}
           {{- if .enabled }}
           # A worker that is up but consumes nothing (seen on a fresh
@@ -92,3 +84,4 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.celeryWorker.resources | nindent 12 }}
+      {{- include "serops.scheduling" (dict "root" $ "values" .Values.celeryWorker "component" "celery-worker" "spread" true) | nindent 6 }}

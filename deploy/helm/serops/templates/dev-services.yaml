@@ -29,6 +29,8 @@ spec:
       labels:
         {{- include "serops.selectorLabels" (dict "Chart" .Chart "Release" .Release "Values" .Values "component" "dev-postgres") | nindent 8 }}
     spec:
+      # SerOps never calls the Kubernetes API: no token in the pod.
+      automountServiceAccountToken: false
       securityContext:
         {{- toYaml .Values.devServices.postgresql.podSecurityContext | nindent 8 }}
       containers:
@@ -95,6 +97,8 @@ spec:
       labels:
         {{- include "serops.selectorLabels" (dict "Chart" .Chart "Release" .Release "Values" .Values "component" "dev-redis") | nindent 8 }}
     spec:
+      # SerOps never calls the Kubernetes API: no token in the pod.
+      automountServiceAccountToken: false
       securityContext:
         {{- toYaml .Values.devServices.redis.podSecurityContext | nindent 8 }}
       containers:

@@ -214,6 +214,7 @@ class AzureDevOpsWebhookHandler(BaseCICDWebhookHandler):
             branch='',
             job_name=pipeline_name,
             project_id=repo_name or pipeline_name,
+            organisation=self._binding_organisation(),
         )
         
         # Parse timestamps

@@ -3,6 +3,7 @@ Base Adapter Interface for AI Providers.
 This ensures all providers (OpenAI, Gemini, Claude, etc.) conform to a strict contract.
 """
 
+import re
 from abc import ABC, abstractmethod
 from typing import Tuple, Dict, Any, Optional
 
@@ -14,6 +15,11 @@ class AIServiceError:
             'code': 'QUOTA_EXCEEDED',
             'message': 'AI service rate limit reached. Will retry automatically.',
             'user_action': 'Wait a few minutes or check your API quota.'
+        },
+        'out_of_credit': {
+            'code': 'OUT_OF_CREDIT',
+            'message': 'The AI provider account has no credit left.',
+            'user_action': "Add credit or a payment method in the provider's billing settings, or choose another provider in Settings → AI."
         },
         'auth_error': {
             'code': 'AUTH_ERROR',
@@ -55,6 +61,11 @@ class AIServiceError:
             'message': 'AI response was truncated (hit output token limit).',
             'user_action': 'Try re-analyzing with a model that supports longer outputs.'
         },
+        'redaction_failed': {
+            'code': 'REDACTION_FAILED',
+            'message': 'Sensitive-data redaction failed, so nothing was sent to the AI provider.',
+            'user_action': 'Check the backend logs for the redaction error and retry.'
+        },
         'unknown': {
             'code': 'UNKNOWN_ERROR',
             'message': 'An unexpected error occurred.',
@@ -79,6 +90,7 @@ class AIServiceError:
         # how to close unbalanced JSON, so the body is kept intact here for
         # ``analyze_batch`` to salvage. Only the truncation path sets this.
         self.partial_text = partial_text
+        self.retry_after_seconds = None
 
     @classmethod
     def from_type(cls, error_type: str, raw_error: str = None):
@@ -91,6 +103,59 @@ class AIServiceError:
             user_action=error_info['user_action'],
             raw_error=raw_error,
         )
+
+    # Provider wording for an account with no money on it, as opposed to a
+    # rate limit: Anthropic "credit balance is too low" (400), OpenAI
+    # "insufficient_quota" (429), DeepSeek "Insufficient Balance" (402).
+    # This used to read as UNKNOWN_ERROR (Anthropic) or as a quota that
+    # "will retry automatically" (OpenAI), and neither fixes itself.
+    _OUT_OF_CREDIT_MARKERS = ('credit balance is too low', 'insufficient_quota',
+                              'insufficient balance', 'payment required', 'error code: 402')
+
+    @classmethod
+    def is_out_of_credit(cls, raw: str) -> bool:
+        msg = (raw or '').lower()
+        return any(m in msg for m in cls._OUT_OF_CREDIT_MARKERS)
+
+    _RETRY_IN = re.compile(r'(?:retry|try again) in ((?:\d+h)?(?:\d+m(?!s))?(?:\d+(?:\.\d+)?s)?)', re.I)
+    _RETRY_DELAY = re.compile(r"retryDelay['\"]?\s*[:=]\s*['\"]?(\d+)s", re.I)
+
+    @classmethod
+    def _retry_after_seconds(cls, raw: str):
+        """Seconds the provider says to wait, from its error text, or None."""
+        m = cls._RETRY_DELAY.search(raw or '')
+        if m:
+            return int(m.group(1))
+        m = cls._RETRY_IN.search(raw or '')
+        if not m or not m.group(1):
+            return None
+        parts = dict((unit, float(n)) for n, unit in re.findall(r'(\d+(?:\.\d+)?)([hms])', m.group(1)))
+        return int(parts.get('h', 0) * 3600 + parts.get('m', 0) * 60 + parts.get('s', 0))
+
+    @classmethod
+    def quota_exceeded(cls, raw: str):
+        """A quota error that says when it resets, when the provider says so.
+
+        Gemini's free tier answers "Please retry in 46m6s" once its 20
+        requests a day are used; the batch only showed QUOTA_EXCEEDED with
+        "Will retry automatically", which a daily limit never does.
+        """
+        error = cls.from_type('quota_exceeded', raw_error=(raw or '')[:500])
+        seconds = cls._retry_after_seconds(raw)
+        daily = 'perday' in (raw or '').lower() or 'per day' in (raw or '').lower()
+        if daily:
+            error.message = "The AI provider's daily quota is used up."
+        else:
+            error.message = "The AI provider's rate limit or quota was reached."
+        if seconds:
+            minutes = max(1, round(seconds / 60))
+            wait = f'about {minutes} min' if minutes < 120 else f'about {round(minutes / 60)} h'
+            error.message += f' It resets in {wait}.'
+            error.user_action = 'Wait until then, raise the quota with the provider, or choose another provider in Settings → AI.'
+        else:
+            error.user_action = 'Wait a few minutes, raise the quota with the provider, or choose another provider in Settings → AI.'
+        error.retry_after_seconds = seconds
+        return error
 
     def get_display_status(self) -> str:
         """Return a status string suitable for model_name field display"""
@@ -105,7 +170,8 @@ class AIServiceError:
             'error_code': self.code,
             'error_message': self.message,
             'user_action': self.user_action,
-            'raw_error': self.raw_error[:500] if self.raw_error else None
+            'raw_error': self.raw_error[:500] if self.raw_error else None,
+            'retry_after_seconds': self.retry_after_seconds,
         }
 
     def __str__(self):

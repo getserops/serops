@@ -6,7 +6,7 @@ BaseCICDWebhookHandler abstraction.
 
 Setup in GitLab:
 1. Go to project Settings → Webhooks
-2. URL: https://your-backend.com/gitlab/webhook/
+2. URL: https://your-backend.com/api/webhooks/gitlab/<binding_id>/
 3. Triggers: Push events, Pipeline events, Job events
 """
 
@@ -89,6 +89,7 @@ class GitLabCICDWebhookHandler(BaseCICDWebhookHandler):
             branch=ref,
             job_name=deploy_job_name,
             project_id=project_id,
+            organisation=self._binding_organisation(),
         )
 
         head_sha = object_attributes.get('sha', '')
@@ -126,12 +127,29 @@ class GitLabCICDWebhookHandler(BaseCICDWebhookHandler):
                     {'error': 'Invalid webhook signature or token'},
                     status=403,
                 )
+            self.binding = binding
 
             try:
                 payload = json.loads(request.body)
             except (json.JSONDecodeError, TypeError) as e:
                 logger.error(f"[gitlab] Invalid JSON payload: {e}")
                 return Response({'error': 'Invalid JSON payload'}, status=400)
+            if not isinstance(payload, dict):
+                return Response({'error': 'Invalid JSON payload'}, status=400)
+
+            # The token proves the request comes from this binding's webhook,
+            # not that the project named in the body is the binding's: a
+            # tenant holding its own token could name another organisation's
+            # GitLab project and write to its pipelines and code changes
+            # (security review 2026-11, finding 2).
+            if not self._payload_matches_binding(payload, binding):
+                logger.warning(
+                    "[gitlab] Payload project does not match binding %s — rejected", binding.pk,
+                )
+                return Response(
+                    {'error': "Payload project does not match this webhook's binding"},
+                    status=403,
+                )
 
             logger.debug(f'Webhook payload: {payload}')
             object_kind = payload.get('object_kind')
@@ -157,6 +175,51 @@ class GitLabCICDWebhookHandler(BaseCICDWebhookHandler):
                 status=500,
             )
 
+    @staticmethod
+    def _payload_project(payload):
+        """(id, path_with_namespace) of the GitLab project the payload names.
+
+        Push and pipeline events carry a ``project`` object; job (build)
+        events carry ``project_id`` at the top level.
+        """
+        project = payload.get('project') if isinstance(payload.get('project'), dict) else {}
+        project_id = project.get('id') or payload.get('project_id')
+        path = project.get('path_with_namespace') or ''
+        return (str(project_id) if project_id not in (None, '') else ''), str(path)
+
+    def _payload_matches_binding(self, payload, binding):
+        """True when the payload's project is the binding's GitLab project.
+
+        ``CICDBinding.pipeline_id`` holds the GitLab project id (or its
+        ``group/project`` path) for GitLab bindings. Only a binding with no
+        project recorded is checked by organisation alone, through the
+        organisation-scoped lookups below.
+        """
+        expected = str(binding.pipeline_id or '').strip()
+        if not expected:
+            return True
+        project_id, path = self._payload_project(payload)
+        if not project_id and not path:
+            # Nothing to act on (e.g. a GitLab test event without a project);
+            # the handlers below find no project and do nothing.
+            return True
+        return expected == project_id or (bool(path) and expected.lower() == path.lower())
+
+    def _binding_gitlab_project(self, project_id):
+        """The organisation's legacy GitlabProject row for ``project_id``.
+
+        Scoped to the binding's organisation: ``project_id`` comes from the
+        payload (security review 2026-11, finding 2).
+        """
+        from .models import GitlabProject
+
+        organisation = self._binding_organisation()
+        if organisation is None or not project_id:
+            return None
+        return GitlabProject.objects.filter(
+            project_id=str(project_id), organisation=organisation,
+        ).first()
+
     def _handle_push_event(self, payload):
         """Handle push events by dispatching Celery task for code change tracking."""
         from .tasks import process_push_event
@@ -166,11 +229,13 @@ class GitLabCICDWebhookHandler(BaseCICDWebhookHandler):
         commits = payload.get('commits', [])
         branch = payload.get('ref', '').replace('refs/heads/', '')
 
-        if project_id and commits:
+        organisation = self._binding_organisation()
+        if project_id and commits and organisation is not None:
             process_push_event.delay(
                 project_id=str(project_id),
                 commits_data=commits,
                 branch=branch,
+                organisation_id=organisation.id,
             )
             logger.info(f"Push event received: {len(commits)} commits for project {project_id}")
             return Response({
@@ -197,15 +262,21 @@ class GitLabCICDWebhookHandler(BaseCICDWebhookHandler):
 
         logger.debug(f"Processing: job_id={job_id}, pipeline_id={pipeline_id}, project_id={project_id}")
 
+        gitlab_project = self._binding_gitlab_project(project_id)
+        if gitlab_project is None:
+            logger.warning(f"[gitlab] Job event for project {project_id} not registered in the binding's organisation")
+            return Response({'message': 'Webhook received, but no matching project.'})
+
         from .tasks import retrieve_gitlab_job_logs
         retrieve_gitlab_job_logs.delay(
             project_id, pipeline_id, pipeline_branch,
             job_id, job_name, job_status, job_time, job_owner,
+            organisation_id=gitlab_project.organisation_id,
         )
 
         # Log URL for observability
         from .utils import get_gitlab_api_base
-        gitlab_base_url = get_gitlab_api_base(project_id=project_id)
+        gitlab_base_url = get_gitlab_api_base(project=gitlab_project)
 
         job_url = f"{gitlab_base_url}/-/jobs/{job_id}"
         if job_status == 'failed':
@@ -232,7 +303,7 @@ class GitLabCICDWebhookHandler(BaseCICDWebhookHandler):
         )
 
         # Create/update pipeline record
-        pipeline = self._create_pipeline_record(normalized)
+        pipeline = self._create_pipeline_record(normalized, binding=binding)
 
         # Inject binding context for CI/CD log storage (org/project resolution)
         if binding:
@@ -256,31 +327,29 @@ class GitLabCICDWebhookHandler(BaseCICDWebhookHandler):
         pipeline_status = normalized.get('status')
         if pipeline_status in ('success', 'failed', 'canceled'):
             try:
-                self._create_deployments(normalized, pipeline)
+                self._create_deployments(normalized, pipeline, binding=binding)
             except Exception as e:
                 logger.error(f"Error creating deployments: {e}", exc_info=True)
 
         return Response({'message': 'pipeline processed'})
 
-    def _create_pipeline_record(self, normalized):
+    def _create_pipeline_record(self, normalized, binding=None):
         """
         Create pipeline record with GitLab-specific legacy fields.
 
-        Sets standard fields via super() (cicd_provider, external_project_id, etc.)
-        plus legacy project FK (GitlabProject) and organisation FK.
+        Sets standard fields via super() (cicd_provider, external_project_id,
+        the binding's organisation) plus the legacy project FK (GitlabProject)
+        when the organisation has that project.
         """
-        from .models import GitlabProject
-
-        pipeline = super()._create_pipeline_record(normalized)
+        pipeline = super()._create_pipeline_record(normalized, binding=binding)
 
         # Set legacy GitLab-specific fields
         project_id = normalized.get('project_id')
-        gitlab_project = GitlabProject.objects.filter(project_id=str(project_id)).first()
+        gitlab_project = self._binding_gitlab_project(project_id)
 
         if gitlab_project:
             pipeline.project = gitlab_project
-            pipeline.organisation = gitlab_project.organisation
-            pipeline.save(update_fields=['project', 'organisation'])
+            pipeline.save(update_fields=['project'])
         else:
             logger.warning(f"Received pipeline event for unknown project {project_id}")
 
@@ -296,7 +365,7 @@ class GitLabCICDWebhookHandler(BaseCICDWebhookHandler):
         - Uses DeploymentService.create_deployments_from_pipeline()
         """
         from .deployment_service import DeploymentService
-        from .models import CodeChange, GitlabProject
+        from .models import CodeChange
 
         environment = normalized.get('environment', 'development')
         pipeline_status = normalized.get('status')
@@ -304,7 +373,7 @@ class GitLabCICDWebhookHandler(BaseCICDWebhookHandler):
         branch = normalized.get('branch', '')
         project_id = normalized.get('project_id')
 
-        gitlab_project = GitlabProject.objects.filter(project_id=str(project_id)).first()
+        gitlab_project = self._binding_gitlab_project(project_id)
         if not gitlab_project or not head_sha:
             logger.warning(f"No head SHA or project for pipeline {normalized['pipeline_id']}")
             return 0

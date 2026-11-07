@@ -57,7 +57,7 @@ class ChatBatchIsolationTest(TestCase):
         # If the AI ever gets called for this request, capture what was
         # passed in so we can assert org B's data did not leak into the
         # prompt. We return a benign fake response so the view completes.
-        mock_ai.return_value = 'ok'
+        mock_ai.return_value = ('ok', None)
 
         self.client.force_authenticate(user=self.user_a)
         response = self.client.post(

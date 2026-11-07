@@ -106,6 +106,26 @@ class SentinelEvaluateBatchTest(TestCase):
         self.assertEqual(decision, 'alert')
         self.assertIn('deployment_detected', triggers)
 
+    def test_kubernetes_failure_is_not_quiet(self):
+        """A crash loop or an image that cannot be pulled can log nothing new."""
+        from Data.sentinel import evaluate_batch
+        evaluate_batch(self.project, self.env, self._make_batch_data(), self.org)
+        for lifecycle in ({'restarts': {'payments': 3}},
+                          {'waiting': [{'container': 'payments', 'reason': 'ImagePullBackOff'}]},
+                          {'unavailable': [{'workload': 'payments', 'available': 0, 'desired': 1}]}):
+            batch_data = self._make_batch_data(metrics_summary={'container_lifecycle': lifecycle})
+            decision, triggers = evaluate_batch(self.project, self.env, batch_data, self.org)
+            self.assertEqual(decision, 'alert')
+            self.assertIn('kubernetes_failure', triggers)
+
+    def test_a_rollout_alone_stays_quiet(self):
+        from Data.sentinel import evaluate_batch
+        evaluate_batch(self.project, self.env, self._make_batch_data(), self.org)
+        batch_data = self._make_batch_data(metrics_summary={'container_lifecycle': {
+            'restarts': {}, 'changes': [{'workload': 'payments', 'change': 'rollout'}]}})
+        decision, _ = evaluate_batch(self.project, self.env, batch_data, self.org)
+        self.assertEqual(decision, 'quiet')
+
     def test_error_rate_spike(self):
         from Data.sentinel import evaluate_batch
 
@@ -370,7 +390,8 @@ class SentinelConfigTest(TestCase):
     def test_returns_defaults_when_no_config(self):
         from Data.sentinel import _get_sentinel_config
         active_mode, thresholds = _get_sentinel_config(self.org)
-        self.assertFalse(active_mode)
+        # Active by default, like a new SentinelConfig row.
+        self.assertTrue(active_mode)
         self.assertEqual(thresholds['error_spike_multiplier'], 2.0)
         self.assertEqual(thresholds['z_score_threshold'], 3.0)
         self.assertEqual(thresholds['max_quiet_batches'], 12)
@@ -530,3 +551,137 @@ class SentinelStatsViewTest(TestCase):
     def test_sentinel_stats_with_days_filter(self):
         response = self.client.get('/api/data/analytics/sentinel/?days=1')
         self.assertEqual(response.status_code, 200)
+
+
+class SentinelTraceTriggerTest(TestCase):
+    """A latency or trace-error spike is not a quiet window (external review of
+    v1.2.13: a dependency going from 20 ms to 900 ms with no errors read as
+    quiet until the forced review, hours later)."""
+
+    def setUp(self):
+        self.org = Organisations.objects.create(name='Trace Org')
+        self.project = Project.objects.create(name='trace-project', organisation=self.org)
+        self.env = ProjectEnvironment.objects.create(
+            project=self.project, name='production', display_name='Production'
+        )
+        self._evaluate({})    # first batch seeds the state
+
+    def _evaluate(self, traces):
+        from Data.sentinel import evaluate_batch
+        return evaluate_batch(self.project, self.env, {'logs': [], 'traces': traces}, self.org)
+
+    @staticmethod
+    def _traces(p95, before_p95, spans=50, before_spans=50, errors=0, before_errors=0, self_time=True):
+        row = {'service_name': 'payments', 'spans': spans, 'p95_ms': p95, 'errors': errors,
+               'baseline': {'spans': before_spans, 'p95_ms': before_p95, 'errors': before_errors}}
+        if self_time:
+            row['self_p95_ms'] = p95
+            row['baseline']['self_p95_ms'] = before_p95
+        return {'span_count': spans, 'per_service': [row]}
+
+    def test_a_dependency_going_from_20ms_to_900ms_with_no_errors_triggers_analysis(self):
+        decision, triggers = self._evaluate(self._traces(900, 20))
+        self.assertEqual(decision, 'alert')
+        self.assertEqual(triggers, ['trace_latency_spike'])
+
+    def test_small_jitter_stays_quiet(self):
+        # Tripled, but only 10 ms slower: a fast endpoint wobbling.
+        self.assertEqual(self._evaluate(self._traces(15, 5)), ('quiet', []))
+        # 250 ms slower, but only 1.1x a slow endpoint's usual time.
+        self.assertEqual(self._evaluate(self._traces(2750, 2500)), ('quiet', []))
+
+    def test_too_few_spans_stays_quiet(self):
+        self.assertEqual(self._evaluate(self._traces(900, 20, spans=5)), ('quiet', []))
+        self.assertEqual(self._evaluate(self._traces(900, 20, before_spans=5)), ('quiet', []))
+
+    def test_a_service_with_no_window_before_stays_quiet(self):
+        traces = self._traces(900, 20)
+        del traces['per_service'][0]['baseline']
+        self.assertEqual(self._evaluate(traces), ('quiet', []))
+
+    def test_a_caller_waiting_on_a_slow_dependency_is_judged_on_its_own_time(self):
+        traces = self._traces(900, 20)
+        traces['per_service'][0]['self_p95_ms'] = 4    # the time is in the callee
+        traces['per_service'][0]['baseline']['self_p95_ms'] = 3
+        self.assertEqual(self._evaluate(traces), ('quiet', []))
+
+    def test_total_p95_is_used_when_self_time_is_unavailable(self):
+        _, triggers = self._evaluate(self._traces(900, 20, self_time=False))
+        self.assertEqual(triggers, ['trace_latency_spike'])
+
+    def test_error_spans_with_no_error_logs_trigger_analysis(self):
+        _, triggers = self._evaluate(self._traces(20, 20, errors=10))
+        self.assertEqual(triggers, ['trace_error_spike'])
+
+    def test_a_steady_trace_error_rate_stays_quiet(self):
+        self.assertEqual(self._evaluate(self._traces(20, 20, errors=10, before_errors=9)), ('quiet', []))
+
+    def test_a_few_error_spans_stay_quiet(self):
+        self.assertEqual(self._evaluate(self._traces(20, 20, errors=2)), ('quiet', []))
+
+
+class SentinelTraceTriggerFromSpansTest(TestCase):
+    """End to end from stored spans: the batch task's pre-gate trace summary
+    is what Sentinel judges."""
+
+    def setUp(self):
+        from datetime import datetime, timedelta, timezone as dt_tz
+        from Projects.models import ProjectService
+        from traces.models import Span, Trace
+        self.org = Organisations.objects.create(name='Span Org')
+        self.project = Project.objects.create(name='span-project', organisation=self.org)
+        self.env = ProjectEnvironment.objects.create(
+            project=self.project, name='production', display_name='Production'
+        )
+        for name in ('frontend', 'payments'):
+            ProjectService.objects.create(project=self.project, name=name, service_type='application')
+        self.start = datetime(2026, 11, 3, 12, 0, tzinfo=dt_tz.utc)
+        self.end = self.start + timedelta(minutes=15)
+        n = 0
+
+        def trace(at, payments_ms):
+            nonlocal n
+            n += 1
+            t = Trace.objects.create(
+                trace_id=f'{n:032x}', organisation=self.org, root_service_name='frontend',
+                root_operation='POST /checkout', start_time=at,
+                end_time=at + timedelta(milliseconds=payments_ms + 5), duration_ms=payments_ms + 5)
+            for sid, parent, svc, ms in (('a', '', 'frontend', payments_ms + 5),
+                                         ('b', 'a', 'payments', payments_ms)):
+                Span.objects.create(
+                    trace=t, span_id=sid * 16, parent_span_id=parent * 16 if parent else '',
+                    service_name=svc, operation_name='Charge', start_time=at,
+                    end_time=at + timedelta(milliseconds=ms), duration_ms=ms, status_code='OK')
+
+        self.trace = trace
+
+    def _window_data(self):
+        return {'logs': [], 'statistics': {'time_range': {
+            'start': self.start.isoformat(), 'end': self.end.isoformat()}}}
+
+    def _evaluate(self):
+        from Data.sentinel import evaluate_batch
+        from ai_model.trace_context import native_trace_summary
+        data = self._window_data()
+        data['traces'] = native_trace_summary(self.project, data, self.end)
+        return evaluate_batch(self.project, self.env, data, self.org)
+
+    def test_payments_going_from_20ms_to_900ms_triggers_analysis(self):
+        from datetime import timedelta
+        for i in range(30):
+            self.trace(self.start - timedelta(minutes=10, seconds=i), 20)
+            self.trace(self.start + timedelta(minutes=5, seconds=i), 900)
+        from Data.sentinel import evaluate_batch
+        evaluate_batch(self.project, self.env, {'logs': []}, self.org)    # first batch
+        decision, triggers = self._evaluate()
+        self.assertEqual(decision, 'alert')
+        self.assertIn('trace_latency_spike', triggers)
+
+    def test_steady_latency_stays_quiet(self):
+        from datetime import timedelta
+        for i in range(30):
+            self.trace(self.start - timedelta(minutes=10, seconds=i), 20)
+            self.trace(self.start + timedelta(minutes=5, seconds=i), 22)
+        from Data.sentinel import evaluate_batch
+        evaluate_batch(self.project, self.env, {'logs': []}, self.org)
+        self.assertEqual(self._evaluate(), ('quiet', []))

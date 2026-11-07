@@ -349,7 +349,7 @@ const AuditLogSettings = () => {
                                                         {hasExpandable && (
                                                             <button
                                                                 type="button"
-                                                                className="btn btn-link btn-sm p-0 text-muted"
+                                                                className="btn btn-link btn-sm p-0 text-muted tap-target"
                                                                 onClick={() => toggleRow(log.id)}
                                                                 aria-label={isExpanded ? t('auditLog.collapseDetails') : t('auditLog.expandDetails')}
                                                                 aria-expanded={isExpanded}

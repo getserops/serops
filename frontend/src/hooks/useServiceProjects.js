@@ -40,7 +40,8 @@ const INITIAL_FORM_DATA = {
     jenkins_job: "",
 };
 
-const PAGE_SIZE = 5;
+// Ten per page: a project of a dozen microservices fits on one or two pages.
+export const PAGE_SIZE = 10;
 
 export const useServiceProjects = (projectId) => {
     // Project and services state
@@ -125,9 +126,20 @@ export const useServiceProjects = (projectId) => {
             // just added used to appear only after reopening it (B24).
             const list = Array.isArray(data) ? data : data?.results || [];
             setSelectedService((prev) => (prev ? list.find((s) => s.id === prev.id) || prev : prev));
+            return list;
         } catch (error) {
             console.error("Error refreshing services:", error);
+            return null;
         }
+    };
+
+    // A new service is shown where it landed: it used to be added on a later
+    // page with nothing visible changing on the current one.
+    const handleServiceCreated = async () => {
+        const list = await refreshServices();
+        if (!list || list.length === 0) return;
+        const newest = list.reduce((a, b) => (b.id > a.id ? b : a));
+        setCurrentPage(Math.floor(list.indexOf(newest) / PAGE_SIZE) + 1);
     };
 
     // GitLab verification - supports Global Integration
@@ -591,7 +603,9 @@ export const useServiceProjects = (projectId) => {
         // Pagination
         currentPage,
         totalPages,
+        totalServices: services.length,
         goToPage,
+        handleServiceCreated,
 
         // Add service modal
         showModal,

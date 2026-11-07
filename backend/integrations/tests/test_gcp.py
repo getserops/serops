@@ -81,9 +81,11 @@ class TestLogQueryToGcpFilter(SimpleTestCase):
 
     def test_services_or_group(self):
         f = LogQuery(services=["api", "worker"]).to_gcp_filter()
-        self.assertIn(
-            '(labels.service_name="api" OR labels.service_name="worker")', f
-        )
+        self.assertIn('labels.service_name="api"', f)
+        self.assertIn('labels.service_name="worker"', f)
+        # GKE names a workload in the pod's app label or its Deployment.
+        self.assertIn('labels."k8s-pod/app"="api"', f)
+        self.assertIn('labels."logging.gke.io/top_level_controller_name"="worker"', f)
 
     def test_text_search_substring(self):
         f = LogQuery(text_search="timeout").to_gcp_filter()
@@ -279,7 +281,8 @@ class TestGcpCloudLoggingProvider(SimpleTestCase):
         provider = _make_log_provider(client)
         provider.search(index="", query={"filter": "severity>=ERROR"})
         called_filter = client.list_entries.call_args.kwargs.get("filter_", "")
-        self.assertEqual(called_filter, "severity>=ERROR")
+        # Audit logs are left out unless a log is named.
+        self.assertEqual(called_filter, 'NOT logName:"cloudaudit.googleapis.com" AND severity>=ERROR')
 
     def test_search_rejects_unsupported_query_type(self):
         client = MagicMock()
@@ -302,19 +305,15 @@ class TestGcpCloudLoggingProvider(SimpleTestCase):
         self.assertEqual(results[0].message, "first")
         self.assertEqual(results[1].message, "second")
 
-    def test_get_indices_returns_distinct_log_names(self):
+    def test_get_indices_lists_nothing(self):
+        # Cloud Logging selects by filter: listing the log names of the last
+        # entries let the busiest log decide what an analysis could read
+        # (GKE live test: VM integrity logs pushed out stdout and stderr).
         client = MagicMock()
-        client.list_entries.return_value = iter([
-            _FakeLogEntry("x", log_name="projects/test-project/logs/app"),
-            _FakeLogEntry("y", log_name="projects/test-project/logs/api"),
-            _FakeLogEntry("z", log_name="projects/test-project/logs/app"),  # dup
-        ])
         provider = _make_log_provider(client)
-        result = provider.get_indices(project=None)
-        self.assertEqual(sorted(result), [
-            "projects/test-project/logs/api",
-            "projects/test-project/logs/app",
-        ])
+        self.assertEqual(provider.get_indices(project=None), [])
+        client.list_entries.assert_not_called()
+        self.assertFalse(provider.NEEDS_LOG_LOCATION)
 
 
 # ---------------------------------------------------------------------------

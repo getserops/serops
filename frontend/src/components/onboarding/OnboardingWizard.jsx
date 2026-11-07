@@ -130,7 +130,7 @@ export default function OnboardingWizard({ onComplete, onSkip }) {
         return (
             <Card className="onboarding-wizard loading">
                 <CardContent sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                    <CircularProgress />
+                    <CircularProgress aria-label="Loading" />
                 </CardContent>
             </Card>
         );
@@ -143,7 +143,7 @@ export default function OnboardingWizard({ onComplete, onSkip }) {
                 onClick={() => setMinimized(false)}
             >
                 <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, '&:last-child': { pb: 2 } }}>
-                    <CircularProgress
+                    <CircularProgress aria-label="Setup progress"
                         variant="determinate"
                         value={status?.progress_percentage || 0}
                         size={40}

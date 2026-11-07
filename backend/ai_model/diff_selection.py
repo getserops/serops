@@ -390,7 +390,14 @@ def build_code_changes_section(code_changes: list[dict] | None, log_lines: list[
     for ci, change in enumerate(commits):
         sha = str(change.get('sha') or 'N/A')[:8]
         out.append('')
-        out.append(f"[{sha}] {change.get('author', 'Unknown')} ({change.get('timestamp', 'N/A')})")
+        # Review v1.2.13: when the commit went live here is what rule 14
+        # times the errors against; the commit time stays secondary.
+        if change.get('deployed_at'):
+            when = (f"deployed to {change.get('deployed_to') or 'this environment'} at "
+                    f"{change['deployed_at']}; committed {change.get('timestamp', 'N/A')}")
+        else:
+            when = change.get('timestamp', 'N/A')
+        out.append(f"[{sha}] {change.get('author', 'Unknown')} ({when})")
         out.append(f"  Branch: {change.get('branch', 'N/A')}")
         message = clean(str(change.get('message') or 'No message')[:100])
         out.append(f"  Message: {message if message is not None else '[withheld: redaction unavailable]'}")

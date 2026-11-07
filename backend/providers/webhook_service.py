@@ -218,7 +218,8 @@ class WebhookService:
                     provider=binding.provider_type,
                     project_id=binding.repository_id,
                     commits=commits,
-                    gitlab_project=None  # We use generic fields now
+                    gitlab_project=None,  # We use generic fields now
+                    organisation=binding.project_service.project.organisation,
                 )
                 
                 # Update binding sync status

@@ -245,7 +245,11 @@ class CodeChange(models.Model):
     
     class Meta:
         ordering = ['-timestamp']
-        unique_together = [('provider', 'project_id', 'commit_sha')]
+        # Per organisation: two tenants can hold the same repository (or name
+        # the same repository id in a webhook). Keyed without the
+        # organisation, one tenant's push overwrote the other's commit and
+        # moved it to itself (security review 2026-11, finding 2).
+        unique_together = [('organisation', 'provider', 'project_id', 'commit_sha')]
         indexes = [
             models.Index(fields=['provider', 'project_id', 'timestamp']),
         ]
@@ -254,8 +258,16 @@ class CodeChange(models.Model):
         short_sha = self.commit_sha[:8] if self.commit_sha else 'N/A'
         return f"[{short_sha}] {self.commit_message[:50]}"
     
-    def get_summary_for_ai(self) -> dict:
-        """Return a compact summary suitable for AI analysis."""
+    def get_summary_for_ai(self, deployed_at=None, environment=None) -> dict:
+        """Return a compact summary suitable for AI analysis.
+
+        ``deployed_at`` / ``environment``: when this commit first reached
+        the batch's environment. The correlator and the RCA prompt time
+        an incident against that moment, not the commit time (review
+        v1.2.13: a commit made 5 h earlier but deployed 10 min before the
+        error was scored as unrelated). Left out when unknown, so the
+        consumers fall back to ``timestamp``.
+        """
         # Lookup service_name from linked ProjectService
         service_name = None
         if self.gitlab_project:
@@ -271,7 +283,7 @@ class CodeChange(models.Model):
             except Exception:
                 service_name = self.gitlab_project.name if self.gitlab_project else None
         
-        return {
+        summary = {
             'sha': self.commit_sha[:8],
             'message': self.commit_message[:200],
             'author': self.author_name,
@@ -291,6 +303,10 @@ class CodeChange(models.Model):
                 for f in self.diff_summary.get('files', [])
             ][:10],
         }
+        if deployed_at is not None:
+            summary['deployed_at'] = deployed_at.isoformat()
+            summary['deployed_to'] = environment
+        return summary
 
 
 class Deployment(models.Model):

@@ -24,6 +24,12 @@ def _get_opensearch_client(config: dict):
     Falls back to elasticsearch-py if opensearch-py is not installed,
     since the wire protocol is compatible for basic operations.
     """
+    # Checked again here, not only when saved: DNS can change after
+    # (security review 2026-11, finding 3). The client does not follow
+    # redirects.
+    from Utils.outbound import check_url
+    host = str(config.get("host", "https://localhost:9200"))
+    check_url(host if '://' in host else f'http://{host}')
     try:
         from opensearchpy import OpenSearch
         connection_params = {

@@ -26,7 +26,7 @@ at the bottom.
 | "Connection refused" | Network | Verify the provider URL is reachable from the SerOps backend container. |
 | "401 Unauthorized" | Credentials | Check that the access token or API key has not expired. Regenerate if needed. |
 | Integration shows "Unverified" | Status | Click **Verify** on the integration to re-test credentials. |
-| No repositories listed | Token scope | Ensure the access token has `api` scope (GitLab) or `repo` scope (GitHub). |
+| No repositories listed | Token scope | Ensure the access token has `api` scope (GitLab), or for GitHub that the fine-grained token includes the repository (Contents: read). |
 | Webhook not receiving events | URL/Secret | Each CI/CD binding has its own unique webhook URL (`/webhooks/{provider}/{binding_id}/`) and auto-generated secret. Verify both match in SerOps and your provider. |
 | Webhook fires but no pipeline appears | Signature | Backend rejects any webhook where the HMAC signature doesn't match the binding secret. Regenerate the secret in the UI and re-copy it to your provider. |
 

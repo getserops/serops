@@ -17,13 +17,14 @@ class SentinelConfigModelTest(TestCase):
 
     def test_create_with_defaults(self):
         config = SentinelConfig.objects.create(organisation=self.org)
-        self.assertFalse(config.active_mode)
+        # Active by default: shadow mode called the AI every window.
+        self.assertTrue(config.active_mode)
         self.assertEqual(config.error_spike_multiplier, 0)
         self.assertEqual(config.z_score_threshold, 0)
         self.assertEqual(config.max_quiet_batches, 12)
 
     def test_str_shadow_mode(self):
-        config = SentinelConfig.objects.create(organisation=self.org)
+        config = SentinelConfig.objects.create(organisation=self.org, active_mode=False)
         self.assertIn('shadow', str(config))
         self.assertIn(self.org.name, str(config))
 
@@ -53,7 +54,7 @@ class SentinelConfigAPITest(TestCase):
         response = self.client.get('/api/settings/sentinel/')
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertFalse(data['active_mode'])
+        self.assertTrue(data['active_mode'])
         self.assertEqual(data['max_quiet_batches'], 12)
         # Verify config was created in DB
         self.assertTrue(SentinelConfig.objects.filter(organisation=self.org).exists())
@@ -494,3 +495,66 @@ class KeylessProviderTest(TestCase):
             'provider_name': 'ollama_t', 'base_url': 'http://ollama.internal:11434/v1/'}, format='json')
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(gen.call_args.kwargs['base_url'], 'http://ollama.internal:11434/v1/')
+
+
+class AvailableModelsTest(TestCase):
+    """GET /api/settings/ai/available-models/: what the chat can answer with."""
+
+    def setUp(self):
+        from org_settings.models import OrganisationAPIKey
+        self.Key = OrganisationAPIKey
+        self.org = Organisations.objects.create(name='Models Org')
+        self.user = User.objects.create_user(
+            username='modelsuser', email='models@test.com',
+            password='testpass123', organisation=self.org, role='admin',
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        self.local = AIModelProvider.objects.create(
+            name='local_llm', display_name='Local LLM', is_active=True, requires_api_key=False)
+        self.hosted = AIModelProvider.objects.create(
+            name='hosted_llm', display_name='Hosted LLM', is_active=True, requires_api_key=True)
+
+    def ids(self):
+        from django.urls import reverse
+        response = self.client.get(reverse('available-models'))
+        self.assertEqual(response.status_code, 200)
+        return [m['id'] for m in response.data['models']]
+
+    def test_a_keyless_provider_with_its_url_is_available(self):
+        # Ollama: a base URL, no key. The chat said "No AI provider" for it.
+        self.Key.objects.create(organisation=self.org, provider=self.local,
+                                base_url='http://ollama:11434/v1/', is_active=True)
+        self.assertIn('local_llm', self.ids())
+
+    def test_a_provider_that_needs_a_key_is_not_available_with_a_url_alone(self):
+        self.Key.objects.create(organisation=self.org, provider=self.hosted,
+                                base_url='https://example.test/v1/', is_active=True)
+        self.assertNotIn('hosted_llm', self.ids())
+
+    def test_nothing_configured_nothing_available(self):
+        self.assertEqual([i for i in self.ids() if i in ('local_llm', 'hosted_llm')], [])
+
+
+class SentinelActiveDefaultMigrationTest(TestCase):
+    """Migration 0021 moves rows nobody ever saved to active mode, and keeps
+    every mode an admin saved."""
+
+    def test_never_saved_shadow_rows_become_active_and_saved_ones_keep_their_mode(self):
+        import importlib
+        from datetime import timedelta
+        from django.apps import apps
+        migration = importlib.import_module('org_settings.migrations.0021_sentinel_active_mode_default')
+        untouched = SentinelConfig.objects.create(
+            organisation=Organisations.objects.create(name='Opened only'), active_mode=False)
+        chosen = SentinelConfig.objects.create(
+            organisation=Organisations.objects.create(name='Saved shadow'), active_mode=False)
+        SentinelConfig.objects.filter(pk=chosen.pk).update(
+            updated_at=chosen.created_at + timedelta(minutes=3))
+
+        migration.activate_never_saved_rows(apps, None)
+
+        untouched.refresh_from_db()
+        chosen.refresh_from_db()
+        self.assertTrue(untouched.active_mode)
+        self.assertFalse(chosen.active_mode)

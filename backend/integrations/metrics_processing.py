@@ -280,72 +280,15 @@ def _fetch_peak_pod_metrics(provider, labels, start_time, end_time):
 
 
 def _fetch_container_lifecycle(provider, labels, start_time, end_time):
-    """Terminations and restarts per container, from kube-state-metrics.
-
-    Returns ``{'terminated': [{'container', 'reason'}], 'restarts': {name: n}}``.
-    Best-effort: kube-state-metrics may not be scraped, in which case the
-    queries return nothing and callers simply omit the section. Never raises —
-    a missing lifecycle signal must not cost us the rest of the analysis.
-    """
-    from integrations.adapters.prometheus import K8S_LIFECYCLE_EXPR_TEMPLATES
-
-    out = {'terminated': [], 'restarts': {}}
-    if not hasattr(provider, 'query_range_expr'):
-        return out
-
-    # kube-state-metrics is a SEPARATE exporter from cAdvisor and does not
-    # inherit the kubelet job's relabeling, so its series carry only
-    # namespace / pod / container / reason — none of organisation_name,
-    # project_name or environment. Filtering on those matched nothing and the
-    # section came back empty while an OOMKill sat in Prometheus the whole
-    # time.
-    #
-    # `namespace` is the join that does exist, and namespace -> environment is
-    # the mapping both documented shipper recipes already use. With no
-    # environment we query unfiltered rather than not at all: a wrong-namespace
-    # container is a smaller problem than a missed OOMKill, and the container
-    # name is reported alongside so it can be judged.
-    namespace = (labels or {}).get('environment')
-    label_str = f'namespace="{namespace}"' if namespace else ''
-
-    # PromQL range for increase(): the batch window, floored at 1 minute so a
-    # very short window still spans at least one scrape interval.
-    window_minutes = max(1, int((end_time - start_time).total_seconds() // 60))
-    window = f'{window_minutes}m'
-
-    reasons, restarted_in_window = {}, {}
-    for key, template in K8S_LIFECYCLE_EXPR_TEMPLATES.items():
-        try:
-            series = provider.query_range_expr(
-                template.format(labels=label_str, window=window),
-                start_time, end_time)
-        except Exception as exc:                       # noqa: BLE001
-            logger.warning('container lifecycle query %s failed: %s', key, exc)
-            continue
-        for ts in series or []:
-            tags = getattr(ts, 'labels', {}) or {}
-            container = tags.get('container')
-            if not container:
-                continue
-            if key == 'container_last_terminated_reason':
-                if tags.get('reason'):
-                    reasons[container] = tags['reason']
-            else:
-                values = [p.value for p in getattr(ts, 'points', []) if p.value]
-                if values:
-                    restarted_in_window[container] = int(round(max(values)))
-
-    # Report a termination reason ONLY for containers that actually restarted
-    # inside this window. `last_terminated_reason` persists for the life of the
-    # pod, so without this gate an OOMKill from an earlier incident is
-    # attributed to the current one — observed producing two fabricated
-    # MEMORY_HIGH issues during an unrelated exception scenario.
-    for container, count in restarted_in_window.items():
-        out['restarts'][container] = count
-        reason = reasons.get(container)
-        if reason:
-            out['terminated'].append({'container': container, 'reason': reason})
-    return out
+    """What Kubernetes did around the batch: restarts and their reason,
+    containers that cannot start, rollouts, scale changes, missing replicas.
+    See integrations.kubernetes_state. Never raises."""
+    from integrations.kubernetes_state import fetch_kubernetes_state
+    try:
+        return fetch_kubernetes_state(provider, labels, start_time, end_time)
+    except Exception as exc:                           # noqa: BLE001
+        logger.warning('kubernetes state fetch failed: %s', exc)
+        return {'terminated': [], 'restarts': {}}
 
 
 def calculate_memory_usage(metrics):

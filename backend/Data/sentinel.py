@@ -1,8 +1,8 @@
 """
 Sentinel — Tiered Intelligence Gate for batch analysis.
 
-Phase 1: Shadow mode — evaluates every batch but always allows AI to run.
-Logs decisions for observability without changing behavior.
+Active mode (the default): quiet windows skip the AI call. Shadow mode
+evaluates every batch and records the decision but always lets the AI run.
 """
 
 import hashlib
@@ -27,6 +27,27 @@ Z_SCORE_THRESHOLD = 3.0
 # Multiplier for error rate spike detection
 ERROR_SPIKE_MULTIPLIER = 2.0
 
+# Trace latency trigger (external review of v1.2.13: a dependency going from
+# 20 ms to 900 ms with no errors read as quiet until the forced review, up to
+# max_quiet_batches windows later). A service fires when its p95 — self time
+# when known, so the slow dependency fires rather than every caller waiting on
+# it — is at least LATENCY_SPIKE_RATIO times its p95 in the window before AND
+# at least LATENCY_SPIKE_MIN_DELTA_MS higher. The ratio alone would fire on
+# 2 ms -> 7 ms jitter; the floor alone would fire on a 4 s batch job that took
+# 4.3 s. Both windows need LATENCY_MIN_SPANS spans, because the p95 of a
+# handful of spans is one slow request, not a regression.
+LATENCY_SPIKE_RATIO = 3.0
+LATENCY_SPIKE_MIN_DELTA_MS = 200
+LATENCY_MIN_SPANS = 20
+
+# Trace error trigger: error spans can rise with no error log at all (a
+# client that swallows the exception, a gRPC status only the span records).
+# A service fires when at least TRACE_ERROR_MIN_SPANS of its spans failed,
+# they are at least TRACE_ERROR_MIN_RATE of its spans, and that rate is at
+# least ERROR_SPIKE_MULTIPLIER times the rate in the window before — so a
+# service that always fails 10% of its health checks stays quiet.
+TRACE_ERROR_MIN_SPANS = 5
+TRACE_ERROR_MIN_RATE = 0.05
 
 # A log pattern unseen for this long counts as new again, so an error that
 # went away and came back is analysed instead of being remembered forever.
@@ -51,8 +72,10 @@ def _get_sentinel_config(organisation):
         }
         return config.active_mode, thresholds
     except Exception:
-        # No config → shadow mode with defaults
-        return False, {
+        # No config row (the org never saved Settings → Sentinel) → active
+        # mode with defaults, matching the model default. Shadow mode here
+        # meant an AI call every window on a fresh install (review of v1.2.13).
+        return True, {
             'error_spike_multiplier': ERROR_SPIKE_MULTIPLIER,
             'z_score_threshold': Z_SCORE_THRESHOLD,
             'max_quiet_batches': 12,
@@ -172,6 +195,18 @@ def evaluate_batch(project, environment, batch_data, organisation, thresholds=No
         triggers.append('new_error_pattern')
     state.known_log_patterns = _remember_log_patterns(recent_patterns, log_fingerprints)
 
+    # 2b. Kubernetes failures: restarts, containers that cannot start,
+    # workloads short of replicas. A crash loop or an image that cannot be
+    # pulled may log nothing new at all, and used to read as a quiet batch.
+    lifecycle = (batch_data.get('metrics_summary') or {}).get('container_lifecycle') or {}
+    if lifecycle.get('restarts') or lifecycle.get('waiting') or lifecycle.get('unavailable'):
+        triggers.append('kubernetes_failure')
+
+    # 2c. Distributed traces: latency or error spikes per service against
+    # the window before. Read from the batch's trace snapshot, which the batch
+    # task takes before calling Sentinel.
+    triggers.extend(_trace_triggers(batch_data.get('traces')))
+
     # 3. Error rate spike
     current_errors = batch_stats['error_count']
     if state.baseline_error_rate > 0 and current_errors > error_spike_mult * state.baseline_error_rate:
@@ -210,6 +245,38 @@ def evaluate_batch(project, environment, batch_data, organisation, thresholds=No
 
     decision = 'alert' if triggers else 'quiet'
     return (decision, triggers)
+
+
+def _trace_triggers(traces):
+    """'trace_latency_spike' / 'trace_error_spike' from a trace snapshot.
+
+    ``traces`` is the summary built by ``ai_model.trace_context``: its
+    ``per_service`` rows carry this window's timings and a ``baseline`` of
+    the window before. A service with no baseline (new, or silent before)
+    never fires here — there is nothing to compare it with.
+    """
+    if not isinstance(traces, dict):
+        return []
+    latency = errors = False
+    for row in traces.get('per_service') or []:
+        before = row.get('baseline') if isinstance(row, dict) else None
+        if not isinstance(before, dict):
+            continue
+        spans, spans_before = row.get('spans') or 0, before.get('spans') or 0
+        if not latency and spans >= LATENCY_MIN_SPANS and spans_before >= LATENCY_MIN_SPANS:
+            # Self time when both windows have it; total p95 for snapshots
+            # taken before self time existed.
+            key = 'self_p95_ms' if 'self_p95_ms' in row and 'self_p95_ms' in before else 'p95_ms'
+            now, then = row.get(key) or 0, before.get(key) or 0
+            if now - then >= LATENCY_SPIKE_MIN_DELTA_MS and now >= LATENCY_SPIKE_RATIO * then:
+                latency = True
+        failed = row.get('errors') or 0
+        if not errors and spans and 'errors' in before and failed >= TRACE_ERROR_MIN_SPANS:
+            rate = failed / spans
+            rate_before = (before.get('errors') or 0) / spans_before if spans_before else 0
+            if rate >= TRACE_ERROR_MIN_RATE and rate >= ERROR_SPIKE_MULTIPLIER * rate_before:
+                errors = True
+    return (['trace_latency_spike'] if latency else []) + (['trace_error_spike'] if errors else [])
 
 
 def record_ai_analysis(project, environment):

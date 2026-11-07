@@ -72,7 +72,7 @@ export default function OnboardingResumeChip({ onResume }) {
                             size="small"
                             onClick={handleResume}
                             disabled={resuming}
-                            startIcon={resuming ? <CircularProgress size={14} /> : null}
+                            startIcon={resuming ? <CircularProgress aria-label="Loading" size={14} /> : null}
                             sx={{ fontWeight: 600 }}
                         >
                             Resume

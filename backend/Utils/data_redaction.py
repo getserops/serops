@@ -75,12 +75,18 @@ class DataRedactionService:
         # bare space only before a value with a digit (``password reset
         # failed`` is prose, not a password).
         'password': (
-            r'(?i)(?:password|passwd|pwd|secret|credential|pass)["\']?'
-            r'(?:\s*[:=]\s*["\']?[^\s"\'<>]{4,}|\s+(?=[^\s"\'<>]*\d)[^\s"\'<>]{8,})',
+            r'(?i)(?:password|passwd|pwd|secret|credential|pass'
+            # Non-English key words (external review, v1.2.13: ``mot de
+            # passe: hunter2`` went to the AI provider in clear text).
+            r'|mot\s+de\s+passe|mdp|passwort|kennwort|contrase(?:ñ|n)a|senha)\\?["\']?'
+            # ``\"`` (JSON inside JSON: Docker log lines), ``=>`` (Ruby,
+            # PHP) and ``%3D`` (URL-encoded) were let through (review
+            # 2026-11-05).
+            r'(?:\s*(?:=>|[:=]|%3[dD])\s*\\?["\']?[^\s"\'<>\\]{4,}|\s+(?=[^\s"\'<>]*\d)[^\s"\'<>]{8,})',
             SensitivityLevel.CRITICAL
         ),
         'api_key': (
-            r'(?i)(api[_-]?key|apikey|api_secret|access[_-]?key|secret[_-]?key)["\']?\s*[:=\s]\s*["\']?([a-zA-Z0-9_\-]{16,})',
+            r'(?i)(api[_-]?key|apikey|api_secret|access[_-]?key|secret[_-]?key)\\?["\']?\s*(?:=>|[:=\s]|%3[dD])\s*\\?["\']?([a-zA-Z0-9_\-]{16,})',
             SensitivityLevel.CRITICAL
         ),
         'aws_access_key': (
@@ -99,8 +105,14 @@ class DataRedactionService:
             r'(?i)bearer\s+([a-zA-Z0-9_\-.]{20,})',
             SensitivityLevel.CRITICAL
         ),
+        # The whole PEM block, header to footer. Matching only the BEGIN line
+        # masked the header and sent the key body to the AI provider intact
+        # (external review, v1.2.13). A block with no END line (a log line cut
+        # short) is redacted to the end of the text: better to lose the tail
+        # of a message than to leak half a key.
         'private_key': (
-            r'-----BEGIN\s+(RSA\s+|EC\s+|DSA\s+|OPENSSH\s+)?PRIVATE\s+KEY-----',
+            r'-----BEGIN\s+(?:[A-Z0-9]+\s+)*PRIVATE\s+KEY(?:\s+BLOCK)?-----'
+            r'[\s\S]*?(?:-----END\s+(?:[A-Z0-9]+\s+)*PRIVATE\s+KEY(?:\s+BLOCK)?-----|\Z)',
             SensitivityLevel.CRITICAL
         ),
         'ssh_key': (
@@ -119,13 +131,55 @@ class DataRedactionService:
             r'xox[baprs]-[0-9]{10,}-[a-zA-Z0-9]{10,}',
             SensitivityLevel.CRITICAL
         ),
+        # AI provider keys. ``sk-ant-…`` (Anthropic) and ``sk-…`` / ``sk-proj-…``
+        # (OpenAI and OpenAI-compatible) carry no key word in front of them,
+        # so nothing else caught them (external review, v1.2.13).
+        'ai_provider_key': (
+            r'(?<![A-Za-z0-9_\-])sk-(?:ant-|proj-|svcacct-|admin-)?[A-Za-z0-9_\-]{20,}',
+            SensitivityLevel.CRITICAL
+        ),
+        'google_api_key': (
+            r'AIza[0-9A-Za-z_\-]{35}',
+            SensitivityLevel.CRITICAL
+        ),
+        # ``docker login -p <secret>`` / ``--password <secret>``: the flag is
+        # not a key word the password pattern knows (external review, v1.2.13).
+        # Only the ``secret`` group is masked, so the AI still sees that a
+        # docker login ran. ``--password-stdin`` takes no value and is left.
+        'docker_login_password': (
+            r'(?i)\bdocker\s+login\b[^\n]*?\s(?:-p|--password)(?:\s+|=)'
+            r'["\']?(?P<secret>[^\s"\']+)',
+            SensitivityLevel.CRITICAL
+        ),
+        # ``Authorization: Basic <base64>`` and the other non-Bearer schemes.
+        # The base64 of ``user:password`` is the password (external review,
+        # v1.2.13). Bearer keeps its own pattern below.
+        'authorization_header': (
+            r'(?i)\b(?:proxy-)?authorization["\']?\s*[:=]\s*["\']?'
+            r'(?:basic|token|digest|apikey|api-key|key|negotiate|ntlm)\s+(?P<secret>[^\s"\',;]{4,})',
+            SensitivityLevel.CRITICAL
+        ),
+        # A bare ``Basic <base64>`` with no header name in front. Requires a
+        # digit, ``+``, ``/`` or ``=`` padding so prose such as ``Basic
+        # authentication failed`` is not blanked.
+        'basic_auth': (
+            r'\bBasic\s+(?P<secret>(?=[A-Za-z0-9+/]*[0-9+/=])[A-Za-z0-9+/]{12,}={0,2})',
+            SensitivityLevel.CRITICAL
+        ),
+        # ``scheme://user:password@host`` — git clone URLs with a token, HTTP
+        # proxies, registries. Database schemes are covered (whole URL) by
+        # ``connection_string``; this masks only the password part.
+        'url_credentials': (
+            r'(?i)\b[a-z][a-z0-9+.\-]*://[^\s/:@]+:(?P<secret>[^\s/@]+)@',
+            SensitivityLevel.CRITICAL
+        ),
         # ``token=value`` / ``secret: value``, or a key word followed by a
         # secret-shaped value (16+ characters with a digit). A bare space
         # used to be enough, so prose like ``token rejected`` or ``auth
         # service unavailable`` was blanked and the AI lost the error.
         'generic_secret': (
-            r'(?i)(?:secret|token|auth)(?:[_-]?(?:key|token))?["\']?'
-            r'(?:\s*[:=]\s*["\']?[a-zA-Z0-9_\-]{8,}|\s+(?=[a-zA-Z_\-]*\d)[a-zA-Z0-9_\-]{16,})',
+            r'(?i)(?:secret|token|auth)(?:[_-]?(?:key|token))?\\?["\']?'
+            r'(?:\s*(?:=>|[:=]|%3[dD])\s*\\?["\']?[a-zA-Z0-9_\-]{8,}|\s+(?=[a-zA-Z_\-]*\d)[a-zA-Z0-9_\-]{16,})',
             SensitivityLevel.CRITICAL
         ),
         
@@ -139,16 +193,30 @@ class DataRedactionService:
         # Not inside a longer run of letters and digits: ten digits in a
         # trace or span ID (41cce4155550123d0c…) are not a phone number, and
         # redacting them broke log-to-trace links (found by the journey suite).
+        # A bare run of digits is not a phone number or an SSN: byte counts
+        # (1073741824), Unix timestamps, counters, pipeline ids and diff
+        # hunk headers (@@ -54,11 +54,15 @@) were masked as [PHONE] /
+        # [SSN] once the whole prompt went through redaction (review fix,
+        # 2026-11), hiding the memory limit from an OOM analysis. A phone
+        # needs phone formatting or a label; an SSN its dashes or a label.
         'phone_us': (
-            r'(?<![0-9A-Za-z])(\+?1?[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?![0-9A-Za-z])',
+            r'(?<![0-9A-Za-z])(?:\+?1[-.\s]?)?(?:\(\d{3}\)\s?|\d{3}[-.\s])\d{3}[-.\s]\d{4}(?![0-9A-Za-z])',
             SensitivityLevel.HIGH
         ),
         'phone_international': (
-            r'(?<![0-9A-Za-z])\+[1-9]\d{1,14}(?![0-9A-Za-z])',
+            r'(?<![0-9A-Za-z+])\+[1-9]\d{0,3}(?:[-.\s]?\d){6,12}(?![0-9A-Za-z])',
+            SensitivityLevel.HIGH
+        ),
+        'phone_labeled': (
+            r'(?i)(?<![0-9A-Za-z_])(?:phone|tel|telephone|mobile|cell|msisdn)["\']?\s*[:=]\s*["\']?\+?\d[\d\s().-]{5,}\d',
             SensitivityLevel.HIGH
         ),
         'ssn': (
-            r'\b\d{3}[-]?\d{2}[-]?\d{4}\b',
+            r'(?<![0-9A-Za-z-])\d{3}-\d{2}-\d{4}(?![0-9A-Za-z-])',
+            SensitivityLevel.HIGH
+        ),
+        'ssn_labeled': (
+            r'(?i)(?<![0-9A-Za-z_])(?:ssn|social security(?: number)?)["\']?\s*[:=#]?\s*["\']?\d{9}(?!\d)',
             SensitivityLevel.HIGH
         ),
         'credit_card': (
@@ -168,7 +236,10 @@ class DataRedactionService:
             SensitivityLevel.MEDIUM
         ),
         'database_url': (
-            r'(?i)(database[_-]?url|db[_-]?url)["\']?\s*[:=\s]\s*["\']?([^\s"\'<>]+)',
+            # ``=`` or ``:`` only: with a space as separator, "DATABASE_URL is
+            # not set" became "[DATABASE_URL] not set". A URL after a space is
+            # still caught by connection_string.
+            r'(?i)(database[_-]?url|db[_-]?url)["\']?\s*[:=]\s*["\']?([^\s"\'<>]+)',
             SensitivityLevel.MEDIUM
         ),
         's3_bucket': (
@@ -177,6 +248,20 @@ class DataRedactionService:
         ),
         'private_ip': (
             r'\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b',
+            SensitivityLevel.MEDIUM
+        ),
+        # Public IPv4 addresses (external review, v1.2.13: only RFC 1918
+        # addresses were masked). Private ranges keep their own pattern above;
+        # loopback, 0.x, link-local (incl. the 169.254.169.254 metadata
+        # endpoint) and netmasks are not sensitive and are often the clue
+        # (``connection refused 127.0.0.1:5432``), so they are left alone.
+        # A dotted quad glued to letters or more dots (``v1.2.3.4``,
+        # ``1.2.3.4.5``) is a version, not an address.
+        'public_ip': (
+            r'(?<![\w.])'
+            r'(?!(?:0|10|127|255)\.)(?!169\.254\.)(?!192\.168\.)(?!172\.(?:1[6-9]|2\d|3[01])\.)'
+            r'(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)'
+            r'(?![\w])(?!\.\d)',
             SensitivityLevel.MEDIUM
         ),
         'env_variable': (
@@ -198,17 +283,26 @@ class DataRedactionService:
         'gitlab_token': 'glpat-[REDACTED]',
         'github_token': 'gh*_[REDACTED]',
         'slack_token': 'xox*-[REDACTED]',
+        'ai_provider_key': 'sk-[REDACTED]',
+        'google_api_key': 'AIza[REDACTED]',
+        'docker_login_password': '*****',
+        'authorization_header': '[REDACTED]',
+        'basic_auth': '[REDACTED]',
+        'url_credentials': '*****',
         'generic_secret': '[SECRET]',
         'email': '[EMAIL]',
         'phone_us': '[PHONE]',
         'phone_international': '[PHONE]',
+        'phone_labeled': '[PHONE]',
         'ssn': '[SSN]',
+        'ssn_labeled': '[SSN]',
         'credit_card': '[CREDIT_CARD]',
         'credit_card_formatted': '****-****-****-XXXX',
         'connection_string': '[CONNECTION_STRING]',
         'database_url': '[DATABASE_URL]',
         's3_bucket': 's3://[BUCKET]',
         'private_ip': '[PRIVATE_IP]',
+        'public_ip': '[PUBLIC_IP]',
         'env_variable': 'export [VAR]=*****',
     }
     
@@ -257,8 +351,15 @@ class DataRedactionService:
             
             try:
                 for match in re.finditer(regex, text):
-                    # Get context with sensitive part masked
-                    start, end = match.start(), match.end()
+                    # A pattern with a ``secret`` group masks only that group,
+                    # so the surrounding context (``docker login -u ci -p``)
+                    # still reaches the AI. Masking just the value also keeps
+                    # redaction idempotent: a second pass re-matches the mask
+                    # and replaces it with itself.
+                    if 'secret' in match.re.groupindex and match.group('secret') is not None:
+                        start, end = match.span('secret')
+                    else:
+                        start, end = match.start(), match.end()
                     context_start = max(0, start - 15)
                     context_end = min(len(text), end + 15)
                     
@@ -271,7 +372,7 @@ class DataRedactionService:
                     
                     finding = RedactedItem(
                         pattern_type=pattern_name,
-                        original_length=len(match.group()),
+                        original_length=end - start,
                         position=(start, end),
                         sensitivity=sensitivity,
                         context=context

@@ -4,7 +4,15 @@ description: "How SerOps masks secrets and personal data in logs before anything
 ---
 # Data Protection & PII Redaction
 
-SerOps implements comprehensive data protection to ensure no sensitive information is sent to AI models.
+SerOps masks credentials and personal data in everything it sends to an AI
+provider: batch analysis, AI chat, re-analysis and model comparison, CI/CD job
+errors, post-mortem drafts and the embeddings used for similar past incidents.
+Every AI call goes through one redaction step, and if that step fails nothing
+is sent. Masking is regex-based, so it reduces what reaches the AI provider but
+cannot guarantee that nothing sensitive gets through; see
+[Current limits](#current-limits).
+If nothing may leave your network, use a local model through
+[Ollama](../how-to/on-prem-ai-ollama.md).
 
 ## Overview
 
@@ -18,7 +26,23 @@ graph LR
     E --> F[AI Analysis]
 ```
 
-All data passes through the **DataRedactionService** before being sent to the configured AI model.
+Every prompt passes through the **DataRedactionService** before it is sent to the configured AI model.
+
+## Current limits
+
+Every AI call (batch analysis, chat, re-analysis and model comparison, CI/CD
+job errors, post-mortem drafts) is masked at the one place they all go
+through, the prompt and the system prompt alike. If masking raises an error,
+the call stops with `REDACTION_FAILED` and nothing is sent. Embeddings for
+similar past incidents fall back to a local hash instead of sending unmasked
+text.
+
+| Limit | What it means |
+|---|---|
+| **Pattern coverage** | Only the formats in the tables below are recognised. Other token formats (for example some cloud-provider or SaaS keys) pass through unless they match the generic secret patterns. |
+| **Unformatted numbers** | A phone number needs phone formatting (`+33 6 12 34 56 78`, `(555) 123-4567`) or a `phone=` / `tel:` label, and an SSN its dashes or an `ssn` label. Bare digit runs are left alone so byte counts, timestamps and ids stay readable for the analysis. |
+| **AI chat** | Your message is masked like everything else. The browser also warns before you send text that looks sensitive (see [AI Chat Protection](#ai-chat-protection)). |
+
 
 ---
 
@@ -73,32 +97,34 @@ For most teams the organisation boundary is the right unit — a whole SerOps or
 ### Credentials (Critical)
 | Pattern | Example | Masked As |
 |---------|---------|-----------|
-| API Keys | `sk-live-abc123...` | `[REDACTED: API_KEY]` |
-| AWS Keys | `AKIA...` | `[REDACTED: AWS_KEY]` |
-| Passwords | `password=secret123` | `[REDACTED: PASSWORD]` |
-| Private Keys | `-----BEGIN RSA...` | `[REDACTED: PRIVATE_KEY]` |
-| JWT Tokens | `eyJhbGciOi...` | `[REDACTED: JWT_TOKEN]` |
+| AI provider keys | `sk-ant-...`, `sk-proj-...`, `AIza...` | `sk-[REDACTED]`, `AIza[REDACTED]` |
+| API keys, generic secrets | `api_key=...`, `token=...` | `[API_KEY]`, `[SECRET]` |
+| AWS keys | `AKIA...` | `AKIA***`, `[AWS_SECRET]` |
+| GitLab, GitHub, Slack tokens | `glpat-...`, `ghp_...`, `xoxb-...` | `glpat-[REDACTED]`, `gh*_[REDACTED]`, `xox*-[REDACTED]` |
+| Passwords | `password=...`, `secret: ...`, `mot de passe: ...`, `docker login -p ...` | `*****` (for `docker login`, only the password) |
+| Authorization headers | `Bearer <token of 20+ characters>`, `Authorization: Basic ...` (and `Token`, `Digest`, ...) | `Bearer [REDACTED]`, `Authorization: Basic [REDACTED]` |
+| Private and SSH keys | `-----BEGIN RSA PRIVATE KEY-----` (the whole key body) | `[PRIVATE_KEY]`, `[SSH_KEY]` |
+| JWT tokens | `eyJhbGciOi...` | `[JWT_TOKEN]` |
 
 ### Personal Information (High)
 | Pattern | Example | Masked As |
 |---------|---------|-----------|
-| Emails | `user@company.com` | `[REDACTED: EMAIL]` |
-| Phone Numbers | `+1-555-123-4567` | `[REDACTED: PHONE]` |
-| Credit Cards | `4111-1111-1111-1111` | `[REDACTED: CREDIT_CARD]` |
-| SSN | `123-45-6789` | `[REDACTED: SSN]` |
+| Emails | `user@company.com` | `[EMAIL]` |
+| Phone numbers | `+1-555-123-4567`, `phone=0612345678` | `[PHONE]` |
+| Credit cards | `4111-1111-1111-1111` | `****-****-****-XXXX` |
+| SSN | `123-45-6789`, `ssn=123456789` | `[SSN]` |
 
 ### Infrastructure (Medium)
 | Pattern | Example | Masked As |
 |---------|---------|-----------|
-| IP Addresses | `192.168.1.100` | `[REDACTED: IP_ADDRESS]` |
-| Connection Strings | `postgresql://user:pass@host` | `[REDACTED: CONNECTION_STRING]` |
-| URLs with Auth | `https://user:pass@api.com` | `[REDACTED: AUTH_URL]` |
-
----
+| IP addresses | `192.168.1.100`, `203.0.113.7` | `[PRIVATE_IP]`, `[PUBLIC_IP]` (loopback, link-local and netmasks are kept) |
+| Connection strings | `postgresql://user:pass@host/db`, `DATABASE_URL=...` | `*****`, `[CONNECTION_STRING]`, `[DATABASE_URL]` |
+| Credentials in URLs | `https://user:pass@api.com` | `https://user:*****` (the host goes with the password) |
+| S3 buckets | `s3://my-bucket` | `s3://[BUCKET]` |
 
 ## Batch Log Redaction
 
-When batch analysis runs (every 10 minutes by default), logs are automatically scanned:
+When batch analysis runs (every 15 minutes by default), logs are automatically scanned:
 
 ```python
 # Automatic redaction before AI analysis
@@ -188,6 +214,9 @@ When users type messages in the AI Chat, real-time scanning warns about sensitiv
    - **Edit** the message to remove sensitive data
    - **Send Anyway** (consent tracked for audit)
    - **Cancel** the message
+
+If you send anyway, the server still masks what it recognises before the
+message reaches the AI provider; the warning lets you remove what it would not.
 
 ### Warning Modal
 

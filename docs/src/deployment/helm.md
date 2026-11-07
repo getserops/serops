@@ -30,7 +30,7 @@ at your own:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.2.13 \
+  --version 1.2.14 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set database.url="postgres://serops:PASSWORD@your-pg-host:5432/serops" \
@@ -45,7 +45,7 @@ For a lab or demo cluster, let the chart run Postgres and Redis itself:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.2.13 \
+  --version 1.2.14 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set devServices.postgresql.enabled=true \
@@ -87,10 +87,9 @@ replaces the entry and drops its paths, and the install fails.
 
     Add yours after install at **Settings → AI Providers**.
 
-    The chart's one AI-related value, `ai.embeddings.openaiApiKey`, is
-    optional and unrelated: it enables semantic issue similarity via
-    the OpenAI embeddings API. Without it SerOps falls back to
-    deterministic hash embeddings.
+    Similar-incident search uses the same per-organisation provider
+    for embeddings (OpenAI, Gemini or Ollama), and local lexical
+    similarity otherwise. There is no AI value in the chart.
 
 ### 2. From source (dev / lab / customisation)
 
@@ -160,14 +159,8 @@ broker:
 # AI PROVIDER KEYS ARE NOT SET HERE. Anthropic / Gemini / OpenAI / DeepSeek
 # keys are entered in the UI under Settings → AI Providers → API Keys, stored per
 # organisation and encrypted at rest. Nothing reads them from the environment,
-# so a Helm value or secret for them has no effect.
-#
-# The only AI key the chart takes is the optional OpenAI *embeddings* key, used
-# for "issues like this one" similarity — not for root-cause analysis. Without
-# it, similarity falls back to deterministic hash embeddings.
-ai:
-  embeddings:
-    existingSecret: serops-openai-embeddings   # secret key: openai-api-key
+# so a Helm value or secret for them has no effect — similar-incident
+# embeddings use the same per-organisation provider.
 
 django:
   existingSecret: serops-django   # key: django-secret-key
@@ -225,6 +218,32 @@ helm upgrade --install serops deploy/helm/serops \
   --values my-values.yaml
 ```
 
+## Multi-node clusters
+
+Tested in November 2026 on AKS with two nodes (2 vCPU and 16 GB each): the
+chart from GHCR, Postgres as a StatefulSet on an Azure disk, two replicas of
+the backend, frontend and worker, then one node drained while an incident was
+under way. Postgres came back on the other node with its data, SerOps kept
+serving from the remaining node, and the investigation still named the cause.
+
+- **Replicas are spread one per node by default** (a soft
+  `topologySpreadConstraints`; a single-node cluster still runs them all).
+  Set `<component>.spreadAcrossNodes: false` to turn it off, or give your own
+  `<component>.topologySpreadConstraints`. `nodeSelector`, `tolerations` and
+  `affinity` apply to every component.
+- **Keep room for losing a node.** The default CPU requests (backend 250m and
+  worker 500m per replica, plus your cluster's own system pods, about 1 vCPU
+  on AKS) do not fit on one 2-vCPU node: after a drain the pods wait for CPU.
+  Size the cluster so one node can carry the whole load, or lower the requests
+  to what SerOps actually uses (the test above used about 0.2 cores at rest).
+- **Use a real database.** `devServices` keeps data in an `emptyDir` and loses
+  it when the pod moves; run Postgres with a persistent volume or a managed
+  service and set `database.url`.
+- **AKS and ingress-nginx:** give the controller's Service the annotation
+  `service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path:
+  /healthz`, or Azure's load balancer marks every node unhealthy and the
+  ingress never answers.
+
 ## What gets deployed
 
 | Component | Replicas | Notes |
@@ -278,7 +297,6 @@ kubectl delete namespace serops
 
 Planned for a later release:
 
-* **Migration init container** — currently a one-off `kubectl exec`.
 * **HPA definitions** — bring your own targeting CPU 70% on backend + worker.
 * **NetworkPolicy** — bring your own; egress to AI providers + DB/Redis + ingress from cluster nginx.
 * **Multi-process Prometheus exposition** — today each gunicorn worker exposes its own registry; Prometheus aggregates naturally.

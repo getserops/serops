@@ -38,7 +38,8 @@ class BuildersTest(SimpleTestCase):
 
     def test_azure_and_gcp(self):
         self.assertIn('tostring(Properties["service.namespace"]) == "shop"', query().to_azure_kql())
-        self.assertIn('labels."kubernetes.namespace"="shop-prod"', query().to_gcp_filter())
+        self.assertIn('resource.labels.namespace_name="shop-prod"', query().to_gcp_filter())
+        self.assertIn('labels."service.namespace"="shop"', query().to_gcp_filter())
 
     def test_without_rules_nothing_changes(self):
         q = LogQuery(project='shop')

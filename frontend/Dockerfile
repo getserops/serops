@@ -27,8 +27,10 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Create .env file with the build argument
-RUN echo "VITE_BASE_URL=${VITE_BASE_URL}" > .env
+# The build argument reaches Vite as an environment variable, which
+# outranks every .env file: written to .env it lost to the committed
+# .env.production, so --build-arg VITE_BASE_URL was silently ignored.
+ENV VITE_BASE_URL=${VITE_BASE_URL}
 
 # Build the application
 # --max-old-space-size=1536 keeps Node heap within CI runner memory limits

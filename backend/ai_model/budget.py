@@ -48,6 +48,32 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
+# What every on-demand AI entry point answers once the budget is used up.
+OVER_BUDGET_CODE = 'over_budget'
+OVER_BUDGET_MESSAGE = (
+    'The monthly AI budget is used up. Raise it in Settings → AI, '
+    'or wait for the next month.'
+)
+
+
+def budget_allows(organisation) -> bool:
+    """Pre-flight for AI entry points that do not go through
+    ``generate_for_organisation`` (chat, re-analysis / compare).
+
+    Batch analysis is refused by ``generate_for_organisation``; chat and
+    re-analysis call ``generate_text_unified`` directly and used to skip the
+    monthly cap entirely (security review 2026-11, finding 4). Same rule as
+    ``BudgetTracker.enforce``, and fail-open like it when the tracker breaks.
+    """
+    if organisation is None:
+        return True
+    try:
+        return BudgetTracker.check_budget(organisation).ok
+    except Exception as exc:  # noqa: BLE001 — cost visibility must not block AI
+        logger.warning('budget_allows failed for org=%s: %s', getattr(organisation, 'id', '?'), exc)
+        return True
+
+
 class BudgetExceeded(Exception):
     """Raised by generate_for_organisation when the pre-flight refuses.
 

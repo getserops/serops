@@ -31,7 +31,9 @@ Security:
   ``otlp_ingest`` — sized for high-traffic K8s (a busy cluster emits
   hundreds of spans/sec, batched by the OTEL Collector so ~10-50 HTTP
   requests/sec normally).
-* Payload capped at 5 MB (Django ``DATA_UPLOAD_MAX_MEMORY_SIZE``).
+* Payload capped at ``DATA_UPLOAD_MAX_MEMORY_SIZE`` (10 MB) on the wire and
+  ``OTLP_MAX_DECOMPRESSED_BYTES`` (50 MB) once gzip/deflate is undone;
+  a larger body gets 413.
 * Span attributes / events passed through as-is to Postgres JSONB —
   never interpolated into SQL / shell / templates.
 * Resource attributes checked for ``service.name`` (canonical) and
@@ -39,12 +41,12 @@ Security:
   alias policy applies to traces too.
 """
 
-import gzip
 import json
 import logging
 import zlib
 from datetime import datetime, timezone
 
+from django.conf import settings
 from django.db import transaction
 from rest_framework import status
 from rest_framework.parsers import BaseParser, JSONParser
@@ -81,6 +83,43 @@ from .otlp_parsing import (
 
 logger = logging.getLogger(__name__)
 
+# Ceiling on a decompressed OTLP body. The wire size is capped by
+# DATA_UPLOAD_MAX_MEMORY_SIZE, but gzip compresses runs of zeros about
+# 1000:1, so a 10 MB body could inflate to gigabytes in the worker
+# (security review 2026-11, finding 5). Five times the wire cap leaves
+# room for real collector batches, which compress around 5-10:1.
+OTLP_MAX_DECOMPRESSED_BYTES = getattr(settings, 'OTLP_MAX_DECOMPRESSED_BYTES', 50 * 1024 * 1024)
+
+
+class DecompressedBodyTooLarge(Exception):
+    """The body inflates past OTLP_MAX_DECOMPRESSED_BYTES."""
+
+
+def _bounded_inflate(data, wbits, limit):
+    """Inflate ``data`` without ever holding more than ``limit`` + 1 bytes.
+
+    ``gzip.decompress`` / ``zlib.decompress`` inflate everything before
+    returning, so the size could only be checked once the memory was
+    already gone. Here each step asks for at most what is left of the
+    budget. gzip bodies may hold several members (``gzip.decompress``
+    accepts that too), so leftover input starts a new member.
+    """
+    out = bytearray()
+    while True:
+        inflater = zlib.decompressobj(wbits)
+        pending = data
+        while not inflater.eof:
+            chunk = inflater.decompress(pending, limit - len(out) + 1)
+            out += chunk
+            if len(out) > limit:
+                raise DecompressedBodyTooLarge()
+            pending = inflater.unconsumed_tail
+            if not chunk and not pending:
+                raise zlib.error('compressed data ended before the end-of-stream marker')
+        data = inflater.unused_data.lstrip(b'\x00') if wbits > zlib.MAX_WBITS else b''
+        if not data:
+            return bytes(out)
+
 
 class OTLPTracesReceiver(APIView):
     """Ingest OTLP/HTTP traces (JSON or protobuf body)."""
@@ -114,9 +153,18 @@ class OTLPTracesReceiver(APIView):
         # answered 400. Verified against a real collector — with gzip, 48
         # spans dropped; with `compression: none`, the same traffic ingested
         # fine. The default is what has to work.
-        raw_body, encoding_error = self._decompress(
-            request.body, request.headers.get('Content-Encoding'),
-        )
+        try:
+            raw_body, encoding_error = self._decompress(
+                request.body, request.headers.get('Content-Encoding'),
+            )
+        except DecompressedBodyTooLarge:
+            return Response(
+                {'error': (
+                    f'Decompressed body exceeds {OTLP_MAX_DECOMPRESSED_BYTES // (1024 * 1024)} MB. '
+                    f'Send smaller batches (OTEL Collector: lower send_batch_max_size).'
+                )},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
         if encoding_error:
             return Response(
                 {'error': encoding_error},
@@ -202,7 +250,8 @@ class OTLPTracesReceiver(APIView):
         """Undo Content-Encoding on the request body.
 
         Returns ``(bytes, None)`` on success or ``(None, message)`` when the
-        encoding is unsupported or the body is corrupt.
+        encoding is unsupported or the body is corrupt. Raises
+        ``DecompressedBodyTooLarge`` past ``OTLP_MAX_DECOMPRESSED_BYTES``.
 
         gzip is what matters in practice: it is the otlphttp exporter's
         default. deflate is in the OTLP spec and free to support from the
@@ -215,9 +264,11 @@ class OTLPTracesReceiver(APIView):
             return raw_bytes, None
         try:
             if encoding == 'gzip':
-                return gzip.decompress(raw_bytes), None
+                return _bounded_inflate(raw_bytes, 16 + zlib.MAX_WBITS, OTLP_MAX_DECOMPRESSED_BYTES), None
             if encoding == 'deflate':
-                return zlib.decompress(raw_bytes), None
+                return _bounded_inflate(raw_bytes, zlib.MAX_WBITS, OTLP_MAX_DECOMPRESSED_BYTES), None
+        except DecompressedBodyTooLarge:
+            raise
         except Exception as exc:
             logger.warning('OTLP %s decompression failed: %s', encoding, exc)
             return None, f'Body is not valid {encoding} data'
@@ -378,12 +429,16 @@ class OTLPTracesReceiver(APIView):
             duration_ms = int((stats['end_time'] - stats['start_time']).total_seconds() * 1000)
             status_code = 'ERROR' if stats['has_error'] else 'OK'
 
-            # Get-or-create per trace_id. On update, we ADD span counts (a trace
-            # may span multiple OTLP batches as it grows).
+            # Get-or-create per (organisation, trace_id). On update, we ADD span
+            # counts (a trace may span multiple OTLP batches as it grows).
+            # The organisation is part of the lookup, not a default: trace ids
+            # come from the sender, so another tenant can send one we already
+            # hold, and it must get its own trace (security review 2026-11,
+            # finding 1).
             trace, created = Trace.objects.get_or_create(
+                organisation=org,
                 trace_id=trace_id,
                 defaults={
-                    'organisation': org,
                     'start_time': stats['start_time'],
                     'end_time': stats['end_time'],
                     'duration_ms': duration_ms,

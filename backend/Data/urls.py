@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import BatchAnalysisHistoryView, BatchIssuesView, BatchPostmortemView, BatchPromoteAnalysisView, BatchReanalyzeView, BatchTimelineView, DeleteOldBatchesView, FluentdLogView, HostDiscoveryView, MetricCorrelationView, IssueListView, IssueActionsView, IssueBulkActionsView, LogBatchView, NodeMemoryRawView, BatchDetailView ,RecommendationStatsView,IssueStatsView, NodeCPURawView, SimilarIssuesView, SystemHealthView, ServiceReliabilityView, TrendAnalysisView
+from .views import BatchAnalysisHistoryView, BatchIssuesView, BatchPostmortemView, BatchPromoteAnalysisView, BatchReanalyzeView, BatchTimelineView, DeleteOldBatchesView, HostDiscoveryView, MetricCorrelationView, IssueListView, IssueActionsView, IssueBulkActionsView, LogBatchView, NodeMemoryRawView, BatchDetailView ,RecommendationStatsView,IssueStatsView, NodeCPURawView, SimilarIssuesView, SystemHealthView, ServiceReliabilityView, TrendAnalysisView
 from .investigation_views import InvestigationDetailView, InvestigationListView, InvestigationOptionsView
 from .dashboard_views import MTTRView, ServiceHealthView as ServiceHealthMapView, RootCauseStatsView, RecentDeploymentsView, CorrelationInsightsView, RecentAnalysisFeedView, SentinelStatsView
 from .settings_views import SecuritySettingsView, AuditLogView, AuditLogExportView, DataUsageView, RetentionPolicyView  # Enterprise features
@@ -7,7 +7,6 @@ from .settings_views import SecuritySettingsView, AuditLogView, AuditLogExportVi
 urlpatterns = [
     path('hosts/', HostDiscoveryView.as_view(), name='host-discovery'),
     path('batches/<str:batch_id>/correlations/', MetricCorrelationView.as_view(), name='metric-correlation'),
-    path('logs', FluentdLogView.as_view(), name='fluentd-logs'),
     path('batches',LogBatchView.as_view(),name="Batches"),
     path('metrics', NodeMemoryRawView.as_view(), name='node-memory-swap'),
     # IMPORTANT: Specific routes must come BEFORE the catch-all <str:batch_id> route

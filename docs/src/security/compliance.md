@@ -120,7 +120,7 @@ SerOps helps with GDPR compliance:
 1. **Data Minimization** — Only necessary log data is stored
 2. **Right to Erasure** — Both per-account and per-batch deletion are supported (see below)
 3. **Audit Trail** — All access and modifications are logged
-4. **Data Protection** — PII is automatically redacted before AI processing
+4. **Data Protection** — PII in batch analysis context is masked before AI processing (see [Current limits](data-protection.md#current-limits))
 
 ### Right to Erasure — Delete Your Account
 

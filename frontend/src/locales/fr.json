@@ -425,6 +425,10 @@
       "analysedAgo": "analysé {{when}}",
       "quietTitle": "Pas d’analyse IA : le signal était calme",
       "quietBody": "Sentinel a ignoré l’analyse IA de ce lot car rien ne se démarquait.",
+      "clearTitle": "Aucun problème trouvé",
+      "clearBody": "L’IA a analysé cette période et n’a trouvé aucun problème.",
+      "pendingTitle": "Pas encore analysé",
+      "pendingBody": "L’IA n’a pas encore analysé cette période.",
       "rootCause": "Cause racine",
       "confidence": "Confiance",
       "evidence": "Comment l’IA y est arrivée",
@@ -1396,6 +1400,14 @@
     "terminationsTitle": "Arrêts de conteneurs",
     "terminationsHint": "Signalé par le kubelet, pas par votre application. Un conteneur tué pour cause de mémoire n'écrit aucune ligne de log : c'est le seul endroit où cela apparaît.",
     "restartsTitle": "Redémarrages sur cette fenêtre",
+    "replicasAvailable": "{{available}} réplique(s) disponible(s) sur {{desired}}",
+    "replicasRecovered": "{{available}} réplique(s) sur {{desired}} au pire, {{now}} maintenant (rétabli)",
+    "cpuThrottled": "CPU bridé {{percent}} % du temps (limite CPU atteinte)",
+    "rolloutStuck": "déploiement bloqué : {{notReady}} nouveau(x) pod(s) pas prêt(s), l’ancienne version sert encore {{available}} sur {{desired}}",
+    "changesTitle": "Changements Kubernetes",
+    "changesHint": "Déploiements et changements d’échelle sur cette fenêtre et les 30 minutes précédentes, d’après kube-state-metrics.",
+    "changeRollout": "déploiement",
+    "changeScaled": "mise à l’échelle",
     "anomaliesTitle": "Anomalies persistantes",
     "noAnomalies": "Aucune anomalie persistante dans cette fenêtre.",
     "anomalyPeak": "pic",
@@ -1677,5 +1689,10 @@
       "use": "Utiliser pour ce projet",
       "added": "Les logs où {{field}} = {{value}} appartiennent maintenant à ce projet."
     }
+  },
+  "notFound": {
+    "title": "Page introuvable",
+    "body": "Cette adresse ne correspond à aucune page SerOps.",
+    "back": "Retour à la vue d’ensemble"
   }
 }

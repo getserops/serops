@@ -127,3 +127,40 @@ securityContext:
   capabilities:
     drop: ["ALL"]
 {{- end -}}
+
+{{/*
+Scheduling for a component's pods: nodeSelector, tolerations, affinity and
+topologySpreadConstraints from its values. A replicated component (spread:
+true) gets a soft one-per-node spread unless it sets its own constraints:
+two replicas on the same node were lost together when that node went down
+(found on a 2-node AKS cluster). Soft (ScheduleAnyway) so a single-node
+cluster still schedules them. Call with (dict "root" $ "values" .Values.x
+"component" "x" "spread" true).
+*/}}
+{{- define "serops.scheduling" -}}
+{{- $v := .values -}}
+{{- with $v.nodeSelector }}
+nodeSelector:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with $v.tolerations }}
+tolerations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with $v.affinity }}
+affinity:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- if $v.topologySpreadConstraints }}
+topologySpreadConstraints:
+  {{- toYaml $v.topologySpreadConstraints | nindent 2 }}
+{{- else if and .spread (ne (toString $v.spreadAcrossNodes) "false") }}
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        {{- include "serops.selectorLabels" (dict "Chart" .root.Chart "Release" .root.Release "Values" .root.Values "component" .component) | nindent 8 }}
+{{- end }}
+{{- end }}

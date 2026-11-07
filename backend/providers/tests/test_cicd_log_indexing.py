@@ -11,6 +11,9 @@ from unittest.mock import patch, MagicMock
 from django.test import SimpleTestCase
 
 
+_BINDING_CTX = {'organisation': MagicMock(slug='acme', id=7), 'project': None, 'service_name': 'api'}
+
+
 class TestStoreCicdLogsGeneric(SimpleTestCase):
     """Test store_cicd_logs_generic() pipeline-level doc behavior."""
 
@@ -32,6 +35,7 @@ class TestStoreCicdLogsGeneric(SimpleTestCase):
             'environment': 'production',
             'commit_shas': ['abc123'],
             'jobs': [],
+            '_binding_context': _BINDING_CTX,
         }
 
         store_cicd_logs_generic('github_actions', normalized)
@@ -65,6 +69,7 @@ class TestStoreCicdLogsGeneric(SimpleTestCase):
                 {'id': '2', 'name': 'test', 'stage': 'test', 'status': 'failed', 'duration': 15},
                 {'id': '3', 'name': 'lint', 'stage': 'test', 'status': 'success', 'duration': 5},
             ],
+            '_binding_context': _BINDING_CTX,
         }
 
         store_cicd_logs_generic('gitlab', normalized)
@@ -125,6 +130,7 @@ class TestStoreCicdLogsGeneric(SimpleTestCase):
             'environment': 'staging',
             'commit_shas': [],
             'jobs': [],
+            '_binding_context': _BINDING_CTX,
         }
 
         store_cicd_logs_generic('jenkins', normalized)
@@ -134,3 +140,19 @@ class TestStoreCicdLogsGeneric(SimpleTestCase):
         self.assertEqual(len(docs), 1)
         self.assertEqual(docs[0]['job']['name'], 'pipeline')
         self.assertEqual(docs[0]['job']['status'], 'canceled')
+
+    @patch('providers.utils._resolve_log_provider')
+    @patch('providers.utils.GitlabProject')
+    def test_events_without_a_binding_organisation_are_not_indexed(self, mock_gp_cls, mock_resolve_log):
+        """Security review 2026-11, finding 2: the organisation used to be
+        guessed from the payload's project id across all organisations."""
+        from providers.utils import store_cicd_logs_generic
+
+        mock_gp_cls.objects.filter.return_value.first.return_value = MagicMock()
+        store_cicd_logs_generic('gitlab', {
+            'project_id': '42', 'pipeline_id': '100', 'status': 'failed',
+            'branch': 'main', 'environment': 'production', 'commit_shas': [], 'jobs': [],
+        })
+
+        mock_resolve_log.assert_not_called()
+        mock_gp_cls.objects.filter.assert_not_called()

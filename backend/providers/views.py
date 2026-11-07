@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import GitlabProject, Pipeline, Job, Deployment, ProviderIntegration
 from .serializer import ProjectSerializer, PipelineSerializer, JobSerializer
-from Utils.url_validator import validate_internal_url_no_metadata
+from Utils.url_validator import validate_outbound_url
 from .utils import gitlab_retrieve_job_logs, gitlab_update_pipeline_status, extract_gitlab_info, trigger_pipeline_run, cancel_pipeline_run, get_gitlab_api_base
 import json
 from django.http import Http404, JsonResponse
@@ -127,7 +127,7 @@ class ProjectList(APIView):
         org = request.user.organisation
         if gitlab_url:
             try:
-                validate_internal_url_no_metadata(gitlab_url)
+                validate_outbound_url(gitlab_url)
             except ValueError as e:
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
             gitlab_base = get_gitlab_api_base(url_hint=gitlab_url)
@@ -583,7 +583,7 @@ class DeleteGitLabWebhookView(APIView):
             if webhook["url"].endswith("api/gitlab/webhook/"):
                 response = requests.delete(
                     f"{gitlab_base}/api/v4/projects/{project_id}/hooks/{webhook['id']}",
-                    headers={"PRIVATE-TOKEN": access_token}
+                    headers={"PRIVATE-TOKEN": access_token}, timeout=30, allow_redirects=False,
                 )
                 if response.status_code == 204:
                     deleted_webhooks.append(webhook["url"])
@@ -682,7 +682,7 @@ class VerifyGitLabProjectView(APIView):
         gitlab_url = request.data.get('gitlab_url')
         if gitlab_url:
             try:
-                validate_internal_url_no_metadata(gitlab_url)
+                validate_outbound_url(gitlab_url)
             except ValueError as e:
                 return Response({'exists': False, 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
             gitlab_base = get_gitlab_api_base(url_hint=gitlab_url)
@@ -1332,13 +1332,43 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
             extra = {}
             if serializer.validated_data.get('provider_type') in ProviderIntegration.GITOPS_PROVIDERS:
                 extra = {'category': 'gitops', 'verification_status': 'verified'}
-            serializer.save(
+            integration = serializer.save(
                 organisation=self.request.user.organisation,
                 created_by=self.request.user,
                 **extra,
             )
+            if not extra:
+                # Verified now, as the Verify action would: the dialog's Test
+                # connection runs before the integration exists, so a new
+                # one stayed unverified and its repositories could not be
+                # listed (Connect repository and the Add Service wizard).
+                try:
+                    self._provider_for(integration).verify_connection()
+                    integration.mark_verified(success=True)
+                except Exception as e:                 # noqa: BLE001
+                    integration.mark_verified(success=False, error=str(e))
         else:
             raise serializers.ValidationError("User must belong to an organisation")
+
+    @staticmethod
+    def _provider_for(integration):
+        """The SCM or CI/CD provider client for an integration."""
+        from .scm_providers import get_provider, get_cicd_provider, CICD_PROVIDERS
+        if integration.provider_type in CICD_PROVIDERS:
+            creds = integration.get_credentials()
+            return get_cicd_provider(
+                provider_name=integration.provider_type,
+                base_url=integration.base_url or '',
+                username=creds.get('username', ''),
+                api_token=integration.get_access_token(),
+            )
+        return get_provider(
+            provider_name=integration.provider_type,
+            project_id='',
+            access_token=integration.get_access_token(),
+            base_url=integration.base_url,
+            organization=integration.provider_organization(),
+        )
 
     # ── verify ───────────────────────────────────────────────────
 
@@ -1376,29 +1406,9 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
             })
 
         try:
-            from .scm_providers import (
-                get_provider, get_cicd_provider,
-                SCMProviderError, CICD_PROVIDERS,
-            )
+            from .scm_providers import SCMProviderError
 
-            if integration.provider_type in CICD_PROVIDERS:
-                creds = integration.get_credentials()
-                provider = get_cicd_provider(
-                    provider_name=integration.provider_type,
-                    base_url=integration.base_url or '',
-                    username=creds.get('username', ''),
-                    api_token=integration.get_access_token(),
-                )
-            else:
-                provider = get_provider(
-                    provider_name=integration.provider_type,
-                    project_id='',
-                    access_token=integration.get_access_token(),
-                    base_url=integration.base_url,
-                    organization=integration.provider_organization(),
-                )
-
-            result = provider.verify_connection()
+            result = self._provider_for(integration).verify_connection()
             integration.mark_verified(success=True)
             return Response({
                 'success': True,
@@ -1452,7 +1462,7 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
             )
         if base_url:
             try:
-                validate_internal_url_no_metadata(base_url)
+                validate_outbound_url(base_url)
             except ValueError as e:
                 return Response({'success': False, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

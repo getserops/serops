@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.throttling import ScopedRateThrottle
+from Organisations.models import Organisations
 from django.conf import settings
 from .models import User, SecuritySettings
 from .services.sso import SSOService
@@ -106,11 +107,28 @@ class SSOConfigView(APIView):
         sec_settings.sso_provider = provider or sec_settings.sso_provider
         if sec_settings.sso_provider == 'oidc':
             sec_settings.sso_client_id = data.get('sso_client_id', sec_settings.sso_client_id)
-            sec_settings.sso_discovery_url = data.get('sso_discovery_url', sec_settings.sso_discovery_url)
+            discovery_url = data.get('sso_discovery_url', sec_settings.sso_discovery_url)
+            if discovery_url and discovery_url != sec_settings.sso_discovery_url:
+                # Fetched by the server on every SSO sign-in; it was saved
+                # with no check at all (security review 2026-11, finding 3).
+                from Utils.url_validator import validate_outbound_url
+                try:
+                    validate_outbound_url(discovery_url)
+                except ValueError as exc:
+                    return Response({"error": f"sso_discovery_url: {exc}"}, status=400)
+            sec_settings.sso_discovery_url = discovery_url
             if 'sso_domains' in data:
                 domains = normalise_domains(data['sso_domains'])
                 if domains is None:
                     return Response({"error": "sso_domains must be email domains, like example.com"}, status=400)
+                # A domain sends every stranger of it to this organisation's
+                # identity provider. On an install with several organisations
+                # one admin could claim another company's domain, so only the
+                # operator sets them there (review 2026-11-05).
+                if (domains != (sec_settings.sso_domains or [])
+                        and Organisations.objects.count() > 1 and not request.user.is_staff):
+                    return Response({"error": "On an install with several organisations, the operator sets the SSO email domains."},
+                                    status=403)
                 sec_settings.sso_domains = domains
             # Only update secret if provided
             if data.get('sso_client_secret'):
@@ -209,7 +227,11 @@ class SSOCallbackView(APIView):
             return failed
 
         user = User.objects.filter(email__iexact=email).first()
-        if user is None and sec_settings.sso_domains and _domain(email) not in sec_settings.sso_domains:
+        # A new account only for an email of a listed domain. With no domain
+        # listed, the identity provider could create an account for any
+        # address, someone else's company included (review 2026-11-05);
+        # invited and existing members still sign in.
+        if user is None and _domain(email) not in (sec_settings.sso_domains or []):
             logger.warning("SSO callback: %s is outside org %s's SSO domains", _domain(email), org_id)
             return failed
         if user is None:

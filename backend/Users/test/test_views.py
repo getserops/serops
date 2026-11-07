@@ -291,7 +291,8 @@ class TestEmailVerification(APITestCase):
         )
 
     def test_verify_valid_token(self):
-        token = signing.dumps(self.user.pk)
+        from Utils.email_utils import ACTIVATION_SALT
+        token = signing.dumps(self.user.pk, salt=ACTIVATION_SALT)
         url = reverse('activate', kwargs={'token': token})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -310,9 +311,10 @@ class TestEmailVerification(APITestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_verify_already_active(self):
+        from Utils.email_utils import ACTIVATION_SALT
         self.user.is_active = True
         self.user.save()
-        token = signing.dumps(self.user.pk)
+        token = signing.dumps(self.user.pk, salt=ACTIVATION_SALT)
         url = reverse('activate', kwargs={'token': token})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)

@@ -50,6 +50,15 @@ _EXEMPT_WRITE_PATH_PREFIXES = (
 )
 
 
+def is_demo_write(user, request) -> bool:
+    """An unsafe request by a demo user, outside the exempt paths."""
+    return (
+        bool(getattr(user, 'is_demo', False))
+        and request.method not in _SAFE_METHODS
+        and not any(request.path.startswith(p) for p in _EXEMPT_WRITE_PATH_PREFIXES)
+    )
+
+
 class DemoUserMiddleware:
     """Reject unsafe requests from demo users with HTTP 403."""
 
@@ -99,8 +108,11 @@ class DemoUserMiddleware:
         ):
             return True
 
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Token '):
+        # Any header at all goes to Knox, which matches its prefix without
+        # regard to case: pre-filtering on 'Token ' let 'token <value>' through
+        # unchecked while Knox still authenticated it (external review,
+        # 2026-11). Knox returns None for a header that is not its own.
+        if not request.META.get('HTTP_AUTHORIZATION', ''):
             return False
 
         # Lazy import — knox isn't needed if the header isn't there.

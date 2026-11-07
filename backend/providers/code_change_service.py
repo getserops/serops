@@ -33,7 +33,9 @@ class CodeChangeService:
         provider: str,
         project_id: str,
         commit_data: Dict[str, Any],
-        gitlab_project: Optional[GitlabProject] = None
+        gitlab_project: Optional[GitlabProject] = None,
+        organisation=None,
+        default_branch: str = 'unknown',
     ) -> Optional[CodeChange]:
         """
         Save a single commit from webhook data.
@@ -76,20 +78,35 @@ class CodeChangeService:
             
             # Use update_or_create to handle duplicate commits gracefully
             # Get organisation from gitlab_project for multi-tenancy isolation
-            organisation = gitlab_project.organisation if gitlab_project else None
+            # A repository linked to a service (SCMBinding) gives its
+            # organisation; without it the change was invisible to every
+            # organisation-scoped analysis.
+            if organisation is None and gitlab_project:
+                organisation = gitlab_project.organisation
+            if organisation is None:
+                # Fail closed: a commit nobody owns is invisible to every
+                # organisation-scoped analysis, and an organisation-less key
+                # is what let one tenant's push overwrite another's commit
+                # (security review 2026-11, finding 2).
+                logger.warning(f"Commit {str(commit_data.get('sha', ''))[:8]} for project {project_id} has no organisation, not saved")
+                return None
             
+            # The organisation is part of the key, not a default: the same
+            # repository id may belong to several organisations.
             code_change, created = CodeChange.objects.update_or_create(
+                organisation=organisation,
                 provider=provider,
                 project_id=str(project_id),
                 commit_sha=commit_data.get('sha'),
                 defaults={
-                    'organisation': organisation,  # Multi-tenancy isolation
                     'gitlab_project': gitlab_project,
                     'commit_message': commit_data.get('message', '')[:2000],  # Limit message length
                     'author_name': commit_data.get('author_name', 'Unknown'),
                     'author_email': commit_data.get('author_email'),
                     'timestamp': timestamp or timezone.now(),
-                    'branch': commit_data.get('branch', 'unknown'),
+                    # GitHub's commits API names no branch (branch: None),
+                    # and the column is required: every commit was rejected.
+                    'branch': commit_data.get('branch') or default_branch,
                     'files_changed': files_changed,
                     'diff_summary': diff_summary,
                 }
@@ -108,7 +125,9 @@ class CodeChangeService:
         provider: str,
         project_id: str,
         commits: List[Dict[str, Any]],
-        gitlab_project: Optional[GitlabProject] = None
+        gitlab_project: Optional[GitlabProject] = None,
+        organisation=None,
+        default_branch: str = 'unknown',
     ) -> List[CodeChange]:
         """
         Save multiple commits from webhook payload.
@@ -128,7 +147,9 @@ class CodeChangeService:
                 provider=provider,
                 project_id=project_id,
                 commit_data=commit_data,
-                gitlab_project=gitlab_project
+                gitlab_project=gitlab_project,
+                organisation=organisation,
+                default_branch=default_branch,
             )
             if code_change:
                 saved.append(code_change)
@@ -261,14 +282,24 @@ class CodeChangeService:
         )
     
     @staticmethod
-    def prepare_changes_for_ai(changes: List[CodeChange]) -> List[Dict[str, Any]]:
+    def prepare_changes_for_ai(changes: List[CodeChange], environment: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Prepare code changes for AI analysis prompt.
         
         Args:
             changes: List of CodeChange instances
+            environment: The batch's environment. Changes coming from
+                ``DeploymentService.get_deployments_for_batch`` carry
+                ``deployed_at_in_env``; it is passed on so the
+                correlator times the incident against the deploy.
             
         Returns:
             List of compact summaries suitable for AI consumption
         """
-        return [change.get_summary_for_ai() for change in changes]
+        return [
+            change.get_summary_for_ai(
+                deployed_at=getattr(change, 'deployed_at_in_env', None),
+                environment=environment,
+            )
+            for change in changes
+        ]

@@ -124,6 +124,7 @@ class GitHubActionsWebhookHandler(BaseCICDWebhookHandler):
             job_name=workflow_name,
             explicit_env=explicit_env,
             project_id=repo_full_name or str(repo_id),
+            organisation=self._binding_organisation(),
         )
         
         # Normalize status

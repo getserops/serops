@@ -16,6 +16,12 @@ from unittest.mock import MagicMock, Mock, patch
 from django.test import SimpleTestCase
 
 
+def _binding(pipeline_id=''):
+    binding = Mock(pk=1, pipeline_id=pipeline_id)
+    binding.project_service.project.organisation = Mock(id=7)
+    return binding
+
+
 def _make_request(payload):
     """Create a mock request with the given payload as JSON body."""
     request = Mock()
@@ -80,6 +86,7 @@ class TestParsePipelineEvent(SimpleTestCase):
         self.assertIn('metadata', result)
         mock_detect_env.assert_called_once_with(
             branch='main', job_name='deploy-job', project_id='999',
+            organisation=None,
         )
 
 
@@ -101,6 +108,7 @@ class TestPushEvent(SimpleTestCase):
                 {'id': 'sha2', 'message': 'second commit'},
             ],
         }
+        handler.binding = _binding('42')
 
         response = handler._handle_push_event(payload)
 
@@ -108,6 +116,7 @@ class TestPushEvent(SimpleTestCase):
             project_id='42',
             commits_data=payload['commits'],
             branch='main',
+            organisation_id=7,
         )
         self.assertIn('Processing 2 commits', response.data['message'])
         self.assertEqual(response.data['project_id'], 42)
@@ -140,8 +149,10 @@ class TestBuildEvent(SimpleTestCase):
     def test_retrieves_logs(self, mock_gp_objects, mock_task):
         from providers.gitlab_webhook import GitLabCICDWebhookHandler
 
-        mock_gp_objects.filter.return_value.first.return_value = None
+        mock_gp_objects.filter.return_value.first.return_value = Mock(
+            organisation_id=7, gitlab_url='https://gitlab.example.com')
         handler = GitLabCICDWebhookHandler()
+        handler.binding = _binding('42')
 
         payload = {
             'object_kind': 'build',
@@ -159,6 +170,7 @@ class TestBuildEvent(SimpleTestCase):
 
         mock_task.delay.assert_called_once_with(
             '42', '999', 'main', 101, 'test-job', 'failed', 30.5, 'dev',
+            organisation_id=7,
         )
         self.assertEqual(response.data['message'], 'Logs retrieval initiated for job.')
 
@@ -277,6 +289,7 @@ class TestUnhandledEvent(SimpleTestCase):
         from providers.gitlab_webhook import GitLabCICDWebhookHandler
 
         handler = GitLabCICDWebhookHandler()
+        handler._resolve_binding = Mock(return_value=_binding())
         handler.validate_request = Mock(return_value=True)
         request = _make_request({'object_kind': 'note'})
 
@@ -289,6 +302,7 @@ class TestUnhandledEvent(SimpleTestCase):
         from providers.gitlab_webhook import GitLabCICDWebhookHandler
 
         handler = GitLabCICDWebhookHandler()
+        handler._resolve_binding = Mock(return_value=_binding('1'))
         handler.validate_request = Mock(return_value=True)
         handler._handle_push_event = Mock(return_value=Mock(data={'message': 'ok'}))
 
@@ -302,3 +316,40 @@ class TestUnhandledEvent(SimpleTestCase):
         handler.post(request)
 
         handler._handle_push_event.assert_called_once()
+
+
+class TestPayloadMustMatchBinding(SimpleTestCase):
+    """Security review 2026-11, finding 2: a binding's token only covers its
+    own GitLab project."""
+
+    def _post(self, payload, binding):
+        from providers.gitlab_webhook import GitLabCICDWebhookHandler
+        handler = GitLabCICDWebhookHandler()
+        handler._resolve_binding = Mock(return_value=binding)
+        handler.validate_request = Mock(return_value=True)
+        handler._handle_push_event = Mock(return_value=Mock(data={'message': 'ok'}))
+        return handler, handler.post(_make_request(payload))
+
+    def test_a_payload_naming_another_project_is_rejected(self):
+        handler, response = self._post(
+            {'object_kind': 'push', 'project': {'id': 200}, 'commits': [{}]}, _binding('100'))
+        self.assertEqual(response.status_code, 403)
+        handler._handle_push_event.assert_not_called()
+
+    def test_a_job_event_naming_another_project_is_rejected(self):
+        _, response = self._post(
+            {'object_kind': 'build', 'project_id': 200, 'build_status': 'failed'}, _binding('100'))
+        self.assertEqual(response.status_code, 403)
+
+    def test_a_binding_recorded_by_path_accepts_its_project(self):
+        handler, response = self._post(
+            {'object_kind': 'push', 'project': {'id': 5, 'path_with_namespace': 'Acme/Shop'}},
+            _binding('acme/shop'))
+        handler._handle_push_event.assert_called_once()
+
+    def test_a_request_without_a_binding_is_rejected(self):
+        from providers.gitlab_webhook import GitLabCICDWebhookHandler
+        handler = GitLabCICDWebhookHandler()
+        handler._resolve_binding = Mock(return_value=None)
+        response = handler.post(_make_request({'object_kind': 'push'}))
+        self.assertEqual(response.status_code, 403)

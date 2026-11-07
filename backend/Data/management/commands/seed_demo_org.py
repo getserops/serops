@@ -684,7 +684,7 @@ def _analysis_text(scene: 'Scene') -> str:
 
 
 def _demo_trace_id(scene_index: int, kind: str) -> str:
-    # Trace.trace_id is the table's primary key, so every batch needs its own.
+    # (organisation, trace_id) is unique, so every batch needs its own.
     return hashlib.sha256(f'demo-trace-{scene_index}-{kind}'.encode()).hexdigest()[:32]
 
 
@@ -1480,8 +1480,9 @@ class Command(BaseCommand):
     def _upsert_sentinel_config(self, org: Organisations) -> None:
         """Active mode, so the skipped batches match Settings → Sentinel.
 
-        In shadow mode (the default) Sentinel never skips the AI, which
-        contradicted the "Skipped" batches the story arc shows.
+        Active mode is also the default now; this keeps the demo right even if
+        a reseed meets a row someone switched to shadow mode, where Sentinel
+        never skips the AI and contradicts the "Skipped" batches of the story.
         """
         SentinelConfig.objects.update_or_create(
             organisation=org, defaults={'active_mode': True},

@@ -94,6 +94,22 @@ class CheckMyDataTest(TestCase):
         self.assertEqual(report['diagnosis']['code'], 'no_log_location')
         self.assertEqual(report['stages'], [])
 
+    def test_a_label_store_without_a_location_still_shows_how_logs_are_tagged(self):
+        # Loki: nothing carries project_name=<this project> yet, so it finds
+        # no stream for it, but it can still sample every stream. The person
+        # is told their logs say "shop", not to set an index pattern.
+        self.project.es_index_name = ''
+        self.project.save()
+        store = FakeStore([entry(project='shop')] * 2, locations=())
+        store.NEEDS_LOG_LOCATION = False
+        report = self.check(store)
+        self.assertEqual(report['diagnosis']['code'], 'project_not_tagged')
+        self.assertEqual(report['seen']['project'][0]['value'], 'shop')
+
+    def test_the_loki_adapter_needs_no_location(self):
+        from integrations.adapters.loki import LokiLogProvider
+        self.assertFalse(LokiLogProvider.NEEDS_LOG_LOCATION)
+
     def test_the_store_refuses_the_query(self):
         report = self.check(FakeStore([], error='index_not_found_exception'))
         self.assertEqual(report['diagnosis']['code'], 'search_failed')

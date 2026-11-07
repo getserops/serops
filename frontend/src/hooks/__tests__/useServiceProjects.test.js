@@ -217,8 +217,8 @@ describe('useServiceProjects', () => {
 
     describe('Pagination', () => {
         it('should paginate services correctly', async () => {
-            // Mock 10 services for pagination test
-            const manyServices = Array.from({ length: 10 }, (_, i) => ({
+            // 12 services, ten a page: two pages
+            const manyServices = Array.from({ length: 12 }, (_, i) => ({
                 id: i + 1,
                 name: `Service ${i + 1}`,
                 status: 'Active',
@@ -229,13 +229,24 @@ describe('useServiceProjects', () => {
 
             await waitFor(() => expect(result.current.loading).toBe(false));
 
-            // Default page size is 5, so should have 2 pages
             expect(result.current.totalPages).toBe(2);
-            expect(result.current.services).toHaveLength(5); // First page
+            expect(result.current.services).toHaveLength(10); // First page
+            expect(result.current.totalServices).toBe(12);
+        });
+
+        it('shows the page a new service lands on', async () => {
+            const manyServices = Array.from({ length: 10 }, (_, i) => ({ id: i + 1, name: `Service ${i + 1}`, status: 'Active' }));
+            ProjectService.GetProjectServices.mockResolvedValue(manyServices);
+            const { result } = renderHook(() => useServiceProjects(mockProjectId));
+            await waitFor(() => expect(result.current.loading).toBe(false));
+            ProjectService.GetProjectServices.mockResolvedValue([...manyServices, { id: 11, name: 'new', status: 'Active' }]);
+            await act(async () => { await result.current.handleServiceCreated(); });
+            expect(result.current.currentPage).toBe(2);
+            expect(result.current.services.map((s) => s.name)).toEqual(['new']);
         });
 
         it('should change page correctly', async () => {
-            const manyServices = Array.from({ length: 10 }, (_, i) => ({
+            const manyServices = Array.from({ length: 12 }, (_, i) => ({
                 id: i + 1,
                 name: `Service ${i + 1}`,
                 status: 'Active',

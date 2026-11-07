@@ -44,6 +44,9 @@ data:
   {{- end }}
   API_URL: {{ printf "%s/api" (trimSuffix "/" $publicUrl) | quote }}
   REACT_URL: {{ trimSuffix "/" $publicUrl | quote }}
+  # Behind TLS: Secure cookies and HSTS. No redirect from Django: the ingress
+  # does it, and the probes reach the pods over plain HTTP.
+  SEROPS_HTTPS: {{ ternary "True" "False" (hasPrefix "https://" $publicUrl) | quote }}
   {{- with .Values.smtp.host }}
   EMAIL_HOST: {{ . | quote }}
   {{- end }}

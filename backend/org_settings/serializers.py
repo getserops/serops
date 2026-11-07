@@ -153,6 +153,20 @@ class APIKeyCreateUpdateSerializer(serializers.Serializer):
     api_key = serializers.CharField(max_length=500, required=False, allow_blank=True)
     base_url = serializers.URLField(required=False, allow_blank=True, allow_null=True)
 
+    def validate_base_url(self, value):
+        """The AI provider is called at this URL with the organisation's key.
+
+        It was saved with only a URL format check, so it could point at a
+        cloud metadata endpoint (security review 2026-11, finding 3).
+        """
+        if value:
+            from Utils.url_validator import validate_outbound_url
+            try:
+                validate_outbound_url(value)
+            except ValueError as exc:
+                raise serializers.ValidationError(str(exc))
+        return value
+
 
 class WebhookTestSerializer(serializers.Serializer):
     """Serializer for webhook test requests.

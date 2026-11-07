@@ -148,14 +148,36 @@ const AISettings = () => {
         }
     };
 
-    const handleProviderChange = (field, value) => {
-        setSettings(prev => ({ ...prev, [field]: value ? parseInt(value) : null }));
+    // Choosing the primary model saves it at once: it used to wait for the
+    // Save button at the bottom of the page, and leaving without it kept
+    // the old model with nothing said.
+    // Only the fields this page edits: the settings loaded with the page
+    // also carry the monthly budget, and sending them back erased a budget
+    // saved a moment before in the budget card (the spending cap silently
+    // gone).
+    const providerFields = (s) => ({
+        default_provider: s.default_provider,
+        fallback_provider: s.fallback_provider,
+        use_custom_keys: s.use_custom_keys,
+    });
+
+    const handleProviderChange = async (field, value) => {
+        const previous = settings;
+        const next = { ...settings, [field]: value ? parseInt(value) : null };
+        setSettings(next);
+        try {
+            await SettingsService.updateAISettings(providerFields(next));
+            toast.success(t('ai.saveSuccess'));
+        } catch (error) {
+            setSettings(previous);
+            toast.error(error.response?.data?.error || t('ai.saveFailed'));
+        }
     };
 
     const handleSave = async () => {
         try {
             setSaving(true);
-            await SettingsService.updateAISettings(settings);
+            await SettingsService.updateAISettings(providerFields(settings));
             toast.success(t('ai.saveSuccess'));
         } catch (error) {
             toast.error(error.response?.data?.error || t('ai.saveFailed'));

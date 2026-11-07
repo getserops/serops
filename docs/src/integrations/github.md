@@ -8,41 +8,71 @@ Connect GitHub repositories to SerOps for code change tracking and CI/CD monitor
 
 ## Prerequisites
 
-- GitHub repository access
-- Personal Access Token with `repo` scope
-- (Optional) Admin access for webhook configuration
+- Access to the repositories you want SerOps to read
+- A fine-grained personal access token, read-only (see below)
+- (Optional) Admin access to the repository, to set up a webhook
+
+---
+
+## Create the token
+
+Use a **fine-grained** token limited to the repositories SerOps needs. A classic
+token with the `repo` scope can read and write every private repository of the
+account; SerOps never writes to GitHub.
+
+1. In GitHub: **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**
+2. **Repository access**: *Only select repositories*, and pick yours
+3. **Repository permissions**, all **Read-only**:
+   - Contents (commits and diffs)
+   - Pull requests
+   - Actions (workflow runs)
+   - Deployments
+   - Metadata is added by GitHub
+4. Only if you want SerOps to register the webhook for you: Webhooks, **Read and write**
 
 ---
 
 ## Setup
 
-Configuration is managed in **Integrations**.
+1. In SerOps: **Settings → Integrations → Source Control**
+2. Click **Add Integration** and select **GitHub**
+3. Enter:
+   - **Integration Name**: e.g. "My GitHub"
+   - **GitHub URL**: leave blank for github.com, or enter your GitHub Enterprise URL
+   - **Personal Access Token**: the token from above
+4. Click **Test Connection**, then **Create Integration**
 
-1. In GitHub: **Settings → Developer settings → Personal access tokens → Tokens (classic)**
-2. Generate token with scopes:
-   - `repo` - Full repository access
-   - `workflow` - (Optional) For GitHub Actions
-3. In SerOps: **Integrations**
-4. Click **+ Add Integration** and select **GitHub**
-5. Enter:
-   - **Name**: Identifier (e.g. "My GitHub")
-   - **GitHub URL**: Leave blank for github.com, or enter GitHub Enterprise URL
-   - **Access Token**: Your PAT
-6. Click **Test Connection** to verify
-7. Click **Save**
+### Connect a repository to a service
 
-Once added, you can select this integration when creating services via the **Add Service Wizard**.
+Pick the repository when you create a service in the **Add Service Wizard**, or
+later for an existing service: **Projects → Services → View Details → Connect
+repository**, choose the integration and the repository, then **Connect**.
+
+### Add the GitHub Actions pipeline
+
+In the same service details, click **Add Pipeline**, choose the GitHub
+integration and the type (e.g. *Deploy*), and enter the repository as the
+pipeline ID: `owner/repo`. SerOps follows the workflow runs of that repository.
 
 ---
 
 ## What Gets Synced
 
-| Data | Description | Method |
-|------|-------------|--------|
-| **Commits** | Recent commits with diffs | Webhook + API |
-| **Pull Requests** | PR details and status | Webhook |
-| **Pipelines** | GitHub Actions workflows | Webhook |
-| **Deployments** | Deployment events | Webhook |
+| Data | Description | Without a webhook | With a webhook |
+|------|-------------|-------------------|----------------|
+| **Commits** | Message, author, diff | **Sync** button in the service details, and the deploy commits found by polling | On every push |
+| **Pull Requests** | PR details and status | — | On every PR event |
+| **Pipelines** | GitHub Actions workflow runs | Polled every 10 minutes | On every run |
+| **Deployments** | Successful deploy runs, with their commit | Polled every 10 minutes | On every run |
+
+### Without a webhook
+
+A webhook needs GitHub to reach your SerOps over the internet. When it cannot
+(SerOps behind a firewall, or on a laptop), SerOps still works: it polls the
+GitHub Actions runs of each pipeline, records each successful deploy with its
+commit, and the **Sync** button in the service details fetches the recent
+commits. An investigation then shows the commit behind an outage on the
+analysis page, in the **Code changes** tab. Pull requests need the webhook.
 
 ---
 
@@ -87,7 +117,8 @@ For GitHub Enterprise Server:
 
 | Issue | Solution |
 |-------|----------|
-| "Bad credentials" | Token expired or invalid scope |
+| "Bad credentials" | Token expired, or not allowed on this repository |
+| Repository missing from the list | Add it to the token's *Repository access* |
 | "Not found" | Check repository name format (`owner/repo`) |
 | "Rate limit exceeded" | Wait 1 hour or use organisation token |
 | "SSL certificate verify failed" | Add enterprise CA cert to trust store |

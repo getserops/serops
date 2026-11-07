@@ -3,6 +3,8 @@ Webhook utilities for Slack and MS Teams notifications.
 """
 
 import requests
+
+from Utils.url_validator import validate_public_url
 import logging
 from django.conf import settings
 
@@ -23,12 +25,21 @@ def send_slack_webhook(webhook_url, message_data):
     if not webhook_url:
         return False, "Webhook URL not configured"
     
+    # Checked at send time and no redirects followed: the serializer
+    # checked the URL, not wherever a redirect points (security review
+    # 2026-11, finding 3). Same as notifications.senders.
+    try:
+        validate_public_url(webhook_url)
+    except ValueError as exc:
+        return False, f"Slack webhook refused: {exc}"
+
     try:
         response = requests.post(
             webhook_url,
             json=message_data,
             headers={'Content-Type': 'application/json'},
-            timeout=10
+            timeout=10,
+            allow_redirects=False,
         )
         
         if response.status_code == 200:
@@ -63,12 +74,21 @@ def send_teams_webhook(webhook_url, message_data):
     if not webhook_url:
         return False, "Webhook URL not configured"
     
+    # Checked at send time and no redirects followed: the serializer
+    # checked the URL, not wherever a redirect points (security review
+    # 2026-11, finding 3). Same as notifications.senders.
+    try:
+        validate_public_url(webhook_url)
+    except ValueError as exc:
+        return False, f"Teams webhook refused: {exc}"
+
     try:
         response = requests.post(
             webhook_url,
             json=message_data,
             headers={'Content-Type': 'application/json'},
-            timeout=10
+            timeout=10,
+            allow_redirects=False,
         )
         
         # Teams returns "1" on success

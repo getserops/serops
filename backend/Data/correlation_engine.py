@@ -180,6 +180,49 @@ def _cap(items, limit: int, kind: str) -> List:
     return items[:limit]
 
 
+def _effective_change_time(change: Dict):
+    """When a code change could first affect the batch's environment.
+
+    Returns ``(time, basis)`` with basis ``'deploy'`` when the change
+    carries ``deployed_at`` (the first deploy to this environment) and
+    ``'commit'`` when only the commit ``timestamp`` is known; ``(None,
+    None)`` when neither parses.
+
+    Review v1.2.13: the commits were selected by deployment but scored
+    against the commit time, so a stack-trace match was HIGH 30 min
+    after the commit and nothing at 5 h, even when the 5 h-old commit
+    went live 10 min before the error. Running code is what fails, so
+    the deploy is the moment that counts; the commit time is only the
+    fallback when no deployment was recorded. A change deployed AFTER
+    the error yields a negative lag and is dropped by the confidence
+    helper, as a commit made after the error always was.
+    """
+    deployed = _parse_iso(change.get('deployed_at'))
+    if deployed is not None:
+        return deployed, 'deploy'
+    committed = _parse_iso(change.get('timestamp'))
+    if committed is not None:
+        return committed, 'commit'
+    return None, None
+
+
+def _timing_fields(change: Dict, ref_time: datetime, effective: datetime, basis: str) -> Dict:
+    """Timing details shared by the commit-timed correlations: the
+    commit lag is kept as secondary information next to the deploy."""
+    fields = {'time_basis': basis}
+    if basis == 'deploy':
+        fields['deployed_at'] = change.get('deployed_at')
+        fields['deployed_to'] = change.get('deployed_to')
+        fields['time_since_deploy_minutes'] = round((ref_time - effective).total_seconds() / 60, 1)
+    committed = _parse_iso(change.get('timestamp'))
+    if committed is not None:
+        try:
+            fields['time_since_commit_minutes'] = round((ref_time - committed).total_seconds() / 60, 1)
+        except TypeError:
+            pass
+    return fields
+
+
 def correlate_logs_with_code_changes(logs: List[Dict], code_changes: List[Dict]) -> List[Dict]:
     """
     Find explicit connections between error logs and code changes.
@@ -263,10 +306,14 @@ def correlate_logs_with_code_changes(logs: List[Dict], code_changes: List[Dict])
             # for the threshold rationale. Drop the correlation on either
             # a parse failure or an out-of-window gap: we don't want to
             # emit a low-signal LOW when the timestamps are unusable.
+            # The lag is measured from when the change reached this
+            # environment (see _effective_change_time).
+            change_time, basis = _effective_change_time(change)
+            if change_time is None:
+                continue
             try:
-                commit_time = datetime.fromisoformat(change['timestamp'].replace('Z', '+00:00'))
-                time_diff_seconds = (log_time - commit_time).total_seconds()
-            except Exception:
+                time_diff_seconds = (log_time - change_time).total_seconds()
+            except TypeError:
                 continue
             outcome = confidence_from_time_proximity(time_diff_seconds)
             if outcome is None:
@@ -280,7 +327,7 @@ def correlate_logs_with_code_changes(logs: List[Dict], code_changes: List[Dict])
                 'commit_sha': change.get('sha', 'unknown')[:8],
                 'commit_message': change.get('message', '')[:100],
                 'matching_files': matching_files,
-                'time_since_commit_minutes': round(time_diff_seconds / 60, 1),
+                **_timing_fields(change, log_time, change_time, basis),
                 'confidence': confidence,
                 'score': score
             })
@@ -333,8 +380,12 @@ def correlate_metrics_with_code_changes(metrics_summary: Dict, code_changes: Lis
         # Find commits deployed shortly before the anomaly
         for change in code_changes:
             try:
-                commit_time = datetime.fromisoformat(change['timestamp'].replace('Z', '+00:00'))
-                time_diff = anomaly_time - commit_time
+                # Deploy → anomaly lag, from the deploy to this
+                # environment when known (see _effective_change_time).
+                change_time, basis = _effective_change_time(change)
+                if change_time is None:
+                    continue
+                time_diff = anomaly_time - change_time
                 time_diff_minutes = time_diff.total_seconds() / 60
                 
                 # Deploy → resource anomaly — see correlation_confidence
@@ -353,6 +404,9 @@ def correlate_metrics_with_code_changes(metrics_summary: Dict, code_changes: Lis
                     'commit_sha': change.get('sha', 'unknown')[:8],
                     'commit_message': change.get('message', '')[:100],
                     'time_after_deploy_minutes': round(time_diff_minutes, 1),
+                    'time_basis': basis,
+                    'deployed_at': change.get('deployed_at') if basis == 'deploy' else None,
+                    'deployed_to': change.get('deployed_to') if basis == 'deploy' else None,
                     'confidence': confidence,
                     'score': score,
                     'files_changed': [_file_path(f) for f in (change.get('files') or [])[:5]],
@@ -502,6 +556,9 @@ def correlate_cicd_with_code_changes(cicd_logs: List[Dict], code_changes: List[D
             except (ValueError, TypeError):
                 continue
 
+            # Commit time, not deploy time, on purpose: CI builds the
+            # commit before any deploy, so a failed job is timed against
+            # the push (unlike the runtime correlations above).
             # Commit must be before the CI/CD job — the confidence
             # helper handles the negative-lag case (returns None) so the
             # ordering guard is implicit.

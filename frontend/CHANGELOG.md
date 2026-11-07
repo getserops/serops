@@ -10,6 +10,44 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.2.14] - 2026-11-07
+
+### Security
+
+- Content-Security-Policy: script only from SerOps itself. The login token is in the browser's storage, so a script injected through any future rendering bug could have taken over the account; it is now blocked. The unused inline script in `index.html` is gone and collapsible sections no longer use an inline `onclick`. The UI quality gate fails on any page the policy blocks something on.
+- Fonts (Inter, IBM Plex Mono) ship with the app instead of loading from Google Fonts: every visitor's browser contacted Google, air-gapped installs fell back to system fonts, and the Content-Security-Policy blocks it.
+- nginx no longer sends its version (`server_tokens off`).
+- The image build honours `--build-arg VITE_BASE_URL` (the committed `.env.production` silently won), and a developer's local `.env*.local` or `node_modules` no longer reach the image (`.dockerignore`).
+
+### Added
+
+- Analysis page, Metrics: Kubernetes changes (rollouts with their image change, scale changes), containers that cannot start and Deployments short of replicas, next to the container terminations.
+- Analysis page, Metrics: services throttled by their CPU limit.
+- Analysis page, Metrics: rollouts that are not completing while the previous version still serves.
+- Analyses list: labels for the Sentinel triggers `trace_latency_spike` and `trace_error_spike`.
+
+### Changed
+
+- Settings → Sentinel shows active mode as the default while it loads.
+
+### Fixed
+
+- Onboarding, Google Cloud: the wizard asks for the project ID, the service-account key and whether the services run on GKE, and no longer shows the host, username and API key fields Google does not use. It saved Google integrations without a project, so they never worked.
+- Loading spinners have an accessible name ("Loading", or "Setup progress" for the onboarding ring): screen readers announced an unnamed progress bar (axe `aria-progressbar-name`).
+- A failed analysis's tooltip names the new provider errors: no credit left, overloaded, server error, redaction failed.
+
+- Analysis page, Metrics: a stuck rollout says how many new pods are not ready instead of "1 of 1 updated".
+- Analysis page, Metrics: a workload back to full strength says it has recovered.
+- An analysis where the AI ran and found nothing said "Sentinel skipped AI analysis" next to the model name and token count. The page now says which it was: skipped by Sentinel (no model or tokens shown), analysed with nothing wrong found, or not analysed yet.
+- Phones: buttons in stacked table cards keep their size (Projects' Services and Batches were squeezed, their words broken letter by letter); the AI Chat no longer pushes the top bar off the screen or cuts its placeholder; the Traces list shows 20 traces a page (50 cards made a page about 13,000 px long); the issue menu and audit-log toggles are 32 px tap targets.
+- AI settings: saving the primary model sent back the monthly budget loaded with the page and erased a budget saved a moment before (the spending cap silently gone). It now sends only the model fields.
+- Analysis page on phones: the title (the whole first issue sentence) is at most four lines; log messages use the card's full width (a stack trace was squeezed into a narrow column, ~2000 px a line).
+- Choosing the primary AI model saves it at once: it waited for the Save button at the bottom of the page, and leaving without it kept the old model with nothing said.
+- Project services list: the count read "1 - 5 of 10" for six services (and "6 - 2 of 2" on page 2); it shows ten a page and opens the page of a service just created, which used to land on a later page with nothing visible changing.
+- An address that matches no page shows "Page not found" instead of an empty area; `/dash/` with a trailing slash is the Overview.
+- The AI Chat no longer labels its greeting "gemini" before the organisation's models load.
+- AI Chat: the sensitive-data warning said a message is sent "without modifications"; secrets in it are now masked by the backend before it reaches the AI provider, and the warning says so.
+
 ## [1.2.13] - 2026-11-01
 
 ### Changed

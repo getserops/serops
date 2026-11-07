@@ -161,7 +161,7 @@ Once data starts flowing:
 | Symptom | Likely Cause | Resolution |
 |---------|-------------|------------|
 | No batches appear | Service name mismatch | Ensure the `service_name` in your logs matches the registered service name exactly |
-| No deployments shown | Token scope insufficient | Verify the access token has `api` scope (GitLab) or `repo` scope (GitHub) |
+| No deployments shown | Token scope insufficient | Verify the access token has `api` scope (GitLab), or Actions and Deployments read access (GitHub fine-grained token) |
 | Webhook not firing | URL unreachable | Ensure your SerOps instance is accessible from the SCM provider's network |
 | "Unknown" status | Database naming | Check the [Troubleshooting](../troubleshooting.md) page for database table name issues |
 

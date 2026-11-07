@@ -1,0 +1,9 @@
+# Kept out of the build context: a developer's local env files (Vite reads
+# .env*.local first and would bake their VITE_* values into the image), and
+# host build output that would overwrite the image's own npm ci and build.
+node_modules
+dist
+.env*.local
+coverage
+playwright-report*
+test-results

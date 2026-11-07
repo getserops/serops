@@ -11,6 +11,11 @@
   .detail-tabs { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; }
   .detail-tabs > * { flex: 0 0 auto; white-space: nowrap; }
   .detail-logs-table td { padding: 2px 0 !important; }
+  /* The message runs the card's full width under its label: beside it, a
+     stack trace was squeezed into a narrow right-aligned column, ~2000 px
+     per log line. */
+  .detail-logs-table td.detail-log-message { display: block; text-align: left !important; }
+  .detail-logs-table td.detail-log-message::before { display: block; max-width: none; margin-bottom: 2px; }
 }
 
 /* Incident actions under the hypothesis. */
@@ -77,4 +82,17 @@
   color: var(--text-tertiary);
   font-weight: 600;
   border-color: var(--border-default);
+}
+
+/* Phones: the title is the whole first issue sentence (repeated in full
+   under Root cause); at 24 px it filled the first screen, 7 lines on an
+   iPhone. Smaller and at most four lines there. */
+@media (max-width: 767px) {
+  .incident-page .page-header-title {
+    font-size: 19px;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 }

@@ -96,3 +96,9 @@ LOGGING = {
         'level': 'WARNING',
     },
 }
+
+# Similar-incident embeddings call the org's AI provider over HTTP when one
+# is configured. Many tests configure an org provider with a fake key; let
+# them embed locally (lexical mode) instead of trying the real endpoint.
+# Tests of the provider path re-enable this and mock the HTTP client.
+SEROPS_EMBEDDINGS_VIA_PROVIDER = False

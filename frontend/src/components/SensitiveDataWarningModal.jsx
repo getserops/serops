@@ -58,6 +58,12 @@ const SensitiveDataWarningModal = ({
             gitlab_token: 'GitLab Token',
             github_token: 'GitHub Token',
             slack_token: 'Slack Token',
+            ai_provider_key: 'AI Provider Key',
+            google_api_key: 'Google API Key',
+            docker_login_password: 'Docker Login Password',
+            authorization_header: 'Authorization Header',
+            basic_auth: 'Basic Auth Credentials',
+            url_credentials: 'Password in URL',
             generic_secret: 'Secret/Token',
             email: 'Email Address',
             phone_us: 'Phone Number',
@@ -69,6 +75,7 @@ const SensitiveDataWarningModal = ({
             database_url: 'Database URL',
             s3_bucket: 'S3 Bucket',
             private_ip: 'Internal IP',
+            public_ip: 'Public IP',
             env_variable: 'Environment Variable',
         };
         return labels[type] || type;
@@ -97,7 +104,7 @@ const SensitiveDataWarningModal = ({
                 <Alert variant="warning" className="mb-3">
                     <strong>Your message contains potentially sensitive information.</strong>
                     <br />
-                    <small>This data will be sent to an external AI service if you proceed.</small>
+                    <small>SerOps masks the values it detects before the message reaches the external AI service, but it may not catch everything.</small>
                 </Alert>
 
                 {(criticalCount > 0 || highCount > 0) && (
@@ -148,8 +155,9 @@ const SensitiveDataWarningModal = ({
                     <small>
                         <FaShieldAlt className="me-1" />
                         <strong>What happens if I send anyway?</strong><br />
-                        The message will be sent to the AI service <u>without modifications</u>.
-                        The AI may see passwords, tokens, or personal data.
+                        The values listed above are masked before the message is sent,
+                        so the AI sees placeholders such as [REDACTED] instead.
+                        Anything SerOps did not detect is sent as written.
                     </small>
                 </Alert>
             </Modal.Body>

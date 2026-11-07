@@ -158,6 +158,7 @@ class TestCreateDeploymentsFromPipelineAgnostic(SimpleTestCase):
         )
 
         MockCodeChange.objects.filter.assert_called_with(
+            organisation=pipeline.organisation,
             commit_sha='abc123',
             project_id='owner/repo',
         )

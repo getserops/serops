@@ -25,18 +25,17 @@ from django.core import checks
 
 # Variables that nothing in the codebase reads. Setting one has no effect
 # whatsoever, which is precisely why it needs saying out loud.
+# OPENAI_API_KEY joined the list when issue-similarity embeddings moved to the
+# organisation's own provider (external review, v1.2.13) — it used to be read
+# by Data/embeddings.py, contradicting the "no env keys" promise.
 UNUSED_PROVIDER_ENV_VARS = (
     'ANTHROPIC_API_KEY',
     'CLAUDE_API_KEY',
     'GOOGLE_API_KEY',
     'GEMINI_API_KEY',
     'DEEPSEEK_API_KEY',
+    'OPENAI_API_KEY',
 )
-
-# Read, but only by Data/embeddings.py for issue-similarity embeddings — never
-# for root-cause analysis. Worth distinguishing: warning about it would be
-# wrong, and saying nothing leaves someone who set it for RCA none the wiser.
-EMBEDDINGS_ONLY_ENV_VAR = 'OPENAI_API_KEY'
 
 # Phrased as a clause so it reads correctly whether it opens a sentence or
 # continues one.
@@ -68,16 +67,5 @@ def ai_provider_env_keys_unused(app_configs, **kwargs):
                 ),
                 id='ai.W001',
             ))
-
-    if os.environ.get(EMBEDDINGS_ONLY_ENV_VAR):
-        found.append(checks.Info(
-            f'{EMBEDDINGS_ONLY_ENV_VAR} is set and will be used for issue '
-            f'similarity embeddings only.',
-            hint=(
-                'This key does not drive root-cause analysis. If you set it '
-                f'expecting SerOps to analyse with OpenAI, {_WHERE_KEYS_GO}.'
-            ),
-            id='ai.I001',
-        ))
 
     return found

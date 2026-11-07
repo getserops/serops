@@ -56,8 +56,12 @@ The AI has access to:
 
 ## Sensitive Data Protection
 
-!!! warning "Real-Time Scanning"
-    All messages are scanned for sensitive data before sending to AI.
+!!! warning "A warning, not masking"
+    Your message is scanned in the browser before it is sent. If it looks
+    sensitive you get a warning; if you choose **Send anyway**, the message
+    goes to the AI provider as typed. Chat does not yet mask the log lines
+    it pulls from the batch either (see
+    [Current limits](../security/data-protection.md#current-limits)).
 
 ### How It Works
 

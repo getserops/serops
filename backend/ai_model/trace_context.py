@@ -28,7 +28,9 @@ enrichment, never a hard dependency for RCA.
 """
 
 import logging
+from collections import defaultdict
 from datetime import timedelta
+from types import SimpleNamespace
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,8 @@ logger = logging.getLogger(__name__)
 _TOP_SLOW = 5
 _TOP_ERRORS = 5
 _MAX_TRACES_PER_SERVICE = 20    # bounded external-provider fetch
+_PER_SERVICE = 8                # services listed with their own timings
+_MAX_TIMING_SPANS = 20000       # spans read to compute them
 
 
 def build_trace_context(batch):
@@ -162,10 +166,12 @@ def count_spans_in_window(project, start, end):
             from django.db.models import Exists, OuterRef, Q
             trace_qs = trace_qs.filter(Q(root_service_name__in=service_names) | Exists(
                 Span.objects.filter(trace=OuterRef('pk'), service_name__in=service_names)))
-        trace_ids = list(trace_qs.values_list('trace_id', flat=True)[:500])
-        if not trace_ids:
+        # Primary keys, not OTEL trace ids: a trace id is unique only within
+        # an organisation (security review 2026-11, finding 1).
+        trace_pks = list(trace_qs.values_list('pk', flat=True)[:500])
+        if not trace_pks:
             return 0
-        return Span.objects.filter(trace_id__in=trace_ids).count()
+        return Span.objects.filter(trace__in=trace_pks).count()
     except Exception as exc:                                    # noqa: BLE001
         logger.warning('count_spans_in_window failed: %s', exc)
         return 0
@@ -215,12 +221,55 @@ def _read_snapshot(batch):
     return snapshot
 
 
+def native_trace_summary(project, data, window_end):
+    """Redacted trace summary from the native OTLP store, before a batch exists.
+
+    Sentinel decides whether a window is worth an analysis BEFORE the batch
+    row is written (the pre-creation gate), so it never saw the trace
+    snapshot: a dependency going from 20 ms to 900 ms with no errors read as
+    a quiet window until the forced review hours later (external review of
+    v1.2.13). The batch task calls this first, hands the result to Sentinel
+    inside the batch data, and keeps it as the batch's snapshot — one query
+    either way.
+
+    Native store only: a gate runs on every scheduled tick and must not make
+    a network call to an external trace provider each time. When the native
+    store has nothing, this returns ``None`` and the post-creation snapshot
+    still tries the external provider. Never raises.
+    """
+    if project is None or window_end is None:
+        return None
+    try:
+        window = _window(SimpleNamespace(timestamp=window_end, project=project, data=data))
+        if window is None:
+            return None
+        summary = _from_native(*window)
+        if not summary or not summary.get('span_count'):
+            return None
+        from Utils.redaction_helpers import redact_span_summary
+        return redact_span_summary(summary)
+    except Exception as exc:                                    # noqa: BLE001
+        logger.warning('native_trace_summary failed: %s', exc)
+        return None
+
+
 def _compute_live(batch):
     """The pre-#10.5 code path — query the DB / adapter directly.
 
     Extracted so ``build_trace_context`` and ``snapshot_trace_context``
     share exactly one query implementation.
     """
+    window = _window(batch)
+    if window is None:
+        return None
+    summary = _from_native(*window)
+    if summary and summary.get('span_count', 0) > 0:
+        return summary
+    return _from_external(*window)
+
+
+def _window(batch):
+    """(organisation, service_names, start, end) for a batch, or None."""
     if not getattr(batch, 'timestamp', None):
         return None
 
@@ -255,11 +304,7 @@ def _compute_live(batch):
         pass
 
     service_names = _service_names(getattr(batch, 'project', None))
-
-    summary = _from_native(organisation, service_names, window_start, window_end)
-    if summary and summary.get('span_count', 0) > 0:
-        return summary
-    return _from_external(organisation, service_names, window_start, window_end)
+    return organisation, service_names, window_start, window_end
 
 
 # ---------------------------------------------------------------------------
@@ -294,10 +339,122 @@ def _service_names(project):
 def _from_native(organisation, service_names, start, end):
     """Pull top-slow + top-error spans from our own Trace/Span store."""
     try:
-        from traces.models import Span, Trace
+        from traces.models import Span
     except ImportError:
         return None
 
+    trace_pks = _project_trace_pks(organisation, service_names, start, end)
+    if not trace_pks:
+        return None
+
+    span_qs = Span.objects.filter(trace__in=trace_pks)
+    total_spans = span_qs.count()
+    if total_spans == 0:
+        return None
+
+    error_spans = span_qs.filter(status_code='ERROR')
+
+    # start_time is included so the unified timeline can plot span
+    # events on the time axis. Without it, _events_from_traces produces
+    # time=None events and the timeline chart silently drops them.
+    top_slow = list(
+        span_qs.order_by('-duration_ms')[:_TOP_SLOW]
+        .values('service_name', 'operation_name',
+                'duration_ms', 'status_code', 'start_time', 'trace__trace_id')
+    )
+    top_errors = list(
+        error_spans.order_by('-start_time')[:_TOP_ERRORS]
+        .values('service_name', 'operation_name',
+                'status_message', 'duration_ms', 'start_time', 'trace__trace_id')
+    )
+    # Django's `.values()` returns datetime objects for DateTimeField;
+    # ensure they serialise as ISO strings in the JSON payload the
+    # frontend + AI both consume.
+    for row in top_slow + top_errors:
+        # The OTEL trace id lives on the trace row; Span.trace_id is the FK.
+        row['trace_id'] = row.pop('trace__trace_id')
+        st = row.get('start_time')
+        if st is not None and hasattr(st, 'isoformat'):
+            row['start_time'] = st.isoformat()
+
+    services_touched = sorted(
+        {s for s in span_qs.values_list('service_name', flat=True).distinct() if s}
+    )
+
+    # The window before, same length, as the baseline each service's timings
+    # are compared to: "p95 3004ms" means little without "it was 5ms".
+    baseline_pks = _project_trace_pks(organisation, service_names, start - (end - start), start)
+    per_service = _service_timings(_span_rows(Span.objects.filter(trace__in=trace_pks)))
+    baseline = _service_timings(_span_rows(Span.objects.filter(trace__in=baseline_pks))) if baseline_pks else {}
+    for name, row in per_service.items():
+        before = baseline.get(name)
+        if before:
+            row['baseline'] = {k: before[k] for k in ('spans', 'p95_ms', 'self_p95_ms', 'errors')}
+
+    # Traffic, counted in full: the timings above come from at most 500
+    # traces per window, so in a surge both windows hit the cap and look
+    # alike. Without the change in volume, "every service slowed down at
+    # once" read as a code problem (Online Boutique on AKS, scenario R9: a
+    # 5x load-generator surge blamed on recommendationservice's client code).
+    traffic = _traffic(organisation, list(per_service), start, end)
+    for name, row in per_service.items():
+        if name in traffic['per_service']:
+            row['traffic'] = traffic['per_service'][name]
+
+    return {
+        'source': 'otlp',
+        'span_count': total_spans,
+        'error_span_count': error_spans.count(),
+        'trace_count': len(trace_pks),
+        'top_slow': top_slow,
+        'top_errors': top_errors,
+        'services_touched': services_touched,
+        'per_service': _top_services(per_service),
+        'traffic': {'spans': traffic['spans'], 'before': traffic['before']},
+    }
+
+
+def _traffic(organisation, service_names, start, end):
+    """Spans per service in the window and in the window before, uncapped.
+
+    ``{'spans': N, 'before': M, 'per_service': {name: {'spans': n, 'before': m}}}``.
+    One grouped count per window, on the (service_name, start_time) index.
+    """
+    from django.db.models import Count
+    from traces.models import Span
+    result = {'spans': 0, 'before': 0, 'per_service': {}}
+    if not service_names:
+        return result
+    length = end - start
+    for key, (lo, hi) in (('spans', (start, end)), ('before', (start - length, start))):
+        rows = (Span.objects.filter(trace__organisation=organisation, service_name__in=service_names,
+                                    start_time__gte=lo, start_time__lt=hi)
+                .values('service_name').annotate(n=Count('id')))
+        for row in rows:
+            entry = result['per_service'].setdefault(row['service_name'], {'spans': 0, 'before': 0})
+            entry[key] = row['n']
+            result[key] += row['n']
+    return result
+
+
+def _volume_change(now, before):
+    """' (x5.2)' / ' (x0.3)' when the volume moved markedly, else ''."""
+    if not before:
+        return ' (none before)' if now else ''
+    ratio = now / before
+    if 0.67 <= ratio <= 1.5:
+        return ''
+    return f' (x{ratio:.1f})'
+
+
+def _project_trace_pks(organisation, service_names, start, end):
+    """Primary keys of the organisation's traces in the window.
+
+    Primary keys rather than OTEL trace ids: a trace id is unique only within
+    an organisation, so filtering spans by trace id could pull in another
+    tenant's spans (security review 2026-11, finding 1).
+    """
+    from traces.models import Span, Trace
     trace_qs = Trace.objects.filter(
         organisation=organisation,
         start_time__gte=start,
@@ -310,52 +467,75 @@ def _from_native(organisation, service_names, start, end):
         from django.db.models import Exists, OuterRef, Q
         trace_qs = trace_qs.filter(Q(root_service_name__in=service_names) | Exists(
             Span.objects.filter(trace=OuterRef('pk'), service_name__in=service_names)))
+    return list(trace_qs.values_list('pk', flat=True)[:500])
 
-    trace_ids = list(trace_qs.values_list('trace_id', flat=True)[:500])
-    if not trace_ids:
-        return None
 
-    span_qs = Span.objects.filter(trace_id__in=trace_ids)
-    total_spans = span_qs.count()
-    if total_spans == 0:
-        return None
+def _span_rows(span_qs):
+    return span_qs.values_list(
+        'trace_id', 'span_id', 'parent_span_id', 'service_name',
+        'operation_name', 'duration_ms', 'status_code')[:_MAX_TIMING_SPANS]
 
-    error_spans = span_qs.filter(status_code='ERROR')
 
-    # start_time is included so the unified timeline can plot span
-    # events on the time axis. Without it, _events_from_traces produces
-    # time=None events and the timeline chart silently drops them.
-    top_slow = list(
-        span_qs.order_by('-duration_ms')[:_TOP_SLOW]
-        .values('trace_id', 'service_name', 'operation_name',
-                'duration_ms', 'status_code', 'start_time')
-    )
-    top_errors = list(
-        error_spans.order_by('-start_time')[:_TOP_ERRORS]
-        .values('trace_id', 'service_name', 'operation_name',
-                'status_message', 'duration_ms', 'start_time')
-    )
-    # Django's `.values()` returns datetime objects for DateTimeField;
-    # ensure they serialise as ISO strings in the JSON payload the
-    # frontend + AI both consume.
-    for row in top_slow + top_errors:
-        st = row.get('start_time')
-        if st is not None and hasattr(st, 'isoformat'):
-            row['start_time'] = st.isoformat()
+def _percentile(values, pct):
+    """Nearest-rank percentile of a non-empty list."""
+    ordered = sorted(values)
+    return ordered[max(0, -(-len(ordered) * pct // 100) - 1)]
 
-    services_touched = sorted(
-        {s for s in span_qs.values_list('service_name', flat=True).distinct() if s}
-    )
 
+def _service_timings(rows):
+    """Timings per service: span count, p50/p95 duration, errors, and SELF time.
+
+    ``rows`` are (trace_id, span_id, parent_span_id, service_name,
+    operation_name, duration_ms, status_code). Self time is a span's duration
+    minus its children's: the time spent in the service itself rather than
+    waiting on the services it called. The top-5 slowest spans could not
+    tell those apart — a frontend waiting 3s on a slow catalogue filled the
+    whole list, and the analysis blamed the frontend (production scenario B4
+    on Online Boutique). Self time puts the 3s on the catalogue.
+
+    Children running in parallel can add up to more than their parent; self
+    time is floored at 0 rather than going negative.
+    """
+    rows = list(rows)
+    child_ms = defaultdict(int)
+    for trace_id, _span, parent, _svc, _op, duration, _status in rows:
+        if parent:
+            child_ms[(trace_id, parent)] += duration or 0
+    acc = defaultdict(lambda: {'durations': [], 'self': [], 'errors': 0, 'slowest': ('', -1)})
+    for trace_id, span_id, _parent, service, operation, duration, status in rows:
+        if not service:
+            continue
+        duration = duration or 0
+        own = max(0, duration - child_ms.get((trace_id, span_id), 0)) if span_id else duration
+        a = acc[service]
+        a['durations'].append(duration)
+        a['self'].append(own)
+        if status == 'ERROR':
+            a['errors'] += 1
+        if own > a['slowest'][1]:
+            a['slowest'] = (operation or '', own)
     return {
-        'source': 'otlp',
-        'span_count': total_spans,
-        'error_span_count': error_spans.count(),
-        'trace_count': len(trace_ids),
-        'top_slow': top_slow,
-        'top_errors': top_errors,
-        'services_touched': services_touched,
+        service: {
+            'spans': len(a['durations']),
+            'p50_ms': _percentile(a['durations'], 50),
+            'p95_ms': _percentile(a['durations'], 95),
+            'self_p95_ms': _percentile(a['self'], 95),
+            'errors': a['errors'],
+            'slowest_operation': a['slowest'][0],
+            'slowest_self_ms': a['slowest'][1],
+        }
+        for service, a in acc.items()
     }
+
+
+def _top_services(per_service):
+    """The services worth the prompt's tokens: highest self time first, then errors."""
+    ranked = sorted(per_service.items(),
+                    key=lambda kv: (kv[1]['self_p95_ms'], kv[1]['errors']), reverse=True)
+    top = ranked[:_PER_SERVICE]
+    # A failing service is listed even when it is fast.
+    top += [kv for kv in ranked[_PER_SERVICE:] if kv[1]['errors']][:3]
+    return [{'service_name': name, **row} for name, row in top]
 
 
 def _from_external(organisation, service_names, start, end):
@@ -394,6 +574,8 @@ def _from_external(organisation, service_names, start, end):
                     start_time = start_time.isoformat()
                 all_spans.append({
                     'trace_id': trace.trace_id,
+                    'span_id': getattr(span, 'span_id', '') or '',
+                    'parent_span_id': getattr(span, 'parent_span_id', '') or '',
                     'service_name': span.service_name,
                     'operation_name': span.operation_name,
                     'duration_ms': span.duration_ms,
@@ -408,6 +590,13 @@ def _from_external(organisation, service_names, start, end):
     top_slow = sorted(all_spans, key=lambda s: s.get('duration_ms', 0), reverse=True)[:_TOP_SLOW]
     error_spans = [s for s in all_spans if s.get('status_code') == 'ERROR']
     top_errors = error_spans[:_TOP_ERRORS]
+    per_service = _service_timings(
+        (s['trace_id'], s['span_id'], s['parent_span_id'], s['service_name'],
+         s['operation_name'], s['duration_ms'], s['status_code']) for s in all_spans)
+    # The prompt and the timeline read only these keys of each span.
+    for s in all_spans:
+        s.pop('span_id', None)
+        s.pop('parent_span_id', None)
 
     return {
         'source': 'external',
@@ -417,6 +606,7 @@ def _from_external(organisation, service_names, start, end):
         'top_slow': top_slow,
         'top_errors': top_errors,
         'services_touched': sorted(services_seen),
+        'per_service': _top_services(per_service),
     }
 
 
@@ -458,6 +648,33 @@ def format_trace_context_for_prompt(traces_summary):
                 f"{span.get('service_name', '?')} :: {span.get('operation_name', '?')} "
                 f"(trace {str(span.get('trace_id', ''))[:16]}…)"
             )
+
+    traffic = traces_summary.get('traffic') or {}
+    if traffic.get('spans') or traffic.get('before'):
+        parts.append(f"Traffic: {traffic.get('spans', 0)} spans in this window, "
+                     f"{traffic.get('before', 0)} in the window before"
+                     f"{_volume_change(traffic.get('spans', 0), traffic.get('before', 0))}")
+
+    per_service = traces_summary.get('per_service') or []
+    if per_service:
+        parts.append("\nPer-service timings (self = time inside the service itself, "
+                     "not waiting on the services it called):")
+        for row in per_service:
+            volume = row.get('traffic')
+            spans = (f"{volume['spans']} spans (window before: {volume['before']})"
+                     f"{_volume_change(volume['spans'], volume['before'])}"
+                     if volume else f"{row.get('spans', 0)} spans")
+            line = (f"  {row.get('service_name', '?')}: {spans}, "
+                    f"p50 {row.get('p50_ms', 0)}ms, p95 {row.get('p95_ms', 0)}ms, "
+                    f"self p95 {row.get('self_p95_ms', 0)}ms, {row.get('errors', 0)} errors")
+            before = row.get('baseline')
+            if before:
+                line += (f" (window before: p95 {before.get('p95_ms', 0)}ms, "
+                         f"self p95 {before.get('self_p95_ms', 0)}ms)")
+            if row.get('slowest_operation'):
+                line += (f"; slowest own time: {row['slowest_operation']} "
+                         f"{row.get('slowest_self_ms', 0)}ms")
+            parts.append(line)
 
     top_errors = traces_summary.get('top_errors') or []
     if top_errors:

@@ -268,6 +268,13 @@ const buildMetricSummary = (batchPayload) => {
     // OOMKill shows up at all — a killed container writes no log line.
     terminated: lifecycle.terminated || [],
     restarts: lifecycle.restarts || {},
+    // What Kubernetes did: containers that cannot start, rollouts and scale
+    // changes, workloads short of replicas.
+    waiting: lifecycle.waiting || [],
+    changes: lifecycle.changes || [],
+    unavailable: lifecycle.unavailable || [],
+    throttled: lifecycle.throttled || [],
+    stuck: lifecycle.stuck || [],
     dataPoints: summary.data_points || {},
     timeRange: summary.time_range || {},
   };

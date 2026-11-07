@@ -46,7 +46,7 @@ Charts come in pairs:
 | **Sentinel intelligence** | AI analyses Sentinel skipped on quiet batches, and what that saved. |
 
 !!! info "Sentinel savings need active mode"
-    Skips and savings only apply when Sentinel is in **active mode**. In shadow mode every batch is analysed. See [Sentinel](../how-to/sentinel.md).
+    Skips and savings only apply when Sentinel is in **active mode** (the default). In shadow mode every batch is analysed. See [Sentinel](../how-to/sentinel.md).
 
 ## Workloads by cluster
 

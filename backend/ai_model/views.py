@@ -37,12 +37,32 @@ def safe_int_convert(value, default=0):
         logger.warning(f"Could not convert {value} to integer, returning default value {default}")
         return default
 
+def _ai_failure_response(error, fallback_message):
+    """502 naming the provider's problem (e.g. ``out_of_credit``), so the
+    chat shows what to fix; 500 with the old message when there is none."""
+    if error is None:
+        return JsonResponse({"error": fallback_message}, status=500)
+    return JsonResponse({
+        "error": error.code.lower(),
+        "message": error.get_user_message(),
+        "retry_after_seconds": error.retry_after_seconds,
+    }, status=502)
+
 def format_log_for_analysis(log_entry):
     """Format a log entry for analysis."""
     return f"[{log_entry['timestamp']}] {log_entry['level']}: {log_entry['message']} | Metadata: {json.dumps(log_entry['metadata'])}"
 
-def process_ai_request(prompt, ai_model, organisation=None):
-    """Process request with selected AI model."""
+def process_ai_request(prompt, ai_model, organisation=None, usage_type='chat_message'):
+    """Process request with selected AI model.
+
+    Records the tokens spent against the organisation: chat spend never
+    reached AITokenUsage, so the monthly budget could not see it
+    (security review 2026-11, finding 4).
+
+    Returns ``(response, error)``: the provider's error is passed on so
+    the user sees why chat failed (no credit, quota, key) instead of
+    "Failed to process chat request".
+    """
     
     logger.info(f'Using AI model: {ai_model} for org: {organisation.name if organisation else "None"}')
     
@@ -54,19 +74,26 @@ def process_ai_request(prompt, ai_model, organisation=None):
         api_key, base_url, extra_config = get_api_key_for_org(organisation, ai_model.lower())
 
     # Unified dynamic call - works for 'gemini', 'deepseek', or any DB-registered provider
-    response, error, _, _ = generate_text_unified(
+    response, error, tokens_input, tokens_output = generate_text_unified(
         prompt,
         provider=ai_model.lower(),
         api_key=api_key,
         base_url=base_url,
         extra_config=extra_config,
     )
+    if organisation is not None and (tokens_input or tokens_output):
+        from .usage_tracking import AITokenUsageService
+        AITokenUsageService.log_usage(
+            organisation=organisation, batch=None,
+            tokens_input=tokens_input or 0, tokens_output=tokens_output or 0,
+            model_name=ai_model.lower(), usage_type=usage_type,
+        )
     
     if error:
         logger.error(f'{ai_model} error: {error}')
-        return None
-        
-    return response
+        return None, error
+
+    return response, None
 
 
 
@@ -131,6 +158,15 @@ def generate_text(request):
             # Legacy Frontend Support: Remap 'pods' to 'gemini'
             if ai_model == 'pods':
                 ai_model = 'gemini'
+
+            # Both branches below call the model directly, outside
+            # generate_for_organisation, so they check the monthly budget
+            # here (security review 2026-11, finding 4).
+            from .budget import OVER_BUDGET_CODE, OVER_BUDGET_MESSAGE, budget_allows
+            if not budget_allows(getattr(request.user, 'organisation', None)):
+                return JsonResponse(
+                    {'error': OVER_BUDGET_CODE, 'message': OVER_BUDGET_MESSAGE}, status=409,
+                )
 
             if request_type == 'chat':
                 chat_serializer = ChatRequestSerializer(data=data)
@@ -223,7 +259,7 @@ def generate_text(request):
                         try:
                             intent_prompt = get_intent_classification_prompt(prompt_data['message'])
                             # Use a fast model for intent classification if possible, or same model
-                            intent_response = process_ai_request(intent_prompt, ai_model, request.user.organisation)
+                            intent_response, _ = process_ai_request(intent_prompt, ai_model, request.user.organisation)
                             
                             logger.info(f"Agentic Intent Analysis: {intent_response}")
                             
@@ -361,7 +397,9 @@ def generate_text(request):
                 )
                 if batch_id and any(k in prompt_data['message'].lower() for k in MEMORY_TRIGGER_KEYWORDS):
                     try:
-                        from Data.memory import find_past_memories, format_memories_for_prompt
+                        from Data.memory import (
+                            find_past_memories, format_memories_for_prompt, query_text_for_batch,
+                        )
                         batch_for_memory = AIAnalyzedBatch.objects.filter(
                             batch_id=batch_id,
                             organisation=request.user.organisation,
@@ -373,6 +411,7 @@ def generate_text(request):
                                     project=batch_for_memory.project,
                                     environment=batch_for_memory.environment or '',
                                     organisation=organisation,
+                                    query_text=query_text_for_batch(batch_for_memory),
                                 )
                                 past_memories_text = format_memories_for_prompt(memories)
                                 if past_memories_text:
@@ -390,12 +429,17 @@ def generate_text(request):
                     # We inject the data prompt components differently than the standard prompt
                     # Hack: Replace the standard prompt builder's system prompt with our enhanced one
                     prompt = final_prompt_header
-                    # Add history
-                    for msg in messages:
-                        prompt += f"\nUser: {msg.message}\nAssistant: {msg.response}"
+                    # History and memories are data, fenced like the batch
+                    # data (security review 2026-11, finding 6).
+                    from .prompts import fence_data, neutralise_fence
+                    history = "\n".join(
+                        f"User: {msg.message}\nAssistant: {msg.response}" for msg in messages
+                    )
+                    if history:
+                        prompt += "\n" + fence_data(history, 'previous conversation')
                     if past_memories_text:
-                        prompt += f"\n\n{past_memories_text}\n"
-                    prompt += f"\nUser: {prompt_data['message']}\nAssistant:"
+                        prompt += "\n" + fence_data(past_memories_text, 'past analyses')
+                    prompt += f"\nUser: {neutralise_fence(prompt_data['message'])}\nAssistant:"
 
                     logger.info(f"Generated AGENTIC prompt for AI.")
                 else:
@@ -412,7 +456,7 @@ def generate_text(request):
                 
                 # --- AGENTIC WORKFLOW END ---
 
-                result = process_ai_request(prompt, ai_model, request.user.organisation)
+                result, ai_error = process_ai_request(prompt, ai_model, request.user.organisation)
                 logger.info(f"AI response: {result}")
 
                 if result:
@@ -437,7 +481,7 @@ def generate_text(request):
                         "message_count": chat_session.messages.count()
                     })
                 logger.error("Failed to process chat request: AI returned no result")
-                return JsonResponse({"error": "Failed to process chat request"}, status=500)
+                return _ai_failure_response(ai_error, "Failed to process chat request")
 
             else:
                 batch_serializer = BatchLogsSerializer(data=data.get('batch_logs'))
@@ -486,7 +530,7 @@ def generate_text(request):
                 )
                 logger.info(f"Generated analysis prompt for AI: {analysis_prompt}")
 
-                result = process_ai_request(analysis_prompt, ai_model, request.user.organisation)
+                result, ai_error = process_ai_request(analysis_prompt, ai_model, request.user.organisation, usage_type="manual_analysis")
                 logger.info(f"AI analysis result: {result}")
 
                 if result:
@@ -499,7 +543,7 @@ def generate_text(request):
                         "timestamp": batch_data['timestamp']
                     })
                 logger.error("Failed to analyze logs: AI returned no result")
-                return JsonResponse({"error": "Failed to analyze logs"}, status=500)
+                return _ai_failure_response(ai_error, "Failed to analyze logs")
 
         except json.JSONDecodeError as e:
             logger.error(f'Failed to parse JSON: {str(e)}')

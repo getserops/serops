@@ -513,15 +513,25 @@ class Issue(models.Model):
     resolution_fix = models.TextField(blank=True, null=True)
 
     # Similar-incidents embedding (Item #27). Populated on resolve by
-    # the ``embed_resolved_issue`` Celery task. JSONField list of 1536
-    # floats — Python-side cosine similarity for MVP scale. A future
-    # migration will move this to a pgvector column when the ops
-    # container ships with pgvector (Q3.5 quality-backlog item).
+    # the ``embed_resolved_issue`` Celery task (and on demand by
+    # ``find_similar``). JSONField list of floats — Python-side cosine
+    # similarity for MVP scale. A future migration will move this to a
+    # pgvector column when the ops container ships with pgvector (Q3.5).
     embedding = models.JSONField(
         null=True,
         blank=True,
-        help_text='1536-dim text-embedding-3-small vector of the '
-                  'resolved issue. Populated async on resolve.',
+        help_text='Embedding vector of the issue text; the model that '
+                  'produced it is in embedding_model.',
+    )
+    # Which model produced ``embedding`` ("openai:text-embedding-3-small",
+    # "ollama:nomic-embed-text", "lexical-ngram-v1"...). External review
+    # (v1.2.13): vectors from different models or dimensions were
+    # compared as if they were the same space. Vectors are only compared
+    # when this matches.
+    embedding_model = models.CharField(
+        max_length=120, null=True, blank=True,
+        help_text='Model / mode that produced embedding. Vectors are only '
+                  'compared when this matches.',
     )
     embedded_at = models.DateTimeField(
         null=True,
@@ -642,53 +652,76 @@ class Issue(models.Model):
     def __str__(self):
         return f"{self.severity} - {self.issue_type} - {self.component or 'N/A'}"
 
-    def find_similar(self, top_k: int = 5, min_similarity: float = 0.75):
+    def find_similar(self, top_k: int = 5):
         """
-        Return the top-K resolved issues most similar to ``self`` by
-        embedding cosine similarity (Item #27).
+        Return the top-K resolved issues most similar to ``self``
+        (Item #27).
 
         Filters:
 
         * Same organisation (never cross-org leakage).
         * Not ``self``.
-        * Only resolved issues with a stored embedding.
-        * Cosine similarity ≥ ``min_similarity`` (0.75 default —
-          empirically strong match for text-embedding-3-small on
-          RCA-style text).
+        * Only resolved issues.
+        * Similarity at or above the threshold of the mode used —
+          cosine of same-model vectors (``SEMANTIC_MIN_SIMILARITY``) or
+          lexical similarity (``LEXICAL_MIN_SIMILARITY``); see
+          ``Data.embeddings.SimilarityQuery``.
+
+        When ``self`` has no embedding yet (open issues are only
+        embedded on demand), it is embedded now with the org's provider
+        — or lexically — and stored. External review (v1.2.13): this
+        used to return [] for every issue without a stored vector, i.e.
+        every open issue, and matched on random hash vectors otherwise.
 
         Returns a list of dicts ``{issue, similarity}`` sorted by
-        descending similarity. Empty list when no matches or when
-        ``self`` has no embedding (embedding is best-effort; queries
-        against issues that never got one just return []).
+        descending relevance.
 
-        Cost: O(N) over the org's resolved issues with embeddings.
-        Fine at MVP scale; a pgvector migration lands at Q3.5 for
-        orgs that push past ~50K resolved issues.
+        Cost: O(N) over the org's resolved issues. Fine at MVP scale;
+        a pgvector migration lands at Q3.5 for orgs that push past
+        ~50K resolved issues.
         """
-        if not self.embedding:
+        from django.utils import timezone as tz
+        from Data.embeddings import Embedding, SimilarityQuery, embed_text, text_for_issue
+
+        if not self.organisation_id:
             return []
-        from Data.embeddings import cosine_similarity
+        query_text = text_for_issue(self)
+        if not query_text.strip():
+            return []
+
+        if self.embedding and self.embedding_model:
+            query = Embedding(vector=self.embedding, model=self.embedding_model)
+        else:
+            query = embed_text(query_text, organisation=self.organisation)
+            if query is not None and self.pk:
+                # update(), not save(): no signals, no resolve side effects.
+                Issue.objects.filter(pk=self.pk).update(
+                    embedding=query.vector, embedding_model=query.model,
+                    embedded_at=tz.now(),
+                )
+                self.embedding, self.embedding_model = query.vector, query.model
+        matcher = SimilarityQuery(query_text, query)
 
         candidates = (
             Issue.objects
-            .filter(organisation=self.organisation, status='RESOLVED')
+            .filter(organisation_id=self.organisation_id, status='RESOLVED')
             .exclude(pk=self.pk)
-            .exclude(embedding__isnull=True)
             .only('id', 'issue_type', 'component', 'description',
-                  'root_cause', 'recommendation', 'resolved_at',
-                  'severity', 'embedding')
+                  'root_cause', 'recommendation', 'resolution_root_cause',
+                  'resolution_fix', 'resolved_at', 'severity',
+                  'embedding', 'embedding_model')
         )
 
         scored = []
         for cand in candidates.iterator(chunk_size=500):
-            sim = cosine_similarity(self.embedding, cand.embedding or [])
-            if sim >= min_similarity:
-                scored.append((sim, cand))
+            sim, relevance = matcher.score(cand)
+            if relevance >= 0:
+                scored.append((relevance, sim, cand))
         scored.sort(key=lambda t: t[0], reverse=True)
 
         return [{'issue': c, 'similarity': round(sim, 4)}
-                for sim, c in scored[:top_k]]
-    
+                for _rel, sim, c in scored[:top_k]]
+
     def save(self, *args, **kwargs):
         """Override save to pre-compute correlation fields, track resolution time, and invalidate caches."""
         # Detect status transition BEFORE we mutate the row — used
@@ -908,6 +941,27 @@ class Issue(models.Model):
         target = re.sub(r'\d{4,}', '<id>', target)  # 4+ digit numbers → <id>
         return target[:100]
     
+    @classmethod
+    def _latest_text(cls, issue_data):
+        """The newest analysis's words for a recurring issue.
+
+        A recurrence used to keep the text of the FIRST sighting forever, so
+        the analysis page of a new incident showed yesterday's description,
+        timestamps included, under today's batch (Online Boutique scenario
+        B3: today's analysis tied the memory spike to a rollout a minute
+        before; the page showed the previous day's "spike at 00:35").
+        Empty fields leave the stored text alone.
+        """
+        fields = {
+            'description': issue_data.get('description'),
+            'root_cause': issue_data.get('root_cause'),
+            'recommendation': issue_data.get('recommended_action'),
+            'reasoning': cls._serialize_reasoning(issue_data.get('reasoning')) if issue_data.get('reasoning') else None,
+        }
+        if issue_data.get('confidence'):
+            fields['confidence'] = cls._normalize_confidence(issue_data.get('confidence'))
+        return {k: v for k, v in fields.items() if v}
+
     @staticmethod
     def _serialize_reasoning(reasoning):
         """Normalise the AI's reasoning chain to a single text string.
@@ -1259,7 +1313,8 @@ class Issue(models.Model):
                             scope=scope,
                             fingerprint=fingerprint,
                             occurrence_count=F('occurrence_count') + 1,
-                            last_seen_at=timezone.now()
+                            last_seen_at=timezone.now(),
+                            **cls._latest_text(issue_data),
                         )
                         infra_match.refresh_from_db()
                         infra_match.record_occurrence(batch, severity)
@@ -1282,6 +1337,7 @@ class Issue(models.Model):
                     if severity_order.get(severity, 0) > severity_order.get(existing.severity, 0):
                         update_fields['severity'] = severity
 
+                    update_fields.update(cls._latest_text(issue_data))
                     cls.objects.filter(pk=existing.pk).update(**update_fields)
                     existing.refresh_from_db()
                     existing.record_occurrence(batch, severity)

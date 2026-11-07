@@ -1,5 +1,7 @@
 import re
 import requests
+
+from Utils.outbound import check_url
 from urllib.parse import urlparse
 from .models import GitlabProject, Pipeline, Job
 import logging
@@ -107,16 +109,24 @@ def _build_cicd_event_doc(
 
 
 
-def gitlab_retrieve_job_logs(project_id, pipeline_id, pipeline_branch, job_id, job_name, job_status, job_time, job_owner):
+def gitlab_retrieve_job_logs(project_id, pipeline_id, pipeline_branch, job_id, job_name, job_status, job_time, job_owner,
+                             organisation_id):
     """
     Retrieve job logs from GitLab API and save to file only (no direct Elasticsearch indexing)
+
+    The project is looked up within ``organisation_id`` (the webhook
+    binding's): ``project_id`` comes from the payload, and another
+    organisation's project would hand over its token and pipelines
+    (security review 2026-11, finding 2).
     """
     logger = logging.getLogger(__name__)
 
     if not job_id:
         return "Missing job ID"
         
-    project_instance = GitlabProject.objects.filter(project_id=project_id).first()
+    project_instance = GitlabProject.objects.filter(
+        project_id=project_id, organisation_id=organisation_id,
+    ).first()
     if not project_instance:
         return f"Project with ID {project_id} not found"
     
@@ -144,7 +154,10 @@ def gitlab_retrieve_job_logs(project_id, pipeline_id, pipeline_branch, job_id, j
     job_logs_url = f'{gitlab_url}/api/v4/projects/{project_id}/jobs/{job_id}/trace'
     headers = {'PRIVATE-TOKEN': access_token}
 
-    response = requests.get(job_logs_url, headers=headers, timeout=30)
+    # Stored, user-configured GitLab URL: re-checked, no redirects
+    # followed (security review 2026-11, finding 3).
+    check_url(job_logs_url)
+    response = requests.get(job_logs_url, headers=headers, timeout=30, allow_redirects=False)
 
     if response.status_code == 200:
         job_logs_data = response.text
@@ -275,7 +288,8 @@ def trigger_pipeline_run( project_id,access_token,pipeline_id):
     }
 
 
-    response = requests.post(url, headers=headers, json={}, timeout=30)
+    check_url(url)
+    response = requests.post(url, headers=headers, json={}, timeout=30, allow_redirects=False)
     if response.status_code not in [200,201] :
         return False
     logger.debug(f"Response status: {response.status_code}")
@@ -289,7 +303,8 @@ def cancel_pipeline_run(  project_id,access_token,pipeline_id):
         "PRIVATE-TOKEN": access_token
     }
 
-    response = requests.post(url, headers=headers ,json={}, timeout=30)
+    check_url(url)
+    response = requests.post(url, headers=headers, json={}, timeout=30, allow_redirects=False)
     if response.status_code not in [200,201] :
         return False
     logger.debug(f"Response status: {response.status_code}")
@@ -434,31 +449,23 @@ def store_cicd_logs_generic(provider_name: str, normalized_data: dict):
         pipeline_id = normalized_data.get('pipeline_id')
         environment = normalized_data.get('environment', 'development')
 
-        # Resolve org context (try binding context first, then GitlabProject fallback)
+        # The organisation comes only from the webhook's authenticated
+        # binding. The fallback that looked the payload's project id up
+        # across all organisations is gone: it could index one tenant's CI
+        # events into another's logs (security review 2026-11, finding 2).
         org = None
         project_obj = None
         service_name = ''
 
-        # Preferred: use binding context injected by webhook handler
         binding_ctx = normalized_data.get('_binding_context')
         if binding_ctx:
             org = binding_ctx.get('organisation')
             project_obj = binding_ctx.get('project')
             service_name = binding_ctx.get('service_name', '')
 
-        # Fallback: legacy GitlabProject lookup
         if not org:
-            try:
-                from Projects.models import ProjectService
-                gitlab_proj = GitlabProject.objects.filter(project_id=project_id).first()
-                if gitlab_proj:
-                    org = gitlab_proj.organisation
-                    ps = ProjectService.objects.filter(gitlab_project=gitlab_proj).select_related('project').first()
-                    if ps:
-                        project_obj = ps.project
-                        service_name = ps.name or gitlab_proj.name
-            except Exception:
-                pass
+            logger.warning(f"[{provider_name}] No binding organisation for pipeline {pipeline_id}, skipping CI/CD event indexing")
+            return
 
         provider = _resolve_log_provider(org)
         if not provider:

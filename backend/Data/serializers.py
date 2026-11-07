@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .issue_order import root_cause_first
-from .models import AIAnalyzedBatch, Issue
+from .models import AIAnalyzedBatch, Issue, IssueOccurrence
 
 class IssueSerializer(serializers.ModelSerializer):
     batch_timestamp = serializers.DateTimeField(source='batch.timestamp', read_only=True)
@@ -197,7 +197,14 @@ class AIAnalyzedBatchSerializer(serializers.ModelSerializer):
     issues = serializers.SerializerMethodField()
 
     def get_issues(self, obj):
-        return IssueSerializer(root_cause_first(obj.issues.all()), many=True, context=self.context).data
+        # Each issue at the severity THIS analysis reported, not its highest
+        # ever: once CRITICAL, a recurring issue headlined every later
+        # analysis as CRITICAL, even one that rated it WARNING.
+        reported = dict(IssueOccurrence.objects.filter(batch=obj).values_list('issue_id', 'severity'))
+        issues = list(obj.issues.all())
+        for issue in issues:
+            issue.severity = reported.get(issue.pk) or issue.severity
+        return IssueSerializer(root_cause_first(issues), many=True, context=self.context).data
 
     class Meta:
         model = AIAnalyzedBatch

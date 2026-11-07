@@ -237,6 +237,20 @@ class TestProjectServiceView(ProjectViewTestBase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         mock_scm_create.assert_called_once()
 
+    def test_a_second_service_with_the_same_name_is_refused(self):
+        ProjectService.objects.create(project=self.project, name='frontend', service_type='application')
+        self._auth(self.admin)
+        response = self.client.post(self.url, {'name': 'Frontend', 'service_type': 'application'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('already has a service named', str(response.data))
+        self.assertEqual(ProjectService.objects.filter(project=self.project, name__iexact='frontend').count(), 1)
+
+    def test_the_same_name_in_another_project_is_fine(self):
+        ProjectService.objects.create(project=self.other_project, name='frontend', service_type='application')
+        self._auth(self.admin)
+        response = self.client.post(self.url, {'name': 'frontend', 'service_type': 'application'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
     def test_create_service_viewer_denied(self):
         self._auth(self.viewer)
         response = self.client.post(self.url, {

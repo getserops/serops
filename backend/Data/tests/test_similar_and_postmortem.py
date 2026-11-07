@@ -1,7 +1,6 @@
 """Tests for Item #27 (similar-incidents via embeddings) + Item #28
 (post-mortem draft generator)."""
 
-import os
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -9,8 +8,8 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from Data.embeddings import (
-    EMBEDDING_DIM, _hash_embed, _l2_normalize, cosine_similarity,
-    embed_text, text_for_issue,
+    LEXICAL_DIM, LEXICAL_MODEL, _l2_normalize, cosine_similarity,
+    embed_text, lexical_embed, text_for_issue,
 )
 from Data.models import AIAnalyzedBatch, Issue
 from Organisations.models import Organisations
@@ -26,16 +25,14 @@ User = get_user_model()
 
 class EmbeddingBackendTest(TestCase):
 
-    def test_hash_embed_deterministic(self):
-        a = _hash_embed('connection pool exhausted in checkout service')
-        b = _hash_embed('connection pool exhausted in checkout service')
-        self.assertEqual(len(a), EMBEDDING_DIM)
+    def test_lexical_embed_is_deterministic(self):
+        a = lexical_embed('connection pool exhausted in checkout service')
+        b = lexical_embed('connection pool exhausted in checkout service')
+        self.assertEqual(len(a), LEXICAL_DIM)
         self.assertEqual(a, b)
 
-    def test_hash_embed_different_text_different_vector(self):
-        a = _hash_embed('one')
-        b = _hash_embed('two')
-        self.assertNotEqual(a, b)
+    def test_lexical_embed_differs_for_different_text(self):
+        self.assertNotEqual(lexical_embed('one thing'), lexical_embed('another'))
 
     def test_l2_normalize(self):
         v = _l2_normalize([3.0, 4.0])
@@ -46,7 +43,7 @@ class EmbeddingBackendTest(TestCase):
         self.assertEqual(_l2_normalize([0.0, 0.0]), [0.0, 0.0])
 
     def test_cosine_identical_is_one(self):
-        v = _hash_embed('same text')
+        v = lexical_embed('same text')
         self.assertAlmostEqual(cosine_similarity(v, v), 1.0, places=5)
 
     def test_cosine_zero_for_orthogonal(self):
@@ -59,16 +56,10 @@ class EmbeddingBackendTest(TestCase):
         self.assertIsNone(embed_text(''))
         self.assertIsNone(embed_text('   '))
 
-    def test_embed_text_falls_back_when_no_openai(self):
-        # Ensure no key set.
-        prev = os.environ.pop('OPENAI_API_KEY', None)
-        try:
-            v = embed_text('the checkout service is timing out')
-            self.assertIsNotNone(v)
-            self.assertEqual(len(v), EMBEDDING_DIM)
-        finally:
-            if prev is not None:
-                os.environ['OPENAI_API_KEY'] = prev
+    def test_embed_text_without_any_provider_is_lexical(self):
+        result = embed_text('the checkout service is timing out')
+        self.assertEqual(result.model, LEXICAL_MODEL)
+        self.assertEqual(len(result.vector), LEXICAL_DIM)
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +110,8 @@ class FindSimilarTest(TestCase):
         )
 
     def _issue(self, org, embedding=None, status='RESOLVED', fp='fp',
-               root_cause='pool exhausted', component='checkout'):
+               root_cause='pool exhausted', component='checkout',
+               model=LEXICAL_MODEL):
         i = Issue(
             batch=self.batch, organisation=org, severity='HIGH',
             description='boom', component=component, issue_type='CONNECTION_TIMEOUT',
@@ -129,54 +121,55 @@ class FindSimilarTest(TestCase):
         # Save without triggering the embedding signal — we set embedding
         # manually so tests are deterministic.
         i.embedding = embedding
+        i.embedding_model = model if embedding else None
         i.save()
         return i
 
-    def test_no_embedding_returns_empty(self):
-        current = self._issue(self.org, embedding=None, status='OPEN', fp='c1')
-        self.assertEqual(current.find_similar(), [])
+    def test_open_issue_without_embedding_is_embedded_on_demand(self):
+        past = self._issue(self.org, embedding=None, fp='past0',
+                           root_cause='connection pool exhausted in checkout')
+        current = self._issue(self.org, embedding=None, status='OPEN', fp='c1',
+                              root_cause='checkout ran out of pool connections')
+        matches = current.find_similar()
+        self.assertEqual([m['issue'].pk for m in matches], [past.pk])
+        current.refresh_from_db()
+        self.assertEqual(current.embedding_model, LEXICAL_MODEL)
 
     def test_matches_identical_text(self):
-        vec = _hash_embed('pool exhausted checkout')
-        # A resolved past issue with the same embedding.
+        vec = lexical_embed('pool exhausted checkout')
         past = self._issue(self.org, embedding=vec, fp='past1')
-        # Current issue, open, same embedding.
         current = self._issue(self.org, embedding=vec, status='OPEN', fp='cur')
-        matches = current.find_similar(min_similarity=0.9)
+        matches = current.find_similar()
         self.assertEqual(len(matches), 1)
         self.assertEqual(matches[0]['issue'].pk, past.pk)
         self.assertAlmostEqual(matches[0]['similarity'], 1.0, places=3)
 
     def test_cross_org_excluded(self):
-        vec = _hash_embed('shared text')
+        vec = lexical_embed('shared text')
         # Same-embedding issue in ANOTHER org — must not be returned.
         self._issue(self.other_org, embedding=vec, fp='foreign')
         current = self._issue(self.org, embedding=vec, status='OPEN', fp='cur2')
-        self.assertEqual(current.find_similar(min_similarity=0.9), [])
+        self.assertEqual(current.find_similar(), [])
 
-    def test_below_threshold_excluded(self):
-        # Different-embedding past issue — cosine below threshold.
-        past = self._issue(self.org, embedding=_hash_embed('unrelated'), fp='p2')
-        current = self._issue(
-            self.org, embedding=_hash_embed('nothing alike xyz'),
-            status='OPEN', fp='cur3',
-        )
-        matches = current.find_similar(min_similarity=0.95)
-        # Hash embeddings for unrelated text should NOT approach 1.0.
-        self.assertEqual(matches, [])
+    def test_unrelated_incident_is_not_a_match(self):
+        self._issue(self.org, fp='p2', component='cart',
+                    root_cause='Redis OOM killed after memory leak in cart cache',
+                    embedding=lexical_embed('Redis OOM killed after memory leak in cart cache'))
+        current = self._issue(self.org, status='OPEN', fp='cur3', component='ingress',
+                              root_cause='TLS certificate expired on payment gateway')
+        self.assertEqual(current.find_similar(), [])
 
     def test_open_issues_excluded_from_matches(self):
-        vec = _hash_embed('same')
+        vec = lexical_embed('same')
         # Another OPEN issue with the same embedding — must be excluded
         # (we only surface RESOLVED precedent).
-        other_open = self._issue(self.org, embedding=vec, status='OPEN', fp='p4')
+        self._issue(self.org, embedding=vec, status='OPEN', fp='p4')
         current = self._issue(self.org, embedding=vec, status='OPEN', fp='cur4')
         self.assertEqual(current.find_similar(), [])
 
     def test_self_excluded(self):
-        vec = _hash_embed('self-match')
+        vec = lexical_embed('self-match')
         current = self._issue(self.org, embedding=vec, status='RESOLVED', fp='self')
-        # Should not return self.
         matches = current.find_similar()
         self.assertNotIn(current.pk, [m['issue'].pk for m in matches])
 
@@ -198,25 +191,26 @@ class SimilarIssuesEndpointTest(TestCase):
         self.batch = AIAnalyzedBatch.objects.create(
             batch_id='eb', organisation=self.org,
         )
-        vec = _hash_embed('shared')
+        vec = lexical_embed('shared')
         self.past = Issue(
             batch=self.batch, organisation=self.org, severity='HIGH',
             description='past', component='checkout', issue_type='CONNECTION_TIMEOUT',
             fingerprint='past', status='RESOLVED', root_cause='same', recommendation='fix',
-            embedding=vec,
+            embedding=vec, embedding_model=LEXICAL_MODEL,
         )
         self.past.save()
         self.current = Issue(
             batch=self.batch, organisation=self.org, severity='HIGH',
             description='current', component='checkout', issue_type='CONNECTION_TIMEOUT',
             fingerprint='current', status='OPEN', root_cause='same',
-            embedding=vec,
+            embedding=vec, embedding_model=LEXICAL_MODEL,
         )
         self.current.save()
         self.foreign = Issue(
             batch=self.batch, organisation=self.other_org, severity='HIGH',
             description='x', component='c', issue_type='CONNECTION_TIMEOUT',
             fingerprint='foreign', status='OPEN', embedding=vec,
+            embedding_model=LEXICAL_MODEL,
         )
         self.foreign.save()
         self.client = APIClient()

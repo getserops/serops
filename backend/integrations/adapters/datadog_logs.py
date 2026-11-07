@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from typing import List, Tuple, Optional
 
 import requests
+
+from Utils.outbound import GuardedSession
 from requests.exceptions import RequestException
 
 from integrations.base import LogProvider, LogProviderCapabilities, LogSearchError
@@ -33,7 +35,18 @@ def datadog_site(config: dict) -> str:
     for prefix in ("api.", "app.", "http-intake.logs."):
         if raw.startswith(prefix):
             raw = raw[len(prefix):]
-    return raw or "datadoghq.com"
+    raw = raw or "datadoghq.com"
+    # Only Datadog's own domains. The site ends up in https://api.<site>,
+    # read from fields nothing validated, so "x@169.254.169.254" sent the
+    # API keys to the metadata endpoint (security review 2026-11, finding 3).
+    if not _DATADOG_SITE.fullmatch(raw):
+        logger.warning("Datadog site %r is not a Datadog domain; using datadoghq.com", raw)
+        return "datadoghq.com"
+    return raw
+
+
+# datadoghq.com, us3/us5/ap1/ap2.datadoghq.com, datadoghq.eu, ddog-gov.com.
+_DATADOG_SITE = re.compile(r"(?:[a-z0-9-]+\.)*(?:datadoghq\.com|datadoghq\.eu|ddog-gov\.com)")
 
 
 def _dd_time(dt: datetime) -> str:
@@ -71,7 +84,10 @@ class DatadogLogProvider(LogProvider):
         # Datadog site: datadoghq.com, datadoghq.eu, etc.
         self.base_url = f"https://api.{datadog_site(self._config)}"
         self.last_error = None
-        self._session = requests.Session()
+        # Re-validates the host before every request and each redirect hop,
+        # and never follows a redirect to another host (security review
+        # 2026-11, finding 3).
+        self._session = GuardedSession()
         # DD auth headers
         self._session.headers.update({
             "DD-API-KEY": self._config.get("api_key", ""),

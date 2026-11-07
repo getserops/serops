@@ -809,6 +809,29 @@ export const ProjectService = {
   },
 
   // CI/CD Binding Operations
+  // Connect a repository to an existing service (the Add Service wizard says
+  // it can be done later; there was no way to).
+  addSCMBinding: async (serviceId, { integration, repository_id, repository_name, repository_url, default_branch }) => {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/projects/scm-bindings/`,
+        {
+          project_service: serviceId,
+          integration,
+          repository_id: String(repository_id),
+          repository_name: repository_name || String(repository_id),
+          repository_url: repository_url || '',
+          default_branch: default_branch || 'main',
+        },
+        getAuthHeader()
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error connecting a repository to service ${serviceId}:`, error);
+      throw error;
+    }
+  },
+
   addCICDBinding: async (serviceId, bindingData) => {
     try {
       const response = await axios.post(

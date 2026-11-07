@@ -665,15 +665,6 @@ class TestMetricsViews(DataViewTestBase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('hosts', response.data)
 
-    @patch('Data.views.IntegrationRegistry')
-    def test_fluentd_logs(self, mock_registry):
-        mock_provider = MagicMock()
-        mock_provider.search.return_value = []
-        mock_registry.get_log_provider_for_org.return_value = mock_provider
-        url = reverse('fluentd-logs')
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
     def test_metric_correlation_from_stored_data(self):
         """MetricCorrelationView reads from batch.data['correlation_results']."""
         # Store engine output on batch

@@ -258,6 +258,8 @@ class TestSSOCallbackView(APITestCase):
             sso_provider='oidc',
             sso_client_id='test-client',
             sso_discovery_url='https://idp.example.com/.well-known/openid-configuration',
+            # A first sign-in creates an account only for a listed domain.
+            sso_domains=['example.com'],
         )
         self.sec_settings.set_client_secret('test-secret')
         self.sec_settings.save()

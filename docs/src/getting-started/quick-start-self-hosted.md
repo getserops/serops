@@ -4,7 +4,7 @@ description: "Install SerOps on your own Docker host in about 10 minutes: clone,
 ---
 # Quick Start (Self-Hosted)
 
-Deploy SerOps on your own Docker host in about 5 minutes.
+Deploy SerOps on your own Docker host in about 10 minutes.
 
 ## What this ships
 

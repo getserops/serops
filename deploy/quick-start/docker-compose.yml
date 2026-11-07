@@ -76,7 +76,7 @@ services:
 
   backend:
     # Version wiring (Batch 43, SemVer discipline):
-    #   * ``SEROPS_VERSION`` sets the tag (default 1.2.13). Matches
+    #   * ``SEROPS_VERSION`` sets the tag (default 1.2.14). Matches
     #     what deployment/upgrading.md tells users. Rollback path is
     #     just: edit .env → change SEROPS_VERSION → up -d.
     #   * ``SEROPS_BACKEND_IMAGE`` overrides the WHOLE ref (registry
@@ -84,7 +84,7 @@ services:
     #     or air-gapped registry.
     #   * Never ``:latest`` for production — a rolling latest tag
     #     defeats the point of pinning versions for rollbackability.
-    image: ${SEROPS_BACKEND_IMAGE:-ghcr.io/getserops/backend:${SEROPS_VERSION:-1.2.13}}
+    image: ${SEROPS_BACKEND_IMAGE:-ghcr.io/getserops/backend:${SEROPS_VERSION:-1.2.14}}
     # Build fallback so a fresh source clone works without published
     # images. Use ``docker compose up -d --build`` to force
     # a local build; otherwise the image ref above is used if present.
@@ -105,6 +105,9 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/0
+      # Caddy always serves HTTPS (Let's Encrypt, or its own certificate
+      # for localhost): Secure cookies and HSTS.
+      SEROPS_HTTPS: "True"
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,7 +129,7 @@ services:
     # Same version wiring pattern as backend — SEROPS_VERSION drives
     # the tag for both so they stay coordinated. Operators wanting
     # divergent FE/BE versions can override each ``_IMAGE`` var.
-    image: ${SEROPS_FRONTEND_IMAGE:-ghcr.io/getserops/frontend:${SEROPS_VERSION:-1.2.13}}
+    image: ${SEROPS_FRONTEND_IMAGE:-ghcr.io/getserops/frontend:${SEROPS_VERSION:-1.2.14}}
     # Build fallback — see backend build block above for rationale.
     build:
       context: ../../frontend

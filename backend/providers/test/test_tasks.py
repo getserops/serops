@@ -117,6 +117,7 @@ class TestCeleryTaskIntegration(unittest.TestCase):
         mock_project = Mock()
         mock_project.project_id = '12345'
         mock_project.access_token = 'test-token'
+        mock_project.gitlab_url = 'https://gitlab.example.com'
         mock_objects.filter.return_value.first.return_value = mock_project
         
         # Mock: API returns error

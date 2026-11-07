@@ -8,10 +8,11 @@ service instance per call for efficiency.
 
 Design:
 
-* **Fail-open, never raise.** If redaction breaks, callers keep the
-  unredacted value — a broken redactor must NOT stop the batch
-  pipeline. The same trade-off ``ai_model.tasks._redact_log_messages``
-  already accepts.
+* **Fail-open, never raise** — for these storage-side helpers only. If
+  redaction breaks, callers keep the unredacted value so the batch
+  pipeline still runs. Nothing reaches an AI provider unscanned because
+  of it: ``generate_text_unified`` redacts every prompt again with
+  :func:`redact_for_ai`, which fails closed.
 * **Idempotent.** Redacting already-redacted text yields the same
   output — safe to call at multiple layers (defence in depth).
 * Small helpers only — no queryset walking. Callers pass in dicts /
@@ -49,6 +50,25 @@ def redact_text(text: Optional[str]) -> str:
     except Exception as exc:
         logger.warning('redact_text failed (returning original): %s', exc)
         return text
+
+
+def redact_for_ai(text: Optional[str]) -> Optional[str]:
+    """Redact text bound for an AI provider. RAISES on failure.
+
+    The egress counterpart of :func:`redact_text`: ``generate_text_unified``
+    calls it on every prompt, so a broken redactor stops the AI call instead
+    of letting the unredacted text through (external review, v1.2.13: "if
+    redaction fails on logs, they go out unredacted"). Empty / None pass
+    through unchanged; anything that is not a string raises ``TypeError``
+    rather than being sent unscanned.
+    """
+    if text is None or text == '':
+        return text
+    if not isinstance(text, str):
+        raise TypeError(f'cannot redact a {type(text).__name__} prompt')
+    from Utils.data_redaction import DataRedactionService
+    redacted, _findings = DataRedactionService().redact(text)
+    return redacted
 
 
 def redact_span_summary(summary: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -97,6 +117,15 @@ def redact_span_summary(summary: Optional[Dict[str, Any]]) -> Optional[Dict[str,
         ]
     if isinstance(summary.get('services_touched'), list):
         out['services_touched'] = [_r(s) for s in summary['services_touched']]
+    if isinstance(summary.get('per_service'), list):
+        out['per_service'] = [
+            {**row,
+             'service_name': _r(row.get('service_name')),
+             'slowest_operation': _r(row.get('slowest_operation')),
+             }
+            for row in summary['per_service']
+            if isinstance(row, dict)
+        ]
     return out
 
 

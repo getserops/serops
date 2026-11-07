@@ -1,4 +1,4 @@
-# SerOps Helm chart values — v1.2.13
+# SerOps Helm chart values — v1.2.14
 #
 # All defaults are safe for a small production deployment (~5 users,
 # 100 batches/day). Scale replicas + resources for larger tenants.
@@ -85,9 +85,15 @@ backend:
       initialDelaySeconds: 10
       periodSeconds: 10
   # Pod-level extras.
+  # Scheduling. Replicas are spread one per node by default (soft:
+  # ScheduleAnyway, so a single node still runs them all); set
+  # spreadAcrossNodes: false to turn that off, or give your own
+  # topologySpreadConstraints.
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  topologySpreadConstraints: []
+  spreadAcrossNodes: true
   podAnnotations: {}
 
 # ============================================================================
@@ -132,10 +138,16 @@ frontend:
     limits:
       cpu: 200m
       memory: 128Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []   # default: soft one-per-node spread
+  spreadAcrossNodes: true
 
 # ============================================================================
 # Celery worker — batch analysis, AI calls, webhooks
 # ============================================================================
+
 celeryWorker:
   replicaCount: 2
   image:
@@ -161,10 +173,16 @@ celeryWorker:
     limits:
       cpu: 2000m
       memory: 2Gi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []   # default: soft one-per-node spread
+  spreadAcrossNodes: true
 
 # ============================================================================
 # Celery beat — scheduled batch trigger, retention cleanup
 # ============================================================================
+
 celeryBeat:
   # Only ever ONE beat pod — beat is a scheduler; multiple copies would
   # double-fire scheduled tasks.
@@ -180,10 +198,14 @@ celeryBeat:
     limits:
       cpu: 300m
       memory: 512Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
 
 # ============================================================================
 # Ingress
 # ============================================================================
+
 ingress:
   enabled: true
   className: nginx
@@ -309,16 +331,10 @@ devServices:
 #
 # Add them after install at:  Settings -> AI -> API Keys
 #
-# The one env-var key that IS read is below, and it is not an RCA key.
-ai:
-  # Optional. Enables semantic issue similarity ("issues like this one")
-  # by calling the OpenAI embeddings API. Consumed only by
-  # Data/embeddings.py. When unset, SerOps falls back to deterministic
-  # hash embeddings — similarity still works, just less accurately.
-  # This key is NOT used for root-cause analysis.
-  embeddings:
-    existingSecret: ""   # secret key: openai-api-key
-    openaiApiKey: ""     # inline value — DO NOT use in production
+# Similar-incident embeddings use the same per-organisation provider
+# (OpenAI, Gemini or Ollama) and a local lexical fallback otherwise. The
+# former ai.embeddings.* values (an OPENAI_API_KEY env var) were removed:
+# nothing reads them any more.
 
 # ============================================================================
 # SMTP (env-only — mirrors backend/api/settings.py policy)

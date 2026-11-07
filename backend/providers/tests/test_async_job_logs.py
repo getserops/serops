@@ -10,6 +10,19 @@ from unittest.mock import patch, Mock
 from django.test import SimpleTestCase
 
 
+def _bound_handler():
+    """Handler as post() leaves it: authenticated binding of organisation 7."""
+    from providers.gitlab_webhook import GitLabCICDWebhookHandler
+    handler = GitLabCICDWebhookHandler()
+    handler.binding = Mock(pk=1, pipeline_id='42')
+    handler.binding.project_service.project.organisation = Mock(id=7)
+    return handler
+
+
+def _org_project():
+    return Mock(organisation_id=7, gitlab_url='https://gitlab.example.com')
+
+
 class TestBuildEventDispatchesCeleryTask(SimpleTestCase):
     """Test that _handle_build_event dispatches async task."""
 
@@ -18,8 +31,8 @@ class TestBuildEventDispatchesCeleryTask(SimpleTestCase):
     def test_build_event_dispatches_celery_task(self, mock_gp_objects, mock_task):
         from providers.gitlab_webhook import GitLabCICDWebhookHandler
 
-        mock_gp_objects.filter.return_value.first.return_value = None
-        handler = GitLabCICDWebhookHandler()
+        mock_gp_objects.filter.return_value.first.return_value = _org_project()
+        handler = _bound_handler()
 
         payload = {
             'object_kind': 'build',
@@ -38,6 +51,7 @@ class TestBuildEventDispatchesCeleryTask(SimpleTestCase):
         # Should call .delay() (async), not the function directly
         mock_task.delay.assert_called_once_with(
             '42', '999', 'main', 101, 'test-job', 'failed', 30.5, 'dev',
+            organisation_id=7,
         )
         self.assertEqual(response.data['message'], 'Logs retrieval initiated for job.')
 
@@ -46,8 +60,8 @@ class TestBuildEventDispatchesCeleryTask(SimpleTestCase):
     def test_build_event_dispatches_for_success_too(self, mock_gp_objects, mock_task):
         from providers.gitlab_webhook import GitLabCICDWebhookHandler
 
-        mock_gp_objects.filter.return_value.first.return_value = None
-        handler = GitLabCICDWebhookHandler()
+        mock_gp_objects.filter.return_value.first.return_value = _org_project()
+        handler = _bound_handler()
 
         payload = {
             'object_kind': 'build',
@@ -77,10 +91,11 @@ class TestRetrieveGitlabJobLogsTask(SimpleTestCase):
 
         # Call the underlying function directly (bypass Celery's bind=True)
         result = retrieve_gitlab_job_logs.run(
-            '42', '999', 'main', 101, 'test-job', 'failed', 30.5, 'dev',
+            '42', '999', 'main', 101, 'test-job', 'failed', 30.5, 'dev', 7,
         )
 
         mock_util_fn.assert_called_once_with(
             '42', '999', 'main', 101, 'test-job', 'failed', 30.5, 'dev',
+            organisation_id=7,
         )
         self.assertEqual(result, "Logs processed")

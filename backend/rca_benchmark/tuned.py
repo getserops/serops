@@ -7,7 +7,7 @@ held-out set is the measure; this one guards against regressions.
 The bodies are kept as they were run; ``_scenario`` maps their original
 answer keys onto the shared format.
 """
-from .dataset import UNRELATED_CSS, answer, commit, filler, log, ts
+from .dataset import UNRELATED_CSS, answer, commit, filler, log, stats, ts
 
 SET = 'tuned'
 
@@ -293,8 +293,60 @@ def _scenario(build):
     return wrapped
 
 
+RECO_CLIENT_DIFF = '\n'.join([
+    '@@ -31,7 +31,9 @@ def get_recommendations(product_ids):',
+    '     channel = grpc.insecure_channel(RECO_ADDR)',
+    '     stub = RecommendationServiceStub(channel)',
+    '-    return stub.ListRecommendations(req, timeout=2.0)',
+    '+    # Ask for one more so the carousel stays full after filtering.',
+    '+    req.max_results = MAX_RESULTS + 1',
+    '+    return stub.ListRecommendations(req, timeout=2.0)',
+])
+
+
+def t01_traffic_surge():
+    """Production scenario R9 (Online Boutique on AKS, 2026-11-04): the load
+    generator went from 100 to 500 users, every service slowed down, and the
+    analysis blamed recommendationservice's client code. Added with the
+    traffic counts (rule 22), so a pass here is expected, not evidence."""
+    logs = [log(40 + k, 'frontend', 'WARN', f'request complete: GET /product/{k} status=200 duration=2{k}40ms')
+            for k in range(8)]
+    logs += [log(41 + k, 'frontend', 'ERROR', 'rpc error: code = DeadlineExceeded desc = context deadline exceeded '
+                 '(recommendationservice ListRecommendations)') for k in range(3)]
+    logs += [log(42 + k, 'checkoutservice', 'WARN', 'GetQuote took 1820ms') for k in range(3)]
+    per = lambda svc, now, before, p95, base_p95: {
+        'service_name': svc, 'spans': 500, 'p50_ms': p95 // 3, 'p95_ms': p95, 'self_p95_ms': p95 // 2,
+        'errors': 3 if svc == 'frontend' else 0, 'traffic': {'spans': now, 'before': before},
+        'baseline': {'spans': 500, 'p95_ms': base_p95, 'self_p95_ms': base_p95 // 2, 'errors': 0}}
+    return {
+        'id': 't01_traffic_surge', 'set': SET, 'category': 'capacity',
+        'name': 'Traffic surge slows every service (no code at fault)',
+        'data': {'logs': logs,
+                 'code_changes': [commit('7e1d2c3b', -25, 'lina', 'frontend: one extra recommendation for the carousel',
+                                         [{'path': 'src/frontend/recommendations.py', 'diff': RECO_CLIENT_DIFF}])],
+                 'metrics_summary': {'per_service': {'cpu_usage_percent': {
+                     'frontend': stats(88, 99, 97, 'INCREASING'), 'recommendationservice': stats(84, 98, 95, 'INCREASING'),
+                     'productcatalogservice': stats(80, 97, 92, 'INCREASING'), 'checkoutservice': stats(71, 90, 86, 'INCREASING')}},
+                     'cpu': {'usage_percent': stats(79, 98, 92, 'INCREASING')}},
+                 'traces': {'span_count': 41000, 'trace_count': 500, 'error_span_count': 120, 'source': 'otlp',
+                            'services_touched': ['frontend', 'recommendationservice', 'productcatalogservice',
+                                                 'checkoutservice'],
+                            'traffic': {'spans': 41000, 'before': 8100},
+                            'top_slow': [{'duration_ms': 2410, 'service_name': 'frontend',
+                                          'operation_name': 'GET /product', 'trace_id': 'a5a50001'}],
+                            'per_service': [per('frontend', 16200, 3200, 2400, 120),
+                                            per('recommendationservice', 9800, 1950, 1600, 60),
+                                            per('productcatalogservice', 11000, 2200, 900, 30),
+                                            per('checkoutservice', 4000, 750, 1800, 200)]}},
+        'answer': answer(['frontend', 'loadgenerator', 'ingress', 'all services', 'every service'],
+                         cause=[['traffic', 'surge', 'spike', 'load', 'requests', 'volume'],
+                                ['x5', '5x', 'five', 'fivefold', 'capacity', 'replica', 'cpu', 'saturat', 'scale']],
+                         wrong_shas=['7e1d2c3b'])}
+
+
 from .held_out import MOVED_TO_TUNED  # noqa: E402
 
 SCENARIOS = MOVED_TO_TUNED + [_scenario(b) for b in (
     s01_db_pool, s02_memory_leak, s03_env_typo, s04_third_party_outage, s05_cert_expiry, s06_disk_full,
     s07_slow_query, s08_ci_failure, s09_benign_noise, s10_redis_maxclients, s11_java_npe, s12_dns)]
+SCENARIOS.append(t01_traffic_surge)

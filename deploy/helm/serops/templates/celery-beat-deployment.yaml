@@ -26,6 +26,8 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
     spec:
+      # SerOps never calls the Kubernetes API: no token in the pod.
+      automountServiceAccountToken: false
       {{- include "serops.backendPodSecurity" . | nindent 6 }}
       containers:
         - name: beat
@@ -61,3 +63,4 @@ spec:
                   key: broker-url
           resources:
             {{- toYaml .Values.celeryBeat.resources | nindent 12 }}
+      {{- include "serops.scheduling" (dict "root" $ "values" .Values.celeryBeat "component" "celery-beat" "spread" false) | nindent 6 }}

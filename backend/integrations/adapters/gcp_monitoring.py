@@ -19,10 +19,10 @@ can query raw GCP metric types directly.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
-from integrations.adapters.gcp_logging import _load_credentials
+from integrations.adapters.gcp_logging import _health_reason, _load_credentials
 from integrations.base import MetricProvider, MetricProviderCapabilities
 from integrations.schemas import HostInfo, TimeSeries, TimeSeriesPoint
 
@@ -39,6 +39,24 @@ def _build_metric_client(credentials):
             "Install with: pip install google-cloud-monitoring"
         ) from exc
     return monitoring_v3.MetricServiceClient(credentials=credentials)
+
+
+def _point_time(end_time):
+    """A point's time as a naive UTC datetime.
+
+    The current SDK (proto-plus) hands back ``DatetimeWithNanoseconds``, a
+    datetime; the code read ``.seconds``/``.nanos`` of a raw protobuf
+    Timestamp, so every series with a point raised and the iteration
+    stopped: no GCP metric ever reached an analysis (GKE live test).
+    """
+    if end_time is None:
+        return datetime.min
+    if isinstance(end_time, datetime):
+        if end_time.tzinfo is not None:
+            end_time = end_time.astimezone(timezone.utc).replace(tzinfo=None)
+        return datetime(end_time.year, end_time.month, end_time.day, end_time.hour,
+                        end_time.minute, end_time.second, end_time.microsecond)
+    return datetime.utcfromtimestamp(end_time.seconds + end_time.nanos / 1_000_000_000)
 
 
 class GcpCloudMonitoringProvider(MetricProvider):
@@ -80,6 +98,29 @@ class GcpCloudMonitoringProvider(MetricProvider):
         "container_memory_usage_bytes": "kubernetes.io/container/memory/used_bytes",
     }
 
+    # What the pipeline asks for in Kubernetes mode, as GKE system metrics
+    # (checked against a real GKE 1.36 cluster, 2026-11-05). One series per
+    # workload: grouped by the pod's top-level controller (its Deployment),
+    # labelled service_name. The pipeline multiplies CPU by 100 expecting
+    # cores, and divides memory total by available; GKE publishes memory as
+    # a fraction of the container's limit, so total is 100 and available is
+    # 100 - used, as for CloudWatch Container Insights. ``value`` turns the
+    # aligned point into what the pipeline expects.
+    #   metric: (GKE metric type, aligner, cross-series reducer, value)
+    _K8S_SPECS = {
+        "node_cpu_seconds_total": ("kubernetes.io/container/cpu/core_usage_time", "ALIGN_RATE", "REDUCE_SUM", None),
+        "container_cpu_usage_seconds_total": ("kubernetes.io/container/cpu/core_usage_time", "ALIGN_RATE", "REDUCE_SUM", None),
+        "node_memory_MemTotal_bytes": ("kubernetes.io/container/memory/limit_utilization", "ALIGN_MEAN", "REDUCE_MAX",
+                                       lambda v: 100.0),
+        "node_memory_MemAvailable_bytes": ("kubernetes.io/container/memory/limit_utilization", "ALIGN_MEAN", "REDUCE_MAX",
+                                           lambda v: round(100.0 - v * 100.0, 2)),
+        "node_memory_MemFree_bytes": ("kubernetes.io/container/memory/limit_utilization", "ALIGN_MEAN", "REDUCE_MAX",
+                                      lambda v: round(100.0 - v * 100.0, 2)),
+        "container_memory_usage_bytes": ("kubernetes.io/container/memory/used_bytes", "ALIGN_MEAN", "REDUCE_SUM", None),
+    }
+    _K8S_GROUP_BY = "metadata.system_labels.top_level_controller_name"
+    _ALIGNMENT_SECONDS = 60
+
     def __init__(self, config: Optional[dict] = None):
         super().__init__(config)
         project_id = self._config.get("project_id")
@@ -108,9 +149,11 @@ class GcpCloudMonitoringProvider(MetricProvider):
             )
             for _ in iterator:
                 break
+            self.last_error = None
             return True
         except Exception as exc:
             logger.error("GCP Cloud Monitoring health check failed: %s", exc)
+            self.last_error = _health_reason(exc, self._project_id, "Monitoring Viewer")
             return False
 
     def query_range(
@@ -131,6 +174,9 @@ class GcpCloudMonitoringProvider(MetricProvider):
             # Already caught at __init__; guard here in case a caller
             # constructed us via an odd path.
             return []
+
+        if self._topology_mode == "kubernetes" and metric in self._K8S_SPECS:
+            return self._query_k8s(metric, labels, start, end)
 
         # Pick metric name + label routing per topology.
         active_map = (
@@ -169,6 +215,56 @@ class GcpCloudMonitoringProvider(MetricProvider):
             )
         return series_list
 
+    def _query_k8s(self, metric: str, labels: dict, start: datetime, end: datetime) -> List[TimeSeries]:
+        """One series per workload, scoped to the project's namespace.
+
+        The pipeline's labels (organisation_name, project_name, environment)
+        exist on no GKE metric: as ``metric.labels.*`` filters they matched
+        nothing, so every query came back empty (GKE live test).
+        """
+        from google.cloud import monitoring_v3
+        from integrations.schemas import _gcp_escape
+        gcp_type, aligner, reducer, value_of = self._K8S_SPECS[metric]
+        clauses = [f'metric.type="{gcp_type}"']
+        namespaces = sorted({str((labels or {}).get(k) or "").lower() for k in ("project_name", "environment")} - {""})
+        if namespaces:
+            clauses.append("resource.labels.namespace_name = one_of("
+                           + ", ".join(f'"{_gcp_escape(n)}"' for n in namespaces) + ")")
+        service = (labels or {}).get("service_name") or (labels or {}).get("service")
+        if service:
+            clauses.append(f'metadata.system_labels.top_level_controller_name = "{_gcp_escape(str(service))}"')
+        request = {
+            "name": self._project_name,
+            "filter": " AND ".join(clauses),
+            "interval": monitoring_v3.TimeInterval({
+                "start_time": {"seconds": int(start.timestamp())},
+                "end_time": {"seconds": int(end.timestamp())},
+            }),
+            "aggregation": monitoring_v3.Aggregation({
+                "alignment_period": {"seconds": self._ALIGNMENT_SECONDS},
+                "per_series_aligner": getattr(monitoring_v3.Aggregation.Aligner, aligner),
+                "cross_series_reducer": getattr(monitoring_v3.Aggregation.Reducer, reducer),
+                "group_by_fields": [self._K8S_GROUP_BY],
+            }),
+            "view": monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL,
+        }
+        try:
+            iterator = self._client.list_time_series(request=request)
+            series_list = []
+            for i, series in enumerate(iterator):
+                ts = self._to_timeseries(series, metric)
+                system = dict(getattr(getattr(series, "metadata", None), "system_labels", {}) or {})
+                workload = system.get("top_level_controller_name", "")
+                ts.labels.update({"service_name": workload, "series_id": str(i)})
+                if value_of is not None:
+                    for point in ts.points:
+                        point.value = value_of(point.value)
+                series_list.append(ts)
+            return series_list
+        except Exception as exc:
+            logger.warning("GCP Cloud Monitoring %s (%s) failed: %s", metric, gcp_type, exc)
+            return []
+
     def discover_hosts(
         self,
         org: str,
@@ -199,7 +295,14 @@ class GcpCloudMonitoringProvider(MetricProvider):
         # Compute Engine instance CPU (concrete hosts); K8s mode probes
         # GKE container CPU (workloads = pods).
         if self._topology_mode == 'kubernetes':
+            from integrations.schemas import _gcp_escape
             probe_filter = 'metric.type="kubernetes.io/container/cpu/core_usage_time"'
+            # The project's namespace, not every pod of every cluster
+            # (kube-system included).
+            namespaces = sorted({str(v or "").lower() for v in (project, environment)} - {""})
+            if namespaces:
+                probe_filter += (" AND resource.labels.namespace_name = one_of("
+                                 + ", ".join(f'"{_gcp_escape(n)}"' for n in namespaces) + ")")
         else:
             probe_filter = 'metric.type="compute.googleapis.com/instance/cpu/utilization"'
 
@@ -341,13 +444,7 @@ class GcpCloudMonitoringProvider(MetricProvider):
                     if getattr(value_obj, "double_value", None) == 0.0:
                         value = 0.0
 
-            # Convert protobuf Timestamp → python datetime.
-            if end_time is not None:
-                ts = datetime.utcfromtimestamp(
-                    end_time.seconds + end_time.nanos / 1_000_000_000
-                )
-            else:
-                ts = datetime.min
+            ts = _point_time(end_time)
 
             points.append(TimeSeriesPoint(timestamp=ts, value=value))
 

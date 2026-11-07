@@ -15,12 +15,11 @@ from unittest import mock
 from django.test import SimpleTestCase
 
 from ai_model.checks import (
-    EMBEDDINGS_ONLY_ENV_VAR,
     UNUSED_PROVIDER_ENV_VARS,
     ai_provider_env_keys_unused,
 )
 
-ALL_VARS = UNUSED_PROVIDER_ENV_VARS + (EMBEDDINGS_ONLY_ENV_VAR,)
+ALL_VARS = UNUSED_PROVIDER_ENV_VARS
 
 
 def _run(**env):
@@ -77,35 +76,22 @@ class WarnsAboutKeysNothingReadsTest(SimpleTestCase):
         self.assertEqual({f.id for f in found}, {'ai.W001'})
 
 
-class EmbeddingsKeyIsNotAProviderKeyTest(SimpleTestCase):
-    """OPENAI_API_KEY *is* read — Data/embeddings.py uses it for issue
-    similarity. Warning about a variable that genuinely works would make the
-    whole check untrustworthy; saying nothing leaves someone who set it for
-    analysis none the wiser.
-    """
+class OpenAIKeyIsNoLongerReadTest(SimpleTestCase):
+    """OPENAI_API_KEY used to feed issue-similarity embeddings. Embeddings now
+    use the organisation's own provider (external review, v1.2.13), so the
+    variable does nothing and gets the same warning as its siblings."""
 
-    def test_it_is_an_info_not_a_warning(self):
-        from django.core.checks import INFO, WARNING
+    def test_openai_key_in_the_environment_warns_like_the_others(self):
         found = _run(OPENAI_API_KEY='sk-openai')
         self.assertEqual(len(found), 1)
-        self.assertEqual(found[0].id, 'ai.I001')
-        self.assertEqual(found[0].level, INFO)
-        self.assertNotEqual(found[0].level, WARNING)
+        self.assertEqual(found[0].id, 'ai.W001')
+        self.assertIn('OPENAI_API_KEY', found[0].msg)
 
-    def test_it_says_what_the_key_is_actually_for(self):
-        found = _run(OPENAI_API_KEY='sk-openai')
-        self.assertIn('embeddings', found[0].msg.lower())
-        self.assertIn('does not drive root-cause analysis', found[0].hint)
-
-    def test_it_does_not_echo_the_key(self):
+    def test_openai_key_value_is_never_echoed(self):
         secret = 'sk-openai-secret'
         found = _run(OPENAI_API_KEY=secret)
         self.assertNotIn(secret, found[0].msg)
         self.assertNotIn(secret, found[0].hint)
-
-    def test_mixed_configuration_reports_both_kinds(self):
-        found = _run(ANTHROPIC_API_KEY='a', OPENAI_API_KEY='o')
-        self.assertEqual({f.id for f in found}, {'ai.W001', 'ai.I001'})
 
 
 class CheckIsRegisteredTest(SimpleTestCase):

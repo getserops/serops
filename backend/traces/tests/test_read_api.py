@@ -110,6 +110,28 @@ class TraceReadApiTest(TestCase):
         trace_ids = {t['trace_id'] for t in response.json()['results']}
         self.assertEqual(trace_ids, {'c' * 32})
 
+    def test_detail_with_a_trace_id_another_org_also_holds_shows_only_our_spans(self):
+        # Security review 2026-11, finding 1: the other org ingests the
+        # same trace id; each org's detail view must show its own trace.
+        base = datetime(2026, 9, 4, 12, 0, 0, tzinfo=timezone.utc)
+        twin = Trace.objects.create(
+            trace_id='a' * 32, organisation=self.other_org,
+            root_service_name='twin', root_operation='op',
+            start_time=base, end_time=base, duration_ms=0,
+        )
+        Span.objects.create(
+            trace=twin, span_id='9' * 16, service_name='twin', operation_name='op',
+            start_time=base, end_time=base, duration_ms=0,
+        )
+
+        self.client.force_authenticate(user=self.user)
+        ours = self.client.get(f'/api/traces/traces/{"a" * 32}/').json()
+        self.client.force_authenticate(user=self.other_user)
+        theirs = self.client.get(f'/api/traces/traces/{"a" * 32}/').json()
+
+        self.assertEqual({s['service_name'] for s in ours['spans']}, {'checkout'})
+        self.assertEqual([s['service_name'] for s in theirs['spans']], ['twin'])
+
     def test_list_orders_newest_first(self):
         self.client.force_authenticate(user=self.user)
         response = self.client.get('/api/traces/traces/')

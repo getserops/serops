@@ -155,7 +155,9 @@ class GcpQueryRangeTest(TestCase):
                           datetime.utcnow(), datetime.utcnow() + timedelta(minutes=5))
         req = p._client.list_time_series.call_args.kwargs['request']
         self.assertIn('kubernetes.io/container/cpu/core_usage_time', req['filter'])
-        self.assertIn('resource.labels.container_name="checkout"', req['filter'])
+        # The workload is the pod's Deployment: GKE names containers after
+        # their role ("server"), not the service (GKE live test).
+        self.assertIn('metadata.system_labels.top_level_controller_name = "checkout"', req['filter'])
 
 
 # ============================================================================

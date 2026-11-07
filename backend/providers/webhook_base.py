@@ -101,6 +101,24 @@ class BaseCICDWebhookHandler(APIView, ABC):
         """
         pass
     
+    # The authenticated binding of the request being handled; set by post()
+    # once the signature checks out. APIView builds one instance per request.
+    binding = None
+
+    def _binding_organisation(self, binding=None):
+        """The organisation that owns the authenticated binding, or None.
+
+        Every lookup a webhook triggers is scoped to it: the payload is
+        written by the sender, so ids in it (project, repository, commit)
+        may name another organisation's records (security review 2026-11,
+        finding 2).
+        """
+        binding = binding or self.binding
+        try:
+            return binding.project_service.project.organisation
+        except AttributeError:
+            return None
+
     def _resolve_binding(self, request, **kwargs):
         """Look up the CICDBinding for this webhook by its binding_id.
 
@@ -159,6 +177,7 @@ class BaseCICDWebhookHandler(APIView, ABC):
                     {'error': 'Invalid webhook signature or token'},
                     status=status.HTTP_403_FORBIDDEN
                 )
+            self.binding = binding
             
             # 2. Parse payload
             try:
@@ -281,6 +300,9 @@ class BaseCICDWebhookHandler(APIView, ABC):
         from .models import CodeChange
 
         project_service = getattr(binding, 'project_service', None)
+        organisation = self._binding_organisation(binding)
+        if organisation is None:
+            return 0
         
         commit_shas = normalized.get('commit_shas', [])
         environment = normalized.get('environment', 'development')
@@ -288,8 +310,12 @@ class BaseCICDWebhookHandler(APIView, ABC):
         
         for sha in commit_shas:
             try:
-                # Look up code change (provider-agnostic)
-                code_change = CodeChange.objects.filter(commit_sha=sha).first()
+                # Look up code change (provider-agnostic), within the
+                # binding's organisation: the SHA comes from the payload, and
+                # another tenant's commit must not be linked to this pipeline.
+                code_change = CodeChange.objects.filter(
+                    commit_sha=sha, organisation=organisation,
+                ).first()
                 
                 if code_change:
                     # Link commit to this pipeline (Commit-to-Build Correlation)
@@ -334,6 +360,7 @@ class BaseCICDWebhookHandler(APIView, ABC):
 def detect_environment_generic(
     branch: str = None, job_name: str = None,
     explicit_env: str = None, project_id: str = None,
+    organisation=None,
 ) -> str:
     """Detect environment from common patterns; returns the env name only.
 
@@ -343,6 +370,7 @@ def detect_environment_generic(
     env, _ = detect_environment_with_source(
         branch=branch, job_name=job_name,
         explicit_env=explicit_env, project_id=project_id,
+        organisation=organisation,
     )
     return env
 
@@ -350,6 +378,7 @@ def detect_environment_generic(
 def detect_environment_with_source(
     branch: str = None, job_name: str = None,
     explicit_env: str = None, project_id: str = None,
+    organisation=None,
 ) -> tuple:
     """Detect environment + return which strategy matched.
 
@@ -362,14 +391,18 @@ def detect_environment_with_source(
     now first-class metadata instead of an opaque default.
 
     Priority:
-    0. ProjectEnvironment DB patterns (if project_id provided)
+    0. ProjectEnvironment DB patterns (if project_id and organisation are
+       provided). The project id usually comes from a webhook payload, so
+       it is looked up only within the organisation: another tenant's
+       repository with the same id must not pick the environment
+       (security review 2026-11, finding 2).
     1. Explicit environment (if set in CI/CD config)
     2. Job/workflow name patterns
     3. Branch patterns
     4. Default to development
     """
     # 0. ProjectEnvironment DB lookup (if project_id provided and branch available)
-    if project_id and branch:
+    if project_id and branch and organisation is not None:
         try:
             from Projects.models import SCMBinding, ProjectEnvironment, ProjectService
             from providers.models import GitlabProject
@@ -378,14 +411,17 @@ def detect_environment_with_source(
 
             # Try SCMBinding first (works for all providers)
             scm_binding = SCMBinding.objects.filter(
-                repository_id=project_id
+                repository_id=project_id,
+                project_service__project__organisation=organisation,
             ).select_related('project_service__project').first()
             if scm_binding:
                 project = scm_binding.project_service.project
 
             # Fallback: GitlabProject legacy lookup
             if not project:
-                gp = GitlabProject.objects.filter(project_id=project_id).first()
+                gp = GitlabProject.objects.filter(
+                    project_id=project_id, organisation=organisation,
+                ).first()
                 if gp:
                     ps = ProjectService.objects.filter(
                         gitlab_project=gp

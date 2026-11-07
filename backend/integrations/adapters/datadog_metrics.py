@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 import requests
+
+from Utils.outbound import GuardedSession
 from requests.exceptions import RequestException
 
 from integrations.base import MetricProvider, MetricProviderCapabilities
@@ -82,7 +84,10 @@ class DatadogMetricProvider(MetricProvider):
         from integrations.adapters.datadog_logs import datadog_site
         self.base_url = f"https://api.{datadog_site(self._config)}"
         self.last_error = None
-        self._session = requests.Session()
+        # Re-validates the host before every request and each redirect hop,
+        # and never follows a redirect to another host (security review
+        # 2026-11, finding 3).
+        self._session = GuardedSession()
         self._session.headers.update({
             "DD-API-KEY": self._config.get("api_key", ""),
             "DD-APPLICATION-KEY": self._config.get("app_key", ""),

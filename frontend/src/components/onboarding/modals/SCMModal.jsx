@@ -183,7 +183,7 @@ export default function SCMModal({ open, onClose, onSaved }) {
 
                 {loadingLists ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-                        <CircularProgress />
+                        <CircularProgress aria-label="Loading" />
                     </Box>
                 ) : !hasIntegrations ? (
                     <Alert severity="info">
@@ -277,7 +277,7 @@ export default function SCMModal({ open, onClose, onSaved }) {
                     variant="contained"
                     onClick={handleSave}
                     disabled={!canSubmit()}
-                    startIcon={saving ? <CircularProgress size={16} /> : null}
+                    startIcon={saving ? <CircularProgress aria-label="Loading" size={16} /> : null}
                 >
                     Link repository
                 </Button>

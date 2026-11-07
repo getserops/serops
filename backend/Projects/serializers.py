@@ -272,6 +272,19 @@ class ProjectServiceSerializer(serializers.ModelSerializer):
     def validate(self, data):
         service_type = data.get('service_type')
         gitlab_project = data.get('gitlab_project')
+
+        # One service per name in a project: logs, metrics and traces find
+        # their service by name, so a second "frontend" left SerOps unable to
+        # tell which one a log belongs to (journey suite, Online Boutique).
+        project = data.get('project') or getattr(self.instance, 'project', None)
+        name = (data.get('name') or '').strip()
+        if project is not None and name:
+            twins = ProjectService.objects.filter(project=project, name__iexact=name)
+            if self.instance is not None:
+                twins = twins.exclude(pk=self.instance.pk)
+            if twins.exists():
+                raise serializers.ValidationError(
+                    {'name': f'This project already has a service named "{name}".'})
         
         if service_type == 'gitlab':
             if not gitlab_project:

@@ -32,6 +32,8 @@ spec:
       labels:
         {{- include "serops.selectorLabels" (dict "Chart" .Chart "Release" .Release "Values" .Values "component" "migrate") | nindent 8 }}
     spec:
+      # SerOps never calls the Kubernetes API: no token in the pod.
+      automountServiceAccountToken: false
       restartPolicy: Never
       {{- include "serops.backendPodSecurity" $ | nindent 6 }}
       initContainers:

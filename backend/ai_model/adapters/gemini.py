@@ -117,8 +117,11 @@ class GeminiAdapter(BaseProviderAdapter):
         if 'timeout' in msg or 'timed out' in msg or 'deadline exceeded' in msg:
             return AIServiceError.from_type('timeout', raw_error=str(e)[:500])
         # Rate limit / quota
+        # No credit left is not a rate limit: it does not reset on its own.
+        if AIServiceError.is_out_of_credit(str(e)):
+            return AIServiceError.from_type('out_of_credit', raw_error=str(e)[:500])
         if '429' in msg or 'quota' in msg or 'resource_exhausted' in msg or 'rate limit' in msg:
-            return AIServiceError.from_type('quota_exceeded', raw_error=str(e)[:500])
+            return AIServiceError.quota_exceeded(str(e))
         # Auth
         # Google says "API key not valid" (reason API_KEY_INVALID) with a 400.
         if ('401' in msg or 'unauthenticated' in msg or 'permission_denied' in msg or 'invalid api key' in msg

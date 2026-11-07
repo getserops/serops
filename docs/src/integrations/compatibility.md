@@ -85,7 +85,7 @@ and Splunk through HEC).
 |---|---|---|---|
 | [GitLab](gitlab.md) (SCM + CI) | 17.11 and later (CE / EE) | 17.11 CE (2026-09-13) | Live-tested |
 | [Jenkins](jenkins.md) | Current LTS line | 2.541.3 LTS | Live-tested |
-| [GitHub](github.md) (SCM + Actions) | github.com, GitHub Enterprise Server | — | Unit-tested |
+| [GitHub](github.md) (SCM + Actions) | github.com, GitHub Enterprise Server | github.com (2026-11-02, fine-grained read-only token; commits, Actions runs and deployments via Sync and polling; webhooks not yet tested live; fixes on `main`, not yet in a release). GitHub Enterprise Server not tested | Live-tested (github.com) |
 | [Bitbucket](bitbucket.md) | Bitbucket Cloud | — | Unit-tested |
 | [Azure DevOps](azure-devops.md) | Azure DevOps Services | — | Unit-tested |
 
@@ -105,9 +105,10 @@ and Splunk through HEC).
 
 ## Not yet validated
 
-- **Managed Kubernetes** (EKS, GKE, AKS) and **multi-node clusters**: all
-  the Kubernetes testing above ran on one node. See
-  [Tested environments](overview.md#tested-environments).
+- **Managed Kubernetes on EKS and GKE**: not yet validated. AKS was
+  validated in November 2026 (Azure Monitor with Container Insights, on one
+  node and then two); the rest of the Kubernetes testing above ran on one
+  node. See [Tested environments](overview.md#tested-environments).
 - **containerd vs Docker runtime**: the suite runs on minikube's Docker
   runtime as well as the containerd one the integration pages were written
   for. On a Docker runtime, add the `docker` parser to Promtail and Fluent

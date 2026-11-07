@@ -165,3 +165,46 @@ describe('MetricsInsights', () => {
     expect(screen.getByText(/WOBBLY/)).toBeTruthy();
   });
 });
+
+describe('MetricsInsights · what Kubernetes did', () => {
+  it('shows a release that cannot start and the replicas it left missing', () => {
+    render(<MetricsInsights summary={{
+      ...base,
+      waiting: [{ container: 'paymentservice', reason: 'ImagePullBackOff' }],
+      unavailable: [{ workload: 'paymentservice', available: 0, desired: 1 }],
+      changes: [{ at: '2026-11-02T13:52:00Z', kind: 'Deployment', workload: 'paymentservice',
+        change: 'rollout', detail: 'image payments:v0.10.7 -> payments:v9.9.9' }],
+    }} />);
+    expect(screen.getByText('ImagePullBackOff')).toBeInTheDocument();
+    expect(screen.getByText('metrics.replicasAvailable')).toBeInTheDocument();
+    expect(screen.getByText('metrics.changesTitle')).toBeInTheDocument();
+    expect(screen.getByText('image payments:v0.10.7 -> payments:v9.9.9')).toBeInTheDocument();
+  });
+
+  it('a change alone is enough for the panel to appear', () => {
+    expect(deriveInsights({ ...base, changes: [{ at: 'x', workload: 'redis-cart', change: 'scaled' }] }))
+      .not.toBeNull();
+  });
+});
+
+describe('MetricsInsights · CPU throttling', () => {
+  it('names the throttled service', () => {
+    render(<MetricsInsights summary={{ ...base, throttled: [{ service: 'productcatalogservice', percent: 93 }] }} />);
+    expect(screen.getByText('productcatalogservice')).toBeInTheDocument();
+    expect(screen.getByText('metrics.cpuThrottled')).toBeInTheDocument();
+  });
+});
+
+describe('MetricsInsights · stuck rollout', () => {
+  it('says the previous version still serves', () => {
+    render(<MetricsInsights summary={{ ...base, stuck: [{ workload: 'currencyservice', not_ready: 1, available: 1, desired: 1 }] }} />);
+    expect(screen.getByText('metrics.rolloutStuck')).toBeInTheDocument();
+  });
+});
+
+describe('MetricsInsights · recovered workload', () => {
+  it('says a workload back to full strength has recovered', () => {
+    render(<MetricsInsights summary={{ ...base, unavailable: [{ workload: 'paymentservice', available: 0, desired: 1, now: 1 }] }} />);
+    expect(screen.getByText('metrics.replicasRecovered')).toBeInTheDocument();
+  });
+});

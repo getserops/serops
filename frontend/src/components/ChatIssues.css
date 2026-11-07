@@ -780,6 +780,13 @@
 :is(html, :root[data-theme]) .history-toggle-btn:hover { color: var(--text-primary); border-color: var(--border-hover); }
 :is(html, :root[data-theme]) .chat-messages-area { background: var(--bg-sunken); }
 @media (max-width: 767px) {
-  :is(html, :root[data-theme]) .chat-container-modern { height: calc(100vh - var(--topbar-h, 56px) - 32px); }
+  /* dvh: the screen as the browser shows it. 100vh counts the space under
+     a phone browser's address bar, so the chat was taller than the screen. */
+  :is(html, :root[data-theme]) .chat-container-modern {
+    height: calc(100vh - var(--topbar-h, 56px) - 32px);
+    height: calc(100dvh - var(--topbar-h, 56px) - 32px);
+  }
+  /* One line of placeholder: wrapped, its second line was cut off. */
+  .chat-textarea::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 :is(html, :root[data-theme]) .chat-container-modern { max-width: none; }

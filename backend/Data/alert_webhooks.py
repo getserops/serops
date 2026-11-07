@@ -89,11 +89,21 @@ def _secret_for(source: str, organisation) -> str:
     return str(secrets.get(source, ''))
 
 
+def _several_organisations() -> bool:
+    from Organisations.models import Organisations
+    return Organisations.objects.count() > 1
+
+
 def _authenticate_sentry(request) -> bool:
     """Sentry-Hook-Signature = hex HMAC-SHA256(client secret, raw body)."""
     import hashlib
     secret = _secret_for('sentry', None)
     signature = request.META.get('HTTP_SENTRY_HOOK_SIGNATURE', '')
+    if _several_organisations():
+        # One client secret for the whole install, and the HMAC covers the
+        # body only, not the organisation in the URL: see _authenticate.
+        logger.warning('Sentry webhook rejected: not supported on an install with several organisations.')
+        return False
     if not secret or not signature:
         if not secret:
             logger.warning('Sentry webhook rejected: SEROPS_SENTRY_CLIENT_SECRET is not set.')
@@ -127,7 +137,15 @@ def _authenticate(request, source: str, organisation) -> bool:
         candidate = hashlib.sha256(provided.encode('utf-8')).hexdigest()
         return hmac.compare_digest(candidate, org_hash)
 
-    # Fallback: legacy global-per-source secret.
+    # Fallback: legacy global-per-source secret, on a single-organisation
+    # install only. Shared by every organisation, it let one tenant post
+    # alerts into another's analyses and AI budget by changing the org id in
+    # the URL (review 2026-11-05).
+    if _several_organisations():
+        logger.warning('Alert webhook rejected: install with several organisations and no per-org '
+                       'secret for org %s. Rotate one via POST /api/organisation/alert-secret/rotate/.',
+                       getattr(organisation, 'pk', None))
+        return False
     expected = _secret_for(source, organisation)
     if not expected:
         logger.warning(

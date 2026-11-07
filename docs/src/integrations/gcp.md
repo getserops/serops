@@ -28,7 +28,7 @@ Google Cloud Operations (formerly Stackdriver) covers both **Cloud Logging** and
 
 ## Configuration
 
-In the UI: **Settings → Integrations → Log Providers (or Metric Providers) → Add**, then pick the provider. The same fields through the API:
+In the UI: **Settings → Observability → Add → Google Cloud**, or the onboarding wizard's log provider step: the project ID, the key file's JSON, and whether your services run on GKE. The same fields through the API:
 
 ```json
 {
@@ -36,6 +36,7 @@ In the UI: **Settings → Integrations → Log Providers (or Metric Providers) �
   "display_name": "GCP · production project",
   "capabilities": ["logs", "metrics"],
   "password": "{\"type\":\"service_account\",\"project_id\":\"prod-42\",...}",
+  "topology_mode": "kubernetes",
   "extra_config": {
     "project_id": "prod-42"
   }
@@ -114,40 +115,51 @@ Cloud Logging and Cloud Monitoring are both paged iterators. SerOps intentionall
 | "expected a service-account JSON key" | The JSON is well-formed but is not a service-account key (probably a user credential or expired API key) |
 | `project_id` missing / mismatch | The integration record's `extra_config.project_id` differs from the `project_id` inside the JSON key. They must match |
 | 401 / 403 during search | The service account lacks `roles/logging.viewer` or `roles/monitoring.viewer` on the project |
-| Empty results with no error | The time-range window has no matching entries, or the log labels differ from SerOps's canonical schema (`labels.project_name`, `labels.environment`, `labels.service_name`). Enrich your log shipper to add those labels |
+| Empty results with no error | No log in the window carries the project: on GKE, name the namespace after the project (or the environment), or add a project rule `namespace = <your namespace>` (**Check my data** offers it). Elsewhere, add `project_name` / `environment` / `service_name` labels |
 | Invalid GCP bareword error | A severity string contains characters outside `[A-Za-z0-9_]` — usually a bad config value |
 | Health check passes but searches return nothing | The service account can list metadata but has no data-read grant on the specific log names / metric types |
 
 ## Kubernetes (GKE) mode
 
-!!! warning "Not yet validated on a live GKE cluster"
-    This mode is implemented and unit-tested, but has not yet run against a
-    live GKE cluster. See [Tested environments](overview.md#tested-environments).
+Checked on a live GKE 1.36 cluster running Google's Online Boutique
+(November 2026): health check, Check my data, logs and metrics, read with a
+key holding only Logs Viewer and Monitoring Viewer. End-to-end incident
+analyses on GKE have not run yet; see
+[Tested environments](overview.md#tested-environments).
 
-For GKE clusters, set the integration's `topology_mode` to `kubernetes`.
-SerOps will then:
+Set the integration's `topology_mode` to `kubernetes` (the wizard's *My
+services run on GKE*). GKE writes container logs to Cloud Logging and
+container metrics to Cloud Monitoring by default; nothing to install.
 
-- Route canonical `node_cpu_seconds_total` / `node_memory_*` metric
-  names to their GKE equivalents (`kubernetes.io/container/cpu/core_usage_time`,
-  `kubernetes.io/container/memory/used_bytes`, …).
-- Filter by **resource labels** (`resource.labels.cluster_name`,
-  `namespace_name`, `pod_name`, `container_name`) instead of
-  `metric.labels.*`. Canonical SerOps labels are aliased
-  automatically:
+**Which logs belong to a project.** GKE logs carry no `project_name`. A
+project reads the logs of the Kubernetes namespace named after it, or after
+one of its environments, like the CloudWatch and Prometheus Kubernetes modes.
+Another namespace: add a project rule `namespace = shop-prod` (**Check my
+data** offers it when it sees the logs). Rules on `cluster` and `container`
+target the resource too; a rule on a pod label uses its Cloud Logging name,
+for example `k8s-pod/team = payments`.
 
-  | SerOps label | GKE resource label |
-  |---|---|
-  | `service_name` / `service` / `container` | `container_name` |
-  | `namespace` | `namespace_name` |
-  | `pod` | `pod_name` |
-  | `cluster` | `cluster_name` |
+**How a log line is read.**
 
-- `discover_hosts` returns pods (as workload identity) instead of
-  Compute Engine instances.
+| SerOps | From the GKE entry |
+|---|---|
+| Service | the pod's `app` label (`k8s-pod/app`), else its Deployment, else the container name |
+| Host | the node (`compute.googleapis.com/resource_name`) |
+| Level | Google's severity; for a plain-text line on stderr, the level the line names (GKE rates every stderr line ERROR) |
 
-Prerequisite: GKE **Cloud Monitoring for GKE** must be enabled on
-the cluster (default for standard GKE; check for Autopilot). The
-service account needs `roles/monitoring.viewer`.
+Google's audit logs are left out: they record API calls, not your
+applications, and are most of a GKE project's volume.
+
+**Metrics.** One series per workload (the pod's Deployment, or other
+top-level controller), in the project's namespaces:
+
+| Pipeline asks for | GKE metric |
+|---|---|
+| CPU | `kubernetes.io/container/cpu/core_usage_time`, as a rate (cores) |
+| Memory | `kubernetes.io/container/memory/limit_utilization`: the share of the container's memory limit in use, so a pod close to its OOMKill shows it |
+
+Containers without a memory limit have no memory series. `discover_hosts`
+returns the pods of the project's namespaces.
 
 ## Related Pages
 

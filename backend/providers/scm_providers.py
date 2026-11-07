@@ -17,6 +17,8 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import requests
+
+from Utils.outbound import check_url
 import logging
 from dateutil import parser as date_parser
 
@@ -207,9 +209,15 @@ class BaseProvider(ABC):
         data: Optional[Any] = None,
         timeout: int = 30
     ) -> requests.Response:
-        """Make an HTTP request with error handling."""
+        """Make an HTTP request with error handling.
+
+        Through ``guarded_request``: the base URL is user-configured, so it is
+        re-validated before each request and redirects are followed only
+        within the same host (security review 2026-11, finding 3).
+        """
+        from Utils.outbound import guarded_request
         try:
-            response = requests.request(
+            response = guarded_request(
                 method=method,
                 url=url,
                 headers=headers,
@@ -516,12 +524,36 @@ class GitHubProvider(BaseProvider):
             access_token: GitHub Personal Access Token or GitHub App token
             base_url: API base URL (default: https://api.github.com)
         """
-        super().__init__(project_id, access_token, base_url or self.DEFAULT_BASE_URL)
+        super().__init__(project_id, access_token, self.api_base(base_url))
+        # The repository list (and so the Add Service wizard) gives GitHub's
+        # numeric id; /repos/<id>/... is a 404, so every repository connected
+        # from the UI fetched no commit. A numeric id goes through
+        # /repositories/<id>, which serves the same endpoints.
+        pid = str(project_id or '').strip()
+        self.repo_path = f"repositories/{pid}" if pid.isdigit() else f"repos/{pid}"
     
+    @classmethod
+    def api_base(cls, base_url: Optional[str]) -> str:
+        """The REST API root for what the person typed as the GitHub URL.
+
+        The integration form fills in https://github.com, and the provider
+        called https://github.com/user: an HTML page, so Test connection
+        failed with "Expecting value: line 1 column 1". github.com means
+        api.github.com; a GitHub Enterprise address gets /api/v3.
+        """
+        url = (base_url or '').strip().rstrip('/')
+        if not url:
+            return cls.DEFAULT_BASE_URL
+        if '://' not in url:
+            url = 'https://' + url
+        host = url.split('://', 1)[1].split('/', 1)[0].lower()
+        if host in ('github.com', 'www.github.com', 'api.github.com'):
+            return cls.DEFAULT_BASE_URL
+        return url if url.endswith('/api/v3') else url + '/api/v3'
+
     @property
     def provider_name(self) -> str:
         return 'github'
-    
     def _get_headers(self) -> Dict[str, str]:
         return {
             "Authorization": f"Bearer {self.access_token}",
@@ -549,7 +581,7 @@ class GitHubProvider(BaseProvider):
             List of normalized commit dictionaries
         """
         # GitHub API: GET /repos/{owner}/{repo}/commits
-        url = f"{self.base_url}/repos/{self.project_id}/commits"
+        url = f"{self.base_url}/{self.repo_path}/commits"
         
         params = {"per_page": min(limit, 100)}
         if since:
@@ -579,7 +611,7 @@ class GitHubProvider(BaseProvider):
             Dictionary with diff summary and file changes
         """
         # GitHub API: GET /repos/{owner}/{repo}/commits/{sha}
-        url = f"{self.base_url}/repos/{self.project_id}/commits/{commit_sha}"
+        url = f"{self.base_url}/{self.repo_path}/commits/{commit_sha}"
         
         response = self._make_request("GET", url, headers=self._get_headers())
         
@@ -679,7 +711,7 @@ class GitHubProvider(BaseProvider):
             List of dicts with keys: id, status, ref, sha, updated_at
         """
         from datetime import timedelta
-        url = f"{self.base_url}/repos/{self.project_id}/actions/runs"
+        url = f"{self.base_url}/{self.repo_path}/actions/runs"
         params = {'per_page': 20, 'status': 'completed'}
 
         try:
@@ -712,12 +744,19 @@ class GitHubProvider(BaseProvider):
                 conclusion = run.get('conclusion', '')
                 normalized_status = status_map.get(conclusion, conclusion)
 
+                head = run.get('head_commit') or {}
                 results.append({
                     'id': str(run.get('id')),
                     'status': normalized_status,
                     'ref': run.get('head_branch', ''),
                     'sha': run.get('head_sha', ''),
                     'updated_at': updated_at,
+                    # The commit itself, so a polled run records a whole code
+                    # change (message, author, time), not a bare SHA.
+                    'message': head.get('message', ''),
+                    'author_name': (head.get('author') or {}).get('name', ''),
+                    'author_email': (head.get('author') or {}).get('email', ''),
+                    'timestamp': head.get('timestamp') or updated_at,
                 })
 
             return results
@@ -741,7 +780,7 @@ class GitHubProvider(BaseProvider):
         if events is None:
             events = ["push", "workflow_run"]
 
-        url = f"{self.base_url}/repos/{self.project_id}/hooks"
+        url = f"{self.base_url}/{self.repo_path}/hooks"
         
         payload = {
             "name": "web",
@@ -756,11 +795,15 @@ class GitHubProvider(BaseProvider):
         }
         
         try:
+            # User-configured base URL: re-checked before the request, no
+            # redirects followed (security review 2026-11, finding 3).
+            check_url(url)
             response = requests.post(
                 url,
                 headers=self._get_headers(),
                 json=payload,
-                timeout=30
+                timeout=30,
+                allow_redirects=False,
             )
             
             if response.status_code in [200, 201]:
@@ -1124,10 +1167,14 @@ class BitbucketProvider(BaseProvider):
         url = f"{self.base_url}/repositories/{self.project_id}"
         
         try:
+            # User-configured base URL: re-checked before the request, no
+            # redirects followed (security review 2026-11, finding 3).
+            check_url(url)
             response = requests.get(
                 url,
                 headers=self._get_headers(),
-                timeout=30
+                timeout=30,
+                allow_redirects=False,
             )
             
             if response.status_code == 200:
@@ -1696,11 +1743,15 @@ class JenkinsProvider:
         url = f"{self.base_url}/api/json"
         
         try:
+            # User-configured base URL: re-checked before the request, no
+            # redirects followed (security review 2026-11, finding 3).
+            check_url(url)
             response = requests.get(
                 url,
                 auth=self._get_auth(),
                 headers=self._get_headers(),
-                timeout=30
+                timeout=30,
+                allow_redirects=False,
             )
             
             if response.status_code == 200:
@@ -1745,11 +1796,15 @@ class JenkinsProvider:
         url = f"{self.base_url}/api/json?tree=jobs[name,url,color,description,buildable,lastBuild[number,result,timestamp]]"
         
         try:
+            # User-configured base URL: re-checked before the request, no
+            # redirects followed (security review 2026-11, finding 3).
+            check_url(url)
             response = requests.get(
                 url,
                 auth=self._get_auth(),
                 headers=self._get_headers(),
-                timeout=30
+                timeout=30,
+                allow_redirects=False,
             )
             
             if response.status_code != 200:
@@ -1820,9 +1875,13 @@ class JenkinsProvider:
                     'actions[lastBuiltRevision[SHA1,branch[name]]]]',
         }
         try:
+            # User-configured base URL: re-checked before the request, no
+            # redirects followed (security review 2026-11, finding 3).
+            check_url(url)
             response = requests.get(
                 url, auth=self._get_auth(), headers=self._get_headers(),
                 params=params, timeout=30,
+                allow_redirects=False,
             )
             if response.status_code != 200:
                 logger.warning(
@@ -1902,11 +1961,15 @@ class JenkinsProvider:
         url = f"{self.base_url}/job/{job_name}/{build_number}/api/json"
         
         try:
+            # User-configured base URL: re-checked before the request, no
+            # redirects followed (security review 2026-11, finding 3).
+            check_url(url)
             response = requests.get(
                 url,
                 auth=self._get_auth(),
                 headers=self._get_headers(),
-                timeout=30
+                timeout=30,
+                allow_redirects=False,
             )
             
             if response.status_code != 200:
@@ -1943,10 +2006,14 @@ class JenkinsProvider:
         url = f"{self.base_url}/job/{job_name}/{build_number}/consoleText"
 
         try:
+            # User-configured base URL: re-checked before the request, no
+            # redirects followed (security review 2026-11, finding 3).
+            check_url(url)
             response = requests.get(
                 url,
                 auth=self._get_auth(),
                 timeout=30,
+                allow_redirects=False,
             )
 
             if response.status_code == 200:
@@ -1979,11 +2046,15 @@ class JenkinsProvider:
         )
 
         try:
+            # User-configured base URL: re-checked before the request, no
+            # redirects followed (security review 2026-11, finding 3).
+            check_url(url)
             response = requests.get(
                 url,
                 auth=self._get_auth(),
                 headers=self._get_headers(),
                 timeout=30,
+                allow_redirects=False,
             )
 
             if response.status_code != 200:
@@ -2026,12 +2097,16 @@ class JenkinsProvider:
             url = f"{self.base_url}/job/{job_name}/build"
         
         try:
+            # User-configured base URL: re-checked before the request, no
+            # redirects followed (security review 2026-11, finding 3).
+            check_url(url)
             response = requests.post(
                 url,
                 auth=self._get_auth(),
                 headers=self._get_headers(),
                 data=parameters or {},
-                timeout=30
+                timeout=30,
+                allow_redirects=False,
             )
             
             if response.status_code in [200, 201]:

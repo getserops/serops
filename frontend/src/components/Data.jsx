@@ -679,7 +679,11 @@ const Data = () => {
                           const reasonCode = reasonMatch ? reasonMatch[1] : null;
                           const tooltipMap = {
                             'TRUNCATED': 'AI response was truncated (hit output token limit)',
-                            'QUOTA_EXCEEDED': 'AI quota exceeded',
+                            'QUOTA_EXCEEDED': 'AI provider quota or rate limit reached',
+                            'OUT_OF_CREDIT': 'AI provider account has no credit left',
+                            'OVERLOADED': 'AI provider overloaded',
+                            'SERVER_ERROR': 'AI provider server error',
+                            'REDACTION_FAILED': 'Redaction failed, nothing was sent to the AI',
                             'AUTH_ERROR': 'API authentication failed',
                             'NETWORK_ERROR': 'Connection to AI service failed',
                             'TIMEOUT': 'AI request timed out',
@@ -753,6 +757,9 @@ const Data = () => {
                                 cpu_anomaly: 'CPU anomaly',
                                 error_rate_escalating: 'Error rate escalating',
                                 first_batch: 'First batch',
+                                kubernetes_failure: 'Kubernetes restarts or unavailable pods',
+                                trace_latency_spike: 'Trace latency spike',
+                                trace_error_spike: 'Trace error spike',
                               };
                               const tooltip = (item.sentinel_triggers || [])
                                 .map(t => triggerLabels[t] || t)

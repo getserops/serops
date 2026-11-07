@@ -76,6 +76,35 @@ def _demote_side_code_findings(parsed_result):
     return demoted
 
 
+def _cap_stuck_rollout_severity(parsed_result, batch_data):
+    """A rollout whose new pods fail while the old version serves is not an outage.
+
+    The prompt says so (rule 21), yet Claude wrote "end users are currently
+    unaffected" and still rated the crash-looping rollout CRITICAL (Online
+    Boutique, Fastly-2021 scenario). The facts are measured, so the cap is
+    applied here: a CRITICAL issue on a workload listed as a stuck rollout
+    becomes WARNING, unless that workload is also short of replicas now.
+
+    Returns the number capped.
+    """
+    lifecycle = ((batch_data or {}).get('metrics_summary') or {}).get('container_lifecycle') or {}
+    short_now = {u.get('workload') for u in lifecycle.get('unavailable') or []
+                 if isinstance(u, dict) and u.get('now', u.get('available', 0)) < (u.get('desired') or 0)}
+    stuck = {u.get('workload') for u in lifecycle.get('stuck') or []
+             if isinstance(u, dict) and u.get('workload')} - short_now
+    if not stuck:
+        return 0
+    capped = 0
+    for issue in parsed_result.get('correlated_issues') or []:
+        if not isinstance(issue, dict) or str(issue.get('severity', '')).upper() != 'CRITICAL':
+            continue
+        component = str(issue.get('component') or '').strip()
+        if component in stuck:
+            issue['severity'] = 'WARNING'
+            capped += 1
+    return capped
+
+
 def _populate_issue_correlations(issue, correlations_data, metrics_summary):
     """
     Populate engine-driven correlation fields on an Issue from real correlation data.
@@ -259,10 +288,10 @@ def _redact_log_messages(formatted_logs):
 
     Returns (redacted_logs, summary). The summary aggregates counts by
     severity so callers can log it for audit. Failures are swallowed and
-    logged — redaction must not break batch analysis. If redaction fails,
-    the unredacted logs are returned (we degrade open here because the
-    alternative is losing analysis entirely; the security trade-off should
-    be revisited if redaction reliability becomes a concern).
+    logged so the batch is still stored; the logs are then kept
+    unredacted on the batch, but they cannot reach the AI provider that
+    way: ``generate_text_unified`` redacts the whole prompt again and
+    aborts the call if redaction fails (fail closed).
     """
     try:
         from Utils.data_redaction import DataRedactionService
@@ -278,7 +307,10 @@ def _redact_log_messages(formatted_logs):
                 all_findings.extend(findings)
         return formatted_logs, service.get_summary(all_findings)
     except Exception as e:
-        logger.warning(f"PII redaction failed, sending logs unredacted: {e}")
+        logger.warning(
+            "PII redaction of batch logs failed (%s); the AI call will "
+            "redact the prompt again or abort", type(e).__name__,
+        )
         return formatted_logs, {'total_count': 0, 'by_severity': {}, 'by_type': {}}
 
 
@@ -298,7 +330,9 @@ def _build_past_memories(batch):
     if not batch or not batch.project:
         return '', []
     try:
-        from Data.memory import find_past_memories, format_memories_for_prompt
+        from Data.memory import (
+            find_past_memories, format_memories_for_prompt, query_text_for_batch,
+        )
         organisation = batch.organisation or batch.project.organisation
         if not organisation:
             return '', []
@@ -307,6 +341,8 @@ def _build_past_memories(batch):
             project=batch.project,
             environment=environment,
             organisation=organisation,
+            # Most similar past incidents, not just the latest ones.
+            query_text=query_text_for_batch(batch),
         )
         text = format_memories_for_prompt(memory_tuples)
         referenced_ids = [issue.id for issue, _tier in memory_tuples]
@@ -493,6 +529,79 @@ def _notify_investigation_requester(investigation, batch, issue_count):
         )
     except Exception as e:
         logger.warning(f"Could not notify the requester of investigation {investigation.pk}: {e}")
+
+
+def _deployed_code_changes(project, environment, window_deployments, until):
+    """AI summaries of the commits that went live with ``window_deployments``.
+
+    Each summary carries ``deployed_at``: when the commit first reached
+    ``environment``. Review v1.2.13: the commits were picked by
+    deployment, but the correlator and prompt rule 14 still timed the
+    incident against the commit, so a commit made 5 h earlier and
+    deployed 10 min before the error was dropped as stale.
+
+    A deploy's commit range runs from the previous deploy's head commit
+    (exclusive) to its own head commit, so every commit in it went live
+    with that deploy. A commit with its own Deployment row in this
+    environment counts too, whichever is earlier (one grouped query).
+    Returns [] when the deployments hold no commits.
+    """
+    from datetime import timedelta
+    from django.db.models import Min
+    from providers.models import CodeChange, Deployment
+
+    first_deployed_at = {}
+    for deploy in window_deployments:
+        # Find what came before THIS deployment to define ITS commit range
+        prev_to_deploy = Deployment.objects.filter(
+            pipeline__project__organisation__projects=project,
+            environment=environment,
+            status='success',
+            deployed_at__lt=deploy.deployed_at
+        ).select_related('code_change').order_by('-deployed_at').first()
+
+        # If this is the first deployment ever, look back 7 days
+        start_hash_time = prev_to_deploy.code_change.timestamp if prev_to_deploy else (deploy.code_change.timestamp - timedelta(days=7))
+
+        # Commits OLDER than this deploy's head commit provided they are
+        # NEWER than the previous deploy's
+        deploy_commits = CodeChange.objects.filter(
+            organisation=project.organisation,
+            timestamp__gt=start_hash_time,
+            timestamp__lte=deploy.code_change.timestamp
+        ).values_list('commit_sha', flat=True)
+
+        for sha in deploy_commits:
+            seen = first_deployed_at.get(sha)
+            if seen is None or deploy.deployed_at < seen:
+                first_deployed_at[sha] = deploy.deployed_at
+
+    if not first_deployed_at:
+        return []
+
+    commits = list(CodeChange.objects.filter(
+        organisation=project.organisation,
+        commit_sha__in=list(first_deployed_at),
+    ).order_by('-timestamp')[:50])  # Limit to 50 most recent relevant commits
+
+    for row in Deployment.objects.filter(
+        code_change__in=commits,
+        environment=environment,
+        status='success',
+        deployed_at__lte=until,
+    ).values('code_change__commit_sha').annotate(first=Min('deployed_at')):
+        sha = row['code_change__commit_sha']
+        seen = first_deployed_at.get(sha)
+        if seen is None or row['first'] < seen:
+            first_deployed_at[sha] = row['first']
+
+    return [
+        c.get_summary_for_ai(
+            deployed_at=first_deployed_at.get(c.commit_sha),
+            environment=environment,
+        )
+        for c in commits
+    ]
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=10)
@@ -896,38 +1005,14 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                 
                 logger.info(f"Batch {batch_id}: Found {len(window_deployments)} relevant deployments")
                 
-                # 3. Collect Commits from ALL relevant deployments
-                relevant_commit_shas = set()
-                
-                for deploy in window_deployments:
-                    # Find what came before THIS deployment to define ITS commit range
-                    prev_to_deploy = Deployment.objects.filter(
-                        pipeline__project__organisation__projects=project,
-                        environment=environment,
-                        status='success',
-                        deployed_at__lt=deploy.deployed_at
-                    ).order_by('-deployed_at').first()
-                    
-                    # If this is the first deployment ever, look back 7 days
-                    start_hash_time = prev_to_deploy.code_change.timestamp if prev_to_deploy else (deploy.code_change.timestamp - timedelta(days=7))
-                    
-                    # Fetch commits that landed in this deployment
-                    # Logic: Commits OLDER than this deploy key commit provided they are NEWER than the previous deploy
-                    deploy_commits = CodeChange.objects.filter(
-                        organisation=project.organisation, # Optimization: Filter by org
-                        timestamp__gt=start_hash_time,
-                        timestamp__lte=deploy.code_change.timestamp
-                    ).values_list('commit_sha', flat=True)
-                    
-                    relevant_commit_shas.update(deploy_commits)
-                
-                # 4. Fetch full commit objects
-                if relevant_commit_shas:
-                    commits_qs = CodeChange.objects.filter(
-                        commit_sha__in=list(relevant_commit_shas)
-                    ).order_by('-timestamp')[:50] # Limit to 50 most recent relevant commits
+                # 3. Collect Commits from ALL relevant deployments, each
+                # stamped with when it reached this environment
+                code_changes = _deployed_code_changes(
+                    project, environment, window_deployments, batch.timestamp,
+                )
 
-                    code_changes = [c.get_summary_for_ai() for c in commits_qs]
+                # 4. Persist them
+                if code_changes:
                     logger.info(f"Batch {batch_id}: Retrieved {len(code_changes)} commits from {len(window_deployments)} deployments")
 
                     # Update batch data to persist this intel
@@ -1332,6 +1417,7 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                     valid_scopes = [s[0] for s in Issue.SCOPE_CHOICES]
                     
                     _demote_side_code_findings(parsed_result)
+                    _cap_stuck_rollout_severity(parsed_result, batch.data)
                     for issue_data in parsed_result.get('correlated_issues', []):
                         if not isinstance(issue_data, dict):
                             continue
@@ -1680,6 +1766,7 @@ def _apply_primary_analysis_to_batch(batch, parsed_result, model_name):
     issues_updated = 0
 
     _demote_side_code_findings(parsed_result)
+    _cap_stuck_rollout_severity(parsed_result, batch.data)
     for issue_data in parsed_result.get('correlated_issues', []) or []:
         if not isinstance(issue_data, dict):
             continue
@@ -1808,34 +1895,14 @@ def reanalyze_batch_with_model(self, batch_id, model_name, mode='compare'):
                 if base_deploy and base_deploy not in window_deployments:
                     window_deployments.append(base_deploy)
                 
-                # 3. Collect Commits
-                relevant_commit_shas = set()
-                
-                for deploy in window_deployments:
-                    prev_to_deploy = Deployment.objects.filter(
-                        pipeline__project__organisation__projects=project,
-                        environment=environment,
-                        status='success',
-                        deployed_at__lt=deploy.deployed_at
-                    ).order_by('-deployed_at').first()
-                    
-                    start_hash_time = prev_to_deploy.code_change.timestamp if prev_to_deploy else (deploy.code_change.timestamp - timedelta(days=7))
-                    
-                    deploy_commits = CodeChange.objects.filter(
-                        organisation=project.organisation,
-                        timestamp__gt=start_hash_time,
-                        timestamp__lte=deploy.code_change.timestamp
-                    ).values_list('commit_sha', flat=True)
-                    
-                    relevant_commit_shas.update(deploy_commits)
-                
-                # 4. Fetch full commit objects
-                if relevant_commit_shas:
-                    commits_qs = CodeChange.objects.filter(
-                        commit_sha__in=list(relevant_commit_shas)
-                    ).order_by('-timestamp')[:50]
+                # 3. Collect Commits from ALL relevant deployments, each
+                # stamped with when it reached this environment
+                code_changes = _deployed_code_changes(
+                    project, environment, window_deployments, batch.timestamp,
+                )
 
-                    code_changes = [c.get_summary_for_ai() for c in commits_qs]
+                # 4. Persist them
+                if code_changes:
                     logger.info(f"Re-analysis: Retrieved {len(code_changes)} commits from {len(window_deployments)} deployments for batch {batch_id}")
 
                     # Persist updated context
@@ -1935,6 +2002,15 @@ def reanalyze_batch_with_model(self, batch_id, model_name, mode='compare'):
                 organisation = batch.project.organisation
         except Exception as e:
             logger.warning(f"Could not determine organisation for re-analysis of batch {batch_id}: {e}")
+
+        # Re-analysis calls the provider directly rather than through
+        # generate_for_organisation, so it checks the monthly budget itself.
+        # The view refuses up front; this covers a budget used up while the
+        # task sat in the queue (security review 2026-11, finding 4).
+        from .budget import budget_allows
+        if not budget_allows(organisation or getattr(batch, 'organisation', None)):
+            logger.warning(f"Re-analysis of batch {batch_id} skipped: monthly AI budget used up")
+            return f"Re-analysis skipped for batch {batch_id}: monthly AI budget used up"
 
         # Get org-specific API key + extras (e.g. Anthropic workspace_id).
         if organisation:

@@ -148,7 +148,11 @@ def check_project_data(project, environment=None, minutes=DEFAULT_MINUTES):
 
     locations = project_log_locations(project, provider)
     report['locations'] = locations
-    if not locations:
+    # A store that selects logs by label (Loki) reads every stream without a
+    # location: carry on, so the steps below show how the logs are tagged.
+    # Stopping here told a Loki user to set an index pattern or log groups,
+    # which Loki does not have, for a project whose logs only lacked its tag.
+    if not locations and getattr(provider, 'NEEDS_LOG_LOCATION', True):
         report['diagnosis'] = _diagnosis('no_log_location')
         return report
     index = ','.join(locations + system_indices(provider))

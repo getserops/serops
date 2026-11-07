@@ -20,7 +20,14 @@ for (const theme of ['light', 'dark'] as const) {
   test.describe(`accessibility (${theme})`, () => {
     for (const [name, path] of PAGES) {
       test(`${name}`, async ({ page }, info) => {
+        // The Content-Security-Policy (security-headers.conf) allows no
+        // inline script: anything it blocks shows here, on every page.
+        const blockedByCsp: string[] = [];
+        page.on('console', (msg) => {
+          if (/Content Security Policy|Content-Security-Policy/i.test(msg.text())) blockedByCsp.push(msg.text().slice(0, 200));
+        });
         await open(page, path, theme);
+        expect(blockedByCsp, `CSP blocked something on ${path}`).toEqual([]);
         const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
         const blocking = violations
           .filter((v) => v.impact === 'serious' || v.impact === 'critical')

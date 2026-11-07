@@ -819,17 +819,42 @@ class LogQuery:
             # Lowest requested level as the >= threshold — captures
             # everything above it including the requested levels.
             severity_name = ord_to_canonical[min(requested_ords)]
-            clauses.append(f'severity>={_gcp_bareword(severity_name)}')
+            # A plain-text container line has no severity (DEFAULT) when it
+            # went to stdout: keep those that name a requested level.
+            words = sorted({w for name in self.severity
+                            for w in _SEVERITY_LINE_SYNONYMS.get(str(name).upper(), (str(name).upper(),))
+                            if _SEVERITY_ORDINAL.get(w, 0) >= min(requested_ords)})
+            text = " OR ".join(f'textPayload:"{_gcp_escape(w)}"' for w in words)
+            if text:
+                # GKE rates every plain-text stderr line ERROR. Such a line
+                # counts only if it names a level, as SerOps reads it after
+                # (GcpCloudLoggingProvider._to_log_entry); otherwise one
+                # chatty container filled the page with INFO lines and
+                # pushed real errors out (GKE live test: 4287 of 5000).
+                stream_rated = ('resource.type="k8s_container" AND logName:"/logs/stderr" '
+                                f'AND textPayload:* AND NOT ({text})')
+                clauses.append(f'((severity>={_gcp_bareword(severity_name)} AND NOT ({stream_rated}))'
+                               f' OR (severity=DEFAULT AND ({text})))')
+            else:
+                clauses.append(f'severity>={_gcp_bareword(severity_name)}')
 
         # Label filters — quoted so anything with a space or colon works.
+        # GKE tags no log with project_name or environment: a Kubernetes
+        # namespace named after the project or the environment scopes it,
+        # the convention CloudWatch Container Insights and kube-state-metrics
+        # follow too (GKE live test, 2026-11-05: every project found 0 logs).
         if self.project:
-            ors = [f'labels.project_name="{_gcp_escape(self.project)}"'] + [
-                f'labels."{_gcp_escape(field)}"="{_gcp_escape(value)}"' for field, value in (self.project_rules or [])]
-            clauses.append(ors[0] if len(ors) == 1 else "(" + " OR ".join(ors) + ")")
+            ors = [f'labels.project_name="{_gcp_escape(self.project)}"',
+                   f'resource.labels.namespace_name="{_gcp_escape(self.project.lower())}"'] + [
+                f'{_gcp_field(field)}="{_gcp_escape(value)}"' for field, value in (self.project_rules or [])]
+            clauses.append("(" + " OR ".join(ors) + ")")
         if self.environment:
-            envs = " OR ".join(f'labels.environment="{_gcp_escape(v)}"' for v in self.environment_values())
+            values = self.environment_values()
+            envs = " OR ".join(f'labels.environment="{_gcp_escape(v)}"' for v in values)
+            envs += "".join(f' OR resource.labels.namespace_name="{_gcp_escape(v.lower())}"'
+                            for v in dict.fromkeys(values))
             for field, value in self.environment_rules():
-                envs += f' OR labels."{_gcp_escape(field)}"="{_gcp_escape(value)}"'
+                envs += f' OR {_gcp_field(field)}="{_gcp_escape(value)}"'
             if self.environment_untagged:
                 envs += " OR NOT labels.environment:*"
             clauses.append(f"({envs})")
@@ -841,8 +866,12 @@ class LogQuery:
         # Multi-value: GCP filter language supports OR groups; we
         # parenthesise to keep AND binding correct across the group.
         if self.services:
+            # GKE names the workload in the pod's app label, or its
+            # Deployment; see GcpCloudLoggingProvider._to_log_entry.
             svc_clauses = " OR ".join(
-                f'labels.service_name="{_gcp_escape(s)}"' for s in self.services
+                f'{field}="{_gcp_escape(svc)}"' for svc in self.services for field in (
+                    'labels.service_name', 'labels."k8s-pod/app"',
+                    'labels."logging.gke.io/top_level_controller_name"')
             )
             clauses.append(f"({svc_clauses})")
 
@@ -953,6 +982,33 @@ def _parse_timestamp(ts: str) -> datetime:
     except (ValueError, TypeError):
         return datetime.min
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+_SEVERITY_ORDINAL = {"DEBUG": 100, "TRACE": 100, "INFO": 200, "WARN": 400, "WARNING": 400,
+                     "ERROR": 500, "ERR": 500, "CRITICAL": 600, "CRIT": 600, "FATAL": 600}
+
+# Fields of a project or environment rule that live on a GKE log's resource,
+# not in its labels; a rule field with a slash is a pod label (k8s-pod/app).
+_GCP_RESOURCE_FIELDS = {
+    'namespace': 'namespace_name', 'namespace_name': 'namespace_name',
+    'kubernetes.namespace': 'namespace_name', 'kubernetes.namespace_name': 'namespace_name',
+    'k8s.namespace.name': 'namespace_name',
+    'cluster': 'cluster_name', 'cluster_name': 'cluster_name', 'k8s.cluster.name': 'cluster_name',
+    'container': 'container_name', 'container_name': 'container_name',
+    'k8s.container.name': 'container_name',
+}
+
+
+def _gcp_field(field: str) -> str:
+    """Cloud Logging path of a rule field: ``namespace`` is
+    ``resource.labels.namespace_name`` on GKE, ``resource.X`` stays on the
+    resource, anything else is an entry label."""
+    f = str(field)
+    if f in _GCP_RESOURCE_FIELDS:
+        return f"resource.labels.{_GCP_RESOURCE_FIELDS[f]}"
+    if f.startswith("resource.") and "." not in f[len("resource."):]:
+        return f"resource.labels.{_gcp_escape(f[len('resource.'):])}"
+    return f'labels."{_gcp_escape(f)}"'
 
 
 def _detect_level(level_str: str) -> str:

@@ -18,7 +18,7 @@ const SentinelSettings = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [config, setConfig] = useState({
-        active_mode: false,
+        active_mode: true,
         error_spike_multiplier: 0,
         z_score_threshold: 0,
         max_quiet_batches: 12,

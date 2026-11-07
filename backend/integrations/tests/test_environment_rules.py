@@ -62,4 +62,5 @@ class EnvironmentRulesTest(SimpleTestCase):
                       'tostring(Properties["kubernetes.namespace_name"]) == "production"', query().to_azure_kql())
 
     def test_gcp(self):
-        self.assertIn('OR labels."kubernetes.namespace_name"="production")', query().to_gcp_filter())
+        # A namespace rule targets the resource on Cloud Logging (GKE).
+        self.assertIn('OR resource.labels.namespace_name="production")', query().to_gcp_filter())

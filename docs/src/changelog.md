@@ -16,6 +16,57 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.2.14] - 2026-11-07
+
+Security and Kubernetes release. Migrations run on their own: Data 0056,
+integrations 0011, org_settings 0021. Set `SEROPS_VERSION=1.2.14` or
+`--version 1.2.14`. Read [Upgrading → 1.2.14](deployment/upgrading.md) first:
+SSO, alert webhooks on shared installs and activation links change.
+
+SerOps now installs on and reads GKE (logs, metrics, health check), and the
+analysis sees what was done to the services: Kubernetes rollouts, CPU
+throttling, per-service trace timings and traffic.
+
+### Security
+
+- Outbound requests: the CI/CD sync and embeddings go through the outbound URL policy and no longer follow redirects; errors no longer name internal addresses.
+- Google Cloud keys accept only Google's token endpoint.
+- Changing an integration's host asks for its credentials again.
+- SSO creates accounts only for listed email domains; on several organisations only the operator sets them.
+- Alert webhooks: the global secrets work only on a single-organisation install.
+- Activation links are purpose-signed, expire after 7 days and cannot reactivate an account.
+- Redaction catches secrets in escaped JSON, `key => value` and URL-encoded values.
+- Kubernetes state is read only from the project's namespaces; PromQL values are escaped.
+- Removed the unused `GET /api/data/logs`.
+- Content-Security-Policy (scripts only from SerOps); fonts ship with the app (no Google Fonts); nginx hides its version.
+- Behind HTTPS: Secure cookies and HSTS. Helm: no pod mounts a service-account token.
+- Demo read-only guard and batch deletion scoped to the caller's organisation (external review).
+- `pyasn1` 0.6.5.
+
+### Added
+
+- Kubernetes changes in the analysis: rollouts (image, memory and CPU limit changes), scale changes, containers that cannot start, Deployments short of replicas, CPU throttling.
+- Per-service trace timings (p50/p95, errors, self time) and traffic, against the window before.
+- Sentinel triggers `kubernetes_failure`, `trace_latency_spike`, `trace_error_spike`.
+
+### Changed
+
+- Sentinel active mode is the default: quiet windows skip the AI call. Organisations that never saved **Settings → Sentinel** move to active mode on upgrade; a mode an admin saved is kept. See [Sentinel](how-to/sentinel.md).
+- Helm: replicas spread one per node; scheduling settings apply to every component.
+
+### Fixed
+
+- GKE: the chart installs; Google keys can be saved; logs get service, host and namespace; stderr levels; metrics work; health check says why it failed; onboarding asks for the project ID.
+- AI providers: `OUT_OF_CREDIT` errors, quota errors say when they reset; Chat names the provider's problem.
+- A traffic surge is no longer blamed on code.
+- Commits are timed by deployment, not commit time.
+- Severity per analysis; stuck and single-replica rollouts are WARNING; rollbacks read correctly; recurring issues take the newest text.
+- Similar past incidents work without `OPENAI_API_KEY` (organisation's provider, else lexical).
+- Restarts and OOMKills found when the namespace differs from the environment.
+- Duplicate service names refused; Loki Check my data; Chat with keyless local models; organisation delete with large telemetry.
+
+---
+
 ## [1.2.13] - 2026-11-01
 
 Integrations release, no migration. Set `SEROPS_VERSION=1.2.13` or

@@ -30,6 +30,20 @@ class OptimizedTokenAuthentication(KnoxTokenAuthentication):
     2. Skip per-request token cleanup (expired tokens cleaned on login/logout instead)
     """
 
+    def authenticate(self, request):
+        # The demo read-only rule, enforced where the token is parsed: whatever
+        # header form Knox accepts, the same check sees it. The middleware
+        # parsed the header itself and missed 'token <value>' (external review,
+        # 2026-11); this second layer cannot drift from Knox's own parsing.
+        result = super().authenticate(request)
+        if result is not None:
+            from Middlewares.DemoUserMiddleware import is_demo_write
+            if is_demo_write(result[0], request):
+                from rest_framework import exceptions
+                raise exceptions.PermissionDenied(
+                    "You're in the SerOps live demo — sign up to make changes.")
+        return result
+
     def authenticate_credentials(self, token):
         msg = _('Invalid token.')
         token = token.decode("utf-8")

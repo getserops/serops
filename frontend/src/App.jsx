@@ -16,6 +16,7 @@ import { applyTheme, applyDensity } from "./utils/theme";
 // Lazy loading components
 // Public registration now ENABLED for SaaS
 const Register = lazy(() => import("./components/Register"));
+const PageNotFound = lazy(() => import("./components/PageNotFound"));
 const RegisterPart3 = lazy(() => import("./components/RegisterPart3"));
 const Invitation = lazy(() => import("./components/Invitation"));
 const Password = lazy(() => import("./components/Password"));
@@ -170,7 +171,9 @@ function App() {
                 <Route path="integrations" element={<SettingsIntegrations />} />
                 <Route path="traces" element={<TracesSettings />} />
                 <Route path="clusters" element={<ClusterSettings />} />
+                <Route path="*" element={<PageNotFound />} />
               </Route>
+              <Route path="*" element={<PageNotFound />} />
             </Route>
 
             {/* Default redirect to login */}

@@ -15,8 +15,11 @@ class SSOService:
         """Fetch OIDC metadata from the discovery URL"""
         if not self.metadata:
             try:
-                import requests
-                response = requests.get(self.discovery_url)
+                # Guarded: the discovery URL is admin-configured and the
+                # request used to follow any redirect, with no timeout
+                # (security review 2026-11, finding 3).
+                from Utils.outbound import GuardedSession
+                response = GuardedSession().get(self.discovery_url, timeout=10)
                 response.raise_for_status()
                 self.metadata = response.json()
             except Exception as e:
@@ -42,6 +45,10 @@ class SSOService:
         """Exchange the authorization code for access details"""
         self._fetch_metadata()
         token_endpoint = self.metadata.get('token_endpoint')
+        # The endpoints come from the identity provider's metadata, so they
+        # get the same check as the discovery URL.
+        from Utils.outbound import check_url
+        check_url(token_endpoint)
         
         client = OAuth2Session(
             self.client_id, 
@@ -61,8 +68,8 @@ class SSOService:
         self._fetch_metadata()
         userinfo_endpoint = self.metadata.get('userinfo_endpoint')
         
-        import requests
+        from Utils.outbound import GuardedSession
         headers = {'Authorization': f"Bearer {token['access_token']}"}
-        response = requests.get(userinfo_endpoint, headers=headers)
+        response = GuardedSession().get(userinfo_endpoint, headers=headers, timeout=10)
         response.raise_for_status()
         return response.json()

@@ -37,6 +37,14 @@ _ALERTMANAGER_SECRET = 'e2e-alertmanager-secret-not-a-real-one'
 )
 class AlertWebhookE2ETest(E2ETestCase):
 
+    def setUp(self):
+        super().setUp()
+        # The E2E base has two organisations: the global secret no longer
+        # authenticates there, a per-organisation one does.
+        import hashlib
+        self.org.alert_ingest_secret_hash = hashlib.sha256(_ALERTMANAGER_SECRET.encode()).hexdigest()
+        self.org.save(update_fields=['alert_ingest_secret_hash'])
+
     def _payload(self, alertname: str = 'HighErrorRate') -> dict:
         """A realistic Alertmanager v4 webhook payload.
 

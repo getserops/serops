@@ -26,7 +26,9 @@ def classify_error(error_msg: str) -> str:
     """Classify an error message into a known error type"""
     error_lower = error_msg.lower()
 
-    if '429' in error_msg or 'quota' in error_lower or 'rate limit' in error_lower:
+    if AIServiceError.is_out_of_credit(error_msg):
+        return 'out_of_credit'
+    elif '429' in error_msg or 'quota' in error_lower or 'rate limit' in error_lower:
         return 'quota_exceeded'
     elif '401' in error_msg or '403' in error_msg or 'unauthorized' in error_lower or 'api key' in error_lower:
         return 'auth_error'
@@ -207,6 +209,8 @@ def generate_text_unified(prompt, provider="gemini", model=None, api_key=None, b
     Generate text using any supported provider via the Plugin System.
 
     Strategy:
+    0. Redact ``prompt`` and ``system_prefix`` (fail closed: a redaction
+       error returns a REDACTION_FAILED error and sends nothing).
     1. Look up AIModelProvider in DB by name.
     2. Get config (DB defaults + override args).
     3. Load Adapter via Registry.
@@ -230,6 +234,25 @@ def generate_text_unified(prompt, provider="gemini", model=None, api_key=None, b
     from .adapters.registry import AdapterRegistry
 
     provider_name = provider.lower()
+
+    # Every AI call goes through here, so this is where redaction happens.
+    # It used to be applied per data source (batch logs only), and chat,
+    # re-analysis / model comparison, CI/CD job errors and post-mortem
+    # commit messages reached the provider unredacted (external review,
+    # v1.2.13). Redaction is idempotent, so text a caller already redacted
+    # comes out the same. It fails CLOSED: if the redactor raises, nothing
+    # is sent. Only the exception type is logged — its message could quote
+    # the text being redacted.
+    try:
+        from Utils.redaction_helpers import redact_for_ai
+        prompt = redact_for_ai(prompt)
+        system_prefix = redact_for_ai(system_prefix)
+    except Exception as exc:
+        logger.error(
+            'Redaction failed (%s); AI call to %s aborted, nothing was sent.',
+            type(exc).__name__, provider_name,
+        )
+        return None, AIServiceError.from_type('redaction_failed'), 0, 0
 
     try:
         # 1. Fetch DB Configuration

@@ -6,7 +6,6 @@ from .views import (
     VerifyGitHubProjectView, VerifyBitbucketProjectView, VerifyAzureDevOpsProjectView,
     ProviderIntegrationViewSet, PipelineListView, DeploymentListView,
 )
-from .gitlab_webhook import GitLabCICDWebhookHandler
 from .deployment_webhook import GenericDeploymentWebhookHandler
 from .argocd_webhook import ArgoCDDeploymentWebhookHandler
 from .flux_webhook import FluxDeploymentWebhookHandler
@@ -17,7 +16,10 @@ router.register(r'integrations', ProviderIntegrationViewSet, basename='provider-
 urlpatterns = [
     path('', ProjectList.as_view()),
     path('<int:pk>/', ProjectDetail.as_view()),
-    path('webhook/', GitLabCICDWebhookHandler.as_view()),
+    # The unbound GitLab webhook (`webhook/`, no binding id) is gone: it
+    # could not tell which organisation a request was for. GitLab webhooks
+    # are served at /api/webhooks/gitlab/<binding_id>/ (security review
+    # 2026-11, finding 2).
     # Generic deploy webhook — for ArgoCD Notifications, Flux, Helm hooks,
     # Terraform apply post-hooks, kubectl rollout wrappers. Uses the same
     # CICDBinding.binding_id identity pattern as CI/CD webhooks; the payload

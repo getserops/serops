@@ -23,11 +23,10 @@ Design:
 
 Security:
 
-* Log / trace attributes are already redacted when stored on the
-  batch (see ``Utils.data_redaction`` in the batch pipeline). We
-  pass the same redacted content through — no additional egress
-  risk beyond what the org has already accepted for normal batch
-  analysis.
+* The prompt also carries commit messages and CI/CD details that are
+  NOT redacted on storage. ``generate_text_unified`` redacts every
+  prompt before it leaves (and aborts the call if redaction fails), so
+  this module does not redact on its own.
 """
 
 from __future__ import annotations
@@ -35,6 +34,8 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from typing import List
+
+from .prompts import DATA_FENCE_RULE, fence_data
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,7 @@ def _gather_context(batch) -> dict:
 
     # Similar past incidents — pull from the first top issue's find_similar.
     try:
-        if issues and issues[0].embedding:
+        if issues:
             similar = issues[0].find_similar(top_k=3)
             ctx['similar_past'] = [
                 {
@@ -168,18 +169,26 @@ Rules:
 - Keep it under 800 words — SREs need a starting point, not a novel.
 - Output only the Markdown. No preamble, no code fences around the whole doc.
 """
+# Root causes, recommendations and commit messages come from analyses and
+# commits, so the prompt marks them as data (security review 2026-11,
+# finding 6).
+_SYSTEM_PROMPT += f"- {DATA_FENCE_RULE}\n"
 
 
 def _build_prompt(context: dict) -> str:
-    """Format the context as user prompt for the AI."""
-    parts = [
+    """Format the context as user prompt for the AI.
+
+    Everything but the closing request is data: the issue, commit and
+    precedent sections are fenced (security review 2026-11, finding 6).
+    """
+    header = [
         f"Batch ID: {context['batch_id']}",
         f"Project: {context['project_name']}",
         f"Environment: {context['environment']}",
         f"Occurred: {context['timestamp']}",
         "",
-        "## Top issues:",
     ]
+    parts = ["## Top issues:"]
     if not context['top_issues']:
         parts.append("(no issues recorded — analysis produced no findings)")
     for issue in context['top_issues']:
@@ -212,9 +221,7 @@ def _build_prompt(context: dict) -> str:
             if s['recommendation']:
                 parts.append(f"  Then-recommendation: {s['recommendation']}")
 
-    parts.append("")
-    parts.append("Now write the post-mortem draft.")
-    return "\n".join(parts)
+    return "\n".join(header) + fence_data("\n".join(parts), 'incident') + "\nNow write the post-mortem draft."
 
 
 def _ai_generate(prompt: str, batch) -> str:

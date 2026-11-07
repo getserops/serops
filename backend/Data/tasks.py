@@ -1038,7 +1038,9 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             
             # Prepare for AI (use existing format)
             from providers.code_change_service import CodeChangeService
-            code_changes_data = CodeChangeService.prepare_changes_for_ai(code_changes)
+            code_changes_data = CodeChangeService.prepare_changes_for_ai(
+                code_changes, environment=batch_environment,
+            )
             
             logger.info(
                 f"✅ Found {len(code_changes_data)} code changes deployed to "
@@ -1206,6 +1208,16 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
 
         project_instance = project
 
+        # Traces BEFORE the Sentinel gate, so a latency or trace-error spike
+        # with no error logs counts as a trigger instead of a quiet window
+        # (external review of v1.2.13). Native store only, and it becomes the
+        # batch's trace snapshot below, so nothing is queried twice.
+        if project_instance is not None:
+            from ai_model.trace_context import native_trace_summary
+            trace_summary = native_trace_summary(project_instance, cleaned_data, current_time)
+            if trace_summary:
+                cleaned_data['traces'] = trace_summary
+
         # === PRE-CREATION SENTINEL GATE (Batch 50) ===
         # Drop noise batches BEFORE the DB row is written. Prevents
         # multi-region × multi-env × N projects from writing hundreds
@@ -1284,8 +1296,11 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         # weeks later after retention. Wrapped internally — never fails
         # the batch.
         try:
-            from ai_model.trace_context import snapshot_trace_context
-            snapshot_trace_context(batch)
+            # Already taken before the gate when the native store had spans;
+            # otherwise this tries the external trace provider.
+            if 'traces' not in batch.data:
+                from ai_model.trace_context import snapshot_trace_context
+                snapshot_trace_context(batch)
         except Exception as _trace_exc:
             logger.warning(f"Trace snapshot failed for batch {batch_id}: {_trace_exc}")
 
@@ -1558,6 +1573,10 @@ def create_batches_for_all_projects(self):
                 project_indices = project_log_locations(project, log_provider)
                 if project_indices:
                     logger.info(f"Discovered {len(project_indices)} log locations for project '{project.name}': {project_indices}")
+                elif not getattr(log_provider, 'NEEDS_LOG_LOCATION', True):
+                    # Stores that select logs by filter (Loki, Cloud Logging)
+                    # read the project's logs without a location.
+                    pass
                 else:
                     logger.warning(f"No valid indices found for project '{project.name}'")
                     skipped_projects.append({project.name: "No valid indices found"})
@@ -1867,17 +1886,19 @@ def embed_resolved_issue(self, issue_id):
     ``status`` transitions to ``RESOLVED``. Idempotent — safe to
     re-run; the vector is rewritten.
 
-    Failures retry twice; if OpenAI is down for hours the issue
-    just lacks an embedding and future find_similar calls skip it
-    (graceful degradation, not a crash).
+    Uses the organisation's own AI provider when it can embed, and
+    the local lexical mode otherwise (``Data.embeddings.embed_text``),
+    so a vector is always written; the model that produced it is
+    stored alongside so vectors from different models are never
+    compared.
     """
     from Data.embeddings import embed_text, text_for_issue
     from Data.models import Issue
 
-    issue = Issue.objects.filter(pk=issue_id).only(
+    issue = Issue.objects.filter(pk=issue_id).select_related('organisation').only(
         'id', 'root_cause', 'recommendation', 'description',
         'resolution_root_cause', 'resolution_fix',
-        'component', 'issue_type',
+        'component', 'issue_type', 'organisation',
     ).first()
     if issue is None:
         logger.warning('embed_resolved_issue: Issue %s not found', issue_id)
@@ -1888,18 +1909,20 @@ def embed_resolved_issue(self, issue_id):
         return {'status': 'skipped', 'reason': 'no_text'}
 
     try:
-        vector = embed_text(text)
+        result = embed_text(text, organisation=issue.organisation)
     except Exception as exc:
         logger.warning('embed_resolved_issue: embed_text raised: %s', exc)
         raise self.retry(exc=exc)
 
-    if vector is None:
+    if result is None:
         return {'status': 'skipped', 'reason': 'embedding_returned_none'}
 
     Issue.objects.filter(pk=issue_id).update(
-        embedding=vector, embedded_at=timezone.now(),
+        embedding=result.vector, embedding_model=result.model,
+        embedded_at=timezone.now(),
     )
-    return {'status': 'embedded', 'issue_id': issue_id, 'dim': len(vector)}
+    return {'status': 'embedded', 'issue_id': issue_id,
+            'dim': len(result.vector), 'model': result.model}
 
 
 # ---------------------------------------------------------------------------

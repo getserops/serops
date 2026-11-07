@@ -425,6 +425,10 @@
       "analysedAgo": "analysed {{when}}",
       "quietTitle": "No AI analysis: the signal was quiet",
       "quietBody": "Sentinel skipped AI analysis for this batch because nothing stood out.",
+      "clearTitle": "Nothing wrong found",
+      "clearBody": "The AI analysed this window and found no problem.",
+      "pendingTitle": "Not analysed yet",
+      "pendingBody": "The AI has not analysed this window yet.",
       "rootCause": "Root cause",
       "confidence": "Confidence",
       "evidence": "How the AI got there",
@@ -1396,6 +1400,14 @@
     "terminationsTitle": "Container terminations",
     "terminationsHint": "Reported by the kubelet, not by your application. A container killed for memory writes no log line, so this is the only place it appears.",
     "restartsTitle": "Restarts in this window",
+    "replicasAvailable": "{{available}} of {{desired}} replicas available",
+    "replicasRecovered": "{{available}} of {{desired}} replicas available at worst, {{now}} now (recovered)",
+    "cpuThrottled": "CPU throttled {{percent}}% of the time (CPU limit reached)",
+    "rolloutStuck": "rollout not completing: {{notReady}} new pod(s) not ready, the previous version still serves {{available}} of {{desired}}",
+    "changesTitle": "Kubernetes changes",
+    "changesHint": "Rollouts and scale changes in this window and the 30 minutes before it, from kube-state-metrics.",
+    "changeRollout": "rollout",
+    "changeScaled": "scaled",
     "anomaliesTitle": "Sustained anomalies",
     "noAnomalies": "No sustained anomaly in this window.",
     "anomalyPeak": "peak",
@@ -1677,5 +1689,10 @@
       "use": "Use for this project",
       "added": "Logs where {{field}} = {{value}} now belong to this project."
     }
+  },
+  "notFound": {
+    "title": "Page not found",
+    "body": "This address matches no SerOps page.",
+    "back": "Back to Overview"
   }
 }

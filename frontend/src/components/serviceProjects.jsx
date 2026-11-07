@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { Table, Button, Pagination, Nav, Tab, Badge } from "react-bootstrap";
 import { FaPlus, FaTrash, FaEye, FaServer, FaSearch } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
-import { useServiceProjects } from "../hooks/useServiceProjects";
+import { useServiceProjects, PAGE_SIZE } from "../hooks/useServiceProjects";
 import ServiceDetailsModal from "./ServiceProjects/ServiceDetailsModal";
 import AddServiceWizard from "./ServiceProjects/AddServiceWizard";
 import DeploymentsPanel from "./ServiceProjects/DeploymentsPanel";
@@ -45,6 +45,8 @@ const ServiceProjects = () => {
     loading,
     currentPage,
     totalPages,
+    totalServices,
+    handleServiceCreated,
     goToPage,
     showModal,
     handleOpenModal,
@@ -229,9 +231,9 @@ const ServiceProjects = () => {
                     {totalPages > 1 && (
                       <div className="ds-table-footer">
                         <span className="text-muted small">
-                          {t('common.showing')} {(currentPage - 1) * 5 + 1} -{" "}
-                          {Math.min(currentPage * 5, paginatedServices.length * currentPage)} {t('common.of')}{" "}
-                          {paginatedServices.length * totalPages}
+                          {t('common.showing')} {(currentPage - 1) * PAGE_SIZE + 1} -{" "}
+                          {(currentPage - 1) * PAGE_SIZE + paginatedServices.length} {t('common.of')}{" "}
+                          {totalServices}
                         </span>
                         <Pagination className="mb-0">
                           <Pagination.Prev
@@ -285,7 +287,7 @@ const ServiceProjects = () => {
         show={showModal}
         onHide={handleCloseModal}
         projectId={projectId}
-        onServiceCreated={refreshServices}
+        onServiceCreated={handleServiceCreated}
       />
 
       {/* Service Details Modal */}

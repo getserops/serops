@@ -106,6 +106,15 @@ REGISTRATION_ENABLED = _registration_flag(os.getenv('REGISTRATION_ENABLED'))
 # the seeded demo user should ever sign in.
 DEMO_ONLY_LOGIN = os.getenv('DEMO_ONLY_LOGIN', 'false').strip().lower() in ('true', '1', 'yes')
 
+# Outbound requests to URLs users configure (observability hosts, SCM / CI
+# base URLs, AI provider base URLs, SSO discovery). Private and loopback
+# addresses are allowed by default: self-hosted installs point SerOps at
+# in-cluster Loki, Prometheus or Ollama. A multi-tenant install should set
+# SEROPS_OUTBOUND_ALLOW_PRIVATE=false so a tenant cannot reach the host's
+# network. Cloud metadata and link-local addresses are refused either way,
+# and notification webhooks are always public-only. See Utils/url_validator.py.
+OUTBOUND_ALLOW_PRIVATE_URLS = os.getenv('SEROPS_OUTBOUND_ALLOW_PRIVATE', 'true').strip().lower() in ('true', '1', 'yes')
+
 # Security: Only allow specific hosts (configure via environment)
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 # CORS Configuration - Restrict to known origins
@@ -202,8 +211,14 @@ if not DEBUG:
         CSRF_COOKIE_SECURE = True
     else:
         SECURE_SSL_REDIRECT = False
-        SESSION_COOKIE_SECURE = False
-        CSRF_COOKIE_SECURE = False
+        # Served over HTTPS by a proxy that redirects on its own (Helm
+        # ingress, Caddy): cookies are Secure and browsers keep to HTTPS, with
+        # no redirect here, which would bounce the plain-HTTP health probes.
+        _https = os.getenv('SEROPS_HTTPS', 'False') == 'True'
+        SESSION_COOKIE_SECURE = _https
+        CSRF_COOKIE_SECURE = _https
+        if _https:
+            SECURE_HSTS_SECONDS = 31536000
 
 # X-Frame-Options (clickjacking protection)
 X_FRAME_OPTIONS = 'DENY'

@@ -90,11 +90,14 @@ const PROVIDERS = {
         color: "#181717",
         caps: ["scm", "cicd", "deployments"],
         url: "https://github.com",
-        tokenUrl: () => "https://github.com/settings/tokens/new",
-        tokenHelp: "Create with 'repo' scope",
+        // A fine-grained token limited to the repositories, read-only: a
+        // classic token with the repo scope reads and writes every private
+        // repository of the account.
+        tokenUrl: () => "https://github.com/settings/personal-access-tokens/new",
+        tokenHelp: "Fine-grained token for your repositories, read-only: Contents, Pull requests, Actions, Deployments (Webhooks read and write to set up the webhook)",
         fields: [
             { name: "base_url", label: "GitHub URL", type: "url", placeholder: "https://github.com", required: false, help: "Leave blank for github.com, or enter GitHub Enterprise URL" },
-            { name: "access_token", label: "Personal Access Token", type: "password", required: true, help: "Create at Settings → Developer Settings → Personal Access Tokens" },
+            { name: "access_token", label: "Personal Access Token", type: "password", required: true, help: "Settings → Developer settings → Personal access tokens → Fine-grained tokens" },
         ],
     },
     azure_devops: {

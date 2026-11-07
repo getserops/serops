@@ -27,9 +27,16 @@ def _get_connection_and_from():
     return get_email_connection(), get_from_email()
 
 
+# Activation links are signed for this purpose only (salt) and expire: an
+# unsalted, never-expiring link let a deactivated user reactivate the
+# account by replaying their first email (review 2026-11-05).
+ACTIVATION_SALT = 'serops.account-activation'
+ACTIVATION_MAX_AGE = 7 * 24 * 3600
+
+
 def send_activation_link(user, request):
     """Email the activation link; True when the mail server accepted it."""
-    token = signing.dumps(user.id)
+    token = signing.dumps(user.id, salt=ACTIVATION_SALT)
     activation_link = settings.API_URL + "/auth/activate/" + token
 
     subject = "Welcome to SerOps"

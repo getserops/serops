@@ -37,8 +37,8 @@ flowchart TD
 
 Key behaviours:
 
-- **Shadow mode** (default): Sentinel evaluates every batch and records its decision, but AI analysis always runs regardless. This lets you observe Sentinel's accuracy before trusting it.
-- **Active mode**: Sentinel gates AI analysis. Quiet batches skip AI entirely, saving tokens and cost. Alert and first batches still receive full analysis.
+- **Active mode** (default): Sentinel gates AI analysis. Quiet batches skip AI entirely, saving tokens and cost. Alert and first batches still receive full analysis.
+- **Shadow mode**: Sentinel evaluates every batch and records its decision, but AI analysis always runs regardless: an AI call for every window (up to 96 a day per project and environment at a 15-minute interval).
 - **Safety net**: Even in active mode, Sentinel forces AI analysis after a configurable number of consecutive quiet batches (`max_quiet_batches`) to prevent blind spots.
 
 ---
@@ -61,7 +61,7 @@ Every batch receives one of four Sentinel decisions:
 
 ## Trigger Types
 
-Sentinel evaluates eight trigger types on every batch. If any trigger fires, the batch is classified as `alert`.
+Sentinel evaluates ten trigger types on every batch. If any trigger fires, the batch is classified as `alert`.
 
 | Trigger | Description | Default Threshold |
 |---------|-------------|-------------------|
@@ -71,6 +71,9 @@ Sentinel evaluates eight trigger types on every batch. If any trigger fires, the
 | `memory_anomaly` | Memory usage z-score above the configured threshold | z-score > 3.0 |
 | `cpu_anomaly` | CPU usage z-score above the configured threshold | z-score > 3.0 |
 | `error_rate_escalating` | Error rate is trending upward across recent batches | -- |
+| `kubernetes_failure` | Kubernetes restarts, containers that cannot start, or workloads short of replicas | -- |
+| `trace_latency_spike` | A service's p95 span time (its own time when known, so the slow dependency fires rather than its callers) is at least 3x the window before **and** at least 200 ms higher, with at least 20 spans in both windows. A dependency going from 20 ms to 900 ms with no errors is analysed at once | 3x and +200 ms |
+| `trace_error_spike` | A service has at least 5 error spans, at least 5% of its spans, and at least 2x its error-span rate in the window before. Catches failures that log nothing | 5 spans, 5%, 2x |
 | `forced_periodic` | Safety net: forced AI analysis after `max_quiet_batches` consecutive quiet batches | 12 batches |
 
 When a batch triggers, the specific trigger names are stored in the `sentinel_triggers` field on the batch record. A single batch can have multiple triggers.
@@ -82,28 +85,28 @@ When a batch triggers, the specific trigger names are stored in the `sentinel_tr
 
 ## Shadow Mode vs Active Mode
 
-### Shadow Mode (Default)
+### Shadow Mode
 
-Shadow mode is the default when Sentinel is first enabled. In this mode:
+Shadow mode was the default up to v1.2.13. In this mode:
 
 - Every batch is evaluated by Sentinel
 - The decision is logged for observability
 - AI analysis **always runs** regardless of the decision
 - Batches appear with a grey **shadow** badge in the batch list
 
-Use shadow mode to build confidence that Sentinel's decisions are correct before switching to active gating.
+Use shadow mode to compare Sentinel's decisions with full analyses of every window, at the cost of an AI call per window.
 
-### Active Mode
+### Active Mode (Default)
 
-In active mode, Sentinel gates AI analysis:
+Active mode is the default for new installations and organisations. In this mode, Sentinel gates AI analysis:
 
 - Batches with an `alert` or `first` decision run AI analysis as normal
 - Batches with a `quiet` decision **skip AI analysis entirely**
 - The `forced_periodic` safety net triggers after `max_quiet_batches` consecutive quiet batches
 - Skipped batches are still created and visible in the batch list, but have no AI-generated summary
 
-!!! warning
-    Switching to active mode immediately starts skipping AI for quiet batches. Make sure you have run in shadow mode long enough to trust the decisions before enabling active mode.
+!!! info "Upgrading from v1.2.13 or earlier"
+    Organisations that never saved **Settings > Sentinel** move to active mode on upgrade. An organisation whose admin saved the Sentinel settings keeps the mode it saved.
 
 ---
 
@@ -115,7 +118,7 @@ Navigate to **Settings > Sentinel** to configure Sentinel Intelligence.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| **Enable Active Mode** | Off (shadow) | Toggle between shadow mode and active gating mode |
+| **Enable Active Mode** | On (active) | Toggle between shadow mode and active gating mode |
 | **Error Spike Multiplier** | 2.0 | How many times above the rolling baseline error rate triggers an `error_rate_spike`. Set to 0 to use the system default. |
 | **Z-Score Threshold** | 3.0 | Number of standard deviations from the mean for `memory_anomaly` and `cpu_anomaly` detection. Set to 0 to use the system default. |
 | **Max Quiet Batches** | 12 | Maximum consecutive quiet batches before `forced_periodic` triggers AI analysis |
@@ -133,7 +136,7 @@ Response:
 
 ```json
 {
-  "active_mode": false,
+  "active_mode": true,
   "error_spike_multiplier": 0,
   "z_score_threshold": 0,
   "max_quiet_batches": 12
@@ -219,8 +222,8 @@ This ensures that baselines remain current even during long stretches of quiet b
 
 ## Best Practices
 
-!!! tip "Start with shadow mode"
-    Run Sentinel in shadow mode for **1--2 weeks** before enabling active mode. Review the Sentinel Intelligence dashboard card to verify that alert decisions align with batches that actually contained issues, and quiet decisions align with uneventful batches.
+!!! tip "Checking Sentinel's decisions"
+    To compare Sentinel's decisions with a full analysis of every window, switch to shadow mode for a while and review the Sentinel Intelligence dashboard card: alert decisions should match batches that contained issues, quiet decisions uneventful ones.
 
 !!! tip "Monitor the dashboard"
     Check the **Sentinel Intelligence** card on the Dashboard regularly after switching to active mode. A healthy skip rate is typically 70--90%. If the skip rate is unexpectedly low, your thresholds may be too sensitive. If it is unexpectedly high, thresholds may be too lenient.

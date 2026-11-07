@@ -74,7 +74,8 @@ class TestDetectEnvironmentGeneric(SimpleTestCase):
         mock_env.matches_branch.return_value = True
         mock_pe.objects.filter.return_value = [mock_env]
 
-        result = detect_environment_generic(branch='release/1.0', project_id='owner/repo')
+        result = detect_environment_generic(branch='release/1.0', project_id='owner/repo',
+                                            organisation=MagicMock())
         self.assertEqual(result, 'staging')
 
     @patch('Projects.models.SCMBinding')
@@ -114,11 +115,26 @@ class TestDetectEnvironmentGeneric(SimpleTestCase):
         mock_env.matches_branch.return_value = True
         mock_pe.objects.filter.return_value = [mock_env]
 
+        org = MagicMock()
+        result = detect_environment_generic(branch='release/v2', project_id='owner/repo',
+                                            organisation=org)
+
+        # Verify SCMBinding was queried with the project_id, within the org
+        mock_scm.objects.filter.assert_called_with(
+            repository_id='owner/repo', project_service__project__organisation=org,
+        )
+        self.assertEqual(result, 'production')
+
+    @patch('Projects.models.SCMBinding')
+    def test_without_an_organisation_no_repository_is_looked_up(self, mock_scm):
+        # Security review 2026-11, finding 2: the project id comes from a
+        # webhook payload; unscoped, another tenant's patterns applied.
+        from providers.webhook_base import detect_environment_generic
+
         result = detect_environment_generic(branch='release/v2', project_id='owner/repo')
 
-        # Verify SCMBinding was queried with the project_id
-        mock_scm.objects.filter.assert_called_with(repository_id='owner/repo')
-        self.assertEqual(result, 'production')
+        mock_scm.objects.filter.assert_not_called()
+        self.assertEqual(result, 'development')
 
     @patch('Projects.models.SCMBinding')
     @patch('Projects.models.ProjectEnvironment')
@@ -145,7 +161,8 @@ class TestDetectEnvironmentGeneric(SimpleTestCase):
         mock_env.matches_branch.return_value = True
         mock_pe.objects.filter.return_value = [mock_env]
 
-        result = detect_environment_generic(branch='staging-v2', project_id='12345')
+        result = detect_environment_generic(branch='staging-v2', project_id='12345',
+                                            organisation=MagicMock())
         self.assertEqual(result, 'staging')
 
     def test_no_branch_skips_db_lookup(self):

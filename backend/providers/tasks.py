@@ -1,5 +1,7 @@
 from celery import shared_task
 import requests
+
+from Utils.outbound import check_url
 import re
 from datetime import datetime, timezone
 
@@ -110,7 +112,10 @@ def fetch_failed_job_logs_for_project(project_id):
     gitlab_base = get_gitlab_api_base(project=project)
     pipelines_url = f"{gitlab_base}/api/v4/projects/{gitlab_project_id}/pipelines"
     headers = {"PRIVATE-TOKEN": access_token}
-    pipelines_resp = requests.get(pipelines_url, headers=headers)
+    # Stored, user-configured GitLab URL: re-checked, no redirects
+    # followed (security review 2026-11, finding 3).
+    check_url(pipelines_url)
+    pipelines_resp = requests.get(pipelines_url, headers=headers, timeout=30, allow_redirects=False)
     if pipelines_resp.status_code != 200:
         return
     
@@ -121,7 +126,7 @@ def fetch_failed_job_logs_for_project(project_id):
         
         # Get all jobs for this pipeline (all job types)
         jobs_url = f"{gitlab_base}/api/v4/projects/{gitlab_project_id}/pipelines/{pipeline_id}/jobs"
-        jobs_resp = requests.get(jobs_url, headers=headers)
+        jobs_resp = requests.get(jobs_url, headers=headers, timeout=30, allow_redirects=False)
         if jobs_resp.status_code != 200:
             continue
             
@@ -142,7 +147,8 @@ def fetch_failed_job_logs_for_project(project_id):
                     job_name, 
                     'failed',
                     job_time, 
-                    job_owner
+                    job_owner,
+                    organisation_id=project.organisation_id,
                 )
 
 @shared_task
@@ -154,7 +160,8 @@ def fetch_failed_job_logs_for_all_projects():
 def process_push_event(
     project_id: str,
     commits_data: list,
-    branch: str
+    branch: str,
+    organisation_id: int,
 ):
     """
     Process a push event from GitLab webhook.
@@ -165,6 +172,9 @@ def process_push_event(
         project_id: GitLab project ID
         commits_data: List of commit dicts from webhook payload
         branch: Branch name
+        organisation_id: Organisation of the authenticated webhook binding.
+            The project is looked up only within it: project_id comes from
+            the payload (security review 2026-11, finding 2).
     """
     from .code_change_service import CodeChangeService
     from .scm_providers import GitLabProvider
@@ -174,9 +184,11 @@ def process_push_event(
     
     try:
         # Get GitLab project
-        gitlab_project = GitlabProject.objects.filter(project_id=project_id).first()
+        gitlab_project = GitlabProject.objects.filter(
+            project_id=project_id, organisation_id=organisation_id,
+        ).first()
         if not gitlab_project:
-            logger.warning(f"GitLab project {project_id} not found, skipping push event")
+            logger.warning(f"GitLab project {project_id} not found in organisation {organisation_id}, skipping push event")
             return {"status": "skipped", "reason": "project_not_found"}
         
         # Parse commits using provider
@@ -298,16 +310,19 @@ def fetch_commit_diff(self, code_change_id: int):
     autoretry_for=(Exception,)
 )
 def retrieve_gitlab_job_logs(self, project_id, pipeline_id, pipeline_branch,
-                              job_id, job_name, job_status, job_time, job_owner):
+                              job_id, job_name, job_status, job_time, job_owner,
+                              organisation_id):
     """
     Async Celery task to retrieve GitLab job logs.
 
     Delegates to the existing gitlab_retrieve_job_logs() utility function.
     Called from GitLab build webhook handler instead of blocking the request thread.
+    ``organisation_id`` is the webhook binding's organisation.
     """
     return gitlab_retrieve_job_logs(
         project_id, pipeline_id, pipeline_branch,
         job_id, job_name, job_status, job_time, job_owner,
+        organisation_id=organisation_id,
     )
 
 
@@ -346,6 +361,7 @@ def backfill_code_changes(project_id: str, days: int = 7):
         for commit_data in commits:
             # Check if already exists
             if CodeChange.objects.filter(
+                organisation=gitlab_project.organisation,
                 provider='gitlab',
                 project_id=project_id,
                 commit_sha=commit_data['sha']
@@ -419,7 +435,8 @@ def sync_stuck_pipelines():
                 gitlab_base = get_gitlab_api_base(project=pipeline.project)
                 url = f"{gitlab_base}/api/v4/projects/{pipeline.project.project_id}/pipelines/{pipeline.pipeline_id}"
                 headers = {"PRIVATE-TOKEN": pipeline.project.get_access_token()}
-                response = requests.get(url, headers=headers, timeout=10)
+                check_url(url)
+                response = requests.get(url, headers=headers, timeout=10, allow_redirects=False)
                 
                 if response.status_code != 200:
                     logger.warning(f"Failed to get pipeline {pipeline.pipeline_id} from GitLab: {response.status_code}")
@@ -563,7 +580,8 @@ def sync_recent_deployments(hours: int = 2):
                     "sort": "desc"
                 }
                 
-                response = requests.get(url, headers=headers, params=params, timeout=15)
+                check_url(url)
+                response = requests.get(url, headers=headers, params=params, timeout=15, allow_redirects=False)
                 
                 if response.status_code != 200:
                     logger.warning(f"Failed to fetch pipelines for {gitlab_project.name}: {response.status_code}")
@@ -619,7 +637,7 @@ def sync_recent_deployments(hours: int = 2):
                     if not code_change:
                         # Fetch commit details from GitLab
                         commit_url = f"{provider.base_url}/api/v4/projects/{gitlab_project.project_id}/repository/commits/{sha}"
-                        commit_resp = requests.get(commit_url, headers=headers, timeout=10)
+                        commit_resp = requests.get(commit_url, headers=headers, timeout=10, allow_redirects=False)
                         
                         if commit_resp.status_code == 200:
                             commit_data = commit_resp.json()
@@ -653,6 +671,7 @@ def sync_recent_deployments(hours: int = 2):
                     environment = detect_environment_generic(
                         branch=branch,
                         project_id=gitlab_project.project_id,
+                        organisation=gitlab_project.organisation,
                     )
                     
                     # Ensure Deployment record exists
@@ -726,18 +745,36 @@ def sync_recent_deployments(hours: int = 2):
 
                         # Ensure CodeChange if SHA available
                         if p_sha:
+                            org = getattr(binding.project_service.project, 'organisation', None)
+                            # Within the organisation: a SHA seen in another
+                            # tenant's repository is not this one's change.
                             code_change = CodeChange.objects.filter(
-                                commit_sha=p_sha
+                                commit_sha=p_sha, organisation=org,
                             ).first()
 
                             if not code_change:
-                                org = getattr(binding.project_service.project, 'organisation', None)
+                                # timestamp, message and author are required:
+                                # created without them, every polled run failed
+                                # ("null value in column timestamp") and no
+                                # deployment was ever recorded without webhooks.
+                                from dateutil import parser as date_parser
+                                committed = p_data.get('timestamp') or p_data.get('updated_at')
+                                try:
+                                    committed = date_parser.parse(committed) if committed else None
+                                except (TypeError, ValueError):
+                                    committed = None
+                                if committed and timezone.is_naive(committed):
+                                    committed = timezone.make_aware(committed)
                                 code_change = CodeChange.objects.create(
                                     provider=binding.provider_type,
                                     project_id=binding.pipeline_id,
                                     organisation=org,
                                     commit_sha=p_sha,
-                                    branch=p_branch,
+                                    commit_message=(p_data.get('message') or '')[:2000],
+                                    author_name=p_data.get('author_name') or 'Unknown',
+                                    author_email=p_data.get('author_email') or None,
+                                    timestamp=committed or timezone.now(),
+                                    branch=p_branch or 'unknown',
                                     pipeline=pipeline,
                                 )
                                 stats["code_changes_created"] += 1
@@ -749,6 +786,7 @@ def sync_recent_deployments(hours: int = 2):
                             environment = detect_environment_generic(
                                 branch=p_branch,
                                 project_id=binding.pipeline_id,
+                                organisation=org,
                             )
 
                             # Ensure Deployment record

@@ -166,7 +166,7 @@ Returns the organisation's Sentinel configuration. Creates default config on fir
 ```json
 {
   "id": 1,
-  "active_mode": false,
+  "active_mode": true,
   "error_spike_multiplier": 0,
   "z_score_threshold": 0,
   "max_quiet_batches": 12,

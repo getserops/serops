@@ -36,6 +36,8 @@ from typing import List, Optional, Tuple
 from urllib.parse import urljoin
 
 import requests
+
+from Utils.outbound import GuardedSession
 from requests.exceptions import RequestException
 
 from integrations.base import LogProvider, LogProviderCapabilities
@@ -98,7 +100,13 @@ class SplunkLogProvider(LogProvider):
                 "(create it in Splunk under Settings → Tokens)"
             )
 
-        self._session = requests.Session()
+        # Re-validates the host before every request and each redirect hop,
+
+        # and never follows a redirect to another host (security review
+
+        # 2026-11, finding 3).
+
+        self._session = GuardedSession()
         self._session.headers.update({
             "Authorization": f"Bearer {token}",
             # Splunk returns XML by default; every endpoint we call

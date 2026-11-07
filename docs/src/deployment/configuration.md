@@ -52,7 +52,7 @@ The backend writes `django.log` and `user_actions.log` in `/app/logs` (the `back
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SEROPS_VERSION` | No | `1.2.13` | Version tag for SerOps Docker images (backend + frontend) |
+| `SEROPS_VERSION` | No | `1.2.14` | Version tag for SerOps Docker images (backend + frontend) |
 
 ---
 
@@ -174,6 +174,7 @@ DEFAULT_FROM_EMAIL=SerOps <serops@yourdomain.com>
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `SECURE_SSL_REDIRECT` | No | `False` | Redirect all HTTP requests to HTTPS. Enable when behind HTTPS. |
+| `SEROPS_OUTBOUND_ALLOW_PRIVATE` | No | `true` | Whether URLs users configure (observability hosts, SCM and CI base URLs, AI provider base URLs, SSO discovery) may point at private or loopback addresses. Keep `true` for a self-hosted install that reads in-cluster Loki, Prometheus or Ollama; set `false` on an install shared by several organisations so none of them can reach the host's network. Cloud metadata and link-local addresses are refused either way, these URLs are checked again before every request, and redirects to another host are not followed. Notification webhooks (Slack, Teams) always need a public `https` address. |
 
 ---
 

@@ -499,14 +499,16 @@ class EmailVerification(APIView):
     def get(self, request, token):
         # Never log the raw token — it grants account activation (BE-P1-04,
         # audit 2026-09-05). Log outcome only.
+        from Utils.email_utils import ACTIVATION_MAX_AGE, ACTIVATION_SALT
         try:
-            user_id = signing.loads(token)
+            user_id = signing.loads(token, salt=ACTIVATION_SALT, max_age=ACTIVATION_MAX_AGE)
+        except signing.SignatureExpired:
+            # Before BadSignature, its parent: it was never reached.
+            logger.warning("Email verification: expired token")
+            return Response({"error": "Token has expired."}, status=400)
         except signing.BadSignature:
             logger.warning("Email verification: invalid token signature")
             return Response({"error": "Invalid token."}, status=400)
-        except signing.SignatureExpired:
-            logger.warning("Email verification: expired token")
-            return Response({"error": "Token has expired."}, status=400)
         except Exception as e:
             logger.exception(f"Unexpected error decoding token: {str(e)}")
             return Response({"error": "Something went wrong while processing the token."}, status=500)
@@ -516,6 +518,11 @@ class EmailVerification(APIView):
             if user.is_active:
                 logger.info(f"User {user.email} (ID: {user_id}) is already active.")
                 return Response({"message": "Your account is already activated."}, status=200)
+            if user.last_login is not None:
+                # Activation is for new accounts. One that signed in before
+                # was deactivated on purpose; only an admin brings it back.
+                logger.warning("Email verification: refused for deactivated user %s", user_id)
+                return Response({"error": "Invalid token."}, status=400)
             
             # Activate the user account
             user.is_active = True

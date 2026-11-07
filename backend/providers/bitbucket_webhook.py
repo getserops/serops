@@ -116,6 +116,7 @@ class BitbucketWebhookHandler(BaseCICDWebhookHandler):
             job_name=pipeline_name,
             explicit_env=commit_status.get('environment'),
             project_id=repo_full_name,
+            organisation=self._binding_organisation(),
         )
         
         # Normalize status

@@ -70,6 +70,10 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
     // Datadog searches logs and queries metrics with an application key.
     const [appKey, setAppKey] = useState('');
     const [awsRegion, setAwsRegion] = useState('');
+    // Google Cloud: the project to read, and whether the services run on
+    // GKE (Kubernetes metrics per workload) or on Compute Engine VMs.
+    const [gcpProject, setGcpProject] = useState('');
+    const [onGke, setOnGke] = useState(true);
     // Where the logs are: an index pattern (Elasticsearch / OpenSearch) or
     // log groups (CloudWatch). Optional: the backend has defaults.
     const [logLocation, setLogLocation] = useState('');
@@ -126,6 +130,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
     // CloudWatch authenticates with the integration's own access key:
     // key ID in username, secret in the encrypted password field.
     const isAws = providerCode === 'cloudwatch';
+    const isGcp = providerCode === 'gcp';
     const usesIndexPattern = providerCode === 'elasticsearch' || providerCode === 'opensearch';
 
     // On provider change, auto-fill display name + preselect
@@ -160,13 +165,17 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
         const cloudProviders = new Set(['cloudwatch', 'gcp', 'azure']);
         if (!cloudProviders.has(selectedProvider.code) && !host.trim()) return false;
         if (isAws && !(username.trim() && password)) return false;
+        // The project and its service-account key: without them the
+        // integration saved and every query failed (GKE live test).
+        if (isGcp && !(gcpProject.trim() && password)) return false;
         if (providerCode === 'datadog' && !(apiKey && appKey)) return false;
         return true;
     };
 
     const buildPayload = () => {
         const extra = {};
-        if (apiKey && !isAws) extra.api_key = apiKey;
+        if (apiKey && !isAws && !isGcp) extra.api_key = apiKey;
+        if (isGcp) extra.project_id = gcpProject.trim();
         if (appKey && providerCode === 'datadog') extra.app_key = appKey;
         if (isAws && awsRegion.trim()) extra.aws_region = awsRegion.trim();
         if (logLocation.trim()) {
@@ -179,6 +188,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
             capabilities,
             is_active: true,
         };
+        if (isGcp) payload.topology_mode = onGke ? 'kubernetes' : 'vm';
         if (host) payload.host = host;
         if (username) payload.username = username;
         if (password) payload.password = password;
@@ -273,7 +283,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
 
                 {loadingProviders ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-                        <CircularProgress />
+                        <CircularProgress aria-label="Loading" />
                     </Box>
                 ) : (
                     <>
@@ -347,7 +357,40 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                     </FormGroup>
                                 </FormControl>
 
-                                <TextField
+                                {isGcp && (
+                                    <>
+                                        <TextField
+                                            fullWidth
+                                            sx={{ mb: 2 }}
+                                            label="Project ID"
+                                            required
+                                            value={gcpProject}
+                                            onChange={(e) => setGcpProject(e.target.value)}
+                                            placeholder="my-project"
+                                            helperText="The Google Cloud project your logs and metrics are in."
+                                        />
+                                        <TextField
+                                            fullWidth
+                                            sx={{ mb: 1 }}
+                                            type="password"
+                                            label="Service account key (JSON)"
+                                            required
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            autoComplete="new-password"
+                                            spellCheck={false}
+                                            placeholder="Paste the key file's JSON"
+                                            helperText="A key of a service account with the Logs Viewer and Monitoring Viewer roles."
+                                        />
+                                        <FormControlLabel
+                                            sx={{ mb: 2 }}
+                                            control={<Checkbox checked={onGke} onChange={(e) => setOnGke(e.target.checked)} />}
+                                            label="My services run on GKE (Kubernetes)"
+                                        />
+                                    </>
+                                )}
+
+                                {!isGcp && <TextField
                                     fullWidth
                                     sx={{ mb: 2 }}
                                     label="Host URL"
@@ -355,7 +398,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                     onChange={(e) => setHost(e.target.value)}
                                     placeholder={HOST_PLACEHOLDERS[providerCode] || 'https://host:port'}
                                     helperText="Provider endpoint. Not needed for AWS, Google Cloud or Azure."
-                                />
+                                />}
 
                                 {isAws && (
                                     <TextField
@@ -382,6 +425,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                     />
                                 )}
 
+                                {!isGcp && <>
                                 <TextField
                                     fullWidth
                                     sx={{ mb: 2 }}
@@ -415,6 +459,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                     spellCheck={false}
                                     helperText="Only some providers use API keys (Datadog, cloud services)."
                                 />}
+                                </>}
                                 {providerCode === 'datadog' && <TextField
                                     fullWidth
                                     sx={{ mb: 1 }}
@@ -448,7 +493,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                 <Button
                     onClick={handleTest}
                     disabled={!canSubmit()}
-                    startIcon={testing ? <CircularProgress size={16} /> : null}
+                    startIcon={testing ? <CircularProgress aria-label="Loading" size={16} /> : null}
                 >
                     Save &amp; test
                 </Button>
@@ -456,7 +501,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                     variant="contained"
                     onClick={handleSave}
                     disabled={!canSubmit()}
-                    startIcon={saving ? <CircularProgress size={16} /> : null}
+                    startIcon={saving ? <CircularProgress aria-label="Loading" size={16} /> : null}
                 >
                     Save
                 </Button>
