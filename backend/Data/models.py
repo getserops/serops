@@ -652,7 +652,7 @@ class Issue(models.Model):
     def __str__(self):
         return f"{self.severity} - {self.issue_type} - {self.component or 'N/A'}"
 
-    def find_similar(self, top_k: int = 5):
+    def find_similar(self, top_k: int = 5, user=None):
         """
         Return the top-K resolved issues most similar to ``self``
         (Item #27).
@@ -711,6 +711,13 @@ class Issue(models.Model):
                   'resolution_fix', 'resolved_at', 'severity',
                   'embedding', 'embedding_model')
         )
+
+        if user is not None:
+            # Only issues of projects the caller may read: a restricted
+            # project's resolved root causes and fixes reached anyone who
+            # asked for similar issues of an open one (review 2026-11-05).
+            from Middlewares.project_access import scope
+            candidates = scope(candidates, user, 'issue.read')
 
         scored = []
         for cand in candidates.iterator(chunk_size=500):
@@ -1590,6 +1597,15 @@ class AuditLog(models.Model):
         ('ORG_DELETE', 'Organisation Deleted (GDPR)'),
         ('INVESTIGATION_RUN', 'Investigation Started'),
         ('ACCESS_DENIED', 'Access Denied'),
+        ('SSO_PROVISION', 'User Created by SSO'),
+        ('SSO_DENIED', 'SSO Sign-in Refused'),
+        ('ROLE_CREATE', 'Custom Role Created'),
+        ('ROLE_UPDATE', 'Custom Role Changed'),
+        ('ROLE_DELETE', 'Custom Role Deleted'),
+        ('TEAM_CREATE', 'Team Created'),
+        ('TEAM_UPDATE', 'Team Changed'),
+        ('TEAM_DELETE', 'Team Deleted'),
+        ('PROJECT_ACCESS_CHANGE', 'Project Access Changed'),
     ]
     
     organisation = models.ForeignKey(

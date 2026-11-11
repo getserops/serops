@@ -1,4 +1,6 @@
-from Middlewares.rbac import Requires
+from Middlewares.project_access import OrgRoleOnly
+from Middlewares.rbac import (Requires, can_grant, get_user_permissions, key_permissions, resolve_role_key,
+                              role_key)
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.core.validators import EmailValidator
@@ -17,6 +19,7 @@ from .models import Organisations
 from .serializers import OrganisationSerializer
 from Users.models import User
 from Users.serializers import UserSerializer
+from Utils import edition
 from Utils.email_utils import send_invitation_link
 from Data.audit import log_team_action
 
@@ -128,7 +131,7 @@ class OrganisationTeamView(APIView):
         tags=['Organizations - Team']
     )
     def get(self, request):
-        users = User.objects.filter(organisation=request.user.organisation).order_by('id')
+        users = User.objects.filter(organisation=request.user.organisation).select_related('custom_role', 'organisation').order_by('id')
         page = request.query_params.get('page', 1)
         per_page = request.query_params.get('per_page', 10)
 
@@ -154,7 +157,7 @@ class OrganisationTeamView(APIView):
                     required=['email', 'role'],
                     properties={
                         'email': openapi.Schema(type=openapi.TYPE_STRING, description='Email address for invitation'),
-                        'role': openapi.Schema(type=openapi.TYPE_STRING, description='User role: viewer, user, or admin'),
+                        'role': openapi.Schema(type=openapi.TYPE_STRING, description='Role key: viewer, user, admin or custom:<id>'),
                     }
                 )
             }
@@ -181,31 +184,63 @@ class OrganisationTeamView(APIView):
         except ValidationError:
             return Response({"email": "Invalid email format"}, status=400)
 
+        try:
+            role, custom_role = _grantable_role(request, user_info.get('role') or 'viewer')
+        except edition.LicenseRequired as e:
+            return Response(edition.license_error(e.feature), status=status.HTTP_403_FORBIDDEN)
+        except PermissionError as e:
+            return Response({'error': str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except ValueError as e:
+            return Response({'role': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
         user_info['password'] = make_password(get_random_string(length=16))
         user_info['phone'] = user_info.get('phone', '')
+        user_info['role'] = 'viewer'  # set below, once the organisation is
 
         serializer = UserSerializer(data=user_info)
         if serializer.is_valid():
             user = serializer.save()
             user.organisation = request.user.organisation
+            user.role, user.custom_role = role, custom_role
             user.is_active = True
             user.save()
 
             send_invitation_link(user, invited_by=request.user)
             
             # Log the team invite action
-            log_team_action(request, 'TEAM_INVITE', user.email, role=user.role)
-            
-            data = serializer.data
+            log_team_action(request, 'TEAM_INVITE', user.email, role=role_key(user))
+
+            data = UserSerializer(user).data
             data.pop('password', None)
             return Response({"user": data}, status=200)
 
         return Response(serializer.errors, status=400)
 
+def _grantable_role(request, key, current=None):
+    """(role, custom_role) for a role key the caller may hand out.
+
+    Giving someone a custom role is Enterprise (``custom_roles``); keeping
+    the one they have, or moving them to a built-in role, never is.
+    """
+    perms = key_permissions(request.user.organisation, key)  # ValueError when unknown
+    if str(key).startswith('custom:') and key != current:
+        edition.require('custom_roles')
+    if not can_grant(request.user, perms):
+        raise PermissionError('You can only give a role whose permissions you hold.')
+    return resolve_role_key(request.user.organisation, key)
+
+
+def _outranks(actor, member):
+    """The member holds permissions the actor lacks: hands off."""
+    return not can_grant(actor, get_user_permissions(member))
+
+
 def _is_last_admin(user):
     """True when ``user`` is the only admin left in their organisation."""
+    # Active admins only: a deactivated one cannot sign in to fix anything
+    # (as the SSO check already does; review 2026-11-05).
     return user.role == 'admin' and not User.objects.filter(
-        organisation=user.organisation, role='admin').exclude(pk=user.pk).exists()
+        organisation=user.organisation, role='admin', is_active=True).exclude(pk=user.pk).exists()
 
 
 class OrganisationMemberView(APIView):
@@ -241,6 +276,9 @@ class OrganisationMemberView(APIView):
     def delete(self, request, id):
         try:
             user = User.objects.get(pk=id, organisation=request.user.organisation)
+            if _outranks(request.user, user):
+                return Response({'error': 'You can only remove members whose permissions you hold.'},
+                                status=status.HTTP_403_FORBIDDEN)
             if _is_last_admin(user):
                 return Response({'error': 'An organisation needs at least one admin. Make someone else admin first.'},
                                 status=status.HTTP_400_BAD_REQUEST)
@@ -280,21 +318,31 @@ class OrganisationMemberView(APIView):
             # Email is the member's login identity: an admin can't change it
             # (that would let them reset the password and sign in as the
             # member). Members change their own email in their profile.
+            if _outranks(request.user, user):
+                return Response({'error': 'You can only change members whose permissions you hold.'},
+                                status=status.HTTP_403_FORBIDDEN)
             new_role = request.data.get('role')
             if new_role is not None:
-                if new_role not in {r[0] for r in User.ROLE}:
+                try:
+                    role, custom_role = _grantable_role(request, new_role, current=role_key(user))
+                except edition.LicenseRequired as e:
+                    return Response(edition.license_error(e.feature), status=status.HTTP_403_FORBIDDEN)
+                except PermissionError as e:
+                    return Response({'error': str(e)}, status=status.HTTP_403_FORBIDDEN)
+                except ValueError:
                     return Response({'role': f"Invalid role '{new_role}'."}, status=status.HTTP_400_BAD_REQUEST)
-                if new_role != 'admin' and _is_last_admin(user):
+                if role != 'admin' and _is_last_admin(user):
                     return Response({'error': 'An organisation needs at least one admin. Make someone else admin first.'},
                                     status=status.HTTP_400_BAD_REQUEST)
-            for field in ['first_name', 'last_name', 'phone', 'role']:
+                user.role, user.custom_role = role, custom_role
+            for field in ['first_name', 'last_name', 'phone']:
                 if field in request.data:
                     setattr(user, field, request.data[field])
             user.save()
-            
+
             # Log the role change if it was updated
             if 'role' in request.data:
-                log_team_action(request, 'TEAM_ROLE_CHANGE', user.email, role=user.role)
+                log_team_action(request, 'TEAM_ROLE_CHANGE', user.email, role=role_key(user))
                 
             return Response({'message': 'User updated successfully'}, status=200)
         except User.DoesNotExist:
@@ -513,7 +561,7 @@ class OnboardingStatusView(APIView):
           scratchpad (e.g. remembering which provider the user
           selected in the modal so we can resume)
     """
-    permission_classes = [IsAuthenticated, Requires(GET='org.read', PUT='project.write')]
+    permission_classes = [IsAuthenticated, Requires(GET='org.read', PUT='project.write'), OrgRoleOnly]
 
     @swagger_auto_schema(
         operation_description="Get current onboarding status (refreshed from real DB state)",
@@ -612,7 +660,7 @@ class OnboardingSkipView(APIView):
     is not an activated org) and it lets us un-hide the wizard via
     :class:`OnboardingResumeView` without lying about progress.
     """
-    permission_classes = [IsAuthenticated, Requires(POST='project.write')]
+    permission_classes = [IsAuthenticated, Requires(POST='project.write'), OrgRoleOnly]
 
     @swagger_auto_schema(
         operation_description="Dismiss the onboarding wizard UI (reversible via /resume/)",
@@ -631,7 +679,7 @@ class OnboardingSkipView(APIView):
 
 class OnboardingResumeView(APIView):
     """Undo a dismiss — makes the wizard reappear."""
-    permission_classes = [IsAuthenticated, Requires(POST='project.write')]
+    permission_classes = [IsAuthenticated, Requires(POST='project.write'), OrgRoleOnly]
 
     @swagger_auto_schema(
         operation_description="Undo a previous dismiss — makes the wizard reappear.",
@@ -665,6 +713,34 @@ class OnboardingResetView(APIView):
             'message': 'Onboarding reset',
             'current_step': onboarding.current_step,
         })
+
+
+class EditionView(APIView):
+    """
+    Community or Enterprise, and which Enterprise features are licensed.
+
+    Response shape::
+
+        {
+            "enterprise_available": false,
+            "features": [],
+            "license": null
+        }
+
+    ``license`` describes the installed key (licensee, features, expiry,
+    status), never the key itself. Without backend/ee/ or a valid key,
+    ``features`` is empty and every Community feature works as usual.
+    """
+
+    permission_classes = [IsAuthenticated, Requires(GET='org.read')]
+
+    @swagger_auto_schema(
+        operation_description="Edition and licensed Enterprise features of this install.",
+        tags=['Organisation'],
+        security=[{'Bearer': []}],
+    )
+    def get(self, request):
+        return Response(edition.summary())
 
 
 class OrganisationCapabilitiesView(APIView):

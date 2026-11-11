@@ -1,4 +1,4 @@
-# SerOps Helm chart values — v1.2.14
+# SerOps Helm chart values — v1.3.0
 #
 # All defaults are safe for a small production deployment (~5 users,
 # 100 batches/day). Scale replicas + resources for larger tenants.
@@ -213,6 +213,8 @@ ingress:
     # Uncomment for cert-manager auto TLS:
     # cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/proxy-body-size: 20m
+    # Plain-HTTP requests are redirected to HTTPS once ingress.tls is set.
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
     - host: serops.example.com
       paths:
@@ -228,10 +230,75 @@ ingress:
         - path: /
           pathType: Prefix
           service: frontend
+  # REQUIRED when ingress is enabled: the chart refuses to render without
+  # it, because a plain-HTTP install sends logins and API tokens in clear and
+  # the backend then runs without Secure cookies or HSTS. With cert-manager,
+  # uncomment the annotation above and list the host here; otherwise point
+  # secretName at a TLS Secret you manage.
   tls: []
     # - hosts:
     #     - serops.example.com
     #   secretName: serops-tls
+  # Only when TLS terminates in front of the ingress controller (a cloud load
+  # balancer, a service mesh). Then also set django.publicUrl to the https
+  # URL, or the backend believes it is serving HTTP.
+  allowInsecure: false
+
+# ============================================================================
+# Service account
+# ============================================================================
+# One ServiceAccount per release: the pods do not run as the namespace's
+# `default` account. SerOps never calls the Kubernetes API, so no token is
+# mounted on any pod.
+serviceAccount:
+  create: true
+  name: ""          # defaults to the release's full name
+  annotations: {}   # e.g. IRSA / Workload Identity, if the DB needs it
+
+# ============================================================================
+# Pod disruption budgets
+# ============================================================================
+# Keeps one backend, frontend and worker pod running through node drains.
+# Rendered only for components with more than one replica (beat is always
+# one). Set maxUnavailable instead of minAvailable if you prefer.
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# ============================================================================
+# Network policy
+# ============================================================================
+# On by default. Only the ingress controller reaches the frontend and the
+# backend; nothing reaches the worker, beat or the migration job; the
+# bundled dev Postgres/Redis accept connections from SerOps pods only.
+# Requires a CNI that enforces NetworkPolicy (Calico, Cilium, most managed
+# clusters); without one the objects are inert.
+networkPolicy:
+  enabled: true
+  # Peers allowed to reach the frontend (3000) and the backend (8000): your
+  # ingress controller. The default matches the ingress-nginx namespace; set
+  # the namespace label and/or a podSelector of your controller.
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+  # Extra peers allowed to reach the backend on 8000, e.g. Prometheus for
+  # /metrics when serviceMonitor.enabled:
+  #   - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}
+  backendExtraIngressFrom: []
+  # Namespace of the cluster DNS (always allowed on 53/udp+tcp).
+  dnsNamespace: kube-system
+  # Where backend, worker, beat and the migration job may connect. Empty:
+  # anywhere. SerOps queries the observability providers, SCM and AI
+  # endpoints you configure, on whatever hosts and ports they use, so the
+  # chart cannot guess a tighter default. Narrow it to your database, Redis,
+  # providers and AI endpoints, for example:
+  #   - to: [{ipBlock: {cidr: 10.0.0.0/8}}]
+  #   - to: [{ipBlock: {cidr: 0.0.0.0/0, except: [10.0.0.0/8]}}]
+  #     ports: [{port: 443, protocol: TCP}]
+  # DNS and the bundled dev services are always allowed in addition.
+  egress: []
 
 # ============================================================================
 # Database — Postgres 16
@@ -291,7 +358,7 @@ migrations:
 devServices:
   postgresql:
     enabled: false
-    image: postgres:16-alpine
+    image: postgres:16.15-alpine
     # The Alpine postgres image's own user (uid 70).
     podSecurityContext:
       runAsNonRoot: true
@@ -301,14 +368,21 @@ devServices:
       seccompProfile:
         type: RuntimeDefault
     user: serops
-    password: serops-dev-password
+    # Empty: a random password is generated at install and kept across
+    # upgrades (read back from the release's Secret). Set one only if you
+    # need to know it; it then sits in your values file.
+    password: ""
     database: serops
     resources:
       requests: {cpu: 100m, memory: 256Mi}
       limits: {cpu: 1000m, memory: 1Gi}
   redis:
     enabled: false
-    image: redis:7-alpine
+    image: redis:7.4.12-alpine
+    # Same as postgresql.password: empty means generated and kept. Redis
+    # requires it (requirepass), so a stray pod on the namespace cannot read
+    # the queue.
+    password: ""
     # The redis image's own user (uid 999).
     podSecurityContext:
       runAsNonRoot: true
@@ -378,12 +452,17 @@ selfMetrics:
 # ============================================================================
 django:
   secretKey: ""            # REQUIRED — generate with `openssl rand -hex 64`
+  # REQUIRED. Encrypts the credentials stored in the database. Generate with
+  # `openssl rand -base64 32 | tr '+/' '-_'` and back it up: without it they
+  # cannot be read.
+  encryptionKey: ""
+  encryptionKeyPrevious: "" # While changing the key: the old one(s), comma-separated
   # Metric collection. The application default is FALSE (see METRICS_ENABLED
   # in Data/tasks.py), which is wrong for a Kubernetes install: metrics are
   # half of what the AI reasons over, and the chart never set this, so
   # Helm-deployed instances silently ran log-only.
   metricsEnabled: true
-  existingSecret: ""       # key = django-secret-key
+  existingSecret: ""       # keys = django-secret-key, encryption-key, optional encryption-key-previous
   debug: false
   allowedHosts: "serops.example.com"
   # Origins the browser loads the frontend from, comma-separated, scheme and

@@ -1,0 +1,112 @@
+{{/*
+  Network policies, on by default. The chart used to ship none, so every pod
+  in the namespace could open the backend and the bundled database directly.
+
+  Shape:
+    frontend        <- ingress controller only;           no egress (static files)
+    backend         <- ingress controller + extra peers;  egress per networkPolicy.egress
+    worker, beat,
+    migrate job     <- nothing;                           egress per networkPolicy.egress
+    dev postgres    <- backend, worker, beat, migrate;    no egress
+    dev redis       <- same;                              no egress
+
+  Egress is open by default (SerOps queries the observability providers,
+  SCM and AI endpoints you configure, on whatever hosts and ports they
+  use); DNS and the bundled dev services are always allowed. Narrow it with
+  networkPolicy.egress. Kubelet probes are not subject to NetworkPolicy on
+  the common CNIs.
+*/}}
+{{- if .Values.networkPolicy.enabled }}
+{{- $np := .Values.networkPolicy }}
+{{- $ctx := dict "Chart" .Chart "Release" .Release "Values" .Values }}
+{{- $backendLike := list "backend" "celery-worker" "celery-beat" "migrate" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "serops.fullname" . }}-frontend
+  labels:
+    {{- include "serops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "serops.selectorLabels" (merge (dict "component" "frontend") $ctx) | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        {{- toYaml $np.ingressFrom | nindent 8 }}
+      ports:
+        - port: 3000
+          protocol: TCP
+  egress: []
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "serops.fullname" . }}-backend
+  labels:
+    {{- include "serops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "serops.selectorLabels" (merge (dict "component" "backend") $ctx) | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        {{- toYaml (concat $np.ingressFrom $np.backendExtraIngressFrom) | nindent 8 }}
+      ports:
+        - port: 8000
+          protocol: TCP
+  egress:
+    {{- include "serops.backendEgress" . | nindent 4 }}
+{{- range $comp := list "celery-worker" "celery-beat" "migrate" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "serops.fullname" $ }}-{{ $comp }}
+  labels:
+    {{- include "serops.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $comp }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "serops.selectorLabels" (merge (dict "component" $comp) $ctx) | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    {{- include "serops.backendEgress" $ | nindent 4 }}
+{{- end }}
+{{- range $svc := list
+      (dict "component" "dev-postgres" "enabled" .Values.devServices.postgresql.enabled "port" 5432)
+      (dict "component" "dev-redis" "enabled" .Values.devServices.redis.enabled "port" 6379) }}
+{{- if $svc.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "serops.fullname" $ }}-{{ $svc.component }}
+  labels:
+    {{- include "serops.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $svc.component }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "serops.selectorLabels" (merge (dict "component" $svc.component) $ctx) | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        {{- range $c := $backendLike }}
+        - podSelector:
+            matchLabels:
+              {{- include "serops.selectorLabels" (merge (dict "component" $c) $ctx) | nindent 14 }}
+        {{- end }}
+      ports:
+        - port: {{ $svc.port }}
+          protocol: TCP
+  egress: []
+{{- end }}
+{{- end }}
+{{- end }}

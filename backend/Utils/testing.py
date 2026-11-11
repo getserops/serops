@@ -66,3 +66,13 @@ class SeedPreservingTransactionTestCase(TransactionTestCase):
             snapshot = SeedPreservingTransactionTestCase._seed_snapshots.get(alias)
             if snapshot:
                 connection.creation.deserialize_db_from_string(snapshot)
+
+
+def licensed(*features):
+    """Treat ``features`` as licensed Enterprise features (decorator or ``with``).
+
+    Works with or without ``backend/ee/``: it patches the Community registry.
+    """
+    from unittest import mock
+    granted = frozenset(features)
+    return mock.patch('Utils.edition.licensed_features', new=lambda: granted)

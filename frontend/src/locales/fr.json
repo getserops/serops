@@ -459,7 +459,10 @@
       "model": "Modèle",
       "analysed": "Analysé",
       "related": "Liens",
-      "allIssues": "Problèmes"
+      "allIssues": "Problèmes",
+      "sampleCrumb": "Incident d'exemple",
+      "sampleTitle": "Incident d'exemple",
+      "sampleBody": "Données fictives et analyse rédigée pour cet exemple : votre fournisseur d'IA n'a pas été appelé et rien n'a été ajouté à votre espace. Connectez une source de logs et SerOps produira cette page à partir de vos propres incidents."
     },
     "codeNotes": {
       "title_one": "{{count}} note de revue de code",
@@ -643,7 +646,8 @@
     "selfHost": "Héberger votre propre SerOps →",
     "ssoSignInFailed": "Échec de la connexion SSO. Vérifiez avec votre administrateur que votre compte appartient à cette organisation.",
     "demoNotConfigured": "Aucune démo n'est configurée sur ce déploiement.",
-    "demoFailed": "Impossible de démarrer la session de démo."
+    "demoFailed": "Impossible de démarrer la session de démo.",
+    "ssoDenied": "Votre compte n'est dans aucun groupe autorisé à utiliser SerOps. Demandez l'accès à votre administrateur."
   },
   "profile": {
     "title": "Profil",
@@ -664,7 +668,10 @@
     "changePhoto": "Changer la photo",
     "removePhoto": "Supprimer la photo",
     "password": "Mot de passe",
-    "passwordDesc": "Modifiez le mot de passe utilisé pour vous connecter."
+    "passwordDesc": "Modifiez le mot de passe utilisé pour vous connecter.",
+    "saveFailed": "Impossible d'enregistrer votre profil. Veuillez réessayer.",
+    "currentPasswordForEmail": "Mot de passe actuel (requis pour changer d'e-mail)",
+    "emailChangeSent": "Nous avons envoyé un lien de confirmation à {{email}}. Votre e-mail change lorsque vous l'ouvrez."
   },
   "settings": {
     "title": "Paramètres",
@@ -757,8 +764,8 @@
       "subtitle": "Configurer les fournisseurs IA utilisés pour l'analyse d'incidents"
     },
     "team": {
-      "title": "Équipe",
-      "subtitle": "Gérer les membres de l'équipe et les rôles"
+      "title": "Utilisateurs",
+      "subtitle": "Inviter des personnes, changer leur rôle, les retirer"
     },
     "delivery": {
       "title": "Canaux de diffusion"
@@ -768,10 +775,10 @@
     }
   },
   "team": {
-    "title": "Gestion de l'Équipe",
-    "subtitle": "Gérer les membres et les rôles de votre organisation",
-    "membersList": "Membres de l'Équipe",
-    "membersDesc": "Gérer les membres et les rôles de votre équipe",
+    "title": "Utilisateurs",
+    "subtitle": "Toute votre organisation, avec le rôle de chacun",
+    "membersList": "Utilisateurs",
+    "membersDesc": "Inviter des personnes, changer leur rôle, les retirer",
     "loading": "Chargement des membres de l'équipe...",
     "loadFailed": "Échec du chargement des membres de l'équipe",
     "fillRequired": "Veuillez remplir tous les champs requis",
@@ -782,7 +789,7 @@
     "memberRemoved": "Membre de l'équipe retiré avec succès",
     "removeFailed": "Échec du retrait du membre de l'équipe",
     "accessDenied": "Accès Refusé",
-    "noPermission": "Vous n'avez pas la permission de gérer les membres de l'équipe",
+    "noPermission": "Vous n'avez pas la permission de gérer les utilisateurs",
     "inviteUser": "Inviter un Utilisateur",
     "noMembers": "Aucun Membre d'Équipe",
     "inviteFirst": "Invitez votre premier membre d'équipe pour commencer",
@@ -815,7 +822,8 @@
     "adminDesc": "Accès complet à tous les paramètres et à la gestion de l'équipe",
     "sendInvitation": "Envoyer l'Invitation",
     "saveChanges": "Enregistrer les Modifications",
-    "suspended": "Suspendu"
+    "suspended": "Suspendu",
+    "ssoManagedRoles": "Les rôles sont gérés par votre fournisseur d'identité : un rôle changé ici est remplacé à la prochaine connexion SSO du membre. Changez plutôt ses groupes dans le fournisseur d'identité."
   },
   "ai": {
     "noKeyNeeded": "Aucune clé requise",
@@ -932,7 +940,34 @@
     "authenticationProtocol": "Protocole d'authentification",
     "enableSso": "Activer l'authentification unique",
     "enableSsoHint": "Permet de se connecter via votre fournisseur d'identité avec OpenID Connect (Okta, Azure AD, Google, Keycloak).",
-    "oidcConfig": "Configuration OpenID Connect"
+    "oidcConfig": "Configuration OpenID Connect",
+    "ssoRoles": "Rôles depuis votre fournisseur d'identité",
+    "ssoRolesHint": "Les règles sont lues de haut en bas : le premier groupe dont la personne fait partie fixe son rôle. Les noms de groupe ne tiennent pas compte de la casse.",
+    "groupsClaim": "Claim des groupes",
+    "groupsClaimHint": "Où se trouvent les groupes dans les claims de l'utilisateur. Chemin à points pour un claim imbriqué, par ex. realm_access.roles.",
+    "extraScopes": "Scopes supplémentaires",
+    "extraScopesHint": "Demandés en plus de openid, email et profile. Certains fournisseurs ont besoin de « groups » pour les envoyer.",
+    "ruleGroup": "Groupe",
+    "ruleRole": "Rôle",
+    "noRules": "Aucune règle : tout le monde reçoit le rôle par défaut.",
+    "addRule": "Ajouter une règle",
+    "moveUp": "Monter",
+    "moveDown": "Descendre",
+    "removeRule": "Supprimer la règle",
+    "defaultRole": "Si aucune règle ne correspond",
+    "defaultRoleHint": "Le rôle des personnes qui ne sont dans aucun des groupes ci-dessus, ou refuser leur connexion.",
+    "denySignIn": "Refuser la connexion",
+    "emailDomains": "Domaines e-mail autorisés à rejoindre",
+    "emailDomainsHint": "Les personnes de ces domaines obtiennent un compte à leur première connexion SSO, sans invitation. Séparez par des virgules.",
+    "emailDomainsStaffOnly": "Sur une installation avec plusieurs organisations, l'opérateur de la plateforme définit les domaines (manage.py sso_email_domains).",
+    "syncRole": "Mettre à jour les rôles à chaque connexion",
+    "syncRoleHint": "Votre fournisseur d'identité décide : un rôle changé dans SerOps est remplacé à la prochaine connexion. Désactivé : les règles ne fixent que le rôle des nouveaux comptes. Le dernier admin n'est jamais rétrogradé.",
+    "ssoTeams": "Équipes depuis votre fournisseur d'identité",
+    "ssoTeamsHint": "Les membres d'un groupe rejoignent l'équipe à chaque connexion, et la quittent quand ils quittent le groupe. Les membres ajoutés dans SerOps restent.",
+    "ruleTeam": "Équipe",
+    "noTeamRules": "Aucune règle d'équipe.",
+    "noTeamsYet": "Créez des équipes dans Paramètres → Équipes pour y associer des groupes.",
+    "addTeamRule": "Ajouter une règle d'équipe"
   },
   "batchInterval": {
     "title": "Intervalle de Génération des Lots",
@@ -1694,5 +1729,123 @@
     "title": "Page introuvable",
     "body": "Cette adresse ne correspond à aucune page SerOps.",
     "back": "Retour à la vue d’ensemble"
+  },
+  "emailConfirm": {
+    "title": "Confirmez votre nouvel e-mail",
+    "intro": "Votre e-mail de connexion devient l'adresse à laquelle ce lien a été envoyé. Vous devrez vous reconnecter.",
+    "button": "Confirmer le nouvel e-mail",
+    "working": "Confirmation…",
+    "done": "Votre e-mail est modifié. Connectez-vous avec la nouvelle adresse.",
+    "signIn": "Aller à la connexion",
+    "failed": "Ce lien n'a pas pu être utilisé."
+  },
+  "roles": {
+    "title": "Rôles",
+    "subtitle": "Rôles intégrés, et rôles construits à partir de permissions",
+    "create": "Créer un rôle",
+    "createTitle": "Créer un rôle",
+    "editTitle": "Modifier le rôle",
+    "custom": "Rôles personnalisés",
+    "customDesc": "Les rôles créés par votre organisation. Attribuez-les dans Utilisateurs ou depuis des groupes SSO.",
+    "builtin": "Rôles intégrés",
+    "builtinDesc": "Viewer, User et Admin ne peuvent pas être modifiés.",
+    "name": "Nom",
+    "namePlaceholder": "ex. Astreinte",
+    "description": "Description",
+    "permissions": "Permissions",
+    "members": "Membres",
+    "none": "Aucun rôle personnalisé.",
+    "permissionCount_one": "{{count}} permission",
+    "permissionCount_other": "{{count}} permissions",
+    "permissionsHint": "Certaines permissions sont toujours incluses, et en choisir une ajoute celles dont elle a besoin. Vous ne pouvez accorder que des permissions que vous avez.",
+    "alwaysGranted": "tous les rôles l'ont",
+    "neededBy": "requise par « {{permission}} »",
+    "edit": "Modifier {{name}}",
+    "delete": "Supprimer {{name}}",
+    "confirmDelete": "Supprimer le rôle « {{name}} » ?",
+    "saved": "Rôle enregistré",
+    "saveFailed": "Impossible d'enregistrer le rôle",
+    "deleted": "Rôle supprimé",
+    "deleteFailed": "Impossible de supprimer le rôle",
+    "loadFailed": "Impossible de charger les rôles",
+    "group": {
+      "self": "Votre compte",
+      "org": "Organisation",
+      "project": "Projets",
+      "batch": "Analyses",
+      "issue": "Incidents",
+      "integration": "Intégrations",
+      "alerting": "Alertes",
+      "chat": "Chat IA",
+      "settings": "Paramètres",
+      "team": "Équipe"
+    },
+    "perm": {
+      "self.manage": "Son profil, mot de passe, notifications, sessions de chat",
+      "org.read": "Voir l'organisation et l'état de sa configuration",
+      "project.read": "Voir projets, services, liaisons et déploiements",
+      "project.write": "Créer et modifier projets, services, liaisons, déploiements",
+      "project.delete": "Supprimer projets et services",
+      "batch.read": "Voir analyses, logs, métriques, traces et tableaux de bord",
+      "batch.analyze": "Lancer analyses, investigations et post-mortems (consomme le budget IA)",
+      "issue.read": "Voir les incidents",
+      "issue.update": "Résoudre, ignorer, rouvrir et acquitter les incidents",
+      "integration.read": "Voir intégrations, sources et clusters (sans secrets)",
+      "integration.use": "Vérifier, synchroniser et tester les intégrations",
+      "integration.manage": "Ajouter, modifier, supprimer intégrations, sources, clusters, clés d'ingestion",
+      "alerting.read": "Voir les canaux de diffusion (sans secrets)",
+      "alerting.manage": "Canaux de diffusion, règles de routage et d'escalade",
+      "chat.use": "Utiliser le chat IA",
+      "settings.read": "Lire les paramètres de sécurité, SSO, rétention, usage et budget IA",
+      "settings.manage": "Modifier les paramètres, fournisseurs IA, Sentinel, rétention",
+      "team.manage": "Inviter et retirer des membres, changer les rôles, gérer les rôles, journal d'audit"
+    },
+    "noneHint": "Construisez-en un à partir de permissions quand Viewer, User et Admin ne conviennent pas, par ex. une astreinte."
+  },
+  "teams": {
+    "title": "Équipes",
+    "subtitle": "Des groupes d'utilisateurs à qui ouvrir des projets",
+    "create": "Créer une équipe",
+    "createTitle": "Créer une équipe",
+    "editTitle": "Modifier l'équipe",
+    "list": "Équipes",
+    "listDesc": "Ouvrez un projet à une équipe dans l'onglet Accès du projet. Les groupes SSO peuvent remplir les équipes.",
+    "name": "Nom",
+    "namePlaceholder": "ex. Paiements",
+    "description": "Description",
+    "members": "Membres",
+    "projects": "Projets",
+    "none": "Aucune équipe.",
+    "edit": "Modifier {{name}}",
+    "delete": "Supprimer {{name}}",
+    "confirmDelete": "Supprimer l'équipe « {{name}} » ? Ses accès aux projets partent avec elle.",
+    "saved": "Équipe enregistrée",
+    "saveFailed": "Impossible d'enregistrer l'équipe",
+    "deleted": "Équipe supprimée",
+    "deleteFailed": "Impossible de supprimer l'équipe",
+    "loadFailed": "Impossible de charger les équipes",
+    "noneHint": "Créez une équipe, puis ouvrez-lui des projets depuis leur onglet Accès."
+  },
+  "projectAccess": {
+    "tab": "Accès",
+    "whoSees": "Qui voit ce projet",
+    "organisation": "Toute l'organisation",
+    "organisationHint": "Tous les membres voient ce projet, avec leur rôle dans l'organisation.",
+    "restricted": "Seulement les équipes autorisées",
+    "restrictedHint": "Seulement les équipes ci-dessous, avec leur rôle sur ce projet, et les admins de l'organisation.",
+    "teams": "Équipes",
+    "teamsHint": "Le rôle d'une équipe s'applique à ce projet seulement, en plus de ce que permet le rôle de ses membres dans l'organisation.",
+    "team": "Équipe",
+    "role": "Rôle sur ce projet",
+    "noTeams": "Aucune équipe n'a encore accès.",
+    "addTeam": "Ajouter une équipe…",
+    "remove": "Retirer {{team}}",
+    "createTeamsFirst": "Créez d'abord des équipes dans Paramètres → Équipes.",
+    "saved": "Accès enregistré",
+    "saveFailed": "Impossible d'enregistrer l'accès",
+    "loadFailed": "Impossible de charger l'accès"
+  },
+  "onboarding": {
+    "viewSample": "Voir un incident d'exemple"
   }
 }

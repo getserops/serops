@@ -164,21 +164,17 @@ SerOps uses a NIST 800-63B compliant password policy:
 | Token TTL | 30 days (auto-refresh on activity, at most once per hour) |
 
 ### SSO Configuration
-Supported providers:
-- Keycloak
-- Okta  
-- Azure AD
-- Google Workspace
+OpenID Connect with Keycloak, Okta, Azure AD / Entra ID, Google Workspace or any OIDC provider. Roles can come from the provider's groups, and people of listed email domains can join without an invitation: see [Authentication & SSO](../security/authentication.md#roles-from-your-identity-providers-groups).
 
 ---
 
-## Team Settings
+## Users, Roles and Teams
 
-**Location**: Settings → Team
+**Location**: Settings → Users, Settings → Teams, and Settings → Roles (SerOps Enterprise)
 
 ### Roles
 
-**Viewer** (read only), **User** (read, run analyses, edit projects, update issues) and **Admin** (everything in the organisation, including credentials, team and settings). The full list of permissions per role is on [Team Management](team.md#roles). The Settings menu only lists the pages your role can open.
+**Viewer** (read only), **User** (read, run analyses, edit projects, update issues) and **Admin** (everything in the organisation, including credentials, team and settings). The full list of permissions per role is on [Users, roles and teams](team.md#roles). The Settings menu only lists the pages your role can open.
 
 ### Actions
 - Invite user

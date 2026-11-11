@@ -13,7 +13,7 @@ import { Link } from "react-router-dom";
 import { FaPlus, FaEdit, FaTrash } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
 import { ProjectService } from "../services/project.service";
-import { can } from "../utils/permissions";
+import { can, canOnProject } from "../utils/permissions";
 
 const Project = () => {
   const { t } = useTranslation();
@@ -365,6 +365,7 @@ const Project = () => {
                           >
                             {t('data.batches')}
                           </Button>
+                          {canOnProject(project, "project.write") && (
                           <Button
                             variant="outline-secondary"
                             size="sm"
@@ -374,8 +375,9 @@ const Project = () => {
                           >
                             <FaEdit size={12} />
                           </Button>
-                          {/* Deleting a project is admin-only (the API enforces it). */}
-                          {can("project.delete") && (
+                          )}
+                          {/* What the user may do on this project (the API enforces it). */}
+                          {canOnProject(project, "project.delete") && (
                           <Button
                             variant="outline-danger"
                             size="sm"

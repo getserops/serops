@@ -17,6 +17,7 @@ can no longer accidentally land in only one copy.
 """
 
 from .models import AIAnalyzedBatch, Issue
+from Middlewares.project_access import required_code, scope
 from Projects.models import Project
 
 
@@ -48,7 +49,15 @@ class OrgFilterMixin:
         user_org = getattr(request.user, 'organisation', None)
         if not user_org:
             return Project.objects.none()
-        return Project.objects.filter(organisation=user_org)
+        return scope(Project.objects.filter(organisation=user_org), request.user,
+                     self._scope_code(request, 'project.read', ('project.write', 'project.delete')), field='')
+
+    def _scope_code(self, request, read_code, write_codes):
+        """The permission to scope by: the request's own when it writes this
+        resource (resolving an issue needs issue.update on its project), else
+        the read permission."""
+        code = required_code(self, request)
+        return code if code in write_codes else read_code
 
     def get_user_batches(self, request):
         """
@@ -64,7 +73,8 @@ class OrgFilterMixin:
         user_org = getattr(request.user, 'organisation', None)
         if not user_org:
             return AIAnalyzedBatch.objects.none()
-        return AIAnalyzedBatch.objects.filter(organisation=user_org)
+        return scope(AIAnalyzedBatch.objects.filter(organisation=user_org), request.user,
+                     self._scope_code(request, 'batch.read', ('batch.analyze',)))
 
     def get_user_issues(self, request):
         """
@@ -79,7 +89,8 @@ class OrgFilterMixin:
         user_org = getattr(request.user, 'organisation', None)
         if not user_org:
             return Issue.objects.none()
-        return Issue.objects.filter(organisation=user_org)
+        return scope(Issue.objects.filter(organisation=user_org), request.user,
+                     self._scope_code(request, 'issue.read', ('issue.update',)))
 
     # ------------------------------------------------------------------
     # Environment filter (optional query param)
@@ -153,6 +164,10 @@ class OrgFilterMixin:
 
         if model_type in ('batch', 'issue'):
             qs = queryset.filter(organisation=user_org)
+            if model_type == 'batch':
+                qs = scope(qs, request.user, self._scope_code(request, 'batch.read', ('batch.analyze',)))
+            else:
+                qs = scope(qs, request.user, self._scope_code(request, 'issue.read', ('issue.update',)))
             if env:
                 qs = qs.filter(environment__iexact=env)
             # Cluster filter — see _get_cluster_id for why bad values

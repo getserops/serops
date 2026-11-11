@@ -1576,6 +1576,41 @@
 :is(html, :root[data-theme]) .settings-card.settings-card-flush,
 :is(html, :root[data-theme]) .settings-card:has(> .settings-card-body) { padding: 0; }
 
+/* Settings → Roles: permission picker grouped by resource */
+.roles-settings .roles-permission-list { margin: 0; padding-left: 1.25rem; }
+.roles-settings .roles-permission-list code { color: var(--text-secondary); margin-right: 0.25rem; }
+.roles-permission-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+}
+.roles-permission-group {
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin: 0;
+}
+.roles-permission-group legend {
+    float: none;
+    width: auto;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    padding: 0 0.25rem;
+    margin: 0;
+}
+
+/* Settings → Teams: member picker */
+.teams-member-picker {
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+}
+
 /* Log / metric providers (ObservabilitySettings): design tokens only, so
    the rows follow dark mode. */
 .obs-integration-row {

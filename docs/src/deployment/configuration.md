@@ -19,7 +19,10 @@ Complete reference for all environment variables consumed by SerOps.
 |----------|----------|---------|-------------|
 | `DEBUG` | No | `False` | Django debug mode. **Must be `False` in production.** |
 | `PROJECT_NAME` | No | `serops-backend` | Instance name used in emails |
-| `DJANGO_SECRET_KEY` | Yes | -- | Django secret key for cryptographic signing. Must be unique per deployment. |
+| `DJANGO_SECRET_KEY` | Yes | -- | Django secret key for cryptographic signing. Must be unique per deployment and at least 32 characters; SerOps refuses to start otherwise. |
+| `SEROPS_ENCRYPTION_KEY` | Yes | -- | Encrypts the credentials stored in the database. 32 random bytes in URL-safe base64: `openssl rand -base64 32 \| tr '+/' '-_'`. SerOps refuses to start without it. Back it up: without it stored credentials cannot be read. |
+| `SEROPS_ENCRYPTION_KEY_PREVIOUS` | No | -- | While changing the key: the old one, or several separated by commas. See [Upgrading](upgrading.md#changing-the-encryption-key). |
+| `SSO_TRUST_MISSING_EMAIL_VERIFIED` | No | `login.microsoftonline.com` | Comma-separated host names of identity providers that leave `email_verified` out of their claims. Any other provider must return `email_verified: true`. |
 | `ALLOWED_HOSTS` | Yes | -- | Comma-separated list of allowed hostnames (e.g., `serops.yourdomain.com,backend`) |
 | `CORS_ALLOWED_ORIGINS` | Yes | -- | Comma-separated CORS origins (e.g., `https://serops.yourdomain.com`) |
 
@@ -52,7 +55,7 @@ The backend writes `django.log` and `user_actions.log` in `/app/logs` (the `back
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SEROPS_VERSION` | No | `1.2.14` | Version tag for SerOps Docker images (backend + frontend) |
+| `SEROPS_VERSION` | No | `1.3.0` | Version tag for SerOps Docker images (backend + frontend) |
 
 ---
 
@@ -173,7 +176,8 @@ DEFAULT_FROM_EMAIL=SerOps <serops@yourdomain.com>
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SECURE_SSL_REDIRECT` | No | `False` | Redirect all HTTP requests to HTTPS. Enable when behind HTTPS. |
+| `SEROPS_HTTPS` | No | `False` | SerOps is served over HTTPS by a proxy (set by the quick-start's `docker-compose.yml`, and by Helm when `publicUrl` starts with `https://`). Session and CSRF cookies are Secure, responses send HSTS, and the backend reads the proxy's `X-Forwarded-Proto` to know a request came in over HTTPS. The proxy must set that header and replace a client's own (Caddy and ingress-nginx do). |
+| `SECURE_SSL_REDIRECT` | No | `False` | Django redirects HTTP to HTTPS itself (also trusts `X-Forwarded-Proto`). Usually leave it to the proxy: a redirect in Django also bounces plain-HTTP health probes. |
 | `SEROPS_OUTBOUND_ALLOW_PRIVATE` | No | `true` | Whether URLs users configure (observability hosts, SCM and CI base URLs, AI provider base URLs, SSO discovery) may point at private or loopback addresses. Keep `true` for a self-hosted install that reads in-cluster Loki, Prometheus or Ollama; set `false` on an install shared by several organisations so none of them can reach the host's network. Cloud metadata and link-local addresses are refused either way, these URLs are checked again before every request, and redirects to another host are not followed. Notification webhooks (Slack, Teams) always need a public `https` address. |
 
 ---
@@ -207,6 +211,7 @@ The authoritative template is
 ```env
 SEROPS_DOMAIN=serops.yourdomain.com
 DJANGO_SECRET_KEY=<python3 -c "import secrets; print(secrets.token_urlsafe(64))">
+SEROPS_ENCRYPTION_KEY=<openssl rand -base64 32 | tr '+/' '-_'>
 POSTGRES_PASSWORD=<openssl rand -hex 24>
 REDIS_PASSWORD=<openssl rand -hex 24>
 

@@ -45,6 +45,10 @@ BACKUP_DIR="${1:-${PROJECT_DIR}/backups}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="${BACKUP_DIR}/serops_db_${TIMESTAMP}.dump"
 
+# The dump holds every credential SerOps stores (encrypted) and every
+# user's email: readable by the owner only. Copy it off the host and
+# encrypt it there (for example: gpg --symmetric) before keeping it.
+umask 077
 mkdir -p "$BACKUP_DIR"
 
 log "Backing up database ${POSTGRES_DB} from serops-postgres → ${BACKUP_FILE}"

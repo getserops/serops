@@ -7,6 +7,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from Users.models import User, SecuritySettings
+from Users.test.test_sso_flow import start_flow
 from Organisations.models import Organisations
 
 
@@ -88,28 +89,6 @@ class TestSSOConfigView(APITestCase):
 # =============================================================================
 # SSOInitView
 # =============================================================================
-
-class TestSSODomainsConfig(APITestCase):
-    def setUp(self):
-        org = Organisations.objects.create(name='Domains Org', website='https://domains.com')
-        admin = User.objects.create_user(
-            username='domadmin', email='domadmin@example.com', password='TestPass123!',
-            organisation=org, role='admin', is_active=True)
-        self.client.force_authenticate(admin)
-        self.url = reverse('sso-config')
-
-    def test_domains_are_saved_normalised(self):
-        response = self.client.put(self.url, {
-            'sso_enabled': True, 'sso_provider': 'oidc',
-            'sso_domains': 'Example.com, @acme.io ,example.com'}, format='json')
-        self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(self.client.get(self.url).data['sso_domains'], ['acme.io', 'example.com'])
-
-    def test_a_non_domain_is_refused(self):
-        response = self.client.put(self.url, {
-            'sso_provider': 'oidc', 'sso_domains': ['not a domain']}, format='json')
-        self.assertEqual(response.status_code, 400)
-
 
 class TestSSOInitView(APITestCase):
     """Tests for SSO login initiation."""
@@ -270,11 +249,12 @@ class TestSSOCallbackView(APITestCase):
         mock_sso.exchange_code_for_token.return_value = {'access_token': 'abc123'}
         mock_sso.get_user_info.return_value = {
             'email': 'ssocb@example.com',
+            'email_verified': True,
             'given_name': 'SSO',
             'family_name': 'User',
         }
 
-        state = signing.dumps({'org_id': self.org.id})
+        state = start_flow(self.client, self.org.id)
         response = self.client.get(self.url, {'code': 'authcode123', 'state': state})
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response['Location'].endswith('/auth/callback'))
@@ -282,15 +262,18 @@ class TestSSOCallbackView(APITestCase):
 
     @patch('Users.sso_views.SSOService')
     def test_sso_callback_creates_new_user(self, MockSSOService):
+        self.sec_settings.sso_domains = ['example.com']
+        self.sec_settings.save()
         mock_sso = MockSSOService.return_value
         mock_sso.exchange_code_for_token.return_value = {'access_token': 'abc123'}
         mock_sso.get_user_info.return_value = {
             'email': 'newssuser@example.com',
+            'email_verified': True,
             'given_name': 'New',
             'family_name': 'SSO',
         }
 
-        state = signing.dumps({'org_id': self.org.id})
+        state = start_flow(self.client, self.org.id)
         response = self.client.get(self.url, {'code': 'authcode123', 'state': state})
         self.assertEqual(response.status_code, 302)
         new_user = User.objects.get(email='newssuser@example.com')
@@ -305,12 +288,13 @@ class TestSSOCallbackView(APITestCase):
     def _callback_as(self, MockSSOService, **user_info):
         mock_sso = MockSSOService.return_value
         mock_sso.exchange_code_for_token.return_value = {'access_token': 'abc123'}
+        user_info.setdefault('email_verified', True)
         mock_sso.get_user_info.return_value = user_info
-        state = signing.dumps({'org_id': self.org.id})
+        state = start_flow(self.client, self.org.id)
         return self.client.get(self.url, {'code': 'authcode123', 'state': state})
 
     def test_sso_callback_missing_code(self):
-        state = signing.dumps({'org_id': self.org.id})
+        state = start_flow(self.client, self.org.id)
         self._assert_failed(self.client.get(self.url, {'state': state}))
 
     def test_sso_callback_invalid_state(self):
@@ -346,17 +330,26 @@ class TestSSOCallbackView(APITestCase):
     @patch('Users.sso_views.SSOService')
     def test_idp_failure_redirects_to_login(self, MockSSOService):
         MockSSOService.return_value.exchange_code_for_token.side_effect = RuntimeError('boom')
-        state = signing.dumps({'org_id': self.org.id})
+        state = start_flow(self.client, self.org.id)
         self._assert_failed(self.client.get(self.url, {'code': 'authcode123', 'state': state}))
 
     @patch('Users.sso_views.SSOService')
     def test_new_sso_user_has_no_usable_password(self, MockSSOService):
+        self.sec_settings.sso_domains = ['example.com']
+        self.sec_settings.save()
         response = self._callback_as(
             MockSSOService, email='a.very.long.name.for.sso@example.com', email_verified=True)
         self.assertEqual(response.status_code, 302)
         user = User.objects.get(email='a.very.long.name.for.sso@example.com')
         self.assertFalse(user.has_usable_password())
         self.assertLessEqual(len(user.username), 20)
+
+    @patch('Users.sso_views.SSOService')
+    def test_no_account_is_created_when_no_domain_is_listed(self, MockSSOService):
+        self.sec_settings.sso_domains = []
+        self.sec_settings.save()
+        self._assert_failed(self._callback_as(MockSSOService, email='stranger@example.com'))
+        self.assertFalse(User.objects.filter(email='stranger@example.com').exists())
 
     @override_settings(DEMO_ONLY_LOGIN=True)
     @patch('Users.sso_views.SSOService')
@@ -408,7 +401,7 @@ class TestSSOService(SimpleTestCase):
             'test-state',
         )
         sso = self._make_service()
-        url, state = sso.get_authorization_url(state='test-state')
+        url, state = sso.get_authorization_url(state='test-state', nonce='n', code_verifier='v')
         self.assertIn('https://idp.example.com/auth', url)
         self.assertIsNotNone(state)
 
@@ -420,5 +413,5 @@ class TestSSOService(SimpleTestCase):
             'token_type': 'Bearer',
         }
         sso = self._make_service()
-        token = sso.exchange_code_for_token('auth-code-123')
+        token = sso.exchange_code_for_token('auth-code-123', code_verifier='v')
         self.assertIn('access_token', token)

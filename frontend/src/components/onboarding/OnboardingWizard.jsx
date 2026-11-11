@@ -15,7 +15,10 @@
  */
 
 import React from 'react';
+import { Link as RouterLink } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
+    Link as MuiLink,
     Alert,
     Box,
     Card,
@@ -28,6 +31,7 @@ import {
     Stepper,
     Typography,
 } from '@mui/material';
+import { SAMPLE_PATH } from '../../sample/sampleIncident';
 import { FaArrowLeft, FaTimes } from 'react-icons/fa';
 
 import { useOnboardingStatus } from './hooks/useOnboardingStatus';
@@ -91,6 +95,7 @@ function renderStepBody(step, status, actions) {
 const MINIMIZED_KEY = 'serops.onboardingWizard.minimized';
 
 export default function OnboardingWizard({ onComplete, onSkip }) {
+    const { t } = useTranslation();
     // Remembered across pages: the panel reopened on every page and covered
     // the page's top-right buttons (journey suite, B5).
     const [minimized, setMinimizedState] = React.useState(() => {
@@ -182,6 +187,10 @@ export default function OnboardingWizard({ onComplete, onSkip }) {
                         <Typography variant="body2" color="text.secondary">
                             Connect the pieces so we can run your first AI analysis.
                         </Typography>
+                        {/* The wizard covers part of the page: it moves aside. */}
+                        <MuiLink component={RouterLink} to={SAMPLE_PATH} variant="body2" onClick={() => setMinimized(true)}>
+                            {t('onboarding.viewSample')}
+                        </MuiLink>
                     </Box>
                     <Box sx={{ display: 'flex', gap: 1 }}>
                         <IconButton

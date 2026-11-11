@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaRobot, FaExclamationCircle, FaExclamationTriangle, FaArrowRight } from 'react-icons/fa';
+import { SAMPLE_PATH } from '../sample/sampleIncident';
 import './AIAnalysisFeed.css';
 
 // Badge text: darker shades of the environment colours, readable on their
@@ -45,6 +46,7 @@ const AIAnalysisFeed = ({ data, loading }) => {
                 </div>
                 <div className="no-data-message">
                     {t('dashboard.noAnalysisData', 'No AI analyses available yet. Analyses run automatically on log batches.')}
+                    {' '}<Link to={SAMPLE_PATH}>{t('onboarding.viewSample', 'See a sample incident')}</Link>
                 </div>
             </div>
         );

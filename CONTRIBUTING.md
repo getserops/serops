@@ -31,15 +31,16 @@ the second copy was the one being edited, and nothing compared the two.
 
 ## Contribution terms
 
-SerOps is AGPL-3.0, and a [commercial license](./LICENSE-COMMERCIAL.md) is
-offered to organisations that cannot accept copyleft. Offering that second
-license requires the project to hold sufficient rights over all the code it
-covers, so **code contributions require a signed
+SerOps Community is AGPL-3.0. The `ee/` directories hold the Enterprise
+edition under the [SerOps Enterprise License](./backend/ee/LICENSE), and a
+[commercial license](./LICENSE-COMMERCIAL.md) is offered to organisations that
+cannot accept copyleft. Offering those requires the project to hold sufficient
+rights over all the code they cover, so **code contributions require a signed
 [Contributor License Agreement](./CLA.md)**.
 
 It does not take your copyright. You keep it, and you stay free to use your own
-work however you like; the agreement grants SerOps the right to ship it in both
-the open-source and the commercially licensed editions. Without that right a
+work however you like; the agreement grants SerOps the right to ship it in the
+Community edition, the Enterprise edition and commercially licensed releases. Without that right a
 contribution cannot appear in a commercial release, and the only remedies later
 are to omit it or to track down its author years after the fact.
 
@@ -51,14 +52,23 @@ than nothing.
 Read [CLA.md](./CLA.md) before opening a pull request, so the agreement is not a
 surprise after you have written the code.
 
-### Code pull requests are on hold until the CLA is final
+### Signing: one comment on your first pull request
 
-The agreement is still a draft under legal review, so there is nothing valid to
-sign yet. Until it is final, **pull requests that change code stay open but are
-not merged**. Merging one without a signed agreement would permanently keep that
-code out of the commercially licensed edition. You are welcome to open one
-anyway: it will be reviewed and merged once the agreement is in place, and a CLA
-assistant bot will then ask you to sign on the pull request itself.
+A CLA assistant bot (`.github/workflows/cla.yml`) checks every pull request. On
+your first one it comments with a link to the agreement; you accept by replying
+
+> I have read the CLA Document and I hereby sign the CLA
+
+and the check passes, for this and every later pull request. Signatures are
+recorded in the private repository `getserops/cla-signatures` (your GitHub
+user name and id, the pull request, the date), with no outside service.
+Companies sign once by email (see CLA §8).
+
+### Pull requests are merged once the agreement is signed
+
+A pull request that changes code is merged only after its author has signed:
+without the agreement, that code could never be part of the Enterprise and
+commercially licensed editions.
 
 Issues, bug reports and discussion are open now and need no agreement.
 

@@ -106,7 +106,7 @@ keeps analysis affordable and limits what reaches a third party:
 | **Notifications** | Slack, Teams, PagerDuty, OpsGenie and email, with routing rules, quiet hours, digests and escalation |
 | **Issue Lifecycle** | Muting, auto-resolution, acknowledgement, and MTTR tracking |
 | **Integrations** | Log, metric and trace backends, SCM and CI/CD providers, GitOps deployment sources — see [Integrations](integrations/overview.md). Credentials are encrypted at rest |
-| **Team Management** | RBAC (admin/user/viewer), team invitations, SSO via OpenID Connect |
+| **Users, roles and teams** | Built-in roles, teams, SSO via OpenID Connect with group-to-role and group-to-team mapping; custom roles and per-project access in [Enterprise](open-source-promise.md#what-enterprise-adds) |
 | **Audit & Compliance** | Full audit trail with export, data retention policies, and GDPR support |
 
 ## Quick Links

@@ -8,11 +8,9 @@
 # (browsers warn once) and redirects HTTP to it.
 
 {$SEROPS_DOMAIN} {
-    # API + Django-served media
+    # API. Media (avatars, logos) is served under /api as well; the old
+    # /images route pointed at a backend path that no longer exists.
     handle /api/* {
-        reverse_proxy backend:8000
-    }
-    handle /images/* {
         reverse_proxy backend:8000
     }
 
@@ -24,7 +22,7 @@
     encode gzip zstd
 
     header {
-        Strict-Transport-Security "max-age=31536000"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
         X-Content-Type-Options nosniff
         X-Frame-Options DENY
         Referrer-Policy strict-origin-when-cross-origin

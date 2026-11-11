@@ -28,30 +28,99 @@
 {{ printf "%s-redis" (include "serops.fullname" .) }}
 {{- end -}}
 
+{{/* The ServiceAccount the pods run as. */}}
+{{- define "serops.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+{{- default (include "serops.fullname" .) .Values.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Password of a bundled dev service. The value from values.yaml when set;
+     otherwise the one already stored in the release's Secret (so upgrades
+     keep it), or a fresh random one on first install. Call with
+     (dict "root" $ "value" <values password> "key" <secret key>). Call it
+     ONCE per render (secrets.yaml does) and let the pods read the Secret:
+     a second call on a first install would draw a different random. */}}
+{{- define "serops.devPassword" -}}
+{{- if .value -}}
+{{- .value -}}
+{{- else -}}
+{{- $existing := lookup "v1" "Secret" .root.Release.Namespace (printf "%s-secrets" (include "serops.fullname" .root)) -}}
+{{- if and $existing (hasKey ($existing.data | default dict) .key) -}}
+{{- index $existing.data .key | b64dec -}}
+{{- else -}}
+{{- randAlphaNum 32 -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Effective DATABASE_URL.
      devServices.postgresql wins when enabled, so turning on the bundled
      database actually connects the app to it. Previously enabling it
      deployed a Postgres and changed nothing else, and the backend crashed
-     on a missing database-url secret key. */}}
+     on a missing database-url secret key. Call with
+     (dict "root" $ "password" <dev password>). */}}
 {{- define "serops.databaseUrl" -}}
-{{- if .Values.devServices.postgresql.enabled -}}
+{{- if .root.Values.devServices.postgresql.enabled -}}
 {{- printf "postgres://%s:%s@%s:5432/%s"
-      .Values.devServices.postgresql.user
-      .Values.devServices.postgresql.password
-      (include "serops.devPostgresHost" .)
-      .Values.devServices.postgresql.database -}}
+      .root.Values.devServices.postgresql.user
+      .password
+      (include "serops.devPostgresHost" .root)
+      .root.Values.devServices.postgresql.database -}}
 {{- else -}}
-{{- .Values.database.url -}}
+{{- .root.Values.database.url -}}
 {{- end -}}
 {{- end -}}
 
-{{/* Effective CELERY_BROKER_URL — same precedence as the database. */}}
+{{/* Effective CELERY_BROKER_URL — same precedence as the database. The
+     bundled Redis requires a password (requirepass). */}}
 {{- define "serops.brokerUrl" -}}
-{{- if .Values.devServices.redis.enabled -}}
-{{- printf "redis://%s:6379/0" (include "serops.devRedisHost" .) -}}
+{{- if .root.Values.devServices.redis.enabled -}}
+{{- printf "redis://:%s@%s:6379/0" .password (include "serops.devRedisHost" .root) -}}
 {{- else -}}
-{{- .Values.broker.url -}}
+{{- .root.Values.broker.url -}}
 {{- end -}}
+{{- end -}}
+
+{{/* Egress rules shared by the backend, Celery and the migration job: DNS,
+     the bundled dev services, then networkPolicy.egress (or everything,
+     when that list is empty). */}}
+{{- define "serops.backendEgress" -}}
+{{- $ctx := dict "Chart" .Chart "Release" .Release "Values" .Values -}}
+- to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.networkPolicy.dnsNamespace }}
+  ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+{{- if .Values.devServices.postgresql.enabled }}
+- to:
+    - podSelector:
+        matchLabels:
+          {{- include "serops.selectorLabels" (merge (dict "component" "dev-postgres") $ctx) | nindent 10 }}
+  ports:
+    - port: 5432
+      protocol: TCP
+{{- end }}
+{{- if .Values.devServices.redis.enabled }}
+- to:
+    - podSelector:
+        matchLabels:
+          {{- include "serops.selectorLabels" (merge (dict "component" "dev-redis") $ctx) | nindent 10 }}
+  ports:
+    - port: 6379
+      protocol: TCP
+{{- end }}
+{{- if .Values.networkPolicy.egress }}
+{{ toYaml .Values.networkPolicy.egress }}
+{{- else }}
+- {}
+{{- end }}
 {{- end -}}
 
 {{/* Common labels stamped on every resource. */}}

@@ -30,12 +30,24 @@ at your own:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.2.14 \
+  --version 1.3.0 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
+  --set django.encryptionKey="$(openssl rand -base64 32 | tr '+/' '-_')" \
   --set database.url="postgres://serops:PASSWORD@your-pg-host:5432/serops" \
-  --set broker.url="redis://:PASSWORD@your-redis-host:6379/0"
+  --set broker.url="redis://:PASSWORD@your-redis-host:6379/0" \
+  --set 'ingress.tls[0].hosts[0]=serops.example.com' \
+  --set ingress.tls[0].secretName=serops-tls
 ```
+
+!!! warning "TLS is required"
+    The chart refuses to render an ingress without `ingress.tls`: a
+    plain-HTTP install would send logins and API tokens in clear, and the
+    backend would run without Secure cookies or HSTS. Use the cert-manager
+    annotation (see the production values below) or a TLS Secret you manage.
+    Only when TLS terminates in front of the ingress controller (a cloud load
+    balancer) set `ingress.allowInsecure=true` together with an https
+    `django.publicUrl`.
 
 Prefer `database.existingSecret` / `broker.existingSecret` (keys
 `database-url` / `broker-url`) over passing credentials on the command
@@ -45,12 +57,17 @@ For a lab or demo cluster, let the chart run Postgres and Redis itself:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.2.14 \
+  --version 1.3.0 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
+  --set django.encryptionKey="$(openssl rand -base64 32 | tr '+/' '-_')" \
   --set devServices.postgresql.enabled=true \
-  --set devServices.redis.enabled=true
+  --set devServices.redis.enabled=true \
+  --set ingress.allowInsecure=true   # lab only: no certificate, plain HTTP
 ```
+
+The bundled Postgres and Redis get a random password each, generated at
+install, stored in the release's Secret and kept across upgrades.
 
 Both commands serve SerOps at the chart's default host,
 `serops.example.com`. To use your own name, put it in a small values file
@@ -67,6 +84,11 @@ ingress:
         - { path: /api, pathType: Prefix, service: backend }
         - { path: /metrics, pathType: Prefix, service: backend }
         - { path: /, pathType: Prefix, service: frontend }
+  tls:
+    - hosts: [serops.company.io]
+      secretName: serops-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 django:
   allowedHosts: "serops.company.io"
   corsAllowedOrigins: "https://serops.company.io"
@@ -104,6 +126,7 @@ helm upgrade --install serops deploy/helm/serops \
   --set devServices.postgresql.enabled=true \
   --set devServices.redis.enabled=true \
   --set django.secretKey="$(openssl rand -hex 64)" \
+  --set django.encryptionKey="$(openssl rand -base64 32 | tr '+/' '-_')" \
   -f my-values.yaml   # your hostname: see my-values.yaml above
 ```
 
@@ -138,8 +161,12 @@ pipeline — for example a stage that gates on a review of the generated SQL.
 
 ## Production
 
-Bring your own Postgres + Redis (managed / HA), reference existing
-Secrets for keys:
+Bring your own Postgres + Redis (managed / HA) and keep every secret in a
+Kubernetes Secret you manage, referenced through the `existingSecret`
+values (`django`, `database`, `broker`, `smtp`, `alertSecrets`). A value
+passed with `--set` or in a values file is stored in the chart-managed
+Secret and in every Helm release record in the namespace, so inline
+secrets are for labs only:
 
 ```yaml
 # my-values.yaml
@@ -163,7 +190,7 @@ broker:
 # embeddings use the same per-organisation provider.
 
 django:
-  existingSecret: serops-django   # key: django-secret-key
+  existingSecret: serops-django   # keys: django-secret-key, encryption-key
   # Both default to serops.example.com, so they MUST be set to your host or
   # the install looks broken in two confusing ways: Django answers
   # DisallowedHost, and the browser silently blocks the frontend's own API
@@ -259,6 +286,53 @@ Every pod meets the Kubernetes **restricted** Pod Security Standard: a non-root 
 
 The settings are `podSecurityContext` and `containerSecurityContext` (backend, Celery and migrations) and `frontend.podSecurityContext` / `frontend.containerSecurityContext`. On a platform that assigns user ids itself, such as OpenShift, remove `runAsUser`, `runAsGroup` and `fsGroup`.
 
+## Network policies, disruption budgets, service account
+
+The chart ships them on by default (chart 0.2.0):
+
+- **ServiceAccount** per release, with no token mounted on any pod: SerOps
+  never calls the Kubernetes API. `serviceAccount.annotations` takes IRSA or
+  Workload Identity annotations if your database needs them.
+- **PodDisruptionBudgets** keep one backend, frontend and worker pod through
+  a node drain (`podDisruptionBudget.minAvailable: 1`, rendered only for
+  components with more than one replica).
+- **NetworkPolicies**: only the ingress controller reaches the frontend (3000)
+  and the backend (8000); nothing reaches the worker, beat or the migration
+  job; the bundled dev Postgres and Redis accept connections from the
+  release's own pods only.
+
+| Value | Default | Meaning |
+|---|---|---|
+| `networkPolicy.ingressFrom` | the `ingress-nginx` namespace | Peers allowed to reach the frontend and the backend. Set your controller's namespace label and/or a `podSelector`. |
+| `networkPolicy.backendExtraIngressFrom` | `[]` | Extra peers for the backend, such as the Prometheus namespace when `serviceMonitor.enabled`. |
+| `networkPolicy.egress` | `[]` = anywhere | Where backend, worker, beat and the migration job may connect. SerOps queries the providers, SCM and AI endpoints you configure, on their own hosts and ports, so the chart cannot guess a tighter default; narrow it once you know them. DNS (`networkPolicy.dnsNamespace`) and the dev services stay allowed. |
+| `networkPolicy.enabled` | `true` | Set `false` on a CNI that does not enforce NetworkPolicy, or to bring your own. |
+
+!!! warning "Check the ingress controller's namespace"
+    If the controller is not in a namespace labelled
+    `kubernetes.io/metadata.name: ingress-nginx`, set
+    `networkPolicy.ingressFrom` before installing, or every request through
+    the ingress returns 502.
+
+## Verifying what you pull
+
+The chart and both images are signed with cosign (keyless, bound to the
+release workflows of `github.com/getserops/serops`) and carry SBOM and
+provenance attestations. Before installing:
+
+```bash
+cosign verify ghcr.io/getserops/charts/serops:1.2.15 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/helm-release\.yml@refs/tags/v'
+
+cosign verify ghcr.io/getserops/backend:1.2.15 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/docker\.yml@refs/tags/v'
+```
+
+The repository's `SECURITY.md` has the full list, including the GitHub
+attestation check and how to read the SBOM.
+
 ## Verifying the install
 
 ```bash
@@ -298,5 +372,4 @@ kubectl delete namespace serops
 Planned for a later release:
 
 * **HPA definitions** — bring your own targeting CPU 70% on backend + worker.
-* **NetworkPolicy** — bring your own; egress to AI providers + DB/Redis + ingress from cluster nginx.
 * **Multi-process Prometheus exposition** — today each gunicorn worker exposes its own registry; Prometheus aggregates naturally.

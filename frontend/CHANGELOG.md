@@ -10,6 +10,28 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-11
+
+Roles, teams and per-project access screens, Settings → Enterprise license, the sample incident and the email-change confirmation. Same version as the backend and the chart.
+
+### Security
+
+- Changing your email asks for your current password and is finished from a link sent to the new address (`/email/confirm/:token`).
+- SSO sign-in sends the cookie that binds it to this browser.
+
+### Added
+
+- A sample incident, offered from the setup wizard and from the empty analyses card: the real incident page on made-up data, labelled as such, so a new install shows what SerOps produces before anything is connected. It stores nothing in the organisation and calls no AI provider
+- Added `src/ee/` (SerOps Enterprise License) with Settings → Enterprise license; `utils/edition.js` (`useEdition`, `hasFeature`, Enterprise settings pages found with `import.meta.glob`, empty without `src/ee/`). `index.html` carries the serops.ai description and link-preview metadata.
+- Settings → Security → SSO: rules from identity-provider groups to roles (ordered, add / move / remove), default role or refuse, sync at every sign-in, email domains. Login explains a refused SSO sign-in (`?sso=denied`); Team says when roles come from the identity provider.
+- Settings → Roles (Enterprise, `src/ee/access`): custom roles built from grouped permissions (always-included and prerequisite permissions locked), member counts, edit/delete. Team invites and edits offer custom roles; SSO rules can target them; Profile and Team show the role name.
+- Settings → Teams (members, SSO-sourced badge, project grants) and the project Access tab (Enterprise, `src/ee/access`, registered through `enterpriseProjectTabs`; without the license it can only open, lower or remove). `withEnterprisePages` places Enterprise menu items (`after`). Project buttons use the project's own `permissions` (`canOnProject`); New project needs the organisation role. SSO team rules. The Team page is labelled Members; page titles and the command palette know Roles and Teams.
+
+### Fixed
+
+- Profile: a refused save, or a refused new password, says why.
+- The onboarding reminder chip (z-index 1300) covered Bootstrap dialogs' buttons; now 1040.
+
 ## [1.2.14] - 2026-11-07
 
 ### Security

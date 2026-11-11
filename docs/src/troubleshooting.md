@@ -16,7 +16,12 @@ at the bottom.
 | Cannot log in | Credentials | Verify email and password. Check if account is active. |
 | Token expired | Session | Tokens expire after 30 days of inactivity. Log in again. |
 | SSO login fails | Callback URL | Ensure the Redirect URI in your Identity Provider matches the one configured in **Settings > Security**. |
-| "403 Forbidden" on API calls | Permissions | Your role lacks the permission. **Settings → Audit Log** shows an *Access Denied* entry naming the missing permission; see [Team Management](admin/team.md#roles). |
+| "403 Forbidden" on API calls | Permissions | Your role (built-in or custom) lacks the permission. **Settings → Audit Log** shows an *Access Denied* entry naming the missing permission; see [Users, roles and teams](admin/team.md#roles). |
+| A project is missing, or answers "not found", for some users | Project access | The project is restricted to teams. Add the user to one of its teams (**Settings → Teams**), or add a team in the project's **Access** tab (Enterprise). Organisation admins always see every project. |
+| SSO says "Your account isn't in a group that can use SerOps" | Group rules | No rule matched the user's groups and the default is *Refuse sign-in*. Check the groups claim and rules in **Settings → Security → Single Sign-On**; the audit log entry `SSO_DENIED` lists the groups the provider sent. |
+| SSO roles are ignored (everyone gets the default role) | Groups claim | The provider doesn't send groups. Keycloak: add a *Group Membership* mapper (claim `groups`, added to userinfo). Okta: add the `groups` scope under *Extra scopes*. Entra ID: emit the groups claim in the ID token. Nested claims use a dotted path (`realm_access.roles`). |
+| SSO: "SSO is not available for this account" for a new colleague | Invitation or domain | Invite them in **Settings → Users**, or list their email domain under *Email domains that can join* (on installs with several organisations: `manage.py sso_domains`). |
+| A role changed in **Settings → Users** comes back after the user's next sign-in | SSO sync | *Update roles at every sign-in* is on: the identity provider decides. Change the user's groups there. |
 | Invitation link says "invalid or already used" | Link freshness | Invitations work once and expire after 7 days (`INVITATION_TTL_DAYS`). Ask the admin to re-invite. |
 
 ## Integrations

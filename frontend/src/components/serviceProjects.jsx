@@ -3,7 +3,7 @@ import PageHeader from "./PageHeader";
 import React, { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { Table, Button, Pagination, Nav, Tab, Badge } from "react-bootstrap";
-import { FaPlus, FaTrash, FaEye, FaServer, FaSearch } from "react-icons/fa";
+import { FaPlus, FaTrash, FaEye, FaServer, FaLock, FaSearch } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
 import { useServiceProjects, PAGE_SIZE } from "../hooks/useServiceProjects";
 import ServiceDetailsModal from "./ServiceProjects/ServiceDetailsModal";
@@ -12,7 +12,8 @@ import DeploymentsPanel from "./ServiceProjects/DeploymentsPanel";
 import DataCheckPanel from "./ServiceProjects/DataCheckPanel";
 import DeploymentService from "../services/deployment.service";
 import { ProjectService } from "../services/project.service";
-import { can } from "../utils/permissions";
+import { can, canOnProject } from "../utils/permissions";
+import { enterpriseProjectTabs } from "../utils/edition";
 
 // Helper function to get badge color based on service type
 const getTypeBadgeClass = (type) => {
@@ -70,6 +71,9 @@ const ServiceProjects = () => {
   // ?tab=data opens Check my data directly (the onboarding wizard links here).
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'data' ? 'data' : 'services');
+  // The caller's permissions on this project (teams can give more than the
+  // organisation role; restricted projects less).
+  const [project, setProject] = useState(null);
 
   useEffect(() => {
     if (!projectId) return;
@@ -84,6 +88,7 @@ const ServiceProjects = () => {
         if (cancelled) return;
         setDeploymentCount(Array.isArray(deps) ? deps.length : 0);
         setEnvironments(Array.isArray(project?.environments) ? project.environments : []);
+        setProject(project && project.id ? project : null);
       } catch (err) {
         // Fail-open: if the meta call breaks, the Services view still
         // renders — user just loses the Deployments tab. Logged for
@@ -98,6 +103,8 @@ const ServiceProjects = () => {
   }, [projectId]);
 
   const showDeploymentsTab = deploymentCount >= 1;
+  // Tabs added by Enterprise modules (src/ee/), e.g. project Access.
+  const extraTabs = enterpriseProjectTabs.filter((tab) => tab.visible({ project, can, canOnProject }));
 
   return (
     <>
@@ -109,7 +116,7 @@ const ServiceProjects = () => {
           ]}
           title={projectName || t('services.title')}
           subtitle={t('services.subtitle') || 'Manage connected services and deployments'}
-          actions={activeTab === 'services' && (
+          actions={activeTab === 'services' && canOnProject(project, 'project.write') && (
             <Button variant="primary" onClick={handleOpenModal}>
               <FaPlus size={14} aria-hidden="true" />
               <span>{t('services.addNew')}</span>
@@ -139,6 +146,14 @@ const ServiceProjects = () => {
                   {t('dataCheck.tab')}
                 </Nav.Link>
               </Nav.Item>
+              {extraTabs.map((tab) => (
+                <Nav.Item key={tab.key}>
+                  <Nav.Link eventKey={tab.key} className="d-flex align-items-center gap-2">
+                    {tab.icon === 'lock' && <FaLock size={12} />}
+                    {tab.label(t)}
+                  </Nav.Link>
+                </Nav.Item>
+              ))}
             </Nav>
 
             <Tab.Content>
@@ -208,7 +223,7 @@ const ServiceProjects = () => {
                                     <FaEye className="me-1" size={12} />
                                     {t('services.viewDetails')}
                                   </Button>
-                                  {can("project.delete") && (
+                                  {canOnProject(project, "project.delete") && (
                                   <Button
                                     variant="outline-danger"
                                     size="sm"
@@ -277,6 +292,12 @@ const ServiceProjects = () => {
                   onFixed={refreshServices}
                 />
               </Tab.Pane>
+
+              {extraTabs.map(({ key, Component }) => (
+                <Tab.Pane key={key} eventKey={key} mountOnEnter unmountOnExit>
+                  <Component projectId={projectId} />
+                </Tab.Pane>
+              ))}
             </Tab.Content>
           </Tab.Container>
         </div>

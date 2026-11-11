@@ -169,6 +169,33 @@ export const OrganisationService = {
     }
   },
 
+  // The organisation's roles: built-in, custom, and the permission
+  // catalogue. Managing custom roles is Enterprise (src/ee/access).
+  getRoles: async () => {
+    const response = await axios.get(`${API_BASE_URL}/roles/`, getAuthHeaders());
+    return response.data;
+  },
+
+  // Teams (Settings → Teams): groups of members given access to projects.
+  getTeams: async () => {
+    const response = await axios.get(`${API_BASE_URL}/teams/`, getAuthHeaders());
+    return response.data.teams || [];
+  },
+
+  createTeam: async (team) => {
+    const response = await axios.post(`${API_BASE_URL}/teams/`, team, getAuthHeaders());
+    return response.data;
+  },
+
+  updateTeam: async (id, team) => {
+    const response = await axios.put(`${API_BASE_URL}/teams/${id}/`, team, getAuthHeaders());
+    return response.data;
+  },
+
+  deleteTeam: async (id) => {
+    await axios.delete(`${API_BASE_URL}/teams/${id}/`, getAuthHeaders());
+  },
+
   deleteTeamMember: async (id) => {
     try {
       await axios.delete(

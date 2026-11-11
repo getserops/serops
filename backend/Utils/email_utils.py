@@ -137,6 +137,62 @@ def send_invitation_link(user, invited_by=None):
         logger.error(f'Invitation email error: {e}')
 
 
+EMAIL_CHANGE_SALT = 'serops.email-change'
+EMAIL_CHANGE_MAX_AGE = 24 * 3600
+
+
+def make_email_change_token(user, new_email):
+    # Single use: the old address no longer matches once the change is made.
+    # A password change also cancels it, through the fingerprint.
+    return signing.dumps(
+        {'user': user.pk, 'old': user.email, 'new': new_email, 'pw': _password_fingerprint(user)},
+        salt=EMAIL_CHANGE_SALT,
+    )
+
+
+def read_email_change_token(token):
+    """(user, new_email), or raise BadSignature / User.DoesNotExist."""
+    from Users.models import User
+    data = signing.loads(token, salt=EMAIL_CHANGE_SALT, max_age=EMAIL_CHANGE_MAX_AGE)
+    user = User.objects.get(pk=data['user'])
+    if user.email != data['old'] or _password_fingerprint(user) != data['pw']:
+        raise signing.BadSignature('email change token already used')
+    return user, data['new']
+
+
+def _send_plain(subject, body, to):
+    connection, from_email = _get_connection_and_from()
+    EmailMessage(subject=subject, body=body, from_email=from_email, to=[to], connection=connection).send(fail_silently=False)
+
+
+def send_email_change_link(user, new_email):
+    """Send the confirmation link to the new address. False if it could not be sent."""
+    url = f"{settings.REACT_URL}/email/confirm/{make_email_change_token(user, new_email)}"
+    try:
+        _send_plain(
+            "Confirm your new SerOps email",
+            f"Open this link to use this address for your SerOps account: {url}\n\n"
+            "The link works for 24 hours. If you did not ask for this, ignore this email.",
+            new_email,
+        )
+        return True
+    except Exception as e:
+        logger.error(f'Email change link error: {e}')
+        return False
+
+
+def send_email_changed_notice(old_email, new_email):
+    try:
+        _send_plain(
+            "Your SerOps email was changed",
+            f"Your SerOps account now uses {new_email} instead of this address. "
+            "If this wasn't you, contact your administrator at once.",
+            old_email,
+        )
+    except Exception as e:
+        logger.error(f'Email changed notice error: {e}')
+
+
 def send_reset_password_link(email_addr, url):
     subject = "Reset your SerOps password"
     body = f'Click the link below to reset password on your account: {url}'

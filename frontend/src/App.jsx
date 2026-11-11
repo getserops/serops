@@ -12,6 +12,7 @@ import { ClusterProvider } from "./context/ClusterContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PageTitle from "./components/PageTitle";
 import { applyTheme, applyDensity } from "./utils/theme";
+import { enterpriseSettingsPages } from "./utils/edition";
 
 // Lazy loading components
 // Public registration now ENABLED for SaaS
@@ -19,6 +20,7 @@ const Register = lazy(() => import("./components/Register"));
 const PageNotFound = lazy(() => import("./components/PageNotFound"));
 const RegisterPart3 = lazy(() => import("./components/RegisterPart3"));
 const Invitation = lazy(() => import("./components/Invitation"));
+const ConfirmEmailChange = lazy(() => import("./components/ConfirmEmailChange"));
 const Password = lazy(() => import("./components/Password"));
 const PasswordReset = lazy(() => import("./components/PasswordReset"));
 const Login = lazy(() => import("./components/Login"));
@@ -45,6 +47,7 @@ const NotificationPanel = lazy(() => import("./components/NotificationPanel"));
 const SettingsLayout = lazy(() => import("./components/settings/SettingsLayout"));
 const GeneralSettings = lazy(() => import("./components/settings/GeneralSettings"));
 const TeamSettings = lazy(() => import("./components/settings/TeamSettings"));
+const TeamsSettings = lazy(() => import("./components/settings/TeamsSettings"));
 // PR-N phase 2 (2026-09-26): NotificationSettings retired.
 // Delivery Channels (was incident-channels) + Routing Rules replace it.
 const RoutingRulesSettings = lazy(() => import("./components/settings/RoutingRulesSettings"));
@@ -118,6 +121,7 @@ function App() {
             <Route path="/register_verif" element={<RegisterPart3 />} />
             <Route path="/accept_invitation/:string" element={<Invitation />} />
             <Route path="/invitation_password" element={<Password />} />
+            <Route path="/email/confirm/:token" element={<ConfirmEmailChange />} />
             <Route
               path="/password/reset/:uid/:token"
               element={<PasswordReset />}
@@ -154,6 +158,7 @@ function App() {
               <Route path="settings" element={<SettingsLayout />}>
                 <Route index element={<GeneralSettings />} />
                 <Route path="team" element={<TeamSettings />} />
+                <Route path="teams" element={<TeamsSettings />} />
                 {/* PR-N phase 2 (2026-09-26): Delivery Channels + Routing Rules
                     replace the old notification-settings page. Legacy
                     /settings/notifications and /settings/incident-channels
@@ -171,6 +176,10 @@ function App() {
                 <Route path="integrations" element={<SettingsIntegrations />} />
                 <Route path="traces" element={<TracesSettings />} />
                 <Route path="clusters" element={<ClusterSettings />} />
+                {/* Pages added by Enterprise modules (src/ee/), none without it. */}
+                {enterpriseSettingsPages.map(({ path, Component }) => (
+                  <Route key={path} path={path} element={<Component />} />
+                ))}
                 <Route path="*" element={<PageNotFound />} />
               </Route>
               <Route path="*" element={<PageNotFound />} />

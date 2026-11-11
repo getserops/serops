@@ -459,7 +459,10 @@
       "model": "Model",
       "analysed": "Analysed",
       "related": "Related",
-      "allIssues": "Issues"
+      "allIssues": "Issues",
+      "sampleCrumb": "Sample incident",
+      "sampleTitle": "Sample incident",
+      "sampleBody": "Made-up data, and an analysis written for this example: your AI provider was not called and nothing was added to your workspace. Connect a log source and SerOps produces this page from your own incidents."
     },
     "codeNotes": {
       "title_one": "{{count}} code review note",
@@ -643,7 +646,8 @@
     "selfHost": "Self-host your own SerOps →",
     "ssoSignInFailed": "SSO sign-in failed. Check with your administrator that your account belongs to this organisation.",
     "demoNotConfigured": "No live demo is configured on this deployment.",
-    "demoFailed": "Could not start the demo session."
+    "demoFailed": "Could not start the demo session.",
+    "ssoDenied": "Your account isn't in a group that can use SerOps. Ask your administrator for access."
   },
   "profile": {
     "title": "Profile",
@@ -664,7 +668,10 @@
     "changePhoto": "Change photo",
     "removePhoto": "Remove photo",
     "password": "Password",
-    "passwordDesc": "Change the password you use to sign in."
+    "passwordDesc": "Change the password you use to sign in.",
+    "saveFailed": "Could not save your profile. Please try again.",
+    "currentPasswordForEmail": "Current password (needed to change your email)",
+    "emailChangeSent": "We sent a confirmation link to {{email}}. Your email changes when you open it."
   },
   "settings": {
     "title": "Settings",
@@ -757,8 +764,8 @@
       "subtitle": "Configure the AI providers used for incident analysis"
     },
     "team": {
-      "title": "Team",
-      "subtitle": "Manage team members and roles"
+      "title": "Users",
+      "subtitle": "Invite people, change their roles, remove them"
     },
     "delivery": {
       "title": "Delivery Channels"
@@ -768,10 +775,10 @@
     }
   },
   "team": {
-    "title": "Team Management",
-    "subtitle": "Manage your organisation's team members and roles",
-    "membersList": "Team Members",
-    "membersDesc": "Manage your team members and roles",
+    "title": "Users",
+    "subtitle": "Everyone in your organisation, with their role",
+    "membersList": "Users",
+    "membersDesc": "Invite people, change their roles, remove them",
     "loading": "Loading team members...",
     "loadFailed": "Failed to load team members",
     "fillRequired": "Please fill in all required fields",
@@ -782,7 +789,7 @@
     "memberRemoved": "Team member removed successfully",
     "removeFailed": "Failed to remove team member",
     "accessDenied": "Access Denied",
-    "noPermission": "You don't have permission to manage team members",
+    "noPermission": "You don't have permission to manage users",
     "inviteUser": "Invite User",
     "noMembers": "No Team Members",
     "inviteFirst": "Invite your first team member to get started",
@@ -815,7 +822,8 @@
     "adminDesc": "Full access to all settings and team management",
     "sendInvitation": "Send Invitation",
     "saveChanges": "Save Changes",
-    "suspended": "Suspended"
+    "suspended": "Suspended",
+    "ssoManagedRoles": "Roles are managed by your identity provider: a role changed here is replaced at the member's next SSO sign-in. Change their groups in the identity provider instead."
   },
   "ai": {
     "noKeyNeeded": "No key needed",
@@ -1015,7 +1023,34 @@
     "ssoDomainsHint": "People with an email at these domains can sign in with SSO before they are invited, and get the Viewer role. Leave empty to let only invited people sign in.",
     "enableSso": "Enable single sign-on",
     "enableSsoHint": "Let people sign in through your identity provider with OpenID Connect (Okta, Azure AD, Google, Keycloak).",
-    "oidcConfig": "OpenID Connect configuration"
+    "oidcConfig": "OpenID Connect configuration",
+    "ssoRoles": "Roles from your identity provider",
+    "ssoRolesHint": "Rules are checked from top to bottom: the first group the person is in sets their role. Group names are not case-sensitive.",
+    "groupsClaim": "Groups claim",
+    "groupsClaimHint": "Where the groups are in the user's claims. Use a dotted path for nested claims, e.g. realm_access.roles.",
+    "extraScopes": "Extra scopes",
+    "extraScopesHint": "Requested on top of openid, email and profile. Some providers need \"groups\" to send them.",
+    "ruleGroup": "Group",
+    "ruleRole": "Role",
+    "noRules": "No rules: everyone gets the default role.",
+    "addRule": "Add rule",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "removeRule": "Remove rule",
+    "defaultRole": "When no rule matches",
+    "defaultRoleHint": "The role of people in none of the groups above, or refuse their sign-in.",
+    "denySignIn": "Refuse sign-in",
+    "emailDomains": "Email domains that can join",
+    "emailDomainsHint": "People with these email domains get an account at their first SSO sign-in, without an invitation. Separate with commas.",
+    "emailDomainsStaffOnly": "On an install with several organisations, your platform operator sets email domains (manage.py sso_email_domains).",
+    "syncRole": "Update roles at every sign-in",
+    "syncRoleHint": "Your identity provider decides: a role changed in SerOps is replaced at the person's next sign-in. Off: the rules only set the role of new accounts. The last admin is never demoted.",
+    "ssoTeams": "Teams from your identity provider",
+    "ssoTeamsHint": "Members of a group join the team at each sign-in, and leave it when they leave the group. Members added in SerOps stay.",
+    "ruleTeam": "Team",
+    "noTeamRules": "No team rules.",
+    "noTeamsYet": "Create teams in Settings → Teams to map groups to them.",
+    "addTeamRule": "Add team rule"
   },
   "batchInterval": {
     "title": "Batch Generation Interval",
@@ -1694,5 +1729,123 @@
     "title": "Page not found",
     "body": "This address matches no SerOps page.",
     "back": "Back to Overview"
+  },
+  "emailConfirm": {
+    "title": "Confirm your new email",
+    "intro": "Your sign-in email changes to the address this link was sent to. You will need to sign in again.",
+    "button": "Confirm new email",
+    "working": "Confirming…",
+    "done": "Your email is changed. Sign in with the new address.",
+    "signIn": "Go to sign in",
+    "failed": "This link could not be used."
+  },
+  "roles": {
+    "title": "Roles",
+    "subtitle": "Built-in roles, and roles you build from individual permissions",
+    "create": "Create role",
+    "createTitle": "Create a role",
+    "editTitle": "Edit role",
+    "custom": "Custom roles",
+    "customDesc": "Roles your organisation built. Assign them in Users, or from SSO groups.",
+    "builtin": "Built-in roles",
+    "builtinDesc": "Viewer, User and Admin can't be changed.",
+    "name": "Name",
+    "namePlaceholder": "e.g. On-call responder",
+    "description": "Description",
+    "permissions": "Permissions",
+    "members": "Members",
+    "none": "No custom roles yet.",
+    "permissionCount_one": "{{count}} permission",
+    "permissionCount_other": "{{count}} permissions",
+    "permissionsHint": "Some permissions are always included, and picking one also picks what it needs. You can only grant permissions you hold.",
+    "alwaysGranted": "every role has it",
+    "neededBy": "needed by “{{permission}}”",
+    "edit": "Edit {{name}}",
+    "delete": "Delete {{name}}",
+    "confirmDelete": "Delete the role “{{name}}”?",
+    "saved": "Role saved",
+    "saveFailed": "Could not save the role",
+    "deleted": "Role deleted",
+    "deleteFailed": "Could not delete the role",
+    "loadFailed": "Could not load roles",
+    "group": {
+      "self": "Your account",
+      "org": "Organisation",
+      "project": "Projects",
+      "batch": "Analyses",
+      "issue": "Issues",
+      "integration": "Integrations",
+      "alerting": "Alerting",
+      "chat": "AI Chat",
+      "settings": "Settings",
+      "team": "Team"
+    },
+    "perm": {
+      "self.manage": "Own profile, password, notifications, chat sessions",
+      "org.read": "See the organisation and its setup status",
+      "project.read": "See projects, services, bindings and deployments",
+      "project.write": "Create and edit projects, services, bindings, deployments",
+      "project.delete": "Delete projects and services",
+      "batch.read": "See analyses, logs, metrics, traces and dashboards",
+      "batch.analyze": "Run analyses, investigations and post-mortems (spends AI budget)",
+      "issue.read": "See issues",
+      "issue.update": "Resolve, mute, reopen and acknowledge issues",
+      "integration.read": "See integrations, sources and clusters (no secrets)",
+      "integration.use": "Verify, sync and health-check integrations",
+      "integration.manage": "Add, edit, delete integrations, sources, clusters, ingest keys",
+      "alerting.read": "See delivery channels (no secrets)",
+      "alerting.manage": "Delivery channels, routing and escalation rules",
+      "chat.use": "Ask AI Chat",
+      "settings.read": "Read security, SSO, retention, data usage and AI budget settings",
+      "settings.manage": "Change organisation settings, AI providers, Sentinel, retention",
+      "team.manage": "Invite and remove members, change roles, manage roles, audit log"
+    },
+    "noneHint": "Build one from individual permissions when Viewer, User and Admin don't fit, e.g. an on-call responder."
+  },
+  "teams": {
+    "title": "Teams",
+    "subtitle": "Groups of users you give access to projects",
+    "create": "Create team",
+    "createTitle": "Create a team",
+    "editTitle": "Edit team",
+    "list": "Teams",
+    "listDesc": "Open a project to a team in the project's Access tab. SSO groups can fill teams.",
+    "name": "Name",
+    "namePlaceholder": "e.g. Payments",
+    "description": "Description",
+    "members": "Members",
+    "projects": "Projects",
+    "none": "No teams yet.",
+    "edit": "Edit {{name}}",
+    "delete": "Delete {{name}}",
+    "confirmDelete": "Delete the team “{{name}}”? Its project access goes with it.",
+    "saved": "Team saved",
+    "saveFailed": "Could not save the team",
+    "deleted": "Team deleted",
+    "deleteFailed": "Could not delete the team",
+    "loadFailed": "Could not load teams",
+    "noneHint": "Create a team, then open projects to it from their Access tab."
+  },
+  "projectAccess": {
+    "tab": "Access",
+    "whoSees": "Who sees this project",
+    "organisation": "Everyone in the organisation",
+    "organisationHint": "Every member sees this project, with their organisation role.",
+    "restricted": "Only teams given access",
+    "restrictedHint": "Only the teams below, with their role on this project, and organisation admins.",
+    "teams": "Teams",
+    "teamsHint": "A team's role applies to this project only, on top of what its members' organisation roles allow.",
+    "team": "Team",
+    "role": "Role on this project",
+    "noTeams": "No team has access yet.",
+    "addTeam": "Add a team…",
+    "remove": "Remove {{team}}",
+    "createTeamsFirst": "Create teams in Settings → Teams first.",
+    "saved": "Access saved",
+    "saveFailed": "Could not save access",
+    "loadFailed": "Could not load access"
+  },
+  "onboarding": {
+    "viewSample": "See a sample incident"
   }
 }

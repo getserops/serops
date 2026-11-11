@@ -51,6 +51,8 @@ ts = provider.query_range(
 | User A cannot see Org B's batches | `project__organisation=user_org` filter |
 | User A cannot access Org B's integrations | `organisation` FK on ProviderIntegration |
 | No bypass for operators | Superusers and staff are held to their own organisation in the API like everyone else. Install-wide operations go through platform permissions (see [Permissions](../development/permissions.md)) |
+| Restricted projects stay within their teams | `Middlewares/project_access.py` scopes every project-scoped query; `test_project_scope_coverage.py` walks every route as a member outside the project |
+| Ids in request bodies | Writable relations are limited to the requester's organisation (and project access); `test_body_relations.py` fails on an open one |
 | Every endpoint is checked | `Middlewares/tests/test_tenant_coverage.py` calls every API route as another organisation's admin and as its superuser; a new route with an id fails until it is covered |
 
 ---
@@ -72,7 +74,7 @@ ts = provider.query_range(
 - [Authentication](../security/authentication.md) -- Auth flows and token policies
 - [Data Protection](../security/data-protection.md) -- Redaction and PII handling
 - [Compliance](../security/compliance.md) -- Compliance and auditing details
-- [Admin Team Management](../admin/team.md) -- Managing organisation members
+- [Users, roles and teams](../admin/team.md) -- Managing organisation members
 - [Permissions](../development/permissions.md) -- What each role may do, and how every endpoint declares it
 - [Admin Settings](../admin/settings.md) -- Organisation-level configuration
 - [Metrics](../user-guide/metrics.md) -- User-facing metrics with org-scoped data

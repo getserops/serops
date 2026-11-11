@@ -16,6 +16,10 @@ function Profile() {
   const [user, setUser] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [passwordChanged, setPasswordChanged] = useState(null);
+  const [passwordError, setPasswordError] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [emailPending, setEmailPending] = useState("");
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
@@ -91,17 +95,21 @@ function Profile() {
       return;
     }
 
-    ProfileService.update(AuthService.getUser()._id, formData)
+    setSaveError("");
+    ProfileService.update(AuthService.getUser()._id, { ...formData, current_password: currentPassword })
       .then((res) => {
         setUser(res.data);
         setFormData(res.data);
         setIsEditing(false);
+        setCurrentPassword("");
+        setEmailPending(res.data.email_change_pending || "");
         // Update localStorage so navbar and other components reflect the change
         const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
         localStorage.setItem('user', JSON.stringify({ ...currentUser, ...res.data }));
       })
       .catch((err) => {
         console.error("Error:", err);
+        setSaveError(err.response?.data?.error || t('profile.saveFailed'));
       });
   };
 
@@ -162,7 +170,8 @@ function Profile() {
       await ProfileService.resetPassword(data);
       setPasswordChanged(true);
     } catch (error) {
-      console.error("Error:", error.response.data.error);
+      console.error("Error:", error.response?.data?.error);
+      setPasswordError(error.response?.data?.error || "");
       setPasswordChanged(false);
     } finally {
       toggle();
@@ -197,7 +206,7 @@ function Profile() {
         <div className="alert alert-success" role="status">{t('profile.passwordUpdated')}</div>
       )}
       {passwordChanged === false && (
-        <div className="alert alert-danger" role="alert">{t('profile.passwordUpdateFailed')}</div>
+        <div className="alert alert-danger" role="alert">{passwordError || t('profile.passwordUpdateFailed')}</div>
       )}
 
       <section className="ds-settings-section">
@@ -224,15 +233,18 @@ function Profile() {
                 </button>
               )}
               <span className="badge ds-chip ds-chip-neutral">
-                {isDemoUser() ? t('profile.demoRole') : getRoleDisplayName(formData.role)}
+                {isDemoUser() ? t('profile.demoRole') : (formData.role_name || getRoleDisplayName(formData.role))}
               </span>
             </div>
           </div>
 
+          {saveError && <div className="alert alert-danger" role="alert">{saveError}</div>}
+          {emailPending && <div className="alert alert-info" role="status">{t('profile.emailChangeSent', { email: emailPending })}</div>}
           <Form className="profile-grid" onSubmit={(e) => e.preventDefault()}>
             {field('first_name', t('profile.firstName'), { type: 'text', value: formData.first_name, onChange: handleInputChange, disabled: !isEditing })}
             {field('last_name', t('profile.lastName'), { type: 'text', value: formData.last_name, onChange: handleInputChange, disabled: !isEditing })}
             {field('email', t('profile.emailAddress'), { type: 'email', value: formData.email, onChange: handleInputChange, disabled: !isEditing }, isEditing && errors.email)}
+            {isEditing && formData.email !== user?.email && field('current_password', t('profile.currentPasswordForEmail'), { type: 'password', autoComplete: 'current-password', value: currentPassword, onChange: (e) => setCurrentPassword(e.target.value) })}
             {field('phone', t('profile.phoneNumber'), { type: 'text', value: formData.phone, onChange: handleInputChange, disabled: !isEditing, maxLength: 8 }, isEditing && errors.phone)}
           </Form>
         </div>

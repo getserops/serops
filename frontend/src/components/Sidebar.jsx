@@ -20,6 +20,7 @@ import SerOpsMark from "./SerOpsMark";
 import { useMediaQuery } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { refreshPermissions, usePermissions } from "../utils/permissions";
+import { withEnterprisePages } from "../utils/edition";
 
 // Full-height app sidebar, grouped by what people come to do:
 // Monitor (what's happening), Investigate (dig in), Configure (set up).
@@ -125,9 +126,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   // Traces ("View received traces") and from ⌘K.
   // Each page is listed for the users who can open it (the permission its
   // API needs, from the server's list: see utils/permissions).
-  const settingsItems = [
+  const settingsItems = withEnterprisePages([
     { path: "/dash/settings", name: t("settings.general.menuLabel"), exact: true },
     { path: "/dash/settings/team", name: t("settings.team.title"), perm: "team.manage" },
+    { path: "/dash/settings/teams", name: t("teams.title"), perm: "team.manage" },
     { path: "/dash/settings/ai", name: t("settings.ai.title"), perm: "settings.manage" },
     { path: "/dash/settings/sentinel", name: "Sentinel", perm: "settings.manage" },
     { path: "/dash/settings/data", name: t("settings.data.title"), perm: "settings.read" },
@@ -135,7 +137,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { path: "/dash/settings/clusters", name: t("clusters.menuLabel") },
     { path: "/dash/settings/security", name: t("settings.security.title"), perm: "settings.read" },
     { path: "/dash/settings/audit", name: t("auditLog.title"), perm: "team.manage" },
-  ].filter((item) => !item.perm || can(item.perm));
+  ], (page) => ({ path: `/dash/settings/${page.path}`, name: page.label(t), perm: page.perm }))
+    .filter((item) => !item.perm || can(item.perm));
 
   const isActive = (item) => {
     if (item.exact) return path === item.path;

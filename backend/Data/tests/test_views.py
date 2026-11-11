@@ -494,14 +494,14 @@ class TestSettingsViews(DataViewTestBase):
         url = reverse('security-settings')
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('password_policy', response.data)
+        self.assertNotIn('password_policy', response.data)
         self.assertIn('session', response.data)
 
     def test_update_security_settings(self):
         self._auth(self.admin)
         url = reverse('security-settings')
         response = self.client.put(url, {
-            'password_policy': {'min_length': 12},
+            'session': {'timeout_minutes': 60},
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data.get('success'))
@@ -511,7 +511,7 @@ class TestSettingsViews(DataViewTestBase):
         self._auth(self.user)
         url = reverse('security-settings')
         response = self.client.put(url, {
-            'password_policy': {'min_length': 12},
+            'session': {'timeout_minutes': 60},
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 

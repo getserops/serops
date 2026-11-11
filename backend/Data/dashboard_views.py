@@ -10,6 +10,7 @@ API endpoints for advanced dashboard metrics:
 6. RecentAnalysisFeedView - Latest AI analysis results feed
 """
 from Middlewares.rbac import Requires
+from Middlewares.project_access import scope, scope_signature
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -77,7 +78,8 @@ class MTTRView(OrgFilterMixin, APIView):
 
             # Use org-specific cache key
             org_id = self.get_user_org_id(request)
-            cache_key = f"mttr_stats_{days}_org_{org_id}"
+            # Per project scope too: members of restricted projects see their own numbers.
+            cache_key = f"mttr_stats_{days}_org_{org_id}{scope_signature(request.user, 'issue.read')}"
             cached_result = cache.get(cache_key)
             if cached_result:
                 return Response(cached_result)
@@ -203,14 +205,14 @@ class ServiceHealthView(OrgFilterMixin, APIView):
             )
 
             # Strategy 1: Get services from the Service model (new architecture)
-            org_services = Service.objects.filter(
+            org_services = scope(Service.objects.filter(
                 project__organisation=user_org, **cluster_kwargs,
-            ).select_related('project')[:50]
+            ), request.user, 'batch.read').select_related('project')[:50]
 
             # Strategy 2: Also get services from ProjectService (legacy)
-            project_services = ProjectService.objects.filter(
+            project_services = scope(ProjectService.objects.filter(
                 project__organisation=user_org, **cluster_kwargs,
-            ).select_related('project')[:50]
+            ), request.user, 'batch.read').select_related('project')[:50]
             
             services_list = []
             
@@ -222,10 +224,10 @@ class ServiceHealthView(OrgFilterMixin, APIView):
                                 Q(error_class__icontains=service.name) | \
                                 Q(component__icontains=service.name)
 
-                stats = Issue.objects.filter(
+                stats = scope(Issue.objects.filter(
                     batch__project__organisation=user_org,
                     created_at__gte=since
-                ).filter(service_filter).aggregate(
+                ), request.user, 'issue.read').filter(service_filter).aggregate(
                     total_issues=Count('id'),
                     critical_count=Count('id', filter=Q(severity='CRITICAL')),
                     error_count=Count('id', filter=Q(severity__in=['CRITICAL', 'WARNING'])),
@@ -287,10 +289,10 @@ class ServiceHealthView(OrgFilterMixin, APIView):
                                 Q(error_class__icontains=service_name) | \
                                 Q(component__icontains=service_name)
 
-                stats = Issue.objects.filter(
+                stats = scope(Issue.objects.filter(
                     batch__project__organisation=user_org,
                     created_at__gte=since
-                ).filter(service_filter).aggregate(
+                ), request.user, 'issue.read').filter(service_filter).aggregate(
                     total_issues=Count('id'),
                     critical_count=Count('id', filter=Q(severity='CRITICAL')),
                     error_count=Count('id', filter=Q(severity__in=['CRITICAL', 'WARNING'])),
@@ -496,9 +498,9 @@ class RecentDeploymentsView(OrgFilterMixin, APIView):
             # with no SCM binding) used to be left out, and so were GitOps
             # deployments, which have no pipeline (found by the journey
             # suite).
-            services = ProjectService.objects.filter(
+            services = scope(ProjectService.objects.filter(
                 project__organisation=user_org,
-            ).filter(
+            ), request.user, 'batch.read').filter(
                 Q(gitlab_project__isnull=False)
                 | Q(scm_binding__isnull=False)
                 | Q(cicd_bindings__is_active=True)
@@ -849,7 +851,7 @@ class SentinelStatsView(OrgFilterMixin, APIView):
             since = timezone.now() - timedelta(days=days)
             qs = AIAnalyzedBatch.objects.filter(timestamp__gte=since)
             if org_id:
-                qs = qs.filter(organisation_id=org_id)
+                qs = scope(qs.filter(organisation_id=org_id), request.user, 'batch.read')
             if environment and environment != 'all':
                 qs = qs.filter(environment__iexact=environment)
             # Scope the batch counts to the selected cluster so this

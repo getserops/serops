@@ -29,6 +29,14 @@ class Project(models.Model):
                   'Deleting a cluster leaves the project unassigned, '
                   'not deleted.',
     )
+    
+    # Who sees the project: everyone in the organisation (their role
+    # applies), or only teams given access (ProjectTeamAccess) and
+    # organisation admins. Middlewares/project_access.py enforces it.
+    ACCESS_ORGANISATION = 'organisation'
+    ACCESS_RESTRICTED = 'restricted'
+    ACCESS_MODES = [(ACCESS_ORGANISATION, 'Everyone in the organisation'), (ACCESS_RESTRICTED, 'Only teams given access')]
+    access_mode = models.CharField(max_length=20, choices=ACCESS_MODES, default=ACCESS_ORGANISATION)
     # Other ways this project's logs are tagged, besides project_name /
     # project = <name>: [{"field": "service.namespace", "value": "shop"}, ...].
     # A log belongs to the project when it carries the project name OR
@@ -71,6 +79,20 @@ class Project(models.Model):
 
     class Meta:
         unique_together = ('name', 'organisation')
+
+
+class ProjectTeamAccess(models.Model):
+    """A team's role on a project: viewer, user or admin of that project.
+    Grants add to what members' organisation roles allow."""
+    ROLES = [('viewer', 'Viewer'), ('user', 'User'), ('admin', 'Admin')]
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='team_access')
+    team = models.ForeignKey('Organisations.Team', on_delete=models.CASCADE, related_name='project_access')
+    role = models.CharField(max_length=10, choices=ROLES, default='viewer')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'project_team_access'
+        constraints = [models.UniqueConstraint(fields=['project', 'team'], name='project_team_access_unique')]
 
 
 class ProjectService(models.Model):

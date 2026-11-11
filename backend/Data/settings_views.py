@@ -3,6 +3,7 @@ Settings API Views
 Security Settings, Audit Log, Data Usage, and Retention Policy endpoints
 """
 from Middlewares.rbac import Requires
+from Middlewares.project_access import scope
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -32,14 +33,6 @@ class SecuritySettingsView(APIView):
         settings, created = SecuritySettings.objects.get_or_create(organisation=org)
         
         return Response({
-            'password_policy': {
-                'min_length': settings.min_password_length,
-                'require_uppercase': settings.require_uppercase,
-                'require_lowercase': settings.require_lowercase,
-                'require_numbers': settings.require_numbers,
-                'require_special_chars': settings.require_special_chars,
-                'expiry_days': settings.password_expiry_days,
-            },
             'session': {
                 'timeout_minutes': settings.session_timeout_minutes,
                 'timeout_choices': dict(SecuritySettings.SESSION_TIMEOUT_CHOICES),
@@ -58,22 +51,6 @@ class SecuritySettingsView(APIView):
         settings, _ = SecuritySettings.objects.get_or_create(organisation=org)
         
         data = request.data
-        
-        # Update password policy
-        if 'password_policy' in data:
-            pp = data['password_policy']
-            if 'min_length' in pp:
-                settings.min_password_length = max(6, min(32, pp['min_length']))
-            if 'require_uppercase' in pp:
-                settings.require_uppercase = pp['require_uppercase']
-            if 'require_lowercase' in pp:
-                settings.require_lowercase = pp['require_lowercase']
-            if 'require_numbers' in pp:
-                settings.require_numbers = pp['require_numbers']
-            if 'require_special_chars' in pp:
-                settings.require_special_chars = pp['require_special_chars']
-            if 'expiry_days' in pp:
-                settings.password_expiry_days = max(0, pp['expiry_days'])
         
         # Update session settings
         if 'session' in data:
@@ -219,11 +196,11 @@ class DataUsageView(APIView):
             return Response({'error': 'No organisation found'}, status=400)
         
         # Get batch counts - AIAnalyzedBatch.project -> Projects.Project -> organisation
-        batches = AIAnalyzedBatch.objects.filter(project__organisation=org)
+        batches = scope(AIAnalyzedBatch.objects.filter(project__organisation=org), request.user, 'batch.read')
         total_batches = batches.count()
         
         # Get issue counts - Issue.batch -> AIAnalyzedBatch.project -> Projects.Project -> organisation
-        issues = Issue.objects.filter(batch__project__organisation=org)
+        issues = scope(Issue.objects.filter(batch__project__organisation=org), request.user, 'issue.read')
         total_issues = issues.count()
         
         # Get pipeline counts - direct org FK or via GitlabProject FK
@@ -235,7 +212,7 @@ class DataUsageView(APIView):
         
         # Get by project breakdown (Projects.Project with batches)
         from Projects.models import Project
-        projects = Project.objects.filter(organisation=org)
+        projects = scope(Project.objects.filter(organisation=org), request.user, 'project.read', field='')
         by_project = []
         for project in projects[:20]:  # Limit to top 20
             project_batches = batches.filter(project=project).count()

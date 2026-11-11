@@ -83,6 +83,8 @@ frontend:
     - cd frontend
     - npm ci --prefer-offline --no-audit --fund=false
   script:
+    # HIGH or CRITICAL advisory in what ships in the image fails the job.
+    - npm audit --omit=dev --audit-level=high
     - npm run lint
     - npm test
     - npm run build
@@ -91,6 +93,25 @@ frontend:
       changes: [frontend/**/*]
     - if: $CI_COMMIT_BRANCH == "main"
       changes: [frontend/**/*]
+
+# ---------------------------------------------------------------------------
+# Community edition — the same suites with the Enterprise code (every ee/
+# directory) deleted, so nothing outside ee/ can come to depend on it. See
+# backend/ee/README.md. GitHub runs these as the "community" matrix leg.
+# ---------------------------------------------------------------------------
+backend-community:
+  extends: backend
+  script:
+    - rm -rf ee
+    - python manage.py makemigrations --check --dry-run
+    - python manage.py test --verbosity=1 --noinput
+
+frontend-community:
+  extends: frontend
+  script:
+    - rm -rf src/ee
+    - npm test
+    - npm run build
 
 # ---------------------------------------------------------------------------
 # UI quality — axe (light + dark), phone layout, table alignment on every
@@ -113,6 +134,7 @@ ui-quality:
     - docker build -t "$SEROPS_FRONTEND_IMAGE" --build-arg VITE_BASE_URL=/api frontend
     - cd deploy/quick-start
     - cp .env.example .env
+    - echo "SEROPS_ENCRYPTION_KEY=$(openssl rand -base64 32 | tr '+/' '-_')" >> .env
     - sed -i "s|^DJANGO_SECRET_KEY=.*|DJANGO_SECRET_KEY=$(openssl rand -hex 32)|; s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 16)|; s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$(openssl rand -hex 16)|" .env
     - docker compose up -d --no-build --wait
     - docker compose exec -T backend python manage.py seed_demo_org
@@ -170,10 +192,17 @@ chart:
   script:
     - helm lint deploy/helm/serops
     # Proves the chart renders. secretKey is required, so a throwaway value is
-    # supplied rather than making the template tolerate its absence.
+    # supplied rather than making the template tolerate its absence. TLS is
+    # required too: the chart refuses a plain-HTTP ingress, checked last.
     - helm template serops deploy/helm/serops
       --kube-version 1.31.0
       --set django.secretKey=ci-render-only
+      --set django.encryptionKey=ci-render-only
+      --set 'ingress.tls[0].hosts[0]=serops.example.com'
+      --set ingress.tls[0].secretName=serops-tls
+      --set devServices.postgresql.enabled=true
+      --set devServices.redis.enabled=true
+    - "! helm template serops deploy/helm/serops --kube-version 1.31.0 --set django.secretKey=ci-render-only --set django.encryptionKey=ci-render-only"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: [deploy/helm/**/*]

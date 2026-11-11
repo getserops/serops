@@ -67,10 +67,13 @@ class User(AbstractUser):
     avatar_key = models.CharField(max_length=32, blank=True, default='', db_index=True)
     STATUS = Choices('active','suspended','disabled')
     status = models.CharField(choices=STATUS,null=False,default=STATUS.active,max_length=255)
-    ROLE = Choices('viewer', 'user', 'admin')
+    # 'custom' means the permissions of ``custom_role`` (Middlewares/rbac.py).
+    ROLE = Choices('viewer', 'user', 'admin', 'custom')
     role = models.CharField(choices=ROLE, default=ROLE.viewer, max_length=255)
     is_active = models.BooleanField(default=False)
     organisation = models.ForeignKey(Organisations,null=True,blank=True,on_delete=models.CASCADE)
+    custom_role = models.ForeignKey(
+        'CustomRole', null=True, blank=True, on_delete=models.PROTECT, related_name='members')
     
     # Password tracking for expiry
     password_changed_at = models.DateTimeField(null=True, blank=True)
@@ -90,6 +93,11 @@ class User(AbstractUser):
         """Override save to enforce role validation."""
         if self.role and self.role not in [r[0] for r in self.ROLE]:
             raise ValidationError(f"Invalid role: '{self.role}'. Valid roles are: {', '.join([r[0] for r in self.ROLE])}")
+        if self.role == 'custom':
+            if self.custom_role_id is None or self.custom_role.organisation_id != self.organisation_id:
+                raise ValidationError("A custom role must be one of the user's organisation")
+        else:
+            self.custom_role = None
         super().save(*args, **kwargs)
 
     # Custom manager to fix createsuperuser vs is_active-default clash (E1-1).
@@ -106,6 +114,29 @@ class User(AbstractUser):
     def __str__(self):
         """Return the user's full name"""
         return f"{self.first_name} {self.last_name}"
+
+
+class CustomRole(models.Model):
+    """A role an organisation builds from the permission catalogue."""
+    organisation = models.ForeignKey(Organisations, on_delete=models.CASCADE, related_name='custom_roles')
+    name = models.CharField(max_length=50)
+    description = models.CharField(max_length=255, blank=True, default='')
+    # Permission codes (Middlewares/rbac.py), normalised on save by the API.
+    permissions = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'custom_role'
+        ordering = ['name']
+        constraints = [models.UniqueConstraint(fields=['organisation', 'name'], name='custom_role_unique_name')]
+
+    def __str__(self):
+        return f"{self.name} ({self.organisation_id})"
+
+    @property
+    def key(self):
+        return f'custom:{self.pk}'
 
 
 class SecuritySettings(models.Model):
@@ -152,13 +183,33 @@ class SecuritySettings(models.Model):
     sso_client_secret_encrypted = models.TextField(blank=True, null=True)
     sso_discovery_url = models.URLField(blank=True, null=True, help_text="OIDC Discovery URL")
     # Email domains whose people sign in with this organisation's SSO even
-    # before they have an account. Without them SSO started only from an
-    # existing user's email, so everyone had to be invited first (journey
-    # suite, B29).
+    # before they have an account: it is created at the first sign-in, and
+    # only for these domains. On installs with several organisations only
+    # platform staff set them (they route sign-ins install-wide).
     sso_domains = models.JSONField(
         default=list, blank=True,
         help_text="Email domains (example.com) that may sign in with SSO without an invitation",
     )
+
+    # Roles from the identity provider's groups (Users/sso_roles.py).
+    # The claim is a dotted path into the userinfo / ID token claims, e.g.
+    # "groups" (Okta, Keycloak with a group mapper, Entra ID) or
+    # "realm_access.roles" (Keycloak realm roles).
+    sso_groups_claim = models.CharField(max_length=255, blank=True, default='groups')
+    # Scopes requested on top of "openid email profile" (e.g. "groups").
+    sso_extra_scopes = models.CharField(max_length=255, blank=True, default='')
+    # Ordered rules [{"group": "...", "role": "..."}]: the first rule whose
+    # group the user is in sets the role.
+    sso_role_mappings = models.JSONField(default=list, blank=True)
+    # Role when no rule matches; "deny" refuses the sign-in.
+    sso_default_role = models.CharField(max_length=64, default='viewer')
+    # Re-apply the rules at every sign-in (the identity provider decides),
+    # rather than only when the account is created.
+    sso_sync_role = models.BooleanField(default=False)
+    # [{"group": "...", "team_id": 3}]: members of the group are put in the
+    # team at each sign-in (and taken out when they leave the group). Only
+    # memberships SSO added are removed.
+    sso_team_mappings = models.JSONField(default=list, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -171,60 +222,21 @@ class SecuritySettings(models.Model):
     def __str__(self):
         return f"Security Settings for {self.organisation.name}"
 
-    @staticmethod
-    def _get_sso_fernet():
-        """
-        Get a Fernet instance for SSO secret encryption.
-
-        Prefers a dedicated SSO_ENCRYPTION_KEY env var.
-        Falls back to deriving a key from Django SECRET_KEY (dev only, logs warning).
-        """
-        import hashlib
-        import base64
-        import os
-        import logging
-        from cryptography.fernet import Fernet
-        from django.conf import settings as django_settings
-
-        _logger = logging.getLogger(__name__)
-
-        key = os.environ.get('SSO_ENCRYPTION_KEY')
-        if key:
-            # Env var should be a valid Fernet key (44 url-safe base64 chars)
-            return Fernet(key.encode() if isinstance(key, str) else key)
-
-        _logger.warning(
-            'SSO_ENCRYPTION_KEY not set — deriving from SECRET_KEY. '
-            'Set SSO_ENCRYPTION_KEY in production for proper key isolation.'
-        )
-        # Derive a stable 32-byte key via SHA-256 (same approach as providers.encryption)
-        key_hash = hashlib.sha256(django_settings.SECRET_KEY.encode()).digest()
-        return Fernet(base64.urlsafe_b64encode(key_hash))
-
     def set_client_secret(self, raw_secret):
         """Encrypt and store the client secret."""
-        if not raw_secret:
-            self.sso_client_secret_encrypted = None
-            return
-
-        f = self._get_sso_fernet()
-        self.sso_client_secret_encrypted = f.encrypt(raw_secret.encode()).decode()
+        from Utils import crypto
+        self.sso_client_secret_encrypted = crypto.encrypt(raw_secret) if raw_secret else None
 
     def get_client_secret(self):
-        """Decrypt and return the client secret."""
+        """The client secret, or None if there is none or it cannot be read (crypto logs which)."""
+        from Utils import crypto
         if not self.sso_client_secret_encrypted:
             return None
-
-        import logging
-        _logger = logging.getLogger(__name__)
-
         try:
-            f = self._get_sso_fernet()
-            return f.decrypt(self.sso_client_secret_encrypted.encode()).decode()
-        except Exception as exc:
-            _logger.error('Failed to decrypt SSO client secret: %s', exc)
+            return crypto.decrypt(self.sso_client_secret_encrypted)
+        except crypto.DecryptionError:
             return None
-    
+
     def validate_password(self, password):
         """
         Validate a password against NIST-compliant policy.

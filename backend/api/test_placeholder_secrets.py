@@ -7,7 +7,9 @@ variables are checked and that real values pass.
 """
 from django.test import SimpleTestCase
 
-from api.settings import _placeholder_secrets
+from pathlib import Path
+
+from api.settings import _placeholder_secrets, _secret_key_too_short
 
 
 class PlaceholderSecretsTest(SimpleTestCase):
@@ -22,6 +24,25 @@ class PlaceholderSecretsTest(SimpleTestCase):
             _placeholder_secrets(env),
             ['DJANGO_SECRET_KEY', 'DB_PASSWORD', 'CELERY_BROKER_URL'],
         )
+
+    def test_other_placeholder_spellings_are_caught(self):
+        for value in ('replace-me-in-production', 'changeme', 'django-insecure-abc'):
+            self.assertEqual(_placeholder_secrets({'DJANGO_SECRET_KEY': value}), ['DJANGO_SECRET_KEY'])
+
+    def test_every_template_secret_key_is_refused(self):
+        root = Path(__file__).resolve().parent.parent
+        for template in (root / '.env.example', root.parent / 'deploy/quick-start/.env.example'):
+            if not template.exists():  # the image holds only backend/
+                continue
+            value = next(line.split('=', 1)[1] for line in template.read_text().splitlines()
+                         if line.startswith('DJANGO_SECRET_KEY='))
+            # A template holds a placeholder or nothing; either stops the start.
+            env = {'DJANGO_SECRET_KEY': value}
+            self.assertTrue(_placeholder_secrets(env) or _secret_key_too_short(env), template)
+
+    def test_short_secret_key_is_refused(self):
+        self.assertTrue(_secret_key_too_short({'DJANGO_SECRET_KEY': 'short-but-not-a-placeholder'}))
+        self.assertFalse(_secret_key_too_short({'DJANGO_SECRET_KEY': 'x' * 32}))
 
     def test_real_values_pass(self):
         env = {

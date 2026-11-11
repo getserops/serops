@@ -4,22 +4,37 @@ import { Spinner } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-toastify';
 import enterpriseSettingsService from '../../services/enterpriseSettings.service';
+import { OrganisationService } from '../../services/organisation.service';
 import CollapsibleSection from './CollapsibleSection';
 import ChoiceGroup from './ChoiceGroup';
 import './SettingsLayout.css';
 import PageHeader from '../PageHeader';
+import SSORoleMapping from './SSORoleMapping';
+import { getRoleDisplayName } from '../../utils/permissions';
+import { hasFeature, useEdition } from '../../utils/edition';
+
+const BUILTIN_ROLES = ['viewer', 'user', 'admin'].map((r) => ({ value: r, label: getRoleDisplayName(r) }));
 
 const SecuritySettings = () => {
     const { t } = useTranslation();
     const [settings, setSettings] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    // Rules can name custom roles (Settings → Roles) too: new ones with the
+    // Enterprise license, the ones already used without it.
+    const [roleOptions, setRoleOptions] = useState(BUILTIN_ROLES);
+    const customRolesLicensed = hasFeature(useEdition(), 'custom_roles');
+    const [teams, setTeams] = useState([]);
 
     // Form state - session timeout only (password policy enforced at creation time)
     const [sessionTimeout, setSessionTimeout] = useState(480);
 
     useEffect(() => {
         loadSettings();
+        OrganisationService.getRoles()
+            .then((roles) => setRoleOptions([...BUILTIN_ROLES, ...(roles.custom || []).map((r) => ({ value: r.key, label: r.name }))]))
+            .catch(() => setRoleOptions(BUILTIN_ROLES));
+        OrganisationService.getTeams().then(setTeams).catch(() => setTeams([]));
     }, []);
 
     const loadSettings = async () => {
@@ -38,7 +53,14 @@ const SecuritySettings = () => {
                 discovery_url: ssoData.sso_discovery_url,
                 sso_client_secret_configured: ssoData.sso_client_secret_configured,
                 redirect_uri: ssoData.sso_redirect_uri,
-                domains: (ssoData.sso_domains || []).join(', '),
+                groups_claim: ssoData.sso_groups_claim,
+                extra_scopes: ssoData.sso_extra_scopes,
+                role_mappings: ssoData.sso_role_mappings || [],
+                default_role: ssoData.sso_default_role,
+                sync_role: ssoData.sso_sync_role,
+                email_domains: ssoData.sso_domains || [],
+                email_domains_editable: ssoData.sso_domains_editable,
+                team_mappings: ssoData.sso_team_mappings || [],
             } : (securityData.sso || {});
             setSettings({ ...securityData, sso });
 
@@ -72,8 +94,19 @@ const SecuritySettings = () => {
                     // OIDC
                     sso_client_id: settings.sso.client_id,
                     sso_discovery_url: settings.sso.discovery_url,
-                    sso_domains: settings.sso.domains || '',
+
+                    // Roles from the identity provider's groups
+                    sso_groups_claim: settings.sso.groups_claim,
+                    sso_extra_scopes: settings.sso.extra_scopes,
+                    sso_role_mappings: (settings.sso.role_mappings || []).filter((r) => r.group.trim()),
+                    sso_default_role: settings.sso.default_role,
+                    sso_sync_role: settings.sso.sync_role,
+                    sso_team_mappings: (settings.sso.team_mappings || []).filter((r) => r.group.trim()),
                 };
+                if (settings.sso.email_domains_editable && settings.sso.email_domains_text !== undefined) {
+                    ssoPayload.sso_domains = settings.sso.email_domains_text
+                        .split(/[\s,]+/).map((d) => d.trim()).filter(Boolean);
+                }
                 // Only include client_secret if user actually entered a new one
                 if (settings.sso.client_secret) {
                     ssoPayload.sso_client_secret = settings.sso.client_secret;
@@ -86,7 +119,7 @@ const SecuritySettings = () => {
             // Reload to get fresh state (e.g. secret configured flag)
             loadSettings();
         } catch (err) {
-            toast.error(t('security.saveFailed'));
+            toast.error(err?.response?.data?.error || t('security.saveFailed'));
             console.error(err);
         } finally {
             setSaving(false);
@@ -220,24 +253,18 @@ const SecuritySettings = () => {
                                     placeholder="https://idp.example.com/.well-known/openid-configuration"
                                 />
                             </div>
-
-                            <div className="form-group mb-3">
-                                <label htmlFor="sso-domains">{t('security.ssoDomains')}</label>
-                                <input
-                                    id="sso-domains"
-                                    type="text"
-                                    className="form-control"
-                                    aria-describedby="sso-domains-hint"
-                                    value={settings?.sso?.domains || ''}
-                                    onChange={(e) => setSettings(prev => ({
-                                        ...prev,
-                                        sso: { ...(prev?.sso || {}), domains: e.target.value }
-                                    }))}
-                                    placeholder="example.com, example.org"
-                                />
-                                <small id="sso-domains-hint" className="text-muted">{t('security.ssoDomainsHint')}</small>
-                            </div>
                         </div>
+                    )}
+
+                    {settings?.sso?.provider === 'oidc' && (
+                        <SSORoleMapping
+                            sso={settings.sso}
+                            roles={roleOptions.filter((r) => !r.value.startsWith('custom:') || customRolesLicensed
+                                || r.value === settings.sso.default_role
+                                || (settings.sso.role_mappings || []).some((m) => m.role === r.value))}
+                            teams={teams}
+                            onChange={(sso) => setSettings((prev) => ({ ...prev, sso }))}
+                        />
                     )}
 
                 </div>

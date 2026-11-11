@@ -40,8 +40,10 @@ production pass `database.url` / `broker.url` instead (see the
 helm install serops oci://ghcr.io/getserops/charts/serops \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
+  --set django.encryptionKey="$(openssl rand -base64 32 | tr '+/' '-_')" \
   --set devServices.postgresql.enabled=true \
-  --set devServices.redis.enabled=true
+  --set devServices.redis.enabled=true \
+  --set ingress.allowInsecure=true   # lab only: no certificate, plain HTTP
 ```
 
 **AI provider keys are not set in `.env` or in Helm values.** Add them in the UI after first login under **Settings → AI Providers**. They are stored per organisation and encrypted at rest, so nothing reads `ANTHROPIC_API_KEY` or its siblings from the environment. Similar-incident search uses the same organisation keys: embeddings from your AI provider when it offers them (OpenAI, Gemini, or Ollama `nomic-embed-text`), otherwise a local word-overlap match (see [Incident intelligence](https://serops.ai/docs/how-to/intelligence/)). SerOps needs at least one key — Anthropic, Google Gemini, OpenAI, DeepSeek, or Ollama (keyless, on-prem) — before it can analyse anything.
@@ -73,13 +75,33 @@ Full guides in [docs/](docs/) or at https://serops.ai/docs.
 
 ## What does not work yet
 
-- SAML 2.0 SSO (OIDC only)
 - Two-factor authentication
 - Inbound Slack / Teams interactions (acknowledge from chat)
 - Discord channel
-- Encryption-key rotation tooling
 
-See the [docs](https://serops.ai/docs/) roadmap for the full picture.
+See the [docs](https://serops.ai/docs/) roadmap for the full picture. Everything above,
+and every item in this list once it ships, is in SerOps Community.
+
+## Community and Enterprise
+
+Community is the complete product for a team, free under the AGPL. Enterprise adds
+governance for running SerOps as an organisation, under a commercial license. It only
+adds to Community: nothing is ever moved out of it
+([open source promise](https://serops.ai/docs/open-source-promise/)).
+
+Enterprise is priced per organisation by employees, never per seat, and nothing is
+counted or limited in the product:
+
+| Band | Employees | Price per year |
+|---|---|---|
+| Business | up to 500 | €7,500, introductory |
+| Enterprise | up to 5,000 | €30,000 |
+| Strategic | above 5,000, or a regulated sector | from €60,000 |
+
+Custom roles and per-project access arrive in 1.3.0, with a commercial license and a
+support contract. Planned next: SAML 2.0 and SCIM, then real-time audit streaming to a
+SIEM, delegated administration across organisations, and compliance reports. Cloud is
+planned for 2027.
 
 ## Contributing
 
@@ -89,6 +111,11 @@ per-component dev setup and test commands. Security issues go through
 
 ## License
 
-AGPL-3.0. See [LICENSE](LICENSE).
+AGPL-3.0. See [LICENSE](LICENSE). The two Enterprise directories, `backend/ee/` and
+`frontend/src/ee/`, are the exception: they are under the
+[SerOps Enterprise License](backend/ee/LICENSE), need a license key to run,
+and SerOps is complete without them. Delete them and you have the Community
+edition under the AGPL only. Every Community feature stays in Community, forever:
+see our [open source promise](https://serops.ai/docs/open-source-promise/).
 
 Commercial licenses available for AGPL-policy-conflict organisations — see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md) and [docs/src/license.md](docs/src/license.md).

@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import AcceptInvitationView, AvatarView, DeleteAccountView, DemoLoginView, EmailVerification, ForgetPasswordView, InvitationsetPasswordView, LogoutView, ProfileAvatarView, ProfileView, RegisterView, RegistrationStatusView, LoginView, ResendVerificationLinkView, SetPasswordView, UpdatePasswordView
+from .views import AcceptInvitationView, AvatarView, ConfirmEmailChangeView, DeleteAccountView, DemoLoginView, EmailVerification, ForgetPasswordView, InvitationsetPasswordView, LogoutView, ProfileAvatarView, ProfileView, RegisterView, RegistrationStatusView, LoginView, ResendVerificationLinkView, SetPasswordView, UpdatePasswordView
 from .sso_views import SSOConfigView, SSOInitView, SSOCallbackView, SSOExchangeView
 
 
@@ -10,6 +10,7 @@ urlpatterns = [
     path('register',RegisterView.as_view(),name="register"),
      path('logout',LogoutView.as_view(),name="logout"),
      path('profile',ProfileView.as_view(),name="profile"),
+    path('email/confirm/<str:token>', ConfirmEmailChangeView.as_view(), name='confirm-email-change'),
     path('password',UpdatePasswordView.as_view(),name="update-password"),
     path('resend',ResendVerificationLinkView.as_view(),name="resend-verification"),
     path('activate/<str:token>',EmailVerification.as_view(),name="activate"),

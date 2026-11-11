@@ -1,4 +1,5 @@
 from Middlewares.rbac import Requires
+from Middlewares.project_access import ProjectScoped
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -13,7 +14,7 @@ from .serializers import (
 )
 
 
-class ServiceViewSet(viewsets.ModelViewSet):
+class ServiceViewSet(ProjectScoped, viewsets.ModelViewSet):
     """
     ViewSet for managing all service types.
     Supports polymorphic creation based on category.
@@ -25,7 +26,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if not user.organisation:
             return Service.objects.none()
-        queryset = Service.objects.filter(project__organisation=user.organisation)
+        queryset = self.scoped(Service.objects.filter(project__organisation=user.organisation))
         
         # Filter by project if specified
         project_id = self.request.query_params.get("project")
@@ -76,7 +77,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class SCMServiceViewSet(viewsets.ModelViewSet):
+class SCMServiceViewSet(ProjectScoped, viewsets.ModelViewSet):
     """ViewSet specifically for SCM Services"""
     serializer_class = SCMServiceSerializer
     permission_classes = [IsAuthenticated, Requires(GET='project.read', destroy='project.delete', default='project.write')]
@@ -85,7 +86,7 @@ class SCMServiceViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if not user.organisation:
             return SCMService.objects.none()
-        return SCMService.objects.filter(project__organisation=user.organisation)
+        return self.scoped(SCMService.objects.filter(project__organisation=user.organisation))
     
     @action(detail=True, methods=["post"])
     def setup_webhook(self, request, pk=None):
@@ -100,7 +101,7 @@ class SCMServiceViewSet(viewsets.ModelViewSet):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class InfraServiceViewSet(viewsets.ModelViewSet):
+class InfraServiceViewSet(ProjectScoped, viewsets.ModelViewSet):
     """ViewSet specifically for Infrastructure Services"""
     serializer_class = InfraServiceSerializer
     permission_classes = [IsAuthenticated, Requires(GET='project.read', destroy='project.delete', default='project.write')]
@@ -109,7 +110,7 @@ class InfraServiceViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if not user.organisation:
             return InfraService.objects.none()
-        return InfraService.objects.filter(project__organisation=user.organisation)
+        return self.scoped(InfraService.objects.filter(project__organisation=user.organisation))
     
     @action(detail=True, methods=["post"])
     def health_check(self, request, pk=None):
@@ -127,7 +128,7 @@ class InfraServiceViewSet(viewsets.ModelViewSet):
         })
 
 
-class CustomServiceViewSet(viewsets.ModelViewSet):
+class CustomServiceViewSet(ProjectScoped, viewsets.ModelViewSet):
     """ViewSet specifically for Custom Services"""
     serializer_class = CustomServiceSerializer
     permission_classes = [IsAuthenticated, Requires(GET='project.read', destroy='project.delete', default='project.write')]
@@ -136,4 +137,4 @@ class CustomServiceViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if not user.organisation:
             return CustomService.objects.none()
-        return CustomService.objects.filter(project__organisation=user.organisation)
+        return self.scoped(CustomService.objects.filter(project__organisation=user.organisation))

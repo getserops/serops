@@ -42,3 +42,15 @@ describe('permissions', () => {
         expect(JSON.parse(localStorage.getItem('user')).email).toBe('a@example.com');
     });
 });
+
+describe('canOnProject', () => {
+    it('uses the project list, else the organisation role', async () => {
+        const { canOnProject } = await import('../permissions');
+        const data = { user: JSON.stringify({ permissions: ['project.read', 'project.write'] }) };
+        vi.stubGlobal('localStorage', { getItem: (k) => data[k] ?? null, setItem: () => {} });
+        expect(canOnProject({ permissions: ['project.read'] }, 'project.write')).toBe(false);
+        expect(canOnProject({ permissions: ['project.delete'] }, 'project.delete')).toBe(true);
+        expect(canOnProject(null, 'project.write')).toBe(true);
+        vi.unstubAllGlobals();
+    });
+});

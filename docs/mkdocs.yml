@@ -186,7 +186,7 @@ nav:
     - Settings Reference: admin/settings.md
     - Integrations: admin/integrations.md
     - Notifications: admin/notifications.md
-    - Team Management: admin/team.md
+    - Users, Roles and Teams: admin/team.md
     - Data Retention: admin/data-retention.md
     - Issue Settings: admin/issue-settings.md
     - Kubernetes Clusters: admin/clusters.md
@@ -220,7 +220,9 @@ nav:
     - Dashboard & Analytics: api/analytics.md
   - Troubleshooting: troubleshooting.md
   - Changelog: changelog.md
+  - Open Source Promise: open-source-promise.md
   - License: license.md
+  - Enterprise Terms: legal/enterprise-terms.md
 
 extra:
   social:

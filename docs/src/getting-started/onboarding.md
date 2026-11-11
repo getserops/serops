@@ -10,6 +10,8 @@ The Onboarding Wizard guides new users through initial setup after their first l
 
 When you first log in to SerOps, the wizard walks you through the essential steps to get your organisation up and running. Progress is tracked server-side, so you can leave and come back — a resume chip appears in the top bar on subsequent visits.
 
+**See a sample incident** in the wizard's header opens the incident page on a made-up outage, so you can see what SerOps produces before connecting anything. The data and the analysis are written for the example: your AI provider isn't called, nothing is added to your organisation, and no setup step is marked as done.
+
 ## Steps
 
 Only **Source Control** and **CI/CD** can be skipped — you can add those

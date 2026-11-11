@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from Utils.scoped_relations import limit_relations
+from Middlewares.project_access import limit_relations, scope
 from .models import (
     Notification,
     UserNotificationPreference,
@@ -51,12 +51,12 @@ class UserNotificationPreferenceSerializer(serializers.ModelSerializer):
 
 class ProjectSubscriptionSerializer(serializers.ModelSerializer):
     """Serializer for project notification subscriptions."""
-    # A subscription to another organisation's project would deliver its
-    # incidents: only the member's own organisation's projects.
+    # Only projects the member can see: a subscription to another
+    # organisation's (or a restricted) project would deliver its incidents.
     def get_fields(self):
         from Projects.models import Project
-        return limit_relations(super().get_fields(), self.context.get('request'),
-                               project=lambda u, org: Project.objects.filter(organisation=org))
+        return limit_relations(super().get_fields(), self.context.get('request'), project=lambda u, org: scope(
+            Project.objects.filter(organisation=org), u, 'project.read', field=''))
 
     
     project_name = serializers.CharField(source='project.name', read_only=True)
@@ -73,12 +73,12 @@ class ProjectSubscriptionSerializer(serializers.ModelSerializer):
 
 class ProjectSubscriptionCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating project subscriptions."""
-    # A subscription to another organisation's project would deliver its
-    # incidents: only the member's own organisation's projects.
+    # Only projects the member can see: a subscription to another
+    # organisation's (or a restricted) project would deliver its incidents.
     def get_fields(self):
         from Projects.models import Project
-        return limit_relations(super().get_fields(), self.context.get('request'),
-                               project=lambda u, org: Project.objects.filter(organisation=org))
+        return limit_relations(super().get_fields(), self.context.get('request'), project=lambda u, org: scope(
+            Project.objects.filter(organisation=org), u, 'project.read', field=''))
 
     
     class Meta:

@@ -32,6 +32,15 @@ export const getPermissions = () => {
 export const can = (permission) => getPermissions().includes(permission);
 
 /**
+ * True when the user holds ``permission`` on this project. Project
+ * responses list the caller's permissions on each project (teams can give
+ * more, restricted projects less); without that list, the organisation
+ * role decides.
+ */
+export const canOnProject = (project, permission) =>
+    Array.isArray(project?.permissions) ? project.permissions.includes(permission) : can(permission);
+
+/**
  * Re-read the permissions from the server and store them: a role change, or
  * a session that started before the server sent permissions, takes effect
  * without signing out. Components using ``usePermissions`` re-render.
@@ -74,6 +83,7 @@ export const ROLE_COLORS = {
     admin: '#dc3545',      // red
     user: '#0d6efd',       // blue
     viewer: '#198754',     // green
+    custom: '#6f42c1',     // purple
 };
 
 export const getRoleDisplayName = (role) => ROLE_DISPLAY_NAMES[role] || role;

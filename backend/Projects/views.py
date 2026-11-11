@@ -1,4 +1,5 @@
 from Middlewares.rbac import Requires
+from Middlewares.project_access import ProjectScoped, org_level, scope
 import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -25,7 +26,7 @@ import threading
 
 logger = logging.getLogger(__name__)
 
-class ProjectListView(APIView):
+class ProjectListView(ProjectScoped, APIView):
     permission_classes = [IsAuthenticated, Requires(GET='project.read', POST='project.write')]
     @swagger_auto_schema(
         operation_description="Get a list of all projects for the authenticated user's organization",
@@ -33,14 +34,14 @@ class ProjectListView(APIView):
     )
     def get(self, request):
         logger.info(f"Project list accessed by user {request.user}")
-        projects = Project.objects.filter(organisation=request.user.organisation).prefetch_related(
+        projects = self.scoped(Project.objects.filter(organisation=request.user.organisation), field='').prefetch_related(
             'environments',
             'services',
             'services__scm_binding',
             'services__cicd_bindings',
             'services__gitlab_project',
         )
-        serializer = ProjectSerializer(projects, many=True)
+        serializer = ProjectSerializer(projects, many=True, context={'request': request})
         return Response(serializer.data)
 
     @swagger_auto_schema(
@@ -52,6 +53,9 @@ class ProjectListView(APIView):
         logger = logging.getLogger(__name__)
         
         logger.warning(f"Project creation attempted by user {request.user}")
+        # A team grant lets a member change one project, not create others.
+        if not org_level(request.user, 'project.write'):
+            return Response({"error": "You can't create projects."}, status=status.HTTP_403_FORBIDDEN)
         
         # Use ProjectCreateSerializer for handling environments
         data = request.data.copy()
@@ -147,10 +151,10 @@ class ProjectListView(APIView):
             logger.info(f"Project '{project.name}' created with {project.environments.count()} environments. Elasticsearch indices creation started in background.")
             
             # Return with environments included
-            return Response(ProjectSerializer(project).data, status=status.HTTP_201_CREATED)
+            return Response(ProjectSerializer(project, context={'request': request}).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class ProjectDetailView(APIView):
+class ProjectDetailView(ProjectScoped, APIView):
     permission_classes = [IsAuthenticated, Requires(GET='project.read', PUT='project.write', DELETE='project.delete')]
 
     def get_object(self, request, pk):
@@ -166,8 +170,7 @@ class ProjectDetailView(APIView):
         user_org = getattr(request.user, 'organisation', None)
         if not user_org:
             return None
-        qs = Project.objects.all()
-        qs = qs.filter(organisation=user_org)
+        qs = self.scoped(Project.objects.filter(organisation=user_org), field='')
         return qs.filter(pk=pk).first()
 
     @swagger_auto_schema(
@@ -179,7 +182,7 @@ class ProjectDetailView(APIView):
         if project is None:
             return Response({"error": "Project not found"},
                             status=status.HTTP_404_NOT_FOUND)
-        serializer = ProjectSerializer(project)
+        serializer = ProjectSerializer(project, context={'request': request})
         return Response(serializer.data)
 
     @swagger_auto_schema(
@@ -215,12 +218,12 @@ class ProjectDetailView(APIView):
             logger.info(f"Updated project '{project.name}' with {len(environments_data)} environments")
         
         # Update project fields
-        serializer = ProjectSerializer(project, data=request.data, partial=True)
+        serializer = ProjectSerializer(project, data=request.data, partial=True, context={'request': request})
         if serializer.is_valid():
             serializer.save()
             # Re-fetch to include updated environments
             project.refresh_from_db()
-            return Response(ProjectSerializer(project).data)
+            return Response(ProjectSerializer(project, context={'request': request}).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @swagger_auto_schema(
@@ -235,7 +238,7 @@ class ProjectDetailView(APIView):
         project.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-class ProjectServiceView(APIView):
+class ProjectServiceView(ProjectScoped, APIView):
     permission_classes = [IsAuthenticated, Requires(GET='project.read', POST='project.write')]
     @swagger_auto_schema(
         operation_description="Get all services for a specific project",
@@ -250,8 +253,7 @@ class ProjectServiceView(APIView):
         user_org = getattr(request.user, 'organisation', None)
         if not user_org:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
-        qs = Project.objects.all()
-        qs = qs.filter(organisation=user_org)
+        qs = self.scoped(Project.objects.filter(organisation=user_org), field='')
         project = qs.filter(pk=project_id).first()
         if project is None:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -283,8 +285,7 @@ class ProjectServiceView(APIView):
         user_org = getattr(request.user, 'organisation', None)
         if not user_org:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
-        project_qs = Project.objects.all()
-        project_qs = project_qs.filter(organisation=user_org)
+        project_qs = self.scoped(Project.objects.filter(organisation=user_org), field='')
         project = project_qs.filter(pk=project_id).first()
         if project is None:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -386,7 +387,7 @@ class ProjectServiceView(APIView):
 
 
 
-class ProjectServiceDetailView(APIView):
+class ProjectServiceDetailView(ProjectScoped, APIView):
     permission_classes = [IsAuthenticated, Requires(GET='project.read', PUT='project.write', PATCH='project.write', DELETE='project.delete')]
 
     def get_object(self, request, pk):
@@ -399,8 +400,7 @@ class ProjectServiceDetailView(APIView):
         user_org = getattr(request.user, 'organisation', None)
         if not user_org:
             return None
-        qs = ProjectService.objects.all()
-        qs = qs.filter(project__organisation=user_org)
+        qs = self.scoped(ProjectService.objects.filter(project__organisation=user_org))
         return qs.filter(pk=pk).first()
 
     @swagger_auto_schema(
@@ -519,7 +519,7 @@ from drf_yasg import openapi
 from .models import Project, ProjectService
 from .serializers import ProjectServiceSerializer
 
-class CustomServiceView(APIView):
+class CustomServiceView(ProjectScoped, APIView):
     permission_classes = [IsAuthenticated, Requires(GET='project.read', POST='project.write')]
     @swagger_auto_schema(
         operation_description="Get all custom services for a specific project",
@@ -532,8 +532,7 @@ class CustomServiceView(APIView):
         user_org = getattr(request.user, 'organisation', None)
         if not user_org:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
-        qs = Project.objects.all()
-        qs = qs.filter(organisation=user_org)
+        qs = self.scoped(Project.objects.filter(organisation=user_org), field='')
         project = qs.filter(pk=project_id).first()
         if project is None:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -559,8 +558,7 @@ class CustomServiceView(APIView):
         user_org = getattr(request.user, 'organisation', None)
         if not user_org:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
-        qs = Project.objects.all()
-        qs = qs.filter(organisation=user_org)
+        qs = self.scoped(Project.objects.filter(organisation=user_org), field='')
         project = qs.filter(pk=project_id).first()
         if project is None:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -614,8 +612,9 @@ class ProjectLogConfigView(APIView):
     )
     def get(self, request):
         """Get mapping of projects and their log paths/indices"""
-        projects = Project.objects.filter(organisation=request.user.organisation)
-        
+        projects = scope(Project.objects.filter(organisation=request.user.organisation), request.user,
+                         'project.read', field='')
+
         project_configs = []
         for project in projects:
             services = ProjectService.objects.filter(project=project)
@@ -652,7 +651,7 @@ from .models import SCMBinding, CICDBinding
 from .serializers import SCMBindingSerializer, CICDBindingSerializer
 
 
-class SCMBindingViewSet(viewsets.ModelViewSet):
+class SCMBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
     """
     API for managing SCM (Source Code Management) bindings.
     
@@ -673,9 +672,9 @@ class SCMBindingViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Filter SCM bindings by user's organisation."""
-        return SCMBinding.objects.filter(
+        return self.scoped(SCMBinding.objects.filter(
             project_service__project__organisation=self.request.user.organisation
-        ).select_related('integration', 'project_service', 'project_service__project')
+        ), 'project_service__project').select_related('integration', 'project_service', 'project_service__project')
     
     def create(self, request, *args, **kwargs):
         """Create SCM binding, handling OneToOne constraint violations."""
@@ -888,7 +887,7 @@ class SCMBindingViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class CICDBindingViewSet(viewsets.ModelViewSet):
+class CICDBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
     """
     API for managing CI/CD bindings.
     
@@ -909,9 +908,9 @@ class CICDBindingViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Filter CI/CD bindings by user's organisation."""
-        queryset = CICDBinding.objects.filter(
+        queryset = self.scoped(CICDBinding.objects.filter(
             project_service__project__organisation=self.request.user.organisation
-        ).select_related('integration', 'project_service', 'project_service__project')
+        ), 'project_service__project').select_related('integration', 'project_service', 'project_service__project')
         
         # Optional filtering by project_service
         project_service_id = self.request.query_params.get('project_service')
@@ -1269,7 +1268,7 @@ Rejects when no secret is configured (fail closed).
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class ProjectDeploymentViewSet(viewsets.ModelViewSet):
+class ProjectDeploymentViewSet(ProjectScoped, viewsets.ModelViewSet):
     """CRUD for ProjectDeployment (Batch 52 — Deployment model UI).
 
     Endpoints (under /api/project-deployments/):
@@ -1304,9 +1303,9 @@ class ProjectDeploymentViewSet(viewsets.ModelViewSet):
         user_org = getattr(self.request.user, 'organisation', None)
         if user_org is None:
             return self._PD.objects.none()
-        qs = self._PD.objects.filter(
+        qs = self.scoped(self._PD.objects.filter(
             project__organisation=user_org,
-        ).select_related('project', 'environment', 'cluster')
+        )).select_related('project', 'environment', 'cluster')
         # Optional filter by project id (frontend Deployments tab uses this).
         project_id = self.request.query_params.get('project')
         if project_id:
@@ -1394,7 +1393,7 @@ class ProjectDeploymentViewSet(viewsets.ModelViewSet):
         # already have a deployment on this cluster.
         from .models import Project as _Project, ProjectEnvironment as _PE
         suggestions = []
-        for proj in _Project.objects.filter(organisation=user_org).only('id', 'name'):
+        for proj in self.scoped(_Project.objects.filter(organisation=user_org), field='', code='project.write').only('id', 'name'):
             existing_env_ids = set(
                 self._PD.objects.filter(
                     project=proj, cluster=cluster,
@@ -1426,9 +1425,19 @@ class ProjectDataCheckView(APIView):
     """
     permission_classes = [IsAuthenticated, Requires(GET='project.read', POST='integration.use')]
 
+    # The project-scoped permission each method needs on this project: a
+    # restricted project is out of reach without a team grant
+    # (Middlewares/project_access). integration.use (POST) is organisation
+    # wide, so it is checked by Requires, and the project must be visible.
+    _CODES = {'GET': 'project.read', 'POST': 'project.read'}
+
     def _project(self, request, project_id):
         org = getattr(request.user, 'organisation', None)
-        return Project.objects.filter(organisation=org, pk=project_id).first() if org else None
+        if not org:
+            return None
+        code = self._CODES.get(request.method, 'project.read')
+        return scope(Project.objects.filter(organisation=org, pk=project_id),
+                     request.user, code, field='').first()
 
     def get(self, request, project_id):
         from Data.models import DataRunStatus
@@ -1461,6 +1470,7 @@ class ProjectDataFixView(APIView):
     """Apply a fix offered by "Check my data": list services seen in the
     logs, or accept an environment value the logs carry."""
     permission_classes = [IsAuthenticated, Requires(POST='project.write')]
+    _CODES = {'POST': 'project.write'}
     _project = ProjectDataCheckView._project
 
     def post(self, request, project_id):

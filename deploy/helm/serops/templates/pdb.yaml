@@ -1,0 +1,34 @@
+{{/*
+  PodDisruptionBudgets for the replicated components. Without them a node
+  drain may evict both replicas of the backend or the frontend at once and
+  the install is down for the restart. Rendered only when a component has
+  more than one replica: minAvailable 1 on a single replica would block the
+  drain forever. Beat is a single replica by design and has no budget.
+*/}}
+{{- if .Values.podDisruptionBudget.enabled }}
+{{- $pdb := .Values.podDisruptionBudget }}
+{{- range $c := list
+      (dict "component" "backend" "replicas" .Values.backend.replicaCount)
+      (dict "component" "frontend" "replicas" .Values.frontend.replicaCount)
+      (dict "component" "celery-worker" "replicas" .Values.celeryWorker.replicaCount) }}
+{{- if gt (int $c.replicas) 1 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "serops.fullname" $ }}-{{ $c.component }}
+  labels:
+    {{- include "serops.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $c.component }}
+spec:
+  {{- if $pdb.maxUnavailable }}
+  maxUnavailable: {{ $pdb.maxUnavailable }}
+  {{- else }}
+  minAvailable: {{ $pdb.minAvailable | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "serops.selectorLabels" (dict "Chart" $.Chart "Release" $.Release "Values" $.Values "component" $c.component) | nindent 6 }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -39,6 +39,8 @@ const Login = () => {
     // The SSO callback sends the browser back here when sign-in fails.
     if (searchParams.get("sso") === "failed") {
       setError(t('login.ssoSignInFailed'));
+    } else if (searchParams.get("sso") === "denied") {
+      setError(t('login.ssoDenied'));
     }
   }, [searchParams, t]);
 

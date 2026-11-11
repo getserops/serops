@@ -7,6 +7,45 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-11
+
+Users, roles and teams, the Enterprise edition, and a security release. Migrations Users 0014-0016, Data 0057-0059, Organisations 0014, Projects 0017 (and ee 0001 with the `ee/` directories) run on their own. `SEROPS_ENCRYPTION_KEY` is now required, then run `rotate_secrets` once; the Helm chart refuses an ingress without TLS. Set `SEROPS_VERSION=1.3.0` or `--version 1.3.0`; read Upgrading → 1.3.0 first.
+
+### Security
+
+- Stored credentials have their own key, `SEROPS_ENCRYPTION_KEY`, instead of a hash of `DJANGO_SECRET_KEY`, so a leaked signing key no longer opens them. The key can be changed with `rotate_secrets`, and a value that cannot be decrypted is reported rather than read as empty. **Required on upgrade:** see the docs, Upgrading.
+- Erasing an account now removes the email from the audit log, where it stayed in `details`, and application logs in the account code name users by ID. The sole admin of an organisation is refused (409), as documented: it used to delete the organisation and every other member with it.
+- HSTS was never sent behind a proxy (the Helm ingress, Caddy), though 1.2.14 said so: the proxy talks plain HTTP to the backend, which saw every request as insecure. With `SEROPS_HTTPS` the backend now trusts the proxy's `X-Forwarded-Proto`. The same cause made **Setup webhook** register an `http://` URL with GitHub and GitLab on an HTTPS install, and `SECURE_SSL_REDIRECT=True` behind a load balancer, which the docs advised, redirected forever; the docs now say to keep `SEROPS_HTTPS` and let the load balancer redirect.
+- Changing your email needs your password and a link sent to the new address; every session then ends and the old address is told. A stolen session could move the account to another address for good, or squat an address another organisation's SSO claims. SSO accounts keep their identity provider's email.
+- OpenID Connect: each sign-in is bound to the browser that started it, and uses a nonce and PKCE. Before, someone could get a victim to load their callback URL and sign the victim in to their own account. A provider must now say the email is verified: providers that leave `email_verified` out are refused unless their host is in `SSO_TRUST_MISSING_EMAIL_VERIFIED` (default `login.microsoftonline.com`).
+- The session timeout in Settings → Security is now enforced, including the 8-hour default: nothing read it before. Set it to Never to keep the previous behaviour.
+- Failed logins are in the audit log: JSON clients, so every normal login, were never recorded.
+- New passwords are validated when changed from the profile and when set from an invitation, as they already were on registration and reset.
+- The backend refuses to start outside DEBUG with `replace-me` or a similar placeholder as a secret, or with a `DJANGO_SECRET_KEY` under 32 characters.
+- Per-project access, from an internal review before release (2026-11-05). A member outside a restricted project could still read it through:
+  - its issues, by batch id (`/api/data/issues/<batch_id>/`);
+  - "similar issues" and post-mortem drafts of an open project, which drew on the restricted project's resolved incidents;
+  - the CI/CD pipeline and deployment lists;
+  - AI Chat's code context, which took commits from the whole organisation;
+  - a cluster's workload list, and the legacy repository detail and pipeline logs.
+
+  A viewer whose team was admin of one project could rewrite or delete any legacy repository, set its webhooks and change onboarding: those routes now need the organisation role. Changing the SSO identity provider needs every permission of an admin (a custom role with `settings.manage` could point SSO at its own provider and sign in as anyone). The last-admin check counts active admins only.
+
+### Added
+
+- Added `ee/` (SerOps Enterprise License): offline Ed25519 license key (`ee.licensing`), `InstalledLicense` model (migration `ee.0001_initial`), `GET/PUT/DELETE /api/ee/license/`, `manage.py ee_license_sign`. Community: `Utils.edition` registry (never imports `ee`), `GET /api/organisation/edition/`, platform permission `license.manage`; `ee` is added to `INSTALLED_APPS` and `/api/ee/` only when the directory exists.
+- SSO group → role mapping (`Users/sso_roles.py`): `SecuritySettings.sso_groups_claim` (dotted path), `sso_extra_scopes`, ordered `sso_role_mappings`, `sso_default_role` (or `deny`), `sso_sync_role`, `sso_domains` (JIT accounts only for listed domains; staff-only on multi-org; `manage.py sso_domains`). Claims merge userinfo + ID token. Audit `SSO_PROVISION`, `SSO_DENIED`, `TEAM_ROLE_CHANGE` (`source: sso`). Migrations `Users 0013`, `Data 0054`.
+- Custom roles (management is Enterprise, feature `custom_roles`): `Users.CustomRole` (org, name, permissions), `User.role='custom'` + `custom_role` (PROTECT). `rbac.role_permissions`, `normalise_permissions` (ALWAYS_GRANTED + IMPLIES), `can_grant` (no escalation, checked by team invite/update/remove, role CRUD, SSO rule edits), role keys `custom:<id>`. `GET /api/organisation/roles/` (Community, org.read); writes in `ee/access/roles.py` at `/api/ee/roles/` (team.manage; POST/PUT need the license, DELETE never; 409 when in use or named by SSO). Without the license, assigning a custom role a member doesn't already have, and new SSO rules naming one, are refused (`Utils.edition.require`, 403 `enterprise_license_required`). Audit `ROLE_CREATE/UPDATE/DELETE`. `UserSerializer.role_key`, `role_name`. Notification defaults follow permissions. Migrations `Users 0014`, `Data 0055`.
+- Teams and per-project access (`Middlewares/project_access.py`): `Organisations.Team`/`TeamMembership`, `Projects.ProjectTeamAccess`, `Project.access_mode`; project-scoped querysets everywhere (`scope`, `ProjectScoped`, `scope_request`), `/api/organisation/teams/` (Community), access management in `ee/access/projects.py` at `/api/ee/projects/<id>/access/` (restricting or adding/raising grants needs the license `project_access`; opening, lowering and removing never do), `manage.py project_access_open` (Community way back), per-project `permissions` on project responses, `sso_team_mappings`, subscriptions checked at send time, cache keys carry the scope. `test_project_scope_coverage.py`; walkers use real tokens. Migrations `Organisations 0014`, `Projects 0016`, `Users 0015`, `Data 0056`.
+
+### Changed
+
+- `sso/exchange` returns the full `UserSerializer` (permissions). SSO no longer creates accounts for emails outside `sso_domains`.
+
+### Removed
+
+- `password_policy` from `GET` and `PUT /api/data/settings/security/`, and the redaction settings the docs described: no code applied them. Password rules are fixed.
+
 ## [1.2.14] - 2026-11-07
 
 Security and Kubernetes release. Migrations Data 0056, integrations 0011, org_settings 0021 run on their own. Set `SEROPS_VERSION=1.2.14` or `--version 1.2.14`; read Upgrading → 1.2.14 first (SSO domains, alert webhooks on shared installs, activation links). SerOps installs on and reads GKE, and the analysis sees Kubernetes rollouts, CPU throttling, per-service trace timings and traffic.

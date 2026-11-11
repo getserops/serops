@@ -1,0 +1,33 @@
+# Weekly dependency updates, grouped so a week's bumps arrive as a few PRs
+# rather than dozens. Security updates are opened as soon as an advisory
+# is published regardless of the schedule. The frontend sat on a two-year-old
+# pinned framework version before this existed.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: weekly, day: monday}
+    groups:
+      actions: {patterns: ["*"]}
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule: {interval: weekly, day: monday}
+    groups:
+      frontend-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: pip
+    directory: /backend
+    schedule: {interval: weekly, day: monday}
+    groups:
+      backend-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directories: [/backend, /frontend, /docs]
+    schedule: {interval: weekly, day: monday}
+
+  - package-ecosystem: docker-compose
+    directory: /deploy/quick-start
+    schedule: {interval: weekly, day: monday}

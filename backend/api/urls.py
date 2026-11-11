@@ -122,6 +122,10 @@ api_urlpatterns = [
 if settings.DJANGO_ADMIN_ENABLED:
     api_urlpatterns.append(path('admin/', admin.site.urls))
 
+# SerOps Enterprise endpoints, only when backend/ee/ is present (see settings).
+if 'ee' in settings.INSTALLED_APPS:
+    api_urlpatterns.append(path('ee/', include('ee.urls')))
+
 urlpatterns = [
     path('api/', include(api_urlpatterns)),
     # Self-metrics — Prometheus exposition. Root URL (not under /api/)

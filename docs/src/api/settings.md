@@ -305,7 +305,9 @@ POST /api/organisation/team/
 }
 ```
 
-Sends an invitation email to the specified address and creates a pending user account.
+Sends an invitation email to the specified address and creates a pending user account. `role` is a role key: `viewer`, `user`, `admin`, or `custom:<id>` for a [custom role](#custom-roles).
+
+You can only give a role whose permissions you hold (`403` otherwise), and only change or remove members whose permissions you hold.
 
 ### Update Team Member
 
@@ -323,7 +325,7 @@ PUT /api/organisation/member/{id}/
 }
 ```
 
-Updates the team member's profile and/or role. Only fields included in the request body are changed.
+Updates the team member's profile and/or role. Only fields included in the request body are changed. `role` takes a role key as above; members are returned with `role` (`viewer`, `user`, `admin` or `custom`), `role_key` and `role_name`.
 
 ### Remove Team Member
 
@@ -331,13 +333,81 @@ Updates the team member's profile and/or role. Only fields included in the reque
 DELETE /api/organisation/member/{id}/
 ```
 
-### Public Organisation List
+### Teams
+
+```
+GET /api/organisation/teams/
+POST /api/organisation/teams/
+PUT /api/organisation/teams/{id}/
+DELETE /api/organisation/teams/{id}/
+```
+
+`GET` (every member) returns `teams` with `members` (`id`, `email`, `name`, `source`: `manual` or `sso`) and the `projects` it has access to (only those the caller can see). Writes need `team.manage`:
+
+```json
+{ "name": "Payments", "description": "", "member_ids": [12, 15] }
+```
+
+`member_ids` replaces the members. You can only change or delete a team whose project grants you hold yourself (`403` otherwise), so joining a team is never a way to gain access. A team named by an SSO rule can't be deleted (`409`). Audited as `TEAM_CREATE`, `TEAM_UPDATE`, `TEAM_DELETE`.
+
+### Custom Roles
+
+```
+GET /api/organisation/roles/
+POST /api/ee/roles/
+PUT /api/ee/roles/{id}/
+DELETE /api/ee/roles/{id}/
+```
+
+Listing is Community. Writes are Enterprise: available when the Enterprise directories are installed; `POST` and `PUT` need the *Custom roles* license feature (`403` with `"code": "enterprise_license_required"` otherwise), `DELETE` never does. Without the license, inviting or moving a member to a custom role they don't already have, and adding an SSO rule that names one, are refused the same way.
+
+`GET` (every member) returns `builtin` (the three built-in roles and their permissions), `custom` (`id`, `key`, `name`, `description`, `permissions`, `member_count`), `catalogue` (the permissions a custom role can hold, with descriptions), `always_granted` and `implies`. Writes need `team.manage`.
+
+```json
+{ "name": "On-call", "description": "Resolves issues, re-runs analyses", "permissions": ["issue.update", "batch.analyze"] }
+```
+
+The saved permissions always include `self.manage` and `org.read`, and each permission's prerequisite (`batch.analyze` adds `batch.read`). Platform permissions can't be granted. You can only create, change or delete a role whose permissions you hold. A role still assigned to a member, or named by an SSO rule, can't be deleted (`409`).
+
+### Organisation List
 
 ```
 GET /api/organisation/list/
 ```
 
-Returns a minimal public list of organisation names (id + display name only). Used by the login / invitation flow so users can pick the right organisation before entering credentials. Does not require authentication and never exposes internal fields.
+Returns the caller's own organisation (id and name), whatever their role.
+
+---
+
+## Edition and Enterprise license
+
+### Get the Edition
+
+```
+GET /api/organisation/edition/
+```
+
+Any member (`org.read`). Whether the Enterprise code is installed and which Enterprise features the license key enables. Without the `ee/` directories, or without a valid key, `features` is empty and SerOps is the complete Community edition.
+
+```json
+{
+  "enterprise_available": true,
+  "features": ["saml"],
+  "license": {"status": "valid", "licensee": "Acme Corp", "expires": "2027-10-21", "features": ["saml"]}
+}
+```
+
+### Enterprise License Key
+
+```
+GET    /api/ee/license/
+PUT    /api/ee/license/
+DELETE /api/ee/license/
+```
+
+Requires `license.manage` (platform staff, or the admin of a single-organisation install), and only exists when the Enterprise code is installed. `GET` describes the installed license (`status`: `none`, `valid`, `expired` or `invalid`), never the key itself. `PUT` installs a key, as JSON `{"license": "<key>"}` or a multipart `file` upload, replacing any previous one; a key that is not genuine or already expired is refused with `400` and the reason. `DELETE` removes it. Both are recorded in the audit log (`SETTINGS_CHANGE`, `setting: enterprise_license`).
+
+The key is a JSON document signed with Ed25519, verified offline on the server: no license server, no network call, no telemetry. When it expires, Enterprise features switch off; no data is deleted.
 
 ---
 

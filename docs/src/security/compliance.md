@@ -30,16 +30,23 @@ Every significant action is logged with:
 | `PASSWORD_CHANGE` | Password updated |
 | `SETTINGS_CHANGE` | Any settings modified |
 | `SERVICE_CREATE` | Service added to project |
+| `SERVICE_UPDATE` | Service changed |
 | `SERVICE_DELETE` | Service removed |
 | `BATCH_DELETE` | Batch deleted |
 | `BATCH_CLEANUP` | Auto-cleanup ran |
 | `TEAM_INVITE` | User invited |
 | `TEAM_REMOVE` | User removed |
-| `TEAM_ROLE_CHANGE` | Role updated |
+| `TEAM_ROLE_CHANGE` | Role updated, in SerOps or from SSO (`source: sso`) |
+| `ROLE_CREATE` / `ROLE_UPDATE` / `ROLE_DELETE` | Custom role created, changed (with its permissions before and after), deleted |
+| `TEAM_CREATE` / `TEAM_UPDATE` / `TEAM_DELETE` | Team created, changed (members, including SSO membership changes), deleted |
+| `PROJECT_ACCESS_CHANGE` | A project's access mode or team grants changed (before and after) |
 | `AI_MODEL_CHANGE` | AI provider changed |
+| `NOTIFICATION_TEST` | Test notification sent |
 | `EXPORT_DATA` | Data exported |
 | `INVESTIGATION_RUN` | Investigation started |
 | `ACCESS_DENIED` | A request was refused because the user's role lacks the permission. Details name the permission, role, method and path. Recorded once per user and path every 10 minutes |
+| `SSO_PROVISION` | Account created at a first SSO sign-in (email domain listed) |
+| `SSO_DENIED` | SSO sign-in refused: the person is in no mapped group and the default is *Refuse sign-in* |
 | `ACCOUNT_DELETE` | User deleted their account |
 | `ORG_DELETE` | Organisation deleted |
 
@@ -139,7 +146,8 @@ What is removed:
 What is retained (and why):
 
 - Organisation-scoped batches, issues, and analysis history remain under the organisation's control — they may be relied on by other members and are not tied to the deleted user's identity
-- Audit log entries about the user are kept for compliance (they store the acting user ID at the time of the action, not personal data)
+- Audit log entries about the user are kept for compliance, with the user's email replaced by `user:<id>` wherever it appears. IP addresses in those entries remain until your audit retention removes them
+- Application log files name users by ID. Files written by earlier versions may still hold email addresses until they rotate out
 
 If the user is the sole admin of an organisation, the request is rejected until admin is transferred or the organisation itself is deleted via `DELETE /api/organisation/delete/{id}/`. This prevents accidental orphaning of shared data.
 

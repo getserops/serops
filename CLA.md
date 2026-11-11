@@ -1,20 +1,22 @@
 # SerOps Contributor License Agreement
 
-> **Status: draft pending legal review.** This document was prepared from the
-> structure of the Apache Software Foundation's Individual CLA, which is the
-> most widely used and widely understood shape in open source. It has **not**
-> been reviewed by a lawyer. Do not require signatures against this text until
-> it has been reviewed.
+> Based on the structure of the Apache Software Foundation's Individual CLA,
+> the most widely used shape in open source, adapted for the Community +
+> Enterprise model. In force from 2026-10-25.
 
 ## Why this exists
 
 SerOps is published under the [GNU Affero General Public License v3](./LICENSE),
 and a [commercial license](./LICENSE-COMMERCIAL.md) is offered to organisations
 that cannot accept AGPL copyleft, or that want to build a proprietary product on
-top of SerOps.
+top of SerOps. The repository also holds the SerOps Enterprise edition: the
+`ee/` directories, under the source-available
+[SerOps Enterprise License](./backend/ee/LICENSE), which add governance
+features to the complete Community edition (see the
+[open source promise](https://serops.ai/docs/open-source-promise/)).
 
-Offering that second license requires the project to hold sufficient rights over
-**all** of the code it covers. A contribution accepted without those rights
+Offering those licenses requires the project to hold sufficient rights over
+**all** of the code they cover. A contribution accepted without those rights
 cannot be included in a commercially licensed release, and the practical
 consequence is awkward: either the commercial release has to omit the
 contribution, or every past contributor has to be tracked down for permission
@@ -22,8 +24,8 @@ years later.
 
 This agreement keeps that from happening. It does not take your copyright — you
 keep it, and you remain free to use your own contribution however you like. It
-grants SerOps the rights it needs to ship your work in both the open-source and
-the commercially licensed editions.
+grants SerOps the rights it needs to ship your work in the open-source edition,
+in the Enterprise edition and in commercially licensed releases.
 
 If you would rather not sign, that is a legitimate choice. Bug reports, issue
 triage, reproduction cases, documentation feedback and design discussion are all
@@ -44,8 +46,11 @@ or its maintainers, including source code, documentation, configuration, and
 issue or pull-request content — excluding anything You conspicuously mark in
 writing as **"Not a Contribution."**
 
+**"SerOps"** means SerOps, a Tunisian single-member limited liability company (SUARL), Ariana Center, Block C, Office C408, Avenue du 18 Janvier, 2080 Ariana Ville, Tunisia, which
+maintains the SerOps software, and its successors and assigns.
+
 **"Project"** means the SerOps software distributed from the SerOps repository,
-together with the project's maintainers and its designated commercial steward.
+in all its editions (Community and Enterprise), together with SerOps.
 
 ---
 
@@ -60,9 +65,12 @@ distribute Your Contribution and such derivative works.
 
 **This license expressly includes the right to distribute Your Contribution
 under terms other than the AGPL-3.0, including proprietary and commercial
-terms, and to sublicense those rights to third parties.** This is the clause
-that allows Your Contribution to appear in a commercially licensed SerOps
-release. It does not restrict You: You keep every right You had before, and may
+terms, and to sublicense those rights to third parties.** It includes in
+particular the right to include Your Contribution in, or combine it with, the
+SerOps Enterprise edition and other commercially licensed SerOps releases, and
+to license Contributions made to an `ee/` directory under the SerOps
+Enterprise License. This is the clause that allows Your Contribution to appear
+in those editions. It does not restrict You: You keep every right You had before, and may
 license Your own Contribution to anyone else on any terms.
 
 ---
@@ -149,25 +157,20 @@ on the schedule are not covered.
 
 ## 9. How to accept
 
-Until the repository is public, signatures are handled by email —
-**licensing@serops.ai** — with the subject `SerOps CLA` and the
-following statement:
+On your first pull request, the CLA assistant bot comments with a link to this
+document. To accept, reply on the pull request with:
 
-> I have read the SerOps Contributor License Agreement and I accept it.
-> Name: …
-> Email: …
-> Repository account: …
-> Date: …
+> I have read the CLA Document and I hereby sign the CLA
 
-Once the repository is published, acceptance will be collected automatically on
-each pull request by a CLA assistant bot, which records the signature against
-the account and blocks merge until it is present. That is the mechanism to wire
-up at publish time; see `CONTRIBUTING.md`.
+The bot records your GitHub account, the date and the pull request, and
+marks the check as passed; you sign once, for every later pull request. A
+legal entity (§8) signs by email to **licensing@serops.ai**, with the
+subject `SerOps corporate CLA` and the details in §8.
 
 ---
 
 ## 10. Scope
 
-This agreement covers Contributions to the SerOps repository: `backend/`,
-`frontend/`, `docs/`, and `deploy/`. It governs only the rights described above
+This agreement covers Contributions to the whole SerOps repository, including
+`backend/`, `frontend/`, `docs/`, `deploy/` and the `ee/` directories. It governs only the rights described above
 and creates no employment, partnership, or agency relationship.

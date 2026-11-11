@@ -54,6 +54,7 @@ PERMISSIONS = {
     # Platform (not granted by an organisation role)
     'ai_catalogue.manage': 'The AI provider catalogue shared by every organisation',
     'platform.manage': 'Install-wide operations (AI circuit breakers)',
+    'license.manage': 'Install or remove the Enterprise license key (install-wide)',
 }
 
 _VIEWER = [
@@ -69,7 +70,77 @@ _ADMIN = _USER + [
 
 ROLE_PERMISSIONS = {'viewer': _VIEWER, 'user': _USER, 'admin': _ADMIN}
 
-PLATFORM_PERMISSIONS = {'ai_catalogue.manage', 'platform.manage'}
+PLATFORM_PERMISSIONS = {'ai_catalogue.manage', 'platform.manage', 'license.manage'}
+
+# Custom roles (Users.models.CustomRole) pick from these.
+ASSIGNABLE_PERMISSIONS = set(PERMISSIONS) - PLATFORM_PERMISSIONS
+# Every role holds these: without them a member can't sign out or load
+# the app.
+ALWAYS_GRANTED = {'self.manage', 'org.read'}
+# Holding the left one is useless without the right one.
+IMPLIES = {
+    'project.write': 'project.read', 'project.delete': 'project.read',
+    'batch.analyze': 'batch.read', 'issue.update': 'issue.read',
+    'integration.use': 'integration.read', 'integration.manage': 'integration.read',
+    'alerting.manage': 'alerting.read', 'settings.manage': 'settings.read',
+}
+BUILTIN_ROLES = ('viewer', 'user', 'admin')
+
+
+def normalise_permissions(codes):
+    """A custom role's permission list: validated, with the permissions
+    every role holds and the ones the chosen ones imply. Raises ValueError."""
+    if not isinstance(codes, (list, tuple, set)):
+        raise ValueError('permissions must be a list')
+    unknown = sorted(c for c in codes if c not in ASSIGNABLE_PERMISSIONS)
+    if unknown:
+        raise ValueError(f'Not assignable: {", ".join(map(str, unknown))}')
+    granted = set(codes) | ALWAYS_GRANTED
+    granted |= {IMPLIES[c] for c in granted if c in IMPLIES}
+    return sorted(granted)
+
+
+def role_permissions(user):
+    """Permissions of the user's organisation role (built-in or custom)."""
+    role = getattr(user, 'role', None)
+    if role == 'custom':
+        custom = getattr(user, 'custom_role', None)
+        if custom is None:
+            return set(ALWAYS_GRANTED)
+        return (set(custom.permissions or ()) & ASSIGNABLE_PERMISSIONS) | ALWAYS_GRANTED
+    return set(ROLE_PERMISSIONS.get(role, ()))
+
+
+def role_key(user):
+    """'viewer' | 'user' | 'admin' | 'custom:<id>': one string per role."""
+    if getattr(user, 'role', None) == 'custom' and getattr(user, 'custom_role_id', None):
+        return f'custom:{user.custom_role_id}'
+    return getattr(user, 'role', None)
+
+
+def resolve_role_key(organisation, key):
+    """(role, custom_role) for a role key of this organisation; ValueError otherwise."""
+    if key in BUILTIN_ROLES:
+        return key, None
+    if isinstance(key, str) and key.startswith('custom:') and key[7:].isdigit():
+        from Users.models import CustomRole
+        custom = CustomRole.objects.filter(pk=int(key[7:]), organisation=organisation).first()
+        if custom is not None:
+            return 'custom', custom
+    raise ValueError(f'Unknown role {key!r}')
+
+
+def key_permissions(organisation, key):
+    """The permissions a role key grants."""
+    role, custom = resolve_role_key(organisation, key)
+    if custom is not None:
+        return (set(custom.permissions or ()) & ASSIGNABLE_PERMISSIONS) | ALWAYS_GRANTED
+    return set(ROLE_PERMISSIONS[role])
+
+
+def can_grant(actor, permissions):
+    """No escalation: a member only hands out permissions they hold."""
+    return set(permissions) <= set(get_user_permissions(actor))
 
 
 def can_manage_shared_settings(user):
@@ -87,7 +158,7 @@ def can_manage_shared_settings(user):
 
 
 def _platform_permission(user, code):
-    if code == 'ai_catalogue.manage':
+    if code in ('ai_catalogue.manage', 'license.manage'):
         return can_manage_shared_settings(user)
     if code == 'platform.manage':
         return bool(getattr(user, 'is_staff', False))
@@ -102,14 +173,14 @@ def has_permission(user, code):
         return False
     if code in PLATFORM_PERMISSIONS:
         return _platform_permission(user, code)
-    return code in ROLE_PERMISSIONS.get(getattr(user, 'role', None), ())
+    return code in role_permissions(user)
 
 
 def get_user_permissions(user):
     """Every permission ``user`` holds, sorted (sent to the UI)."""
     if not user or not getattr(user, 'is_authenticated', False):
         return []
-    granted = set(ROLE_PERMISSIONS.get(getattr(user, 'role', None), ()))
+    granted = role_permissions(user)
     granted.update(code for code in PLATFORM_PERMISSIONS if _platform_permission(user, code))
     return sorted(granted)
 
@@ -175,6 +246,11 @@ def Requires(default=None, **by_key):
                                request.method, getattr(view, 'action', None), type(view).__name__)
                 return False
             allowed = has_permission(request.user, code)
+            if not allowed:
+                # A team grant may give a project-scoped permission on some
+                # projects; the view's scope() keeps the request to those.
+                from Middlewares.project_access import holds_through_grant
+                allowed = holds_through_grant(request.user, code)
             if not allowed:
                 logger.info('Permission denied: %s lacks %s (%s %s)',
                             getattr(request.user, 'email', '?'), code, request.method, request.path)

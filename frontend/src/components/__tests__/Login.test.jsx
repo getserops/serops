@@ -89,4 +89,10 @@ describe('Login', () => {
     renderAt('/login?sso=failed');
     expect(await screen.findByText('login.ssoSignInFailed')).toBeInTheDocument();
   });
+
+  it('explains an SSO sign-in refused for lack of a mapped group', async () => {
+    status({ registration_enabled: false, demo_available: false, demo_only: false });
+    renderAt('/login?sso=denied');
+    expect(await screen.findByText('login.ssoDenied')).toBeInTheDocument();
+  });
 });

@@ -1,3 +1,4 @@
+import hashlib
 from Middlewares.rbac import Requires
 import secrets
 from django.http import Http404, HttpResponse
@@ -23,14 +24,22 @@ import jwt
 from django.conf import settings
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.exceptions import ValidationError
+from django.contrib.auth.password_validation import validate_password
+from django.core.validators import validate_email
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 import logging
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from Data.audit import log_login, log_logout, log_action
+from .models import SecuritySettings
 
 # Get Logger
 logger = logging.getLogger(__name__)
+
+
+def _email_ref(email):
+    """Lets log lines about one address be matched up without storing it."""
+    return hashlib.sha256((email or '').strip().lower().encode()).hexdigest()[:12]
 
 AVATAR_MAX_SIDE = 128
 
@@ -179,17 +188,17 @@ class RegisterView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            logger.debug(f"Attempting to register user with email {email}")
+            logger.debug(f"Attempting to register user with email ref {_email_ref(email)}")
 
             if user_data.get('password') != user_data.get('password_confirmation'):
-                logger.warning(f"Password mismatch for user {email}")
+                logger.warning(f"Password mismatch for user {_email_ref(email)}")
                 return Response(
                     {"error": "Passwords do not match"}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
             if User.objects.filter(email=email).exists():
-                logger.error(f"Registration failed: Email {email} already exists")
+                logger.error(f"Registration failed: Email ref {_email_ref(email)} already exists")
                 return Response(
                     {"error": "Email already exists"}, 
                     status=status.HTTP_400_BAD_REQUEST
@@ -208,11 +217,11 @@ class RegisterView(APIView):
             organisation_serializer = OrganisationSerializer(data=organisation_data)
 
             if not serializer.is_valid():
-                logger.error(f"User validation failed for {email}: {serializer.errors}")
+                logger.error(f"User validation failed for {_email_ref(email)}: {serializer.errors}")
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
             if not organisation_serializer.is_valid():
-                logger.error(f"Organisation validation failed for user {email}: {organisation_serializer.errors}")
+                logger.error(f"Organisation validation failed for user {_email_ref(email)}: {organisation_serializer.errors}")
                 return Response(organisation_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
             # SaaS: Initialize 14-Day Free Trial
@@ -243,9 +252,9 @@ class RegisterView(APIView):
                 try:
                     email_sent = bool(send_activation_link(user, request))
                 except Exception as e:
-                    logger.error(f"Failed to send activation email to {email}: {str(e)}")
+                    logger.error(f"Failed to send activation email to {_email_ref(email)}: {str(e)}")
 
-            logger.info(f"User registered: {email}, role: admin, is_active: {user.is_active}")
+            logger.info(f"User registered: {_email_ref(email)}, role: admin, is_active: {user.is_active}")
 
             response_data = serializer.data
             if email_configured:
@@ -323,7 +332,7 @@ class LoginView(APIView):
 
             # Check if account is activated
             if not user.is_active:
-                logger.warning(f"Login attempt rejected: account not activated for user {email}")
+                logger.warning(f"Login attempt rejected: account not activated for user {_email_ref(email)}")
                 return Response(
                     {'error': 'Your account is not activated. Please check your email and activate your account first.'}, 
                     status=status.HTTP_403_FORBIDDEN
@@ -335,7 +344,7 @@ class LoginView(APIView):
             }
 
             if user.status in status_messages:
-                logger.warning(f"Login attempt rejected: {user.status} account for user {email}")
+                logger.warning(f"Login attempt rejected: {user.status} account for user {_email_ref(email)}")
                 return Response(
                     {'error': status_messages[user.status]}, 
                     status=status.HTTP_401_UNAUTHORIZED
@@ -367,7 +376,7 @@ class LoginView(APIView):
                 }, status=status.HTTP_200_OK)
 
             except Exception as e:
-                logger.error(f"Token creation failed for user {email}: {str(e)}")
+                logger.error(f"Token creation failed for user {_email_ref(email)}: {str(e)}")
                 return Response(
                     {'error': 'Authentication failed. Please try again.'}, 
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -454,10 +463,10 @@ class LogoutView(APIView):
     def post(self, request):
         logger.debug("Received logout request")
         user = request.user
-        logger.debug(f"User {user.email} is attempting to log out.")
+        logger.debug(f"User {user.pk} is attempting to log out.")
         token = request.auth
         if not token:
-            logger.warning(f"Logout failed: No authentication token provided by user {user.email}")
+            logger.warning(f"Logout failed: No authentication token provided by user {user.pk}")
             return Response({"error": "Invalid token or already logged out."}, status=status.HTTP_400_BAD_REQUEST)
         try:
             # Log logout before deleting token/session to ensure valid state
@@ -467,12 +476,12 @@ class LogoutView(APIView):
             request._auth.delete()
             auth.logout(request)
             
-            logger.info(f"User {user.email} successfully logged out.")
+            logger.info(f"User {user.pk} successfully logged out.")
             return Response({
                 "message": "You have successfully logged out.",
             }, status=status.HTTP_200_OK)
         except Exception as e:
-            logger.error(f"Logout error for user {user.email}: {str(e)}")
+            logger.error(f"Logout error for user {user.pk}: {str(e)}")
             return Response({"error": "Logout failed due to an internal error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class EmailVerification(APIView):
@@ -516,7 +525,7 @@ class EmailVerification(APIView):
         try:
             user = User.objects.get(pk=user_id)
             if user.is_active:
-                logger.info(f"User {user.email} (ID: {user_id}) is already active.")
+                logger.info(f"User {user_id} is already active.")
                 return Response({"message": "Your account is already activated."}, status=200)
             if user.last_login is not None:
                 # Activation is for new accounts. One that signed in before
@@ -528,7 +537,7 @@ class EmailVerification(APIView):
             user.is_active = True
             user.save()
             
-            logger.info(f"User {user.email} (ID: {user_id}) successfully activated via email verification.")
+            logger.info(f"User {user_id} successfully activated via email verification.")
             return Response({"message": "You have successfully activated your account. You can now log in."}, status=200)
             
         except User.DoesNotExist:
@@ -537,6 +546,29 @@ class EmailVerification(APIView):
         except Exception as e:
             logger.exception(f"Unexpected error activating user {user_id}: {str(e)}")
             return Response({"error": "Something went wrong while activating your account."}, status=500)
+
+def _refuse_email_change(request, user, new_email):
+    """The error response when this user may not move to ``new_email``, else None.
+
+    A stolen token must not be enough to take the account for good, and an
+    address another organisation's SSO claims must stay free for its owner.
+    """
+    if not user.has_usable_password():
+        return Response({"error": "Your email is managed by your identity provider."}, status=400)
+    if not user.check_password(request.data.get('current_password') or ''):
+        return Response({"error": "Enter your current password to change your email."}, status=400)
+    try:
+        validate_email(new_email)
+    except ValidationError:
+        return Response({"error": "Enter a valid email address."}, status=400)
+    if User.objects.filter(email__iexact=new_email).exists():
+        return Response({"error": "Email address already used!"}, status=400)
+    domain = new_email.rsplit('@', 1)[1].lower()
+    if SecuritySettings.objects.filter(sso_enabled=True, sso_domains__contains=[domain]).exclude(
+            organisation_id=user.organisation_id).exists():
+        return Response({"error": "This email address cannot be used."}, status=400)
+    return None
+
 
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated, Requires(GET='self.manage', POST='self.manage')]
@@ -551,10 +583,10 @@ class ProfileView(APIView):
     def get(self, request):
         """Retrieve the authenticated user's profile."""
         try:
-            logger.debug(f"Fetching profile for user {request.user.email}")
+            logger.debug(f"Fetching profile for user {request.user.pk}")
             user = get_object_or_404(User, id=request.user.id)
             serializer = UserSerializer(user)
-            logger.info(f"Profile successfully retrieved for user {user.email}")
+            logger.info(f"Profile successfully retrieved for user {user.pk}")
             return Response(serializer.data, status=200)
         except Exception as e:
             logger.exception(f"Unexpected error while retrieving profile: {str(e)}")
@@ -580,38 +612,80 @@ class ProfileView(APIView):
     def post(self, request):
         """Update the authenticated user's profile."""
         try:
-            logger.debug(f"Updating profile for user {request.user.email}")
+            logger.debug(f"Updating profile for user {request.user.pk}")
             user = get_object_or_404(User, id=request.user.id)
 
-            email = request.data.get('email', user.email)
+            new_email = (request.data.get('email') or user.email).strip()
+            changing_email = new_email.lower() != user.email.lower()
             phone = request.data.get('phone', user.phone)
             first_name = request.data.get('first_name', user.first_name)
             last_name = request.data.get('last_name', user.last_name)
 
-            # Check if the email is being changed and if it already exists
-            if email != user.email and User.objects.filter(email=email).exists():
-                logger.warning(f"Email update failed for user {user.email}: {email} already in use")
-                return Response({"error": "Email address already used!"}, status=400)
+            # The address changes only once its owner confirms it, see
+            # ConfirmEmailChangeView.
+            if changing_email:
+                refused = _refuse_email_change(request, user, new_email)
+                if refused:
+                    return refused
 
             # Check if the phone is being changed and if it already exists
             if phone != user.phone and User.objects.filter(phone=phone).exists():
-                logger.warning(f"Phone update failed for user {user.email}: {phone} already in use")
+                logger.warning(f"Phone update failed for user {user.pk}: {phone} already in use")
                 return Response({"error": "Phone number already used!"}, status=400)
 
             # Perform the update
-            user.email = email
             user.phone = phone
             user.first_name = first_name
             user.last_name = last_name
             user.save()
 
-            serializer = UserSerializer(user)
-            logger.info(f"Profile successfully updated for user {user.email}")
-            return Response(serializer.data, status=200)
+            payload = dict(UserSerializer(user).data)
+            if changing_email:
+                from Utils.email_utils import send_email_change_link
+                if not send_email_change_link(user, new_email):
+                    return Response(
+                        {"error": "The confirmation email could not be sent. Ask your administrator to check the mail settings."},
+                        status=502,
+                    )
+                payload['email_change_pending'] = new_email
+            logger.info(f"Profile successfully updated for user {user.pk}")
+            return Response(payload, status=200)
 
         except Exception as e:
-            logger.exception(f"Unexpected error while updating profile for {request.user.email}: {str(e)}")
+            logger.exception(f"Unexpected error while updating profile for {request.user.pk}: {str(e)}")
             return Response({"error": "Something went wrong while updating your profile."}, status=500)
+
+class ConfirmEmailChangeView(APIView):
+    """Applies an email change from the link sent to the new address.
+
+    A POST, from a page with a button, so a mail scanner opening the link
+    changes nothing. Every session ends: whoever asked for the change has
+    to sign in with the new address.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request, token):
+        from Utils.email_utils import read_email_change_token, send_email_changed_notice
+        invalid = Response({"error": "This link is invalid, expired or already used."}, status=400)
+        try:
+            user, new_email = read_email_change_token(token)
+        except (signing.BadSignature, User.DoesNotExist):
+            logger.warning("Email change: invalid or used token presented")
+            return invalid
+        if not user.is_active or user.is_demo or User.objects.filter(email__iexact=new_email).exists():
+            return invalid
+
+        old_email = user.email
+        user.email = new_email
+        user.save(update_fields=['email'])
+        AuthToken.objects.filter(user=user).delete()
+        send_email_changed_notice(old_email, new_email)
+        log_action(request, 'SETTINGS_CHANGE',
+                   {'setting': 'account_email', 'old_email': old_email, 'new_email': new_email}, user=user)
+        logger.info(f"Email changed for user id {user.pk}")
+        return Response({"success": "Your email is changed. Sign in with the new address."}, status=200)
+
 
 class UpdatePasswordView(APIView):
     permission_classes = [IsAuthenticated, Requires(POST='self.manage')]
@@ -634,20 +708,24 @@ class UpdatePasswordView(APIView):
         }
     )
     def post(self, request):
-        logger.debug(f"Password update requested for user {request.user.email}")
+        logger.debug(f"Password update requested for user {request.user.pk}")
         user = User.objects.get(id=request.user.id)
         old_password = request.data.get('old_password')
         new_password = request.data.get('new_password')
         new_password_copy = request.data.get('new_password_copy')
         if not old_password or not new_password or not new_password_copy:
-            logger.warning(f"Password update failed: missing required fields for user {user.email}")
+            logger.warning(f"Password update failed: missing required fields for user {user.pk}")
             return Response({'error': 'Old password and new password are required fields'}, status=400)
         if not user.check_password(old_password):
-            logger.warning(f"Password update failed: invalid old password for user {user.email}")
+            logger.warning(f"Password update failed: invalid old password for user {user.pk}")
             return Response({'error': 'Invalid old password'}, status=400)
         if new_password != new_password_copy:
-            logger.warning(f"Password update failed: new passwords don't match for user {user.email}")
+            logger.warning(f"Password update failed: new passwords don't match for user {user.pk}")
             return Response({'error': 'Invalid new password'}, status=400)
+        try:
+            validate_password(new_password, user=user)
+        except ValidationError as exc:
+            return Response({'error': ' '.join(exc.messages)}, status=400)
         user.set_password(new_password)
         user.save()
 
@@ -674,14 +752,14 @@ class ResendVerificationLinkView(APIView):
         }
     )
     def get(self, request):
-        logger.debug(f"Resend verification requested for user {request.user.email}")
+        logger.debug(f"Resend verification requested for user {request.user.pk}")
         user = User.objects.get(id=request.user.id)
         if user.is_active == True:
-            logger.warning(f"Verification resend rejected: account already active for user {user.email}")
+            logger.warning(f"Verification resend rejected: account already active for user {user.pk}")
             return Response({'error': 'Account Already activated'}, status=400)
         if not send_activation_link(user, request):
             return Response({'error': 'The activation email could not be sent. Ask your SerOps administrator to check the mail settings.'}, status=502)
-        logger.info(f"Verification email resent to user {user.email}")
+        logger.info(f"Verification email resent to user {user.pk}")
         return Response({'success': 'Email was sent successfully'})
 
 class AcceptInvitationView(APIView):
@@ -826,15 +904,14 @@ class SetPasswordView(APIView):
             new_password_confirm = request.data.get('new_password_confirm')
             
             if not new_password or not new_password_confirm:
-                logger.warning(f"Password reset failed: missing password for user {user.email}")
+                logger.warning(f"Password reset failed: missing password for user {user.pk}")
                 return Response({'new_password': 'Password is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
             if new_password != new_password_confirm:
-                logger.warning(f"Password reset failed: passwords don't match for user {user.email}")
+                logger.warning(f"Password reset failed: passwords don't match for user {user.pk}")
                 return Response({'new_password_confirm': 'Passwords do not match.'}, status=status.HTTP_400_BAD_REQUEST)
 
             # Enforce AUTH_PASSWORD_VALIDATORS on reset, as register does.
-            from django.contrib.auth.password_validation import validate_password
             try:
                 validate_password(new_password, user=user)
             except ValidationError as exc:
@@ -922,10 +999,15 @@ class InvitationsetPasswordView(APIView):
             logger.warning("Invitation password set: invalid or used token presented")
             return Response({"error": "Invalid invitation token"}, status=401)
 
+        try:
+            validate_password(password, user=user)
+        except ValidationError as exc:
+            return Response({"error": ' '.join(exc.messages)}, status=400)
+
         user.set_password(password)
         user.save()
         log_action(request, 'PASSWORD_CHANGE', user=user)
-        logger.info(f"Password successfully set for invited user {user.email}")
+        logger.info(f"Password successfully set for invited user {user.pk}")
         return Response({'success': 'Password updated successfully'}, status=200)
 
 class ProfileAvatarView(APIView):
@@ -948,11 +1030,11 @@ class ProfileAvatarView(APIView):
         try:
             user.avatar_png = to_small_png(upload, AVATAR_MAX_SIDE)
         except ImageRejected as exc:
-            logger.warning(f"Avatar rejected for user {user.email}: {exc}")
+            logger.warning(f"Avatar rejected for user {user.pk}: {exc}")
             return Response({'error': str(exc)}, status=400)
         user.avatar_key = secrets.token_hex(16)
         user.save(update_fields=['avatar_png', 'avatar_key'])
-        logger.info(f"Avatar updated for user {user.email}")
+        logger.info(f"Avatar updated for user {user.pk}")
         return Response({'avatar': UserSerializer(user).data['avatar']}, status=200)
 
     @swagger_auto_schema(operation_description="Remove the user's avatar", responses={204: 'Removed'})
@@ -995,17 +1077,14 @@ class DeleteAccountView(APIView):
       - All Knox tokens for the user are revoked.
       - Owned ChatSessions, ChatMessages, LogAnalyses, and Notifications
         are deleted via the on_delete=CASCADE FK on those models.
-      - AuditLog rows have ``on_delete=SET_NULL`` on the user FK, so the
-        compliance trail is preserved but no longer identifies the user.
-      - If the user is the sole admin of their organisation, the
-        organisation itself is deleted (which cascades all org-scoped
-        data: projects, services, batches, issues, integrations,
-        settings, audit logs).
-      - Otherwise the organisation stays — other admins keep their access.
+      - AuditLog rows stay, with the user's email replaced by ``user:<id>``
+        wherever it appears.
+      - The sole admin of an organisation is refused (409): deleting them
+        used to delete the organisation and every other member with it.
+        Make someone else admin, or delete the organisation itself.
+      - Other admins keep their access.
 
-    An ACCOUNT_DELETE (or ORG_DELETE when the org goes too) AuditLog row
-    is written BEFORE the destructive operation so the action is
-    recorded even when the org is being purged.
+    An ACCOUNT_DELETE AuditLog row is written with the deletion.
     """
     permission_classes = [IsAuthenticated, Requires(DELETE='self.manage')]
 
@@ -1017,13 +1096,13 @@ class DeleteAccountView(APIView):
         responses={
             204: 'Account deleted',
             400: 'Missing or invalid confirmation token',
+            409: 'The user is the sole admin of their organisation',
             500: 'Internal Server Error',
         },
     )
     def delete(self, request):
         from django.db import transaction
-        from django.db.models import Q
-        from Organisations.models import Organisations
+        from Data.audit import forget_email
 
         if request.data.get('confirm') != 'DELETE':
             return Response(
@@ -1032,60 +1111,38 @@ class DeleteAccountView(APIView):
             )
 
         user = request.user
-        org = user.organisation
-        user_email_for_log = user.email
         user_id_for_log = user.id
 
-        # Decide whether the org goes too. The user is the "sole admin"
-        # when no other active admin shares the organisation.
-        delete_org = False
-        if org is not None:
-            other_admins_exist = User.objects.filter(
-                organisation=org,
-                role='admin',
-                is_active=True,
-            ).filter(~Q(pk=user.pk)).exists()
-            if not other_admins_exist:
-                delete_org = True
+        if user.organisation_id and user.role == 'admin' and not User.objects.filter(
+            organisation_id=user.organisation_id, role='admin', is_active=True,
+        ).exclude(pk=user.pk).exists():
+            return Response(
+                {'error': 'You are the only admin of this organisation. Make someone else admin, '
+                          'or delete the organisation.'},
+                status=status.HTTP_409_CONFLICT,
+            )
 
         try:
             with transaction.atomic():
-                # Write the audit log BEFORE the destructive op so the
-                # row survives even when the org is cascaded away.
-                # When delete_org is True the AuditLog row will be
-                # cascade-deleted with the org, which is GDPR-correct —
-                # the trail goes with the data.
                 log_action(
                     request,
-                    'ORG_DELETE' if delete_org else 'ACCOUNT_DELETE',
-                    details={
-                        'deleted_user_id': user_id_for_log,
-                        'deleted_user_email': user_email_for_log,
-                        'org_deleted': delete_org,
-                    },
+                    'ACCOUNT_DELETE',
+                    details={'deleted_user_id': user_id_for_log},
                 )
+                forget_email(user)
 
-                # Revoke every Knox token for this user (cascade would
-                # take them too, but doing it explicitly leaves no
-                # window where a stolen token could outlive the user).
+                # Cascade would take the tokens too; explicit leaves no
+                # window where a stolen token could outlive the user.
                 AuthToken.objects.filter(user=user).delete()
-
-                if delete_org:
-                    from Organisations.deletion import delete_organisation
-                    delete_organisation(org)
-                else:
-                    user.delete()
-        except Exception as e:
-            logger.exception(f"Failed to delete account for {user_email_for_log}: {e}")
+                user.delete()
+        except Exception:
+            logger.exception("Failed to delete account of user %s", user_id_for_log)
             return Response(
                 {'error': 'Account deletion failed. Please try again.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        logger.info(
-            f"GDPR account deletion completed: user_id={user_id_for_log}, "
-            f"email={user_email_for_log}, org_deleted={delete_org}"
-        )
+        logger.info("GDPR account deletion completed: user_id=%s", user_id_for_log)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

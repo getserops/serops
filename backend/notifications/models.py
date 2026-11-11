@@ -153,13 +153,14 @@ class UserNotificationPreference(models.Model):
     @classmethod
     def get_or_create_for_user(cls, user):
         """Get or create preferences for a user with role-based defaults."""
+        from Middlewares.rbac import has_permission
         prefs, created = cls.objects.get_or_create(
             user=user,
             defaults={
                 'notify_critical': True,
-                'notify_warning': user.role in ('admin', 'user'),
+                'notify_warning': has_permission(user, 'issue.update'),
                 'notify_info': False,
-                'email_enabled': user.role == 'admin',
+                'email_enabled': has_permission(user, 'team.manage'),
             }
         )
         return prefs

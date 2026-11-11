@@ -153,7 +153,7 @@ const enterpriseSettingsService = {
 
     async initSSO(email) {
         try {
-            const response = await axios.post(`${API_BASE_URL}/auth/sso/init`, { email });
+            const response = await axios.post(`${API_BASE_URL}/auth/sso/init`, { email }, { withCredentials: true });
             return response.data;
         } catch (error) {
             console.error("Error initializing SSO:", error);

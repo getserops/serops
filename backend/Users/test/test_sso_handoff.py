@@ -48,14 +48,15 @@ class SSOCallbackHandoffTest(TestCase):
         self.client = APIClient()
 
     def _make_state(self):
-        from django.core import signing
-        return signing.dumps({'org_id': self.org.id})
+        from Users.test.test_sso_flow import start_flow
+        return start_flow(self.client, self.org.id)
 
     @patch('Users.sso_views.SSOService')
     def test_callback_sets_handoff_cookie_and_redirects_without_token(self, MockSSO):
         MockSSO.return_value.exchange_code_for_token.return_value = 'idp-token'
         MockSSO.return_value.get_user_info.return_value = {
             'email': self.user.email,
+            'email_verified': True,
             'given_name': 'Test',
             'family_name': 'User',
         }
@@ -80,7 +81,7 @@ class SSOCallbackHandoffTest(TestCase):
 
     def _cookie(self, MockSSO):
         MockSSO.return_value.exchange_code_for_token.return_value = 'idp-token'
-        MockSSO.return_value.get_user_info.return_value = {'email': self.user.email}
+        MockSSO.return_value.get_user_info.return_value = {'email': self.user.email, 'email_verified': True}
         response = self.client.get('/api/auth/sso/callback', {'code': 'c', 'state': self._make_state()})
         return response.cookies[SSO_HANDOFF_COOKIE]
 

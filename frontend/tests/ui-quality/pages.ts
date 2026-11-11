@@ -6,6 +6,7 @@ export const PAGES: [string, string][] = [
   ['issues', '/dash/issues'],
   ['data', '/dash/data'],
   ['batch', `/dash/data/details/${BATCH}`],
+  ['sample incident', '/dash/data/details/sample'],
   ['batch-metrics', `/dash/metrics/${BATCH}`],
   ['batch-code', `/dash/code-changes/${BATCH}`],
   ['batch-traces', `/dash/traces/batch/${BATCH}`],
@@ -17,8 +18,11 @@ export const PAGES: [string, string][] = [
   ['traces', '/dash/traces'],
   ['notifications', '/dash/notifications'],
   ['profile', '/dash/profile'],
+  ['email-confirm', '/email/confirm/preview-token'],
   ['settings', '/dash/settings'],
   ['settings-team', '/dash/settings/team'],
+  ['settings-roles', '/dash/settings/roles'],
+  ['settings-teams', '/dash/settings/teams'],
   ['settings-delivery', '/dash/settings/delivery'],
   ['settings-routing', '/dash/settings/routing-rules'],
   ['settings-ai', '/dash/settings/ai'],
@@ -33,4 +37,6 @@ export const PAGES: [string, string][] = [
   ['settings-preferences', '/dash/settings/preferences'],
   ['settings-traces', '/dash/settings/traces'],
   ['settings-clusters', '/dash/settings/clusters'],
+  // Enterprise (src/ee/): visible to the demo admin of a single-organisation install.
+  ['settings-license', '/dash/settings/license'],
 ];

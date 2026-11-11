@@ -17,6 +17,7 @@ tenant isolation is checked for every endpoint, the way
 test_permission_coverage checks permissions. Outbound HTTP and Celery are
 stubbed: a leaking call fails the test without reaching anything.
 """
+import importlib.util
 import re
 import uuid
 from unittest import mock
@@ -38,6 +39,7 @@ TARGETS = {
     'api/organisation/member/<int:id>/': {'id': 'member'},
     'api/organisation/update/<int:id>/': {'id': 'org'},
     'api/organisation/delete/<int:id>/': {'id': 'org'},
+    'api/organisation/teams/<int:pk>/': {'pk': 'team'},
     'api/chat/chats/<uuid:chat_id>/': {'chat_id': 'chat'},
     'api/chat/chats/delete/<uuid:chat_id>': {'chat_id': 'chat'},
     'api/chat/chats/<uuid:chat_id>/update/': {'chat_id': 'chat'},
@@ -101,6 +103,15 @@ TARGETS = {
     'api/traces/^traces/(?P<trace_id>[0-9a-fA-F]{32})/$': {'trace_id': 'trace'},
 }
 
+# Enterprise routes exist only when backend/ee/ is installed (CI also runs
+# without it). Their ids are walked like every other route.
+EE_TARGETS = {
+    'api/ee/roles/<int:pk>/': {'pk': 'custom_role'},
+    'api/ee/projects/<int:pk>/access/': {'pk': 'project'},
+}
+if importlib.util.find_spec('ee') is not None:
+    TARGETS.update(EE_TARGETS)
+
 PARAM = re.compile(r'<(?:\w+:)?(\w+)>|\(\?P<(\w+)>[^)]*\)')
 
 
@@ -146,12 +157,12 @@ class TenantCoverageTest(TestCase):
         from notifications.models import (EscalationRule, IncidentNotificationChannel, Notification,
                                           NotificationRoutingRule, ProjectSubscription)
         from org_settings.models import AIModelProvider, OrganisationAPIKey
-        from Organisations.models import Organisations
+        from Organisations.models import Organisations, Team
         from Projects.models import CICDBinding, Project, ProjectDeployment, ProjectEnvironment, ProjectService, SCMBinding
         from providers.models import GitlabProject, Pipeline, ProviderIntegration
         from Services.models import CustomService, InfraService, SCMService
         from traces.models import IngestKey, Trace
-        from Users.models import User
+        from Users.models import CustomRole, User
 
         now = timezone.now()
         m = MARKER
@@ -197,6 +208,9 @@ class TenantCoverageTest(TestCase):
         trace_id = uuid.uuid4().hex
         cls.seed = {
             'org': a.id,
+            'team': Team.objects.create(organisation=a, name=f'{m} sre').id,
+            'custom_role': CustomRole.objects.create(
+                organisation=a, name=f'{m} responders', permissions=['org.read', 'self.manage']).id,
             'member': member.id,
             'project': project.id,
             'project_service': service.id,
@@ -238,7 +252,12 @@ class TenantCoverageTest(TestCase):
         # A crash comes back as a 500 (listed by test_no_route_crashes) rather
         # than stopping the walk.
         self.client = APIClient(raise_request_exception=False)
-        self.client.force_authenticate(user=self.caller())
+        # A real token, as a browser sends it: cached responses (cache_page)
+        # vary on the Authorization header, which force_authenticate lacks.
+        from django.core.cache import cache
+        from knox.models import AuthToken
+        cache.clear()
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + AuthToken.objects.create(self.caller())[1])
         for target in ('requests.Session.request', 'httpx.Client.send', 'celery.app.task.Task.apply_async'):
             patcher = mock.patch(target, side_effect=_offline) if 'celery' not in target else \
                 mock.patch(target, return_value=mock.MagicMock(id='stub'))

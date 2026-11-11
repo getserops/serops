@@ -84,7 +84,7 @@ If your operational model requires "developers see staging only" or "SREs see pr
 |---|---|---|
 | Organisation | Hard — every queryset filters on `organisation` FK | No — always enforced |
 | Role (viewer / user / admin) | Hard — RBAC decorators on views | Yes — set per user |
-| Project | Soft — no separate ACL; anyone in the org can see any project | No |
+| Project | Open to the whole organisation by default; with Enterprise, a project can be kept to the teams given access (its **Access** tab) | Yes — per project (Enterprise) |
 | Environment | Filter, not boundary — see above | No |
 | Service / component | Filter, not boundary | No |
 
@@ -179,10 +179,10 @@ attacker gets from a database dump.
 
 | Secret | Storage | Recoverable? |
 |---|---|---|
-| AI provider API keys | Fernet-encrypted in `OrganisationAPIKey`, key derived from `SECRET_KEY` | Only with the app's `SECRET_KEY` |
+| AI provider API keys | Fernet-encrypted in `OrganisationAPIKey` with `SEROPS_ENCRYPTION_KEY` | Only with `SEROPS_ENCRYPTION_KEY` |
 | Alert-ingest secret | SHA-256 hash plus a short display prefix | **No** — plaintext is shown once at rotation and never stored |
-| Channel webhook URLs / API keys | Fernet-encrypted, write-only via the API | Only with `SECRET_KEY` |
-| Observability integration credentials (`password`, and `extra_config` secrets such as Datadog `api_key`/`app_key` and `bearer_token`) | Fernet-encrypted, write-only via the API | Only with `SECRET_KEY` |
+| Channel webhook URLs / API keys | Fernet-encrypted, write-only via the API | Only with `SEROPS_ENCRYPTION_KEY` |
+| Observability integration credentials (`password`, and `extra_config` secrets such as Datadog `api_key`/`app_key` and `bearer_token`) | Fernet-encrypted, write-only via the API | Only with `SEROPS_ENCRYPTION_KEY` |
 
 Write-only means what it says: once set, `webhook_url` and `api_key`
 are never returned by any endpoint. Responses expose the booleans
@@ -241,14 +241,6 @@ service = DataRedactionService(config={
     }
 })
 ```
-
-### Organization-Level Settings
-
-Admins can configure redaction behavior in **Settings → Security**:
-
-- Enable/disable specific pattern types
-
-- Export compliance reports
 
 ---
 

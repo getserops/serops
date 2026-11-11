@@ -1,4 +1,10 @@
 {{- if .Values.ingress.enabled -}}
+{{- /* Without TLS the login form and Knox tokens travel in clear, and the
+       backend derives SEROPS_HTTPS=False (no Secure cookies, no HSTS). A
+       copy-paste install must not end up there by accident. */ -}}
+{{- if and (not .Values.ingress.tls) (not .Values.ingress.allowInsecure) }}
+{{- fail "ingress.tls is empty: SerOps would serve logins and API tokens over plain HTTP. Set ingress.tls (cert-manager annotation or an existing Secret), or set ingress.allowInsecure=true only when TLS terminates in front of the ingress controller and django.publicUrl is an https URL." }}
+{{- end }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

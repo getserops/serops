@@ -10,6 +10,8 @@ organisation eagerly:
 """
 import binascii
 
+from datetime import timedelta
+
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from knox.auth import TokenAuthentication as KnoxTokenAuthentication
@@ -51,7 +53,7 @@ class OptimizedTokenAuthentication(KnoxTokenAuthentication):
         # Single query: token + user + organisation via select_related
         token_model = get_token_model()
         queryset = token_model.objects.select_related(
-            'user', 'user__organisation'
+            'user', 'user__organisation', 'user__organisation__security_settings', 'user__custom_role'
         ).filter(token_key=token[:CONSTANTS.TOKEN_KEY_LENGTH])
 
         for auth_token in queryset:
@@ -65,11 +67,35 @@ class OptimizedTokenAuthentication(KnoxTokenAuthentication):
                 raise _auth_failed(msg)
 
             if compare_digest(digest, auth_token.digest):
+                if _idle_too_long(auth_token):
+                    auth_token.delete()
+                    raise _auth_failed(_('Your session expired.'))
                 if knox_settings.AUTO_REFRESH and auth_token.expiry:
                     self.renew_token(auth_token)
                 return self.validate_user(auth_token)
 
         raise _auth_failed(msg)
+
+
+def _idle_too_long(auth_token):
+    """Whether the organisation's inactivity timeout has passed for this token.
+
+    Knox moves the expiry forward as the token is used, so expiry minus the
+    token lifetime is when it was last used (to the minute, see
+    MIN_REFRESH_INTERVAL).
+    """
+    organisation = auth_token.user.organisation
+    if auth_token.expiry is None or organisation is None:
+        return False
+    from Users.models import SecuritySettings
+    try:
+        minutes = organisation.security_settings.session_timeout_minutes
+    except SecuritySettings.DoesNotExist:
+        minutes = SecuritySettings._meta.get_field('session_timeout_minutes').default
+    if not minutes:  # "Never": only the token's own lifetime applies.
+        return False
+    last_used = auth_token.expiry - knox_settings.TOKEN_TTL
+    return timezone.now() - last_used > timedelta(minutes=minutes)
 
 
 def _auth_failed(msg):

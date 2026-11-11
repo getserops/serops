@@ -47,6 +47,49 @@ Out-of-scope:
   credit.
 - Social engineering, phishing, physical access.
 
+## Release integrity
+
+SerOps is developed on GitLab (gitlab.com/serops/serops) and mirrored to
+GitHub (github.com/getserops/serops) by a maintainer, commit for commit,
+after a secrets scan and a deny-list check of the tree. Images and the Helm
+chart are built and published by the GitHub Actions workflows in this
+repository, from `main` (images tagged `main`, `<sha>` and `edge`) and from
+release tags `v*` (`<version>`, `<major>.<minor>`, `<sha>` and `latest`).
+`latest` only moves with a release tag. Publishing needs write access to
+`main` or the right to create a `v*` tag; both are held by the maintainers
+only.
+
+Every published image is scanned before the push (a fixable CRITICAL or
+HIGH finding blocks the release), carries an SPDX SBOM and SLSA provenance
+attestation, is signed with [cosign](https://docs.sigstore.dev) keyless
+(the certificate names this repository and the `docker.yml` workflow) and
+attested through GitHub artifact attestations. The chart pushed to
+`oci://ghcr.io/getserops/charts/serops` is signed the same way.
+
+Verify before you run:
+
+```bash
+# Image signature (replace the tag you pull)
+cosign verify ghcr.io/getserops/backend:1.2.15 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/docker\.yml@refs/tags/v'
+
+# GitHub attestation (provenance): which commit and workflow built it
+gh attestation verify oci://ghcr.io/getserops/backend:1.2.15 --owner getserops
+
+# SBOM and SLSA provenance attached to the image
+docker buildx imagetools inspect ghcr.io/getserops/backend:1.2.15 \
+  --format '{{ json .SBOM }}'
+
+# Helm chart
+cosign verify ghcr.io/getserops/charts/serops:1.2.15 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/helm-release\.yml@refs/tags/v'
+```
+
+Every GitHub Action the workflows use is pinned to a commit SHA, and
+Dependabot opens the bumps.
+
 ## Coordinated Disclosure
 
 We follow a **90-day disclosure window** from the day we receive a

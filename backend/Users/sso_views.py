@@ -1,18 +1,24 @@
-from Middlewares.rbac import Requires
+from Middlewares.rbac import ROLE_PERMISSIONS, Requires, can_grant
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.throttling import ScopedRateThrottle
-from Organisations.models import Organisations
 from django.conf import settings
 from .models import User, SecuritySettings
 from .services.sso import SSOService
+from . import sso_roles
+from Utils import edition
+from Data.audit import log_action
+from Middlewares.rbac import can_manage_shared_settings, role_key
 from knox.models import AuthToken
 from django.shortcuts import redirect
 from django.core import signing
+from django.utils.crypto import constant_time_compare
 import logging
 import re
+import secrets
+from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 
@@ -26,47 +32,68 @@ def _sso_settings_for(org_id):
     ).first()
 
 
-def _domain(email):
-    return email.rsplit('@', 1)[-1].lower() if '@' in email else ''
-
-
-def normalise_domains(value):
-    """A sorted list of distinct lower-case domains, from a list or a
-    comma-separated string; None when one is not a domain."""
-    if isinstance(value, str):
-        value = value.split(',')
-    if not isinstance(value, (list, tuple)):
-        return None
-    domains = set()
-    for item in value:
-        domain = str(item).strip().lower().lstrip('@')
-        if not domain:
-            continue
-        if not re.fullmatch(r'[a-z0-9-]+(\.[a-z0-9-]+)+', domain):
-            return None
-        domains.add(domain)
-    return sorted(domains)
-
-
-def _sso_settings_for_domain(email):
-    """The SSO settings of the one organisation that claims ``email``'s
-    domain. Two organisations claiming the same domain get neither: which
-    one a stranger belongs to cannot be guessed."""
-    domain = _domain(email)
-    if not domain:
-        return None
-    matches = [s for s in SecuritySettings.objects.filter(sso_enabled=True, sso_provider='oidc')
-               .exclude(sso_domains=[]) if domain in (s.sso_domains or [])]
-    return matches[0] if len(matches) == 1 else None
-
-
 def _sso_service(sec_settings):
     return SSOService(
         client_id=sec_settings.sso_client_id,
         client_secret=sec_settings.get_client_secret(),
         discovery_url=sec_settings.sso_discovery_url,
         redirect_uri=f"{settings.API_URL}/auth/sso/callback",
+        extra_scopes=sec_settings.sso_extra_scopes,
     )
+
+
+SSO_CALLBACK_PATH = '/api/auth/sso/callback'
+SSO_FLOW_COOKIE = 'serops_sso_flow'
+SSO_FLOW_SALT = 'serops.sso-flow'
+SSO_FLOW_TTL_SECONDS = 600
+
+
+def _cookie_secure(request):
+    # Secure on every https install. Browsers drop Secure cookies over plain
+    # http, which made SSO impossible on an http lab install (the Helm
+    # chart's default, without TLS).
+    return request.is_secure() or (settings.API_URL or '').startswith('https://')
+
+
+def _email_verified(user_info, discovery_url):
+    """Whether the identity provider vouches for the email it returned."""
+    claim = user_info.get('email_verified')
+    if claim is None:
+        return (urlsplit(discovery_url or '').hostname or '').lower() in settings.SSO_TRUST_MISSING_EMAIL_VERIFIED
+    # Some providers (AWS Cognito) send the string "true".
+    return claim is True or str(claim).lower() == 'true'
+
+
+def _email_domain(email):
+    return email.rsplit('@', 1)[-1].strip().lower() if '@' in email else ''
+
+
+def _settings_for_domain(email):
+    """SSO settings of the organisation that lists the email's domain."""
+    domain = _email_domain(email)
+    if not domain:
+        return None
+    # Saving refuses a domain another organisation lists, but 1.2.6 allowed
+    # it: a domain two organisations claim signs in nobody, since which one
+    # a stranger belongs to cannot be guessed.
+    matches = [sec for sec in SecuritySettings.objects.filter(sso_enabled=True, sso_provider='oidc')
+               .exclude(sso_domains=[]) if domain in (sec.sso_domains or [])]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _resolve_key(sec_settings, key):
+    """(role, custom_role) for a rule's role key; (None, None) if it is gone."""
+    from Middlewares.rbac import resolve_role_key
+    try:
+        return resolve_role_key(sec_settings.organisation, key)
+    except ValueError:
+        logger.error("SSO: role %r of org %s no longer exists", key, sec_settings.organisation_id)
+        return None, None
+
+
+def _would_remove_last_admin(user, new_role):
+    return (user.role == 'admin' and new_role != 'admin' and not User.objects.filter(
+        organisation_id=user.organisation_id, role='admin', is_active=True).exclude(pk=user.pk).exists())
 
 
 class SSOConfigView(APIView):
@@ -86,8 +113,18 @@ class SSOConfigView(APIView):
             "sso_provider": sec_settings.sso_provider,  # 'oidc' or 'none'
             "sso_client_id": sec_settings.sso_client_id,
             "sso_discovery_url": sec_settings.sso_discovery_url,
-            "sso_domains": sec_settings.sso_domains or [],
             "sso_client_secret_configured": bool(sec_settings.sso_client_secret_encrypted),
+            "sso_groups_claim": sec_settings.sso_groups_claim,
+            "sso_extra_scopes": sec_settings.sso_extra_scopes,
+            "sso_role_mappings": sec_settings.sso_role_mappings,
+            "sso_default_role": sec_settings.sso_default_role,
+            "sso_sync_role": sec_settings.sso_sync_role,
+            "sso_domains": sec_settings.sso_domains or [],
+            "sso_team_mappings": sec_settings.sso_team_mappings,
+            # Domains are install-wide (they route sign-ins to this
+            # organisation), so on multi-organisation installs only
+            # platform staff set them.
+            "sso_domains_editable": can_manage_shared_settings(user),
             # What the admin registers at the identity provider.
             "sso_redirect_uri": f"{settings.API_URL}/auth/sso/callback",
         })
@@ -103,6 +140,22 @@ class SSOConfigView(APIView):
             return Response({"error": "sso_provider must be 'oidc' or 'none'"}, status=400)
 
         sec_settings, _ = SecuritySettings.objects.get_or_create(organisation=user.organisation)
+        # The identity provider decides who signs in as whom: whoever points
+        # SSO at a provider of their own can assert any member's email. A
+        # custom role with settings.manage could sign in as the admin this
+        # way (review 2026-11-05), so changing it takes every permission an
+        # admin holds.
+        identity_fields = ('sso_enabled', 'sso_provider', 'sso_client_id', 'sso_discovery_url', 'sso_client_secret')
+        changes_identity = any(
+            key in data and (key == 'sso_client_secret' and data[key] or
+                             key != 'sso_client_secret' and data[key] != getattr(sec_settings, key))
+            for key in identity_fields)
+        if changes_identity and not can_grant(user, ROLE_PERMISSIONS['admin']):
+            return Response({"error": "Changing the identity provider needs every permission of an admin."},
+                            status=403)
+        errors = self._apply_role_settings(request, sec_settings, data)
+        if errors:
+            return Response({"error": "; ".join(errors), "errors": errors}, status=400)
         sec_settings.sso_enabled = data.get('sso_enabled', sec_settings.sso_enabled)
         sec_settings.sso_provider = provider or sec_settings.sso_provider
         if sec_settings.sso_provider == 'oidc':
@@ -117,19 +170,6 @@ class SSOConfigView(APIView):
                 except ValueError as exc:
                     return Response({"error": f"sso_discovery_url: {exc}"}, status=400)
             sec_settings.sso_discovery_url = discovery_url
-            if 'sso_domains' in data:
-                domains = normalise_domains(data['sso_domains'])
-                if domains is None:
-                    return Response({"error": "sso_domains must be email domains, like example.com"}, status=400)
-                # A domain sends every stranger of it to this organisation's
-                # identity provider. On an install with several organisations
-                # one admin could claim another company's domain, so only the
-                # operator sets them there (review 2026-11-05).
-                if (domains != (sec_settings.sso_domains or [])
-                        and Organisations.objects.count() > 1 and not request.user.is_staff):
-                    return Response({"error": "On an install with several organisations, the operator sets the SSO email domains."},
-                                    status=403)
-                sec_settings.sso_domains = domains
             # Only update secret if provided
             if data.get('sso_client_secret'):
                 sec_settings.set_client_secret(data['sso_client_secret'])
@@ -137,6 +177,68 @@ class SSOConfigView(APIView):
             sec_settings.sso_enabled = False
         sec_settings.save()
         return Response({"message": "SSO configuration updated"})
+
+    @staticmethod
+    def _apply_role_settings(request, sec, data):
+        """Validate and set the group mapping fields present in ``data``."""
+        org = request.user.organisation
+        mappings = data.get('sso_role_mappings', sec.sso_role_mappings)
+        default_role = data.get('sso_default_role', sec.sso_default_role)
+        errors = sso_roles.validate_mappings(org, mappings, default_role)
+        if not errors:
+            # A rule hands its role to whoever is in the group: setting one
+            # needs the permissions of that role (no escalation through SSO).
+            from Middlewares.rbac import can_grant, key_permissions
+            targets = {r['role'] for r in mappings} | ({default_role} - {sso_roles.DENY})
+            if any(not can_grant(request.user, key_permissions(org, t)) for t in targets):
+                errors.append('You can only map groups to roles whose permissions you hold')
+            # A rule that hands out a custom role is Enterprise; rules already
+            # saved keep working, and can be removed, without a license.
+            current = {r.get('role') for r in sec.sso_role_mappings or []} | {sec.sso_default_role}
+            new_custom = {t for t in targets if str(t).startswith('custom:')} - current
+            if new_custom and not edition.has_feature('custom_roles'):
+                errors.append(edition.license_error('custom_roles')['error'])
+        if 'sso_groups_claim' in data:
+            claim = str(data['sso_groups_claim'] or '').strip()
+            if len(claim) > 255 or ' ' in claim:
+                errors.append('sso_groups_claim must be a claim name or dotted path')
+            sec.sso_groups_claim = claim or 'groups'
+        if 'sso_extra_scopes' in data:
+            scopes = ' '.join(str(data['sso_extra_scopes'] or '').split())
+            if len(scopes) > 255:
+                errors.append('sso_extra_scopes is too long')
+            sec.sso_extra_scopes = scopes
+        if 'sso_sync_role' in data:
+            sec.sso_sync_role = bool(data['sso_sync_role'])
+        if 'sso_domains' in data:
+            try:
+                domains = sso_roles.normalise_domains(data['sso_domains'])
+            except ValueError as e:
+                errors.append(str(e))
+                domains = None
+            if domains is not None and domains != (sec.sso_domains or []):
+                if not can_manage_shared_settings(request.user):
+                    errors.append('Only platform staff can set email domains on an install with several organisations')
+                else:
+                    taken = [d for d in domains for other in SecuritySettings.objects.exclude(pk=sec.pk)
+                             if d in (other.sso_domains or [])]
+                    if taken:
+                        errors.append(f'Already used by another organisation: {", ".join(sorted(set(taken)))}')
+                    else:
+                        sec.sso_domains = domains
+        if 'sso_team_mappings' in data:
+            team_errors, teams = sso_roles.validate_team_mappings(org, data['sso_team_mappings'])
+            errors += team_errors
+            from Middlewares.project_access import can_manage_team
+            if not team_errors and any(not can_manage_team(request.user, t) for t in teams):
+                errors.append("You can only map groups to teams whose project access you hold")
+            if not errors:
+                sec.sso_team_mappings = [{'group': str(r['group']).strip(), 'team_id': r['team_id']}
+                                         for r in data['sso_team_mappings']]
+        if not errors:
+            sec.sso_role_mappings = [{'group': str(r['group']).strip(), 'role': r['role']} for r in mappings]
+            sec.sso_default_role = default_role
+        return errors
 
 
 class SSOInitView(APIView):
@@ -161,28 +263,44 @@ class SSOInitView(APIView):
             return Response({"error": "Email is required"}, status=400)
 
         unavailable = Response({"error": SSO_UNAVAILABLE}, status=400)
-        if User.objects.filter(email__iexact=email).exists():
-            user = User.objects.filter(email__iexact=email, is_active=True, is_demo=False).first()
-            if not user or not user.organisation_id:
+        user = User.objects.filter(email__iexact=email).first()
+        if user is not None:
+            if not user.is_active or user.is_demo or not user.organisation_id:
                 return unavailable
             sec_settings = _sso_settings_for(user.organisation_id)
         else:
-            # Not a user yet: the organisation that claims the domain.
-            sec_settings = _sso_settings_for_domain(email)
+            # No account yet: an organisation that lists the email's domain
+            # creates it at the first sign-in.
+            sec_settings = _settings_for_domain(email)
         if not sec_settings:
             return unavailable
         org_id = sec_settings.organisation_id
 
+        # A random value in the state makes each flow distinct; the cookie
+        # below ties it, the nonce and the PKCE verifier to this browser.
+        state = signing.dumps({'org_id': org_id, 'flow': secrets.token_urlsafe(16)})
+        nonce = secrets.token_urlsafe(32)
+        code_verifier = secrets.token_urlsafe(64)
         try:
-            state = signing.dumps({'org_id': org_id})
-            auth_url, _ = _sso_service(sec_settings).get_authorization_url(state=state)
+            auth_url, _ = _sso_service(sec_settings).get_authorization_url(
+                state=state, nonce=nonce, code_verifier=code_verifier)
         except Exception:
-            logger.exception("SSO init failed for org %s", org_id)
+            logger.exception("SSO init failed for org %s", sec_settings.organisation_id)
             return Response(
                 {"error": "Could not reach the identity provider. Ask your administrator to check the SSO settings."},
                 status=502,
             )
-        return Response({"auth_url": auth_url})
+        response = Response({"auth_url": auth_url})
+        response.set_cookie(
+            key=SSO_FLOW_COOKIE,
+            value=signing.dumps({'state': state, 'nonce': nonce, 'verifier': code_verifier}, salt=SSO_FLOW_SALT),
+            max_age=SSO_FLOW_TTL_SECONDS,
+            httponly=True,
+            secure=_cookie_secure(request),
+            samesite='Lax',  # Sent on the identity provider's redirect back.
+            path=SSO_CALLBACK_PATH,
+        )
+        return response
 
 
 class SSOCallbackView(APIView):
@@ -200,15 +318,25 @@ class SSOCallbackView(APIView):
         from .views import demo_only_login
         frontend_url = _validated_frontend_url()
         failed = redirect(f"{frontend_url}/login?sso=failed")
+        failed.delete_cookie(SSO_FLOW_COOKIE, path=SSO_CALLBACK_PATH)
 
         code = request.query_params.get('code')
         state = request.query_params.get('state')
         if demo_only_login() or not code or not state:
             return failed
 
+        # The callback must land in the browser that started the flow, once.
+        # Otherwise an attacker could get a victim to load the attacker's own
+        # callback URL and sign the victim in to the attacker's account.
         try:
-            org_id = signing.loads(state, max_age=600).get('org_id')
+            flow = signing.loads(request.COOKIES.get(SSO_FLOW_COOKIE, ''), salt=SSO_FLOW_SALT,
+                                 max_age=SSO_FLOW_TTL_SECONDS)
+            org_id = signing.loads(state, max_age=SSO_FLOW_TTL_SECONDS).get('org_id')
         except signing.BadSignature:
+            logger.warning("SSO callback: no valid flow cookie or state")
+            return failed
+        if not constant_time_compare(flow['state'], state):
+            logger.warning("SSO callback: state does not match this browser's flow")
             return failed
         sec_settings = _sso_settings_for(org_id)
         if not sec_settings:
@@ -216,39 +344,78 @@ class SSOCallbackView(APIView):
 
         try:
             sso = _sso_service(sec_settings)
-            user_info = sso.get_user_info(sso.exchange_code_for_token(code))
+            token = sso.exchange_code_for_token(code, code_verifier=flow['verifier'])
+            if not sso.id_token_matches(token, flow['nonce']):
+                logger.warning("SSO callback: ID token does not match the flow for org %s", org_id)
+                return failed
+            user_info = sso.get_user_info(token)
         except Exception:
             logger.exception("SSO callback: token exchange failed for org %s", org_id)
             return failed
 
         email = (user_info.get('email') or '').strip()
-        if not email or user_info.get('email_verified') is False:
+        if not email or not _email_verified(user_info, sec_settings.sso_discovery_url):
             logger.warning("SSO callback: IdP returned no verified email for org %s", org_id)
             return failed
 
+        # Groups may be in the userinfo response or only in the ID token
+        # (Entra ID); userinfo wins where both have a claim.
+        claims = {**sso_roles.id_token_claims(token), **user_info}
+        groups = sso_roles.extract_groups(claims, sec_settings.sso_groups_claim)
+        role = sso_roles.resolve_role(groups, sec_settings.sso_role_mappings, sec_settings.sso_default_role)
+
         user = User.objects.filter(email__iexact=email).first()
-        # A new account only for an email of a listed domain. With no domain
-        # listed, the identity provider could create an account for any
-        # address, someone else's company included (review 2026-11-05);
-        # invited and existing members still sign in.
-        if user is None and _domain(email) not in (sec_settings.sso_domains or []):
-            logger.warning("SSO callback: %s is outside org %s's SSO domains", _domain(email), org_id)
+        if user is not None and (user.organisation_id != org_id or user.is_demo or not user.is_active):
+            logger.warning("SSO callback: refused user %s for org %s", user.pk, org_id)
             return failed
+        if role is None:
+            logger.info("SSO callback: an email is in no mapped group of org %s", org_id)
+            log_action(request, 'SSO_DENIED', {'email': email, 'groups': groups[:50]},
+                       user=user, organisation=sec_settings.organisation)
+            denied = redirect(f"{frontend_url}/login?sso=denied")
+            denied.delete_cookie(SSO_FLOW_COOKIE, path=SSO_CALLBACK_PATH)
+            return denied
+
         if user is None:
+            if _email_domain(email) not in (sec_settings.sso_domains or []):
+                logger.warning("SSO callback: no account for an email whose domain is not listed (org %s)", org_id)
+                return failed
+            new_role, custom_role = _resolve_key(sec_settings, role)
+            if new_role is None:
+                return failed
             user = User.objects.create(
                 email=email,
                 username=email.split('@')[0][:20],
                 first_name=user_info.get('given_name', ''),
                 last_name=user_info.get('family_name', ''),
                 organisation_id=org_id,
-                role='viewer',  # Default role for new SSO users
+                role=new_role,
+                custom_role=custom_role,
                 is_active=True,
             )
             user.set_unusable_password()
             user.save(update_fields=['password'])
-        elif user.organisation_id != org_id or user.is_demo or not user.is_active:
-            logger.warning("SSO callback: refused user %s for org %s", user.pk, org_id)
-            return failed
+            log_action(request, 'SSO_PROVISION', {'affected_user': email, 'role': role, 'groups': groups[:50]},
+                       user=user, organisation=sec_settings.organisation)
+        elif sec_settings.sso_sync_role and role_key(user) != role:
+            new_role, custom_role = _resolve_key(sec_settings, role)
+            if new_role is None:
+                return failed
+            if _would_remove_last_admin(user, new_role):
+                logger.warning("SSO callback: kept %s as admin, the organisation's last one", user.pk)
+            else:
+                old_role = role_key(user)
+                user.role, user.custom_role = new_role, custom_role
+                user.save(update_fields=['role', 'custom_role'])
+                log_action(request, 'TEAM_ROLE_CHANGE', {
+                    'affected_user': user.email, 'role': role, 'old_role': old_role,
+                    'source': 'sso', 'groups': groups[:50]}, user=user, organisation=sec_settings.organisation)
+
+        added, removed = sso_roles.sync_teams(user, groups, sec_settings.sso_team_mappings)
+        if added or removed:
+            log_action(request, 'TEAM_UPDATE', {'affected_user': user.email, 'added_to': added,
+                                                'removed_from': removed, 'source': 'sso'},
+                       user=user, organisation=sec_settings.organisation)
 
         # Create a short-lived Knox token for this session.
         _, token = AuthToken.objects.create(user)
@@ -259,15 +426,13 @@ class SSOCallbackView(APIView):
         # The frontend exchanges this cookie for a usable token via
         # POST /api/auth/sso/exchange (see SSOExchangeView below).
         response = redirect(f"{frontend_url}/auth/callback")
+        response.delete_cookie(SSO_FLOW_COOKIE, path=SSO_CALLBACK_PATH)
         response.set_cookie(
             key=SSO_HANDOFF_COOKIE,
             value=token,
             max_age=SSO_HANDOFF_TTL_SECONDS,
             httponly=True,
-            # Secure on every https install. Browsers drop Secure cookies
-            # over plain http, which made SSO impossible on an http lab
-            # install (the Helm chart's default, without TLS).
-            secure=request.is_secure() or (settings.API_URL or '').startswith('https://'),
+            secure=_cookie_secure(request),
             samesite='Lax',
             path='/api/auth/sso/exchange',
         )
@@ -330,15 +495,7 @@ class SSOExchangeView(APIView):
             return response
 
         user = token_obj.user
-        response = Response({
-            'token': token,
-            'user': {
-                'id': user.id,
-                'email': user.email,
-                'username': user.username,
-                'role': user.role,
-                'organisation_id': user.organisation_id,
-            },
-        })
+        from .serializers import UserSerializer
+        response = Response({'token': token, 'user': UserSerializer(user).data})
         response.delete_cookie(SSO_HANDOFF_COOKIE, path='/api/auth/sso/exchange')
         return response

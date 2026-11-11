@@ -1,0 +1,541 @@
+{
+ "details": {
+  "id": 5,
+  "batch_id": "sample",
+  "timestamp": "2026-11-06T18:34:42.464580Z",
+  "issue_count": 1,
+  "data": {
+   "logs": [
+    {
+     "_id": "3d-0-redis-cache",
+     "_index": "app-logs-2026.11.06",
+     "_source": {
+      "level": "INFO",
+      "message": "GET /api/health/ 200 12ms",
+      "log_level": "INFO",
+      "@timestamp": "2026-11-06T18:34:42Z",
+      "environment": "production",
+      "project_name": "acme-platform",
+      "service_name": "redis-cache",
+      "organisation_name": "Acme Cloud"
+     }
+    },
+    {
+     "_id": "3d-1-redis-cache",
+     "_index": "app-logs-2026.11.06",
+     "_source": {
+      "level": "INFO",
+      "message": "redis-cache healthy — 200 OK",
+      "log_level": "INFO",
+      "@timestamp": "2026-11-06T18:34:49Z",
+      "environment": "production",
+      "project_name": "acme-platform",
+      "service_name": "redis-cache",
+      "organisation_name": "Acme Cloud"
+     }
+    },
+    {
+     "_id": "3d-2-redis-cache",
+     "_index": "app-logs-2026.11.06",
+     "_source": {
+      "level": "ERROR",
+      "message": "ConnectionRefusedError: [Errno 111] connect to redis:6379",
+      "log_level": "ERROR",
+      "@timestamp": "2026-11-06T18:34:56Z",
+      "environment": "production",
+      "project_name": "acme-platform",
+      "service_name": "redis-cache",
+      "organisation_name": "Acme Cloud"
+     }
+    },
+    {
+     "_id": "3d-3-redis-cache",
+     "_index": "app-logs-2026.11.06",
+     "_source": {
+      "level": "ERROR",
+      "message": "redis.exceptions.ConnectionError: max pool size reached (20/20)",
+      "log_level": "ERROR",
+      "@timestamp": "2026-11-06T18:35:03Z",
+      "environment": "production",
+      "project_name": "acme-platform",
+      "service_name": "redis-cache",
+      "organisation_name": "Acme Cloud"
+     }
+    },
+    {
+     "_id": "3d-4-redis-cache",
+     "_index": "app-logs-2026.11.06",
+     "_source": {
+      "level": "ERROR",
+      "message": "payment-worker: no free redis connection — dropping task",
+      "log_level": "ERROR",
+      "@timestamp": "2026-11-06T18:35:10Z",
+      "environment": "production",
+      "project_name": "acme-platform",
+      "service_name": "redis-cache",
+      "organisation_name": "Acme Cloud"
+     }
+    }
+   ],
+   "traces": {
+    "source": "otlp",
+    "top_slow": [
+     {
+      "span_id": "1122334455667788",
+      "trace_id": "1be86756a26cbd9546f15de2d5d10add",
+      "start_time": "2026-11-06T18:30:42.464580+00:00",
+      "duration_ms": 950,
+      "service_name": "payment-worker",
+      "operation_name": "redis.get(session)"
+     },
+     {
+      "span_id": "2233445566778899",
+      "trace_id": "1be86756a26cbd9546f15de2d5d10add",
+      "start_time": "2026-11-06T18:30:42.464580+00:00",
+      "duration_ms": 570,
+      "service_name": "web-frontend",
+      "operation_name": "render CheckoutSummary"
+     }
+    ],
+    "span_count": 47,
+    "top_errors": [
+     {
+      "span_id": "aabbccddeeff0011",
+      "trace_id": "49d89067b60b5f48c0d9187f5f30dc3b",
+      "start_time": "2026-11-06T18:32:42.464580+00:00",
+      "service_name": "payment-worker",
+      "operation_name": "redis.set(cache_key)",
+      "status_message": "ConnectionRefusedError: redis pool exhausted"
+     }
+    ],
+    "trace_count": 12,
+    "error_span_count": 3,
+    "services_touched": [
+     "backend-api",
+     "payment-worker",
+     "web-frontend"
+    ]
+   },
+   "metrics": {
+    "cpu_usage_percent": [
+     {
+      "time": "2026-11-06T17:39:42Z",
+      "value": 30.0,
+      "source_table": "node_cpu"
+     },
+     {
+      "time": "2026-11-06T17:44:42Z",
+      "value": 32.0,
+      "source_table": "node_cpu"
+     },
+     {
+      "time": "2026-11-06T17:49:42Z",
+      "value": 34.0,
+      "source_table": "node_cpu"
+     },
+     {
+      "time": "2026-11-06T17:54:42Z",
+      "value": 45.0,
+      "source_table": "node_cpu"
+     },
+     {
+      "time": "2026-11-06T17:59:42Z",
+      "value": 62.0,
+      "source_table": "node_cpu"
+     },
+     {
+      "time": "2026-11-06T18:04:42Z",
+      "value": 71.0,
+      "source_table": "node_cpu"
+     },
+     {
+      "time": "2026-11-06T18:09:42Z",
+      "value": 68.0,
+      "source_table": "node_cpu"
+     },
+     {
+      "time": "2026-11-06T18:14:42Z",
+      "value": 55.0,
+      "source_table": "node_cpu"
+     },
+     {
+      "time": "2026-11-06T18:19:42Z",
+      "value": 40.0,
+      "source_table": "node_cpu"
+     },
+     {
+      "time": "2026-11-06T18:24:42Z",
+      "value": 33.0,
+      "source_table": "node_cpu"
+     },
+     {
+      "time": "2026-11-06T18:29:42Z",
+      "value": 30.0,
+      "source_table": "node_cpu"
+     },
+     {
+      "time": "2026-11-06T18:34:42Z",
+      "value": 30.0,
+      "source_table": "node_cpu"
+     }
+    ],
+    "memory_usage_percent": [
+     {
+      "time": "2026-11-06T17:39:42Z",
+      "value": 55.0,
+      "source_table": "node_memory"
+     },
+     {
+      "time": "2026-11-06T17:44:42Z",
+      "value": 55.5,
+      "source_table": "node_memory"
+     },
+     {
+      "time": "2026-11-06T17:49:42Z",
+      "value": 56.0,
+      "source_table": "node_memory"
+     },
+     {
+      "time": "2026-11-06T17:54:42Z",
+      "value": 56.5,
+      "source_table": "node_memory"
+     },
+     {
+      "time": "2026-11-06T17:59:42Z",
+      "value": 57.0,
+      "source_table": "node_memory"
+     },
+     {
+      "time": "2026-11-06T18:04:42Z",
+      "value": 57.5,
+      "source_table": "node_memory"
+     },
+     {
+      "time": "2026-11-06T18:09:42Z",
+      "value": 58.0,
+      "source_table": "node_memory"
+     },
+     {
+      "time": "2026-11-06T18:14:42Z",
+      "value": 58.5,
+      "source_table": "node_memory"
+     },
+     {
+      "time": "2026-11-06T18:19:42Z",
+      "value": 59.0,
+      "source_table": "node_memory"
+     },
+     {
+      "time": "2026-11-06T18:24:42Z",
+      "value": 59.5,
+      "source_table": "node_memory"
+     },
+     {
+      "time": "2026-11-06T18:29:42Z",
+      "value": 60.0,
+      "source_table": "node_memory"
+     },
+     {
+      "time": "2026-11-06T18:34:42Z",
+      "value": 60.5,
+      "source_table": "node_memory"
+     }
+    ]
+   },
+   "cicd_logs": [
+    {
+     "trace": "++ set -eux\n++ npm ci\n++ npm test\nPASS  tests/unit\nexit 0\n",
+     "branch": "main",
+     "job_id": "a3f1d8c0-build",
+     "status": "success",
+     "message": "build-and-test on main: perf(infra): shrink redis pool 50→20 to save memory",
+     "job_name": "build-and-test",
+     "timestamp": "2026-11-06T18:26:42.464580+00:00",
+     "commit_sha": "a3f1d8c0",
+     "started_at": "2026-11-06T18:24:42.464580+00:00",
+     "finished_at": "2026-11-06T18:26:42.464580+00:00",
+     "pipeline_id": "a3f1d8c0-3",
+     "service_name": "redis-cache",
+     "commit_message": "perf(infra): shrink redis pool 50→20 to save memory"
+    }
+   ],
+   "logs_count": 5,
+   "centerpiece": true,
+   "environment": "production",
+   "code_changes": [
+    {
+     "sha": "a3f1d8c0",
+     "files": [
+      {
+       "diff": "",
+       "path": "api/payment_webhooks.py"
+      }
+     ],
+     "stats": {
+      "files": 3,
+      "additions": 42,
+      "deletions": 8
+     },
+     "author": "Marc Dubois",
+     "branch": "main",
+     "message": "perf(infra): shrink redis pool 50→20 to save memory",
+     "timestamp": "2026-11-06T18:26:42.464580+00:00"
+    }
+   ],
+   "correlation_results": {
+    "summary": {
+     "total_correlations": 3,
+     "primary_correlation": {
+      "type": "file_to_error",
+      "details": {}
+     },
+     "high_confidence_count": 2
+    },
+    "correlations": {
+     "file_to_error": [
+      {
+       "commit_sha": "a3f1d8c0",
+       "confidence": "HIGH",
+       "log_message": "Error in redis-cache",
+       "matching_files": [
+        "config/redis.py"
+       ],
+       "time_since_commit_minutes": 12.0
+      }
+     ],
+     "metric_spike_to_errors": [],
+     "slow_span_after_deploy": [
+      {
+       "trace_id": "f0e1d2c3b4a5968778695a4b3c2d1e0f",
+       "commit_sha": "a3f1d8c0",
+       "confidence": "MEDIUM",
+       "top_slow_service": "redis-cache",
+       "services_affected": [
+        "redis-cache"
+       ],
+       "top_slow_operation": "op on redis-cache",
+       "top_slow_duration_ms": 3120
+      }
+     ],
+     "span_error_to_log_error": [],
+     "deployment_to_metric_spike": [
+      {
+       "commit_sha": "a3f1d8c0",
+       "confidence": "HIGH",
+       "metric_type": "memory",
+       "anomaly_peak": "76%",
+       "time_after_deploy_minutes": 8.5
+      }
+     ],
+     "slow_span_during_metric_spike": []
+    }
+   }
+  },
+  "logs_analyzed": 6,
+  "created_at": "2026-11-06T18:35:42.464580Z",
+  "indices_covered": [],
+  "token_count": 0,
+  "analysis_text": "Deploy v2.3.3 reduced the Redis connection pool from 50 to 20. Under current production load this saturates the pool within ~4 minutes, after which workers cannot acquire a connection.",
+  "analyzed_at": "2026-11-06T18:38:42.464580Z",
+  "model_name": null,
+  "sentinel_decision": "alert",
+  "sentinel_triggers": [
+   "error_rate_spike",
+   "deployment_detected"
+  ],
+  "ai_skipped": false,
+  "logs_raw_count": 0,
+  "logs_after_severity_filter": 0,
+  "logs_unique_patterns": 0,
+  "logs_sent_to_ai": 0,
+  "trigger": "alert",
+  "investigation": null,
+  "project": null,
+  "deployment": null,
+  "issues": [
+   {
+    "id": 2,
+    "batch": 5,
+    "batch_id_str": "sample",
+    "batch_timestamp": "2026-11-06T18:34:42.464580Z",
+    "severity": "CRITICAL",
+    "description": "payment-worker throwing ConnectionRefusedError to redis:6379 (p95).",
+    "recommendation": "Revert the pool size to 50 (PR #1259) and add a Prometheus alert on redis_pool_used > 80 % so this fails loud next time.",
+    "root_cause": "Deploy v2.3.3 reduced the Redis connection pool from 50 to 20. Under current production load this saturates the pool within ~4 minutes, after which workers cannot acquire a connection.",
+    "reasoning": "1. Saw repeated ConnectionRefusedError in payment-worker logs shortly after the deploy\n2. Checked deploys — v2.3.3 reduced the Redis pool from 50 to 20\n3. Pulled Redis metrics: redis_pool_used hit 100 % within 4 min of the deploy\n4. Ruled out upstream payment-provider issue — their status page is green and other queues backed by the same Redis are unaffected",
+    "confidence": "HIGH",
+    "confidence_display": "High",
+    "created_at": "2026-11-06T18:34:42.464580Z",
+    "issue_type": "CONNECTION_REFUSED",
+    "issue_type_display": "Connection Refused",
+    "scope": "SERVICE",
+    "component": "redis-cache",
+    "affected_services": [],
+    "environment": "production",
+    "status": "OPEN",
+    "status_display": "Open",
+    "occurrence_count": 1,
+    "muted_until": null,
+    "last_seen_at": "2026-11-09T20:34:43.261534Z",
+    "acknowledged_at": null,
+    "project": 2,
+    "project_name": "acme-platform",
+    "error_class": "CONNECTION_REFUSED",
+    "error_class_display": "Connection refused",
+    "error_target": "redis-cache",
+    "has_commit_correlation": true,
+    "has_metric_correlation": false,
+    "linked_commits": [
+     {
+      "sha": "a3f1d8c0",
+      "author": "Marc Dubois",
+      "message": "perf(infra): shrink redis pool 50→20 to save memory",
+      "timestamp": "2026-11-06T18:34:42.464580+00:00"
+     }
+    ],
+    "metric_correlation_type": "",
+    "correlation_confidence": "HIGH",
+    "metric_anomaly_type": "",
+    "correlation_details": {},
+    "has_cicd_correlation": false,
+    "correlation_summary": [
+     {
+      "type": "commit",
+      "value": "a3f1d8c0",
+      "confidence": "HIGH"
+     }
+    ],
+    "informed_by": {
+     "count": 0,
+     "items": []
+    },
+    "resolved_at": null,
+    "resolved_by_name": null,
+    "resolution_root_cause": null,
+    "resolution_fix": null,
+    "related_traces": {
+     "trace_count": 12,
+     "span_count": 47,
+     "error_span_count": 3,
+     "top_slow": [
+      {
+       "span_id": "1122334455667788",
+       "trace_id": "1be86756a26cbd9546f15de2d5d10add",
+       "start_time": "2026-11-06T18:30:42.464580+00:00",
+       "duration_ms": 950,
+       "service_name": "payment-worker",
+       "operation_name": "redis.get(session)"
+      },
+      {
+       "span_id": "2233445566778899",
+       "trace_id": "1be86756a26cbd9546f15de2d5d10add",
+       "start_time": "2026-11-06T18:30:42.464580+00:00",
+       "duration_ms": 570,
+       "service_name": "web-frontend",
+       "operation_name": "render CheckoutSummary"
+      }
+     ],
+     "top_errors": [
+      {
+       "span_id": "aabbccddeeff0011",
+       "trace_id": "49d89067b60b5f48c0d9187f5f30dc3b",
+       "start_time": "2026-11-06T18:32:42.464580+00:00",
+       "service_name": "payment-worker",
+       "operation_name": "redis.set(cache_key)",
+       "status_message": "ConnectionRefusedError: redis pool exhausted"
+      }
+     ]
+    }
+   }
+  ],
+  "analysis": {},
+  "metrics_summary": {
+   "total_logs": 6,
+   "unique_issues": 1,
+   "token_count": 1850,
+   "indices": []
+  },
+  "timing": {
+   "created_at": "2026-11-06T18:35:42.464580+00:00",
+   "analyzed_at": "2026-11-06T18:38:42.464580+00:00",
+   "batch_timestamp": "2026-11-06T18:34:42.464580+00:00"
+  }
+ },
+ "timeline": {
+  "batch_id": "sample",
+  "event_count": 5,
+  "events": [
+   {
+    "time": "2026-11-06T18:26:42.464580+00:00",
+    "kind": "deploy",
+    "service": "",
+    "severity": "INFO",
+    "summary": "perf(infra): shrink redis pool 50→20 to save memory",
+    "detail": {
+     "sha": "a3f1d8c0",
+     "author": "Marc Dubois",
+     "branch": "main",
+     "files_changed": 3
+    }
+   },
+   {
+    "time": "2026-11-06T18:32:42.464580+00:00",
+    "kind": "span_error",
+    "service": "payment-worker",
+    "severity": "ERROR",
+    "summary": "Span error in payment-worker :: redis.set(cache_key)",
+    "detail": {
+     "trace_id": "49d89067b60b5f48c0d9187f5f30dc3b",
+     "status_message": "ConnectionRefusedError: redis pool exhausted",
+     "duration_ms": null
+    }
+   },
+   {
+    "time": "2026-11-06T18:34:56Z",
+    "kind": "log",
+    "service": "",
+    "severity": "ERROR",
+    "summary": "ConnectionRefusedError: [Errno 111] connect to redis:6379",
+    "detail": {}
+   },
+   {
+    "time": "2026-11-06T18:35:03Z",
+    "kind": "log",
+    "service": "",
+    "severity": "ERROR",
+    "summary": "redis.exceptions.ConnectionError: max pool size reached (20/20)",
+    "detail": {}
+   },
+   {
+    "time": "2026-11-06T18:35:10Z",
+    "kind": "log",
+    "service": "",
+    "severity": "ERROR",
+    "summary": "payment-worker: no free redis connection — dropping task",
+    "detail": {}
+   }
+  ],
+  "causal_pairs": [
+   {
+    "from_index": 0,
+    "to_index": 1,
+    "confidence": "HIGH",
+    "type": "file_to_error",
+    "note": "Files changed: config/redis.py"
+   }
+  ],
+  "pagination": {
+   "total_events": 5,
+   "offset": 0,
+   "limit": 200,
+   "has_more": false
+  }
+ },
+ "history": {
+  "batch_id": "sample",
+  "current_model": null,
+  "analyzed_at": "2026-11-06T18:38:42.464580+00:00",
+  "analysis_count": 0,
+  "analysis_history": []
+ }
+}

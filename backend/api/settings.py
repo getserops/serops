@@ -10,9 +10,12 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import base64
+import hashlib
 import os
 from pathlib import Path
 from datetime import timedelta
+from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 from pythonjsonlogger import jsonlogger
 
@@ -52,13 +55,14 @@ if not os.getenv('DJANGO_SECRET_KEY') and not os.getenv('DEBUG', 'False') == 'Tr
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-# The quick-start .env.example ships `change-me-...` values. Compose can
-# insist that a password is set but cannot tell a placeholder from a real
-# one, so an install started without editing .env would run with publicly
-# known credentials. Refuse instead — outside DEBUG, like the check above.
-_PLACEHOLDER_MARKER = 'change-me'
+# The .env.example templates ship placeholder values. Compose can insist
+# that a password is set but cannot tell a placeholder from a real one, so
+# an install started without editing .env would run with publicly known
+# credentials. Refuse instead — outside DEBUG, like the check above.
+_PLACEHOLDER_MARKERS = ('change-me', 'changeme', 'replace-me', 'django-insecure-')
+_MIN_SECRET_KEY_LENGTH = 32
 _SECRET_ENV_VARS = (
-    'DJANGO_SECRET_KEY', 'DB_PASSWORD', 'DATABASE_URL', 'REDIS_PASSWORD',
+    'DJANGO_SECRET_KEY', 'SEROPS_ENCRYPTION_KEY', 'DB_PASSWORD', 'DATABASE_URL', 'REDIS_PASSWORD',
     'REDIS_URL', 'CELERY_BROKER_URL', 'CELERY_RESULT_BACKEND',
 )
 
@@ -67,15 +71,49 @@ def _placeholder_secrets(env):
     """Names of secret variables that still hold a template placeholder."""
     return [
         name for name in _SECRET_ENV_VARS
-        if _PLACEHOLDER_MARKER in (env.get(name) or '').lower()
+        if any(marker in (env.get(name) or '').lower() for marker in _PLACEHOLDER_MARKERS)
     ]
+
+
+def _encryption_key_valid(key):
+    """A Fernet key: 32 random bytes in URL-safe base64."""
+    try:
+        Fernet(key.encode())
+    except (ValueError, TypeError, AttributeError):
+        return False
+    return True
+
+
+def _secret_key_too_short(env):
+    return len(env.get('DJANGO_SECRET_KEY') or '') < _MIN_SECRET_KEY_LENGTH
 
 
 if not DEBUG and (_placeholders := _placeholder_secrets(os.environ)):
     raise ValueError(
-        'These variables still hold the change-me placeholder from '
-        '.env.example: ' + ', '.join(_placeholders) + '. Replace them before '
-        'starting SerOps — see the Quick Start, step 2.'
+        'These variables still hold a placeholder from .env.example: '
+        + ', '.join(_placeholders) + '. Replace them before starting SerOps '
+        '— see the Quick Start, step 2.'
+    )
+
+if not DEBUG and _secret_key_too_short(os.environ):
+    raise ValueError(
+        f'DJANGO_SECRET_KEY must be at least {_MIN_SECRET_KEY_LENGTH} characters: '
+        'it signs sessions and activation links and encrypts stored credentials.'
+    )
+
+# Encrypts the secrets stored in the database (Utils/crypto.py). Separate from
+# SECRET_KEY, which signs sessions and links and ends up in more places.
+SEROPS_ENCRYPTION_KEY = os.getenv('SEROPS_ENCRYPTION_KEY', '')
+SEROPS_ENCRYPTION_KEY_PREVIOUS = [
+    k.strip() for k in os.getenv('SEROPS_ENCRYPTION_KEY_PREVIOUS', '').split(',') if k.strip()
+]
+if DEBUG and not SEROPS_ENCRYPTION_KEY:
+    SEROPS_ENCRYPTION_KEY = base64.urlsafe_b64encode(
+        hashlib.sha256(b'serops-dev-only:' + SECRET_KEY.encode()).digest()).decode()
+if not all(_encryption_key_valid(k) for k in [SEROPS_ENCRYPTION_KEY, *SEROPS_ENCRYPTION_KEY_PREVIOUS]):
+    raise ValueError(
+        'SEROPS_ENCRYPTION_KEY must be set to 32 random bytes in URL-safe base64. Generate one with: '
+        "openssl rand -base64 32 | tr '+/' '-_'  (see Upgrading if this install already has data)."
     )
 
 # Whether anonymous users can create a new organisation via POST
@@ -180,6 +218,13 @@ INSTALLED_APPS = [
     'traces',  # OpenTelemetry OTLP receiver + Trace/Span models + IngestKey auth
 ]
 
+# SerOps Enterprise (backend/ee/, commercial license). Optional: without the
+# directory SerOps is the complete Community edition, and nothing outside ee/
+# imports it (CI runs every test with ee/ deleted).
+import importlib.util  # noqa: E402
+if importlib.util.find_spec('ee') is not None:
+    INSTALLED_APPS.append('ee')
+
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -209,6 +254,9 @@ if not DEBUG:
         SECURE_SSL_REDIRECT = True
         SESSION_COOKIE_SECURE = True
         CSRF_COOKIE_SECURE = True
+        # Behind a TLS-terminating proxy every request reached Django as plain
+        # HTTP and was redirected again, forever.
+        SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     else:
         SECURE_SSL_REDIRECT = False
         # Served over HTTPS by a proxy that redirects on its own (Helm
@@ -219,6 +267,13 @@ if not DEBUG:
         CSRF_COOKIE_SECURE = _https
         if _https:
             SECURE_HSTS_SECONDS = 31536000
+            # The proxy terminates TLS and talks plain HTTP to Django, which
+            # then saw every request as insecure: HSTS (sent only on secure
+            # requests) never went out, and URLs built from the request, such
+            # as the webhook URL registered with GitHub or GitLab, were
+            # http://. Caddy and ingress-nginx set this header and replace a
+            # client's own; the backend itself is not exposed.
+            SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # X-Frame-Options (clickjacking protection)
 X_FRAME_OPTIONS = 'DENY'
@@ -645,9 +700,20 @@ BETA_INVITE_CODE = os.getenv('BETA_INVITE_CODE') or None
 REST_KNOX = {
     'TOKEN_TTL': timedelta(days=30),  # Token expires 30 days after creation/refresh
     'AUTO_REFRESH': True,  # Automatically extend token on each request
-    'MIN_REFRESH_INTERVAL': 3600,  # Refresh at most once per hour (saves a DB query per request)
+    # Once a minute at most, so the organisation's inactivity timeout, which
+    # reads this timestamp, is accurate without a write on every request.
+    'MIN_REFRESH_INTERVAL': 60,
     'AUTH_HEADER_PREFIX': 'Token',  # Keep same format as DRF authtoken
 }
+
+# Identity providers that leave email_verified out of their claims although
+# they own the address (Microsoft Entra ID). Any other provider must say the
+# email is verified, or the sign-in is refused.
+SSO_TRUST_MISSING_EMAIL_VERIFIED = [
+    host.strip().lower()
+    for host in os.getenv('SSO_TRUST_MISSING_EMAIL_VERIFIED', 'login.microsoftonline.com').split(',')
+    if host.strip()
+]
 
 # The Django admin (/api/admin/) is off unless enabled: it has its own
 # login, separate from the API's throttled one, and every install has a

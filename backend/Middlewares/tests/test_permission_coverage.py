@@ -24,6 +24,7 @@ PUBLIC = {
     'auth/register': 'open registration gate, throttled',
     'auth/activate/': 'signed activation token',
     'auth/accept/invitation/': 'signed invitation token',
+    'auth/email/confirm/': 'signed email-change token',
     'auth/password/forget': 'email ownership, throttled',
     'auth/password/set/': 'password-reset token',
     'auth/accept/password': 'signed invitation JWT',

@@ -1,4 +1,5 @@
 from Middlewares.rbac import Requires
+from Middlewares.project_access import scope
 import os
 from django.shortcuts import render, get_object_or_404
 import requests
@@ -291,10 +292,10 @@ def generate_text(request):
                         # owning organisation. Filtering here prevents IDOR
                         # where a chat session in org A tries to pull
                         # context from a batch belonging to org B.
-                        batch_qs = AIAnalyzedBatch.objects.filter(
+                        batch_qs = scope(AIAnalyzedBatch.objects.filter(
                             batch_id=batch_id,
                             organisation=request.user.organisation,
-                        )
+                        ), request.user, 'batch.read')
                         if defer_fields:
                             batch = batch_qs.defer(*defer_fields).get()
                         else:
@@ -360,9 +361,15 @@ def generate_text(request):
                             # Find code changes linked to this project/batch timeframe
                             # This is a heuristic lookup based on project or time
                             if batch.project:
+                                # The batch project's own repositories. The old
+                                # filter (the repository's organisation has this
+                                # project) matched every commit of the
+                                # organisation, restricted projects' included
+                                # (review 2026-11-05).
                                 changes = CodeChange.objects.filter(
-                                    gitlab_project__organisation__projects=batch.project
-                                ).order_by('-timestamp')[:5]
+                                    organisation=batch.project.organisation,
+                                    gitlab_project__project_services__project=batch.project,
+                                ).distinct().order_by('-timestamp')[:5]
                                 
                                 result = ""
                                 for c in changes:
@@ -400,10 +407,10 @@ def generate_text(request):
                         from Data.memory import (
                             find_past_memories, format_memories_for_prompt, query_text_for_batch,
                         )
-                        batch_for_memory = AIAnalyzedBatch.objects.filter(
+                        batch_for_memory = scope(AIAnalyzedBatch.objects.filter(
                             batch_id=batch_id,
                             organisation=request.user.organisation,
-                        ).first()
+                        ), request.user, 'batch.read').first()
                         if batch_for_memory and batch_for_memory.project:
                             organisation = batch_for_memory.organisation or batch_for_memory.project.organisation
                             if organisation:
@@ -620,8 +627,7 @@ def trigger_batch_analysis(request):
                 {'error': f'Batch {batch_id} not found'},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        qs = AIAnalyzedBatch.objects.all()
-        qs = qs.filter(organisation=user_org)
+        qs = scope(AIAnalyzedBatch.objects.filter(organisation=user_org), request.user, 'batch.analyze')
         batch = qs.filter(batch_id=batch_id).first()
         if batch is None:
             # Same 404 whether the batch doesn't exist or belongs to

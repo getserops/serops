@@ -25,6 +25,8 @@ const PAGES = [
   ["/dash/profile", "nav.profile"],
   ["/dash/settings", "nav.settings"],
   ["/dash/settings/team", "settings.team.title"],
+  ["/dash/settings/roles", "roles.title"],
+  ["/dash/settings/teams", "teams.title"],
   ["/dash/settings/delivery", "settings.delivery.title"],
   ["/dash/settings/routing-rules", "settings.routing.title"],
   ["/dash/settings/ai", "settings.ai.title"],

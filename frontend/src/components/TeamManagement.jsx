@@ -5,7 +5,9 @@ import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
 import { FaUserPlus, FaEdit, FaTrash, FaEnvelope, FaUserShield, FaUserFriends, FaUserCog } from 'react-icons/fa';
 import { OrganisationService } from '../services/organisation.service';
+import enterpriseSettingsService from '../services/enterpriseSettings.service';
 import { can, getRoleDisplayName, getRoleColor } from '../utils/permissions';
+import { hasFeature, useEdition } from '../utils/edition';
 import CollapsibleSection from './settings/CollapsibleSection';
 import './settings/SettingsLayout.css';
 import PageHeader from './PageHeader';
@@ -24,8 +26,22 @@ const TeamManagement = ({ embedded = false }) => {
         role: 'user'  // Default role for new invites
     });
 
+    // Roles synced from the identity provider overwrite manual changes at
+    // the member's next SSO sign-in: say so on this page.
+    const [ssoSync, setSsoSync] = useState(false);
+    const [customRoles, setCustomRoles] = useState([]);
+    // Handing out a custom role needs the Enterprise license; a member keeps
+    // the one they have.
+    const customRolesLicensed = hasFeature(useEdition(), 'custom_roles');
+
     useEffect(() => {
         fetchTeamMembers();
+        enterpriseSettingsService.getSSOConfig()
+            .then((sso) => setSsoSync(!!(sso?.sso_enabled && sso?.sso_sync_role)))
+            .catch(() => setSsoSync(false));
+        OrganisationService.getRoles()
+            .then((roles) => setCustomRoles(roles.custom || []))
+            .catch(() => setCustomRoles([]));
     }, []);
 
     const fetchTeamMembers = async () => {
@@ -50,7 +66,7 @@ const TeamManagement = ({ embedded = false }) => {
                 first_name: member.first_name || '',
                 last_name: member.last_name || '',
                 phone: member.phone || '',
-                role: member.role || 'user'
+                role: member.role_key || member.role || 'user'
             });
         } else {
             setSelectedMember(null);
@@ -135,10 +151,14 @@ const TeamManagement = ({ embedded = false }) => {
                 }
             />
 
+            {ssoSync && (
+                <div className="alert alert-info" role="status">{t('team.ssoManagedRoles')}</div>
+            )}
+
             <CollapsibleSection
                 className="ds-settings-section-flush"
-                title={t('team.membersList') || "Team Members"}
-                description={t('team.membersDesc') || "Manage your team members and roles"}
+                title={t('team.membersList') || "Users"}
+                description={t('team.membersDesc') || "Invite people, change their roles, remove them"}
                 defaultExpanded={true}
             >
                 <div className="settings-card-body p-0 overflow-hidden">
@@ -197,7 +217,7 @@ const TeamManagement = ({ embedded = false }) => {
                                                 {member.role === 'admin' && <FaUserShield className="me-1" />}
                                                 {member.role === 'user' && <FaUserCog className="me-1" />}
                                                 {member.role === 'viewer' && <FaUserFriends className="me-1" />}
-                                                {getRoleDisplayName(member.role)}
+                                                {member.role_name || getRoleDisplayName(member.role)}
                                             </Badge>
                                         </td>
                                         <td>
@@ -372,6 +392,25 @@ const TeamManagement = ({ embedded = false }) => {
                                     onChange={() => setFormData({ ...formData, role: 'admin' })}
                                     className="p-3 border rounded"
                                 />
+                                {customRoles.filter((role) => customRolesLicensed || role.key === selectedMember?.role_key).map((role) => (
+                                    <Form.Check
+                                        key={role.key}
+                                        type="radio"
+                                        id={`role-${role.key}`}
+                                        name="role"
+                                        label={
+                                            <div>
+                                                <div className="fw-medium">{role.name}</div>
+                                                <div className="text-muted small">
+                                                    {role.description || t('roles.permissionCount', { count: role.permissions.length })}
+                                                </div>
+                                            </div>
+                                        }
+                                        checked={formData.role === role.key}
+                                        onChange={() => setFormData({ ...formData, role: role.key })}
+                                        className="p-3 border rounded"
+                                    />
+                                ))}
                             </div>
                         </Form.Group>
                     </Modal.Body>

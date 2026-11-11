@@ -487,3 +487,36 @@ class OnboardingStatus(models.Model):
         """Get or create onboarding status for an organisation."""
         status, _ = cls.objects.get_or_create(organisation=organisation)
         return status
+
+
+class Team(models.Model):
+    """A group of members. Teams are given access to restricted projects
+    (Projects.ProjectTeamAccess); SSO groups can fill them."""
+    organisation = models.ForeignKey(Organisations, on_delete=models.CASCADE, related_name='teams')
+    name = models.CharField(max_length=80)
+    description = models.CharField(max_length=255, blank=True, default='')
+    members = models.ManyToManyField('Users.User', through='TeamMembership', related_name='teams')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'team'
+        ordering = ['name']
+        constraints = [models.UniqueConstraint(fields=['organisation', 'name'], name='team_unique_name')]
+
+    def __str__(self):
+        return self.name
+
+
+class TeamMembership(models.Model):
+    """Who is in a team, and whether SSO put them there (SSO sync only
+    removes memberships it added)."""
+    SOURCES = [('manual', 'Added in SerOps'), ('sso', 'From an SSO group')]
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='memberships')
+    user = models.ForeignKey('Users.User', on_delete=models.CASCADE, related_name='team_memberships')
+    source = models.CharField(max_length=10, choices=SOURCES, default='manual')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'team_membership'
+        constraints = [models.UniqueConstraint(fields=['team', 'user'], name='team_membership_unique')]

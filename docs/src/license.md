@@ -4,11 +4,7 @@ description: "SerOps is open source under the GNU AGPL-3.0; what that means for 
 ---
 # License
 
-SerOps is open-source software licensed under the **GNU Affero General Public License, Version 3** ("AGPL-3.0"). The same license applies to all three repositories:
-
-- backend (`backend/`)
-- frontend (`frontend/`)
-- this documentation site (`docs/`)
+SerOps is open-source software licensed under the **GNU Affero General Public License, Version 3** ("AGPL-3.0"). It covers the whole repository — backend (`backend/`), frontend (`frontend/`), deployment files (`deploy/`) and this documentation site (`docs/`) — except the Enterprise directories described [below](#enterprise-code-ee-directories).
 
 Copyright © 2026 SerOps contributors.
 
@@ -41,9 +37,19 @@ The AGPL is a great fit for most users. There are three scenarios where a commer
 
 1. Your organisation has a **policy against AGPL code** in its stack (Google and some Fortune 500 companies do). A commercial license removes the copyleft obligations.
 2. You want to **modify SerOps and offer it as a proprietary product** to third parties without open-sourcing your changes.
-3. You want **prioritised support, indemnification, or contractual guarantees** the AGPL cannot provide.
+3. You want **prioritised support or contractual guarantees** the AGPL cannot provide. Terms such as indemnification are discussed case by case.
 
 If any of those apply, see [`LICENSE-COMMERCIAL.md`](https://github.com/getserops/serops/blob/main/LICENSE-COMMERCIAL.md) at the repository root for how to reach us.
+
+## Enterprise code (`ee/` directories)
+
+Two directories, `backend/ee/` and `frontend/src/ee/`, hold SerOps Enterprise code under the [SerOps Enterprise License](https://github.com/getserops/serops/blob/main/backend/ee/LICENSE) instead of the AGPL. The code is readable; using it in production needs a paid subscription and its license key.
+
+- **SerOps Community is complete without them.** Delete both directories and you have SerOps under the AGPL only. CI tests it that way on every change.
+- **Enterprise only adds** governance features for large organisations. No Community feature moves to Enterprise: see the [open source promise](open-source-promise.md).
+- **The published images include the `ee/` code, switched off.** Without a license key no Enterprise feature runs, and nothing is sent anywhere: the key is checked offline. To build images with no Enterprise code at all, delete the two directories before `docker build`.
+
+Production use of Enterprise follows the [SerOps Enterprise Terms](legal/enterprise-terms.md). The licensor is SerOps (a Tunisian SUARL, Ariana).
 
 ## Trademark
 
@@ -51,4 +57,4 @@ If any of those apply, see [`LICENSE-COMMERCIAL.md`](https://github.com/getserop
 
 ## Contributions
 
-By contributing a pull request to any SerOps repository, you agree to license your contribution under the same AGPL-3.0 terms. No separate CLA is required.
+Code contributions need a signed [Contributor License Agreement](https://github.com/getserops/serops/blob/main/CLA.md): you keep your copyright and grant SerOps the right to ship your work in the Community edition (AGPL-3.0), the Enterprise edition and commercially licensed releases. On your first pull request a bot asks you to accept it with one comment. The agreement is being finalised; until then, code pull requests are reviewed but not merged (see [CONTRIBUTING.md](https://github.com/getserops/serops/blob/main/CONTRIBUTING.md)).

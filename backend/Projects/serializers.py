@@ -85,6 +85,9 @@ class ProjectDeploymentSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     'Project does not belong to your organisation.'
                 )
+            from Middlewares.project_access import can_on_project
+            if not can_on_project(request.user, value, 'project.write'):
+                raise serializers.ValidationError('Project not found.')
         return value
 
 
@@ -93,10 +96,22 @@ class ProjectSerializer(serializers.ModelSerializer):
     environments = ProjectEnvironmentSerializer(many=True, read_only=True)
     description = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
     services = serializers.SerializerMethodField()
+    # Who sees it, and what the requester may do on it (teams can give more
+    # than the organisation role: the UI shows controls from this list).
+    access_mode = serializers.CharField(read_only=True)
+    permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
-        fields = ['id', 'name', 'description', 'created_at', 'updated_at', 'environments', 'services']
+        fields = ['id', 'name', 'description', 'created_at', 'updated_at', 'environments', 'services',
+                  'access_mode', 'permissions']
+
+    def get_permissions(self, obj):
+        request = self.context.get('request')
+        if request is None:
+            return []
+        from Middlewares.project_access import project_permissions
+        return sorted(project_permissions(request.user, obj))
 
     def get_services(self, obj):
         return ProjectServiceSerializer(obj.services.all(), many=True, context=self.context).data
@@ -152,9 +167,12 @@ class OrganisationScopedBindingMixin:
         fields = super().get_fields()
         request = self.context.get('request')
         organisation = getattr(getattr(request, 'user', None), 'organisation', None)
-        fields['project_service'].queryset = ProjectService.objects.filter(
+        # Only services of projects the requester may change (teams and
+        # restricted projects: Middlewares/project_access.py).
+        from Middlewares.project_access import scope
+        fields['project_service'].queryset = scope(ProjectService.objects.filter(
             project__organisation=organisation,
-        ) if organisation else ProjectService.objects.none()
+        ), request.user, 'project.write') if organisation else ProjectService.objects.none()
         fields['integration'].queryset = ProviderIntegration.objects.filter(
             organisation=organisation,
         ) if organisation else ProviderIntegration.objects.none()
@@ -242,11 +260,11 @@ class CICDBindingSerializer(OrganisationScopedBindingMixin, serializers.ModelSer
 class ProjectServiceSerializer(serializers.ModelSerializer):
     def get_fields(self):
         # The project, legacy GitLab project and integration must be the
-        # requester's organisation's.
-        from Utils.scoped_relations import limit_relations
+        # requester's (the project also within their project access).
+        from Middlewares.project_access import limit_relations, scope
         return limit_relations(
             super().get_fields(), self.context.get('request'),
-            project=lambda u, org: Project.objects.filter(organisation=org),
+            project=lambda u, org: scope(Project.objects.filter(organisation=org), u, 'project.write', field=''),
             gitlab_project=lambda u, org: GitlabProject.objects.filter(organisation=org),
             provider_integration=lambda u, org: ProviderIntegration.objects.filter(organisation=org),
         )

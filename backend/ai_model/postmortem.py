@@ -45,13 +45,13 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def generate_postmortem_draft(batch) -> str:
+def generate_postmortem_draft(batch, user=None) -> str:
     """
     Return a markdown post-mortem draft for ``batch``.
 
     Never raises — falls back to the template on any AI failure.
     """
-    context = _gather_context(batch)
+    context = _gather_context(batch, user)
     prompt = _build_prompt(context)
 
     # Try the AI service first. Any failure → template fallback.
@@ -71,7 +71,7 @@ def generate_postmortem_draft(batch) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _gather_context(batch) -> dict:
+def _gather_context(batch, user=None) -> dict:
     """Collect the data the AI + template both need."""
     ctx = {
         'batch_id': getattr(batch, 'batch_id', ''),
@@ -119,7 +119,7 @@ def _gather_context(batch) -> dict:
     # Similar past incidents — pull from the first top issue's find_similar.
     try:
         if issues:
-            similar = issues[0].find_similar(top_k=3)
+            similar = issues[0].find_similar(top_k=3, user=user)
             ctx['similar_past'] = [
                 {
                     'similarity': m['similarity'],

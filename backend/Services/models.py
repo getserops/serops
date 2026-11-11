@@ -40,6 +40,18 @@ class Service(models.Model):
     def __str__(self):
         return f"{self.name} ({self.get_category_display()})"
 
+    def get_specific_instance(self):
+        """The SCM, infra or custom service row behind this one (multi-table
+        inheritance), or self when there is none."""
+        for child in ('scmservice', 'infraservice', 'customservice'):
+            try:
+                return getattr(self, child)
+            except Service.DoesNotExist:
+                continue
+            except AttributeError:
+                continue
+        return self
+
 
 class SCMService(Service):
     """Source Control Management service (GitLab, GitHub, etc.)"""

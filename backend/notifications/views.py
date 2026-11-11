@@ -1,4 +1,5 @@
 from Middlewares.rbac import Requires
+from Middlewares.project_access import scope
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import generics, permissions
 from rest_framework.response import Response
@@ -327,8 +328,7 @@ class IssueAcknowledgeView(generics.GenericAPIView):
                 {'error': 'Issue not found'},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        qs = Issue.objects.all()
-        qs = qs.filter(organisation=user_org)
+        qs = scope(Issue.objects.filter(organisation=user_org), request.user, 'issue.update')
         issue = qs.filter(id=issue_id).first()
         if issue is None:
             return Response(

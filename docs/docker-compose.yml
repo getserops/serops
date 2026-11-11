@@ -10,7 +10,7 @@ services:
     restart: unless-stopped
     # No direct port exposure — Caddy is the only entry point
     networks:
-      - serops
+      - edge
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/health"]
       interval: 30s
@@ -31,6 +31,7 @@ services:
       - caddy_config:/config
     networks:
       - serops
+      - edge   # only Caddy, the landing site and the docs
     depends_on:
       - serops_docs
 
@@ -40,4 +41,6 @@ volumes:
 
 networks:
   serops:
+    external: true
+  edge:
     external: true

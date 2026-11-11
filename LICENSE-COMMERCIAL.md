@@ -8,7 +8,16 @@ You may want a **commercial license instead** if one of these describes your sit
 
 2. **Building a proprietary product on top of SerOps** — you want to modify SerOps and ship the result as a closed-source product or hosted service, without open-sourcing your modifications.
 
-3. **Contractual guarantees** — you need prioritised support SLAs, indemnification, security-review response times, or contractual assurances the AGPL cannot provide on its own.
+3. **Contractual guarantees** — you need prioritised support SLAs, security-review response times, or contractual assurances the AGPL cannot provide on its own. Terms such as indemnification are discussed case by case.
+
+## Two licenses in one repository
+
+| Where | License | What it means |
+|-------|---------|---------------|
+| Everything except the `ee/` directories | AGPL-3.0 | SerOps Community: the complete product, free |
+| `backend/ee/`, `frontend/src/ee/` | [SerOps Enterprise License](backend/ee/LICENSE) | Source-available; production use needs a subscription and its license key |
+
+The two don't mix: Community code never depends on `ee/` (CI deletes it and runs every test), and a commercial license covers both the copyleft opt-out for the AGPL code and, when bought, the Enterprise features. No Community feature ever moves into `ee/`; see the [open source promise](https://serops.ai/docs/open-source-promise/).
 
 ## How to reach us
 

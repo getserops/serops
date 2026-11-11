@@ -381,8 +381,11 @@ class ClusterViewSet(viewsets.ModelViewSet):
         """
         cluster = self.get_object()   # already org-scoped by get_queryset
         from Projects.models import Project
+        from Middlewares.project_access import scope
+        # Only projects the caller may read: viewers listed every project on
+        # the cluster, restricted ones included (review 2026-11-05).
         projects = (
-            Project.objects.filter(cluster=cluster)
+            scope(Project.objects.filter(cluster=cluster), request.user, 'project.read', field='')
             .prefetch_related('services')
             .order_by('name')
         )

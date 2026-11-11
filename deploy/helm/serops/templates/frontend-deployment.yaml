@@ -18,6 +18,7 @@ spec:
     spec:
       # SerOps never calls the Kubernetes API: no token in the pod.
       automountServiceAccountToken: false
+      serviceAccountName: {{ include "serops.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.frontend.podSecurityContext | nindent 8 }}
       volumes:

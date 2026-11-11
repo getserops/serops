@@ -24,7 +24,7 @@ SHARED = {
     'org_settings.OrganisationAISettingsSerializer.fallback_provider': 'AI provider catalogue, shared by every organisation',
     'org_settings.OrganisationAPIKeySerializer.provider': 'AI provider catalogue, shared by every organisation',
     'Projects.ProjectCreateSerializer.organisation': "the view sets it to the requester's organisation",
-    'Projects.ProjectDeploymentSerializer.project': 'validate_project checks the organisation',
+    'Projects.ProjectDeploymentSerializer.project': 'validate_project checks organisation and project access',
     'Projects.ProjectDeploymentSerializer.environment': "validate() checks it belongs to the project",
     'Projects.ProjectDeploymentSerializer.cluster': "validate() checks the requester's organisation",
     'integrations.ObservabilityIntegrationSerializer.cluster': "validate_cluster checks the requester's organisation",

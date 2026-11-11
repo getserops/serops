@@ -17,6 +17,9 @@ AuthService.register = (data) => {
 AuthService.verify = (token) => {
   return axios.get(AUTH_HOST + "/auth/activate/", token);
 };
+AuthService.confirm_email_change = (token) => {
+  return axios.post(`${AUTH_HOST}/auth/email/confirm/${encodeURIComponent(token)}`);
+};
 AuthService.accept_invitation = (string) => {
   return axios.get(AUTH_HOST + "/auth/accept/invitation/" + string);
 };

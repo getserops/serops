@@ -78,6 +78,21 @@ upgrades are safe with a brief restart.
 
 Releases that need something from you after upgrading. Migrations run on their own (`docker compose up` / the Helm migrate job).
 
+### 1.3.0: users, roles and teams
+
+- **`SEROPS_ENCRYPTION_KEY` is required.** Stored credentials now have their own key instead of being encrypted with `DJANGO_SECRET_KEY`, and SerOps refuses to start without it. Generate one with `openssl rand -base64 32 | tr '+/' '-_'`, add it to your environment (Helm: `django.encryptionKey`, or `encryption-key` in your `existingSecret`), and back it up. Keep `DJANGO_SECRET_KEY` unchanged. Once upgraded, run `python manage.py rotate_secrets` once: until then, existing credentials still depend on `DJANGO_SECRET_KEY`.
+- **What happens to an existing install**: without the key, the backend refuses to start and says how to generate one. With it, existing credentials stay readable (they are still decrypted with the key derived from `DJANGO_SECRET_KEY`) and new ones use the new key; `rotate_secrets` (`--dry-run` reports first) re-encrypts the old ones and names any it cannot read. After that, `DJANGO_SECRET_KEY` no longer protects them.
+- **Helm (chart 1.3.0)**: `ingress.tls` is required when the ingress is enabled; an install that relied on plain HTTP fails to render until you set it, or `ingress.allowInsecure=true` when TLS ends in front of the ingress controller. NetworkPolicies, PodDisruptionBudgets and a ServiceAccount per release are on by default; if your ingress controller is not in a namespace labelled `kubernetes.io/metadata.name: ingress-nginx`, set `networkPolicy.ingressFrom` first, or the ingress gets 502s. Your CNI must enforce NetworkPolicy (`networkPolicy.enabled=false` skips them). The bundled lab Redis now needs a password, generated at install. Details: [Helm → Upgrading](helm.md#upgrading).
+- **Images**: the backend still runs as uid 10001 and the frontend's nginx as uid 101 (since 1.2.9). The quick-start now drops every capability and sets `no-new-privileges` on them; a `backend_logs` volume created before 1.2.9 still needs the one-off `chown` below. `latest` now follows release tags only, and `main` builds are tagged `edge`: pin a version.
+- **Quick-start**: `.env.example` leaves `DJANGO_SECRET_KEY`, `POSTGRES_PASSWORD` and `REDIS_PASSWORD` empty, so compose refuses to start until you fill them; existing `.env` files are unaffected.
+- **New migrations**: Users 0014–0016, Data 0057–0059, Organisations 0014, Projects 0017, and ee 0001 when the `ee/` directories are present.
+- **Nothing is restricted after the upgrade**: every project stays open to the whole organisation until you restrict it in its **Access** tab. Existing roles are unchanged.
+- **Community and Enterprise**: SSO group mapping and teams are Community. Custom roles and per-project access are [Enterprise](../open-source-promise.md#what-enterprise-adds) (license key in **Settings → Enterprise license**).
+- **SSO accounts are only created for listed email domains.** Before, a sign-in for an unknown email could create an account; now uninvited people need their domain under *Email domains that can join* (single organisation) or `manage.py sso_domains` (several organisations). Invited users are unaffected.
+- **Settings → Team is now Settings → Users**, next to the new Teams page (and Roles, with Enterprise).
+- **Integrations calling the API** see two new fields on users (`role_key`, `role_name`; `role` can be `custom`) and on projects (`access_mode`, `permissions`). Login, profile and SSO now return `organisation` as the organisation's name, plus `organisation_id`.
+- **Forks adding API endpoints**: every endpoint must declare `Requires(...)` and project-scoped views must filter with `scope()`, or the test suite fails (see [Permissions](../development/permissions.md)).
+
 ### 1.2.14: security release
 
 - **SSO accounts only for listed domains.** A first SSO sign-in creates an account only when the email's domain is in *Email domains that can join* (Settings → Security → Single Sign-On). With no domain listed, only invited and existing members sign in. On an install with several organisations, only the operator (a staff user) sets these domains.
@@ -101,6 +116,13 @@ Releases that need something from you after upgrading. Migrations run on their o
 - **Superusers no longer reach other organisations' data through the API**: sign in as a member of an organisation to work in it.
 - **Helm**: `/metrics` is no longer published on the ingress. Scrape it in the cluster (`serviceMonitor.enabled: true`), or add the path back with basic auth (see [Self-metrics](../admin/self-metrics.md)).
 - **Organisation logos** must be uploaded again (they were never stored durably before); profile photos are imported automatically.
+
+## Changing the encryption key
+
+1. Set `SEROPS_ENCRYPTION_KEY_PREVIOUS` to the current key, and `SEROPS_ENCRYPTION_KEY` to a new one.
+2. Restart the backend and the workers.
+3. Run `python manage.py rotate_secrets` (`--dry-run` reports first). It exits with an error and names any secret it cannot read.
+4. Remove `SEROPS_ENCRYPTION_KEY_PREVIOUS` and restart.
 
 ## Automated Upgrade
 

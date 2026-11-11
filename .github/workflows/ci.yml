@@ -22,10 +22,21 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# The test jobs need nothing but the checkout. Without this they inherited
+# the repository default for the token.
+permissions:
+  contents: read
+
 jobs:
   backend:
-    name: Backend — lint & tests
+    name: Backend — lint & tests (${{ matrix.edition }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # community: backend/ee/ is deleted first, so nothing outside ee/ can
+        # come to depend on the Enterprise code (see backend/ee/README.md).
+        edition: [full, community]
     defaults:
       run:
         working-directory: backend
@@ -72,12 +83,15 @@ jobs:
       REACT_URL: http://localhost:3000
       SERVER_URL: http://localhost:8000
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: '3.12'
           cache: 'pip'
           cache-dependency-path: backend/requirements.txt
+      - name: Remove the Enterprise code (Community edition)
+        if: matrix.edition == 'community'
+        run: rm -rf ee
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libpq-dev
       - name: Install python dependencies
@@ -94,20 +108,32 @@ jobs:
         run: python manage.py test --verbosity=1 --noinput
 
   frontend:
-    name: Frontend — lint, test, build
+    name: Frontend — lint, test, build (${{ matrix.edition }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # community: src/ee/ is deleted first (see backend job).
+        edition: [full, community]
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
+      - name: Remove the Enterprise code (Community edition)
+        if: matrix.edition == 'community'
+        run: rm -rf src/ee
       - name: Install dependencies
         run: npm ci
+      - name: Audit production dependencies
+        # Fails on a HIGH or CRITICAL advisory in what ships in the image;
+        # dev tooling is reported by Dependabot instead.
+        run: npm audit --omit=dev --audit-level=high
       - name: Lint
         run: npm run lint
       - name: Test
@@ -127,7 +153,7 @@ jobs:
       SEROPS_BACKEND_IMAGE: serops-ci/backend
       SEROPS_FRONTEND_IMAGE: serops-ci/frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Build images from this commit
         run: |
           docker build -t "$SEROPS_BACKEND_IMAGE" backend
@@ -136,10 +162,11 @@ jobs:
         working-directory: deploy/quick-start
         run: |
           cp .env.example .env
+          echo "SEROPS_ENCRYPTION_KEY=$(openssl rand -base64 32 | tr '+/' '-_')" >> .env
           sed -i "s|^DJANGO_SECRET_KEY=.*|DJANGO_SECRET_KEY=$(openssl rand -hex 32)|; s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 16)|; s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$(openssl rand -hex 16)|" .env
           docker compose up -d --no-build --wait
           docker compose exec -T backend python manage.py seed_demo_org
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: '20'
           cache: 'npm'
@@ -156,7 +183,7 @@ jobs:
         run: npx playwright test -c playwright.ui-quality.config.ts
       - name: Upload the report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: ui-quality-report
           path: frontend/playwright-report-ui
@@ -173,8 +200,8 @@ jobs:
       run:
         working-directory: docs
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: '3.12'
       - name: Install MkDocs
@@ -192,14 +219,26 @@ jobs:
     name: Helm chart — lint & template
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310  # v5.0.1
       - name: helm lint
         run: helm lint deploy/helm/serops
       - name: helm template
         # Proves the chart renders. secretKey is required by the chart, so a
         # throwaway value is supplied rather than making the template optional.
+        # TLS is required too: the chart refuses a plain-HTTP ingress.
         run: >
           helm template serops deploy/helm/serops
           --kube-version 1.31.0
           --set django.secretKey=ci-render-only
+          --set django.encryptionKey=ci-render-only
+          --set 'ingress.tls[0].hosts[0]=serops.example.com'
+          --set ingress.tls[0].secretName=serops-tls
+          --set devServices.postgresql.enabled=true
+          --set devServices.redis.enabled=true
+      - name: helm template refuses a plain-HTTP ingress
+        run: >
+          ! helm template serops deploy/helm/serops
+          --kube-version 1.31.0
+          --set django.secretKey=ci-render-only
+          --set django.encryptionKey=ci-render-only

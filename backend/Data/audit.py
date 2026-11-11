@@ -3,6 +3,9 @@ Audit Logging Utility
 Helper functions for logging user actions
 """
 
+import json
+import re
+
 from .models import AuditLog
 
 
@@ -67,19 +70,13 @@ def log_action(request, action, details=None, user=None, organisation=None):
 def log_login(request, user, success=True):
     """Log a login attempt"""
     action = 'LOGIN' if success else 'LOGIN_FAILED'
-    details = {'email': user.email if user else request.POST.get('email', 'unknown')}
-    
-    if success and user:
+    if not user:
+        return  # An unknown email belongs to no organisation's log.
+    details = {'email': user.email}
+    if success:
         log_action(request, action, details, user=user)
-    elif not success:
-        # For failed logins, we might not have a user object
-        # Try to find the organisation from the email
-        from Users.models import User
-        try:
-            attempted_user = User.objects.get(email=request.POST.get('email', ''))
-            log_action(request, action, details, user=None, organisation=attempted_user.organisation)
-        except User.DoesNotExist:
-            pass  # Can't log without organisation
+    else:
+        log_action(request, action, details, user=None, organisation=user.organisation)
 
 
 def log_logout(request, user=None):
@@ -124,3 +121,17 @@ def log_team_action(request, action, affected_user_email, role=None):
     if role:
         details['role'] = role
     log_action(request, action, details)
+
+
+def forget_email(user):
+    """Replace the user's email with ``user:<id>`` throughout the audit log.
+
+    The trail stays complete and usable, but no longer identifies someone who
+    has erased their account. Searches every organisation: an invitation or a
+    refused sign-in can name the address outside the user's own.
+    """
+    pattern = re.compile(re.escape(user.email), re.IGNORECASE)
+    rows = list(AuditLog.objects.filter(details__icontains=user.email))
+    for row in rows:
+        row.details = json.loads(pattern.sub(f'user:{user.pk}', json.dumps(row.details, ensure_ascii=False)))
+    AuditLog.objects.bulk_update(rows, ['details'], batch_size=500)

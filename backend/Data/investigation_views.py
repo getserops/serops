@@ -6,6 +6,7 @@ GET  /api/data/investigations/options/    projects, environments, deployments, s
 GET  /api/data/investigations/<id>/       one run, with its progress
 """
 from Middlewares.rbac import Requires
+from Middlewares.project_access import scope
 import logging
 import re
 from datetime import timedelta
@@ -79,12 +80,15 @@ def _parse_when(value, field):
     return when
 
 
-def _validate(data, org):
+def _validate(data, org, user=None):
     """Return (fields, None) or (None, error Response)."""
     from Projects.models import Project, ProjectDeployment, ProjectEnvironment, ProjectService
 
     try:
-        project = Project.objects.get(pk=int(data.get('project_id')), organisation=org)
+        projects = Project.objects.filter(organisation=org)
+        if user is not None:
+            projects = scope(projects, user, 'batch.analyze', field='')
+        project = projects.get(pk=int(data.get('project_id')))
     except (TypeError, ValueError, Project.DoesNotExist):
         return None, _error('invalid_project', 'Choose a project in your organisation.')
 
@@ -188,7 +192,7 @@ class InvestigationListView(APIView):
         org = request.user.organisation
         if org is None:
             return Response({'results': [], 'count': 0})
-        qs = (Investigation.objects.filter(organisation=org)
+        qs = (scope(Investigation.objects.filter(organisation=org), request.user, 'batch.read')
               .select_related('project', 'environment', 'deployment', 'requested_by'))
         project_id = request.query_params.get('project_id')
         if project_id:
@@ -215,7 +219,7 @@ class InvestigationListView(APIView):
         if org is None:
             return _error('no_organisation', 'Your account does not belong to an organisation.',
                           status.HTTP_403_FORBIDDEN)
-        fields, err = _validate(request.data, org)
+        fields, err = _validate(request.data, org, request.user)
         if err is not None:
             return err
 
@@ -272,7 +276,8 @@ class InvestigationDetailView(APIView):
     def get(self, request, pk):
         inv = (Investigation.objects
                .select_related('project', 'environment', 'deployment', 'requested_by')
-               .filter(pk=pk, organisation=request.user.organisation).first())
+               .filter(pk=pk, organisation=request.user.organisation))
+        inv = scope(inv, request.user, 'batch.read').first()
         if inv is None or request.user.organisation is None:
             return _error('not_found', 'No such investigation.', status.HTTP_404_NOT_FOUND)
         inv.settle()
@@ -288,7 +293,8 @@ class InvestigationOptionsView(APIView):
         org = request.user.organisation
         if org is None:
             return Response({'projects': []})
-        projects = (Project.objects.filter(organisation=org).order_by('name')
+        # The projects the member can investigate.
+        projects = (scope(Project.objects.filter(organisation=org), request.user, 'batch.analyze', field='').order_by('name')
                     .prefetch_related('environments', 'deployments', 'services__scm_binding'))
         return Response({
             'limits': {

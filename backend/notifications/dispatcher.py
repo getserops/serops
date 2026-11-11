@@ -51,30 +51,18 @@ class NotificationDispatcher:
             issue: Issue instance
             batch: Optional AIAnalyzedBatch instance
         """
-        from notifications.models import (
-            ProjectSubscription,
-            UserNotificationPreference,
-            NotificationQueue,
-            Notification,
-        )
+        from notifications.models import UserNotificationPreference, NotificationQueue
+
         project = issue.project
         if not project:
             logger.warning(f"Issue {issue.id} has no project, skipping notifications")
             return []
-
-        # Explicit opt-in, and only people who still belong to the project's
-        # organisation: a deactivated or departed user keeps no feed.
-        subscriptions = ProjectSubscription.objects.filter(
-            project=project,
-            user__is_active=True,
-            user__organisation_id=project.organisation_id,
-        ).select_related('user', 'user__notification_preferences')
         
         notifications_sent = []
-        
-        for subscription in subscriptions:
+
+        for subscription in self.subscriptions_for(project):
             user = subscription.user
-            
+
             # Run suppression checks
             suppression = self._check_suppression(user, subscription, issue, project)
             
@@ -119,6 +107,19 @@ class NotificationDispatcher:
         logger.info(f"Dispatched {len(notifications_sent)} notifications for issue {issue.id}")
         return notifications_sent
     
+    @staticmethod
+    def subscriptions_for(project):
+        """Subscriptions to notify about this project's issues. Access is
+        checked at send time: a deactivated user, a user who left the
+        organisation, or a member who lost access to the project (restricted
+        since, or left its team) no longer hears about its issues."""
+        from Middlewares.project_access import can_on_project
+        from notifications.models import ProjectSubscription
+        subscriptions = ProjectSubscription.objects.filter(
+            project=project, user__is_active=True, user__organisation_id=project.organisation_id,
+        ).select_related('user', 'user__organisation', 'user__notification_preferences')
+        return [s for s in subscriptions if can_on_project(s.user, project, 'issue.read')]
+
     def _check_suppression(self, user, subscription, issue, project):
         """
         Check if notification should be suppressed.

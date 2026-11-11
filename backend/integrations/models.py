@@ -8,11 +8,11 @@ providers, optionally sharing credentials (e.g. Datadog for both).
 import json
 import logging
 
-from cryptography.fernet import InvalidToken
 from django.db import models
 from django.db.models import Q
 from Organisations.models import Organisations as Organisation
-from providers.encryption import decrypt_value, encrypt_value, get_fernet
+from providers.encryption import decrypt_value, encrypt_value
+from Utils import crypto
 
 logger = logging.getLogger(__name__)
 
@@ -24,16 +24,6 @@ SECRET_EXTRA_CONFIG_KEYS = frozenset({
     'api_key', 'app_key', 'bearer_token', 'token', 'client_secret',
     'credentials_json',
 })
-
-
-def _is_encrypted(value: str) -> bool:
-    # Uses Fernet directly: ``decrypt_value`` logs an error on every miss,
-    # and a miss here is the normal case for a freshly entered secret.
-    try:
-        get_fernet().decrypt(value.encode('utf-8'))
-    except (InvalidToken, ValueError, TypeError):
-        return False
-    return True
 
 
 def encrypt_extra_config_secrets(extra_config: dict) -> dict:
@@ -51,7 +41,7 @@ def encrypt_extra_config_secrets(extra_config: dict) -> dict:
         if not isinstance(value, str) or not value:
             result.pop(key)
             continue
-        result[key] = value if _is_encrypted(value) else encrypt_value(value)
+        result[key] = value if crypto.can_decrypt(value) else encrypt_value(value)
     return result
 
 

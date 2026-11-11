@@ -1,4 +1,5 @@
 from Middlewares.rbac import Requires
+from Middlewares.project_access import OrgRoleOnly, accessible_project_ids
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -40,6 +41,22 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,),  # Changed to AllowAny for easier testing
 )
 
+def _visible_gitlab_projects(user):
+    """The organisation's legacy repositories, without those linked only to
+    projects the member can't see."""
+    projects = GitlabProject.objects.filter(organisation=user.organisation)
+    ids = accessible_project_ids(user, 'project.read')
+    if ids is not None:
+        from Projects.models import CICDBinding
+        hidden = CICDBinding.objects.filter(
+            project_service__project__organisation=user.organisation,
+        ).exclude(project_service__project__in=ids).values_list('pipeline_id', flat=True)
+        projects = projects.filter(
+            Q(project_services__project__in=ids) | Q(project_services__isnull=True),
+        ).exclude(project_id__in=[str(p) for p in hidden]).distinct()
+    return projects
+
+
 class ProjectList(APIView):
     # Viewers read; users and admins add projects.
     permission_classes = [IsAuthenticated, Requires(GET='project.read', POST='project.write')]
@@ -49,7 +66,7 @@ class ProjectList(APIView):
         responses={200: ProjectSerializer(many=True)}
     )
     def get(self, request):
-        projects = GitlabProject.objects.filter(organisation=request.user.organisation)
+        projects = _visible_gitlab_projects(request.user)
         serializer = ProjectSerializer(projects, many=True)
         return Response(serializer.data)
 
@@ -343,11 +360,12 @@ class ProjectList(APIView):
 
 class ProjectDetail(APIView):
     # Viewers read; users and admins edit; only admins delete (see delete()).
-    permission_classes = [IsAuthenticated, Requires(GET='project.read', PUT='project.write', DELETE='project.delete')]
+    permission_classes = [IsAuthenticated, Requires(GET='project.read', PUT='project.write', DELETE='project.delete'),
+                          OrgRoleOnly]
 
     def get_object(self, pk):
         try:
-            return GitlabProject.objects.get(pk=pk)
+            return _visible_gitlab_projects(self.request.user).get(pk=pk)
         except GitlabProject.DoesNotExist:
             raise Http404
 
@@ -436,7 +454,7 @@ class ProjectDetail(APIView):
 
 
 class SetupGitLabWebhookView(APIView):
-    permission_classes = [IsAuthenticated, Requires(POST='project.write')]
+    permission_classes = [IsAuthenticated, Requires(POST='project.write'), OrgRoleOnly]
 
     @swagger_auto_schema(
         operation_description="Setup GitLab webhook for a project",
@@ -538,7 +556,7 @@ class SetupGitLabWebhookView(APIView):
 
 
 class DeleteGitLabWebhookView(APIView):
-    permission_classes = [IsAuthenticated, Requires(POST='project.write')]
+    permission_classes = [IsAuthenticated, Requires(POST='project.write'), OrgRoleOnly]
 
     @swagger_auto_schema(
         operation_description="Delete GitLab webhook for a project",
@@ -795,10 +813,7 @@ class PipelineLogsView(APIView):
     def get(self, request, project_id, pipeline_id):
         try:
             # Get the project and verify access permissions
-            project = GitlabProject.objects.get(pk=project_id)
-            if project.organisation != request.user.organisation:
-                return Response({"message": "You cannot access this GitLab project"}, 
-                              status=status.HTTP_403_FORBIDDEN)
+            project = _visible_gitlab_projects(request.user).get(pk=project_id)
             
             # Get the pipeline
             pipeline = Pipeline.objects.get(pk=pipeline_id, project=project)
@@ -1848,6 +1863,9 @@ class PipelineListView(APIView):
         from .serializer import PipelineListSerializer
 
         qs = Pipeline.objects.filter(organisation=request.user.organisation)
+        hidden = _hidden_cicd(request.user)
+        if hidden is not None:
+            qs = qs.exclude(external_project_id__in=hidden['pipelines'])
 
         service_id = request.query_params.get('service_id')
         if service_id:
@@ -1873,6 +1891,27 @@ class PipelineListView(APIView):
         return Response({'results': PipelineListSerializer(qs, many=True).data})
 
 
+def _hidden_cicd(user):
+    """What a member outside restricted projects must not see in CI/CD
+    lists: the pipeline ids bound only to those projects, and the projects.
+    None when the member sees every project.
+
+    Pipelines and deployments were listed for the whole organisation, so a
+    restricted project's builds, commits and deploy events reached everyone
+    (review 2026-11-05).
+    """
+    from Projects.models import CICDBinding, Project
+    ids = accessible_project_ids(user, 'batch.read')
+    if ids is None:
+        return None
+    org = user.organisation
+    restricted = list(Project.objects.filter(organisation=org).exclude(pk__in=ids).values_list('pk', flat=True))
+    bindings = CICDBinding.objects.filter(project_service__project__organisation=org)
+    allowed = {str(x) for x in bindings.filter(project_service__project__in=ids).values_list('pipeline_id', flat=True)}
+    hidden = {str(x) for x in bindings.filter(project_service__project__in=restricted).values_list('pipeline_id', flat=True)}
+    return {'pipelines': sorted(hidden - allowed), 'projects': restricted}
+
+
 class DeploymentListView(APIView):
     """List runtime CI/CD deployment events for the caller's org.
 
@@ -1891,6 +1930,10 @@ class DeploymentListView(APIView):
 
         org = request.user.organisation
         qs = Deployment.objects.filter(code_change__organisation=org)
+        hidden = _hidden_cicd(request.user)
+        if hidden is not None:
+            qs = qs.exclude(pipeline__external_project_id__in=hidden['pipelines']).exclude(
+                code_change__gitlab_project__project_services__project__in=hidden['projects'])
 
         service_id = request.query_params.get('service_id')
         if service_id:

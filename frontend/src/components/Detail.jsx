@@ -6,6 +6,7 @@ import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { StatusChip } from "./issues/IssuePanel";
 import { useTranslation } from "react-i18next";
 import DataService from "../services/data.service";
+import { isSampleBatch } from "../sample/sampleIncident";
 import { PostOnboardingUpsells } from "./onboarding";
 import { isDemoUser } from "../utils/demo";
 import notificationService from "../services/notification.service";
@@ -76,7 +77,9 @@ const IncidentTimeline = ({ batchId }) => {
     <section className="ds-section incident-timeline" aria-labelledby="incident-tl">
       <div className="ds-section-head">
         <h2 className="ds-section-title" id="incident-tl">{t('detail.incident.timelineTitle')}</h2>
-        <Link to={`/dash/timeline/${batchId}`} className="ds-section-link">{t('detail.incident.openTimeline')}</Link>
+        {!isSampleBatch(batchId) && (
+          <Link to={`/dash/timeline/${batchId}`} className="ds-section-link">{t('detail.incident.openTimeline')}</Link>
+        )}
       </div>
       <div className="incident-timeline-body">
         {payload === null ? (
@@ -94,6 +97,8 @@ const IncidentTimeline = ({ batchId }) => {
 const Detail = () => {
   const { t } = useTranslation();
   const { batchId } = useParams();
+  // Made-up data with no sibling pages and nothing to act on.
+  const isSample = isSampleBatch(batchId);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -475,6 +480,7 @@ const Detail = () => {
   };
   // Each piece of evidence opens the page that shows it in context.
   const correlationLink = (c) => {
+    if (isSample) return null;
     if (c.type === 'commit') return `/dash/code-changes/${batchId}?sha=${encodeURIComponent(c.value)}`;
     if (c.type === 'metric') return `/dash/metrics/${batchId}`;
     if (c.type === 'cicd') return `/dash/timeline/${batchId}`;
@@ -495,7 +501,7 @@ const Detail = () => {
       <PageHeader
         crumbs={[
           { label: t('nav.analyses'), to: '/dash/data' },
-          { label: batchId, mono: true },
+          { label: isSample ? t('detail.incident.sampleCrumb') : batchId, mono: !isSample },
         ]}
         title={batchMeta ? (incidentTitle || t(`detail.incident.${noIncident}Title`)) : batchId}
         badges={batchMeta && (
@@ -512,7 +518,7 @@ const Detail = () => {
             {batchMeta.analyzed_at && <span>{t('detail.incident.analysedAgo', { when: relTime(batchMeta.analyzed_at) })}</span>}
           </span>
         )}
-        actions={batchMeta && (
+        actions={batchMeta && !isSample && (
           <>
             <button type="button" className="ds-btn ds-btn-ghost" onClick={handleCopyLink}>
               <FaLink size={12} aria-hidden="true" /> {t('detail.incident.copyLink')}
@@ -541,7 +547,14 @@ const Detail = () => {
           rather than in the wizard because the aha-moment (after
           seeing a first insight) is when users are most receptive
           to expanding the integration surface. */}
-      <PostOnboardingUpsells />
+      {isSample ? (
+        <div className="incident-sample-banner" role="note">
+          <strong>{t('detail.incident.sampleTitle')}</strong>
+          <span>{t('detail.incident.sampleBody')}</span>
+        </div>
+      ) : (
+        <PostOnboardingUpsells />
+      )}
 
       {batchMeta && (
         <div className="incident-grid">
@@ -744,14 +757,16 @@ const Detail = () => {
                 Ranked by severity and evidence strength
               </div>
             </div>
-            <Link
-              to={`/dash/issues/${batchId}`}
-              className="ds-btn ds-btn-secondary ds-btn-sm"
-              style={{ marginLeft: 'auto', textDecoration: 'none' }}
-            >
-              View all
-              <FaArrowRight size={11} />
-            </Link>
+            {!isSample && (
+              <Link
+                to={`/dash/issues/${batchId}`}
+                className="ds-btn ds-btn-secondary ds-btn-sm"
+                style={{ marginLeft: 'auto', textDecoration: 'none' }}
+              >
+                View all
+                <FaArrowRight size={11} />
+              </Link>
+            )}
           </div>
           <div>
             {previewIssues.map((issue) => (
@@ -789,13 +804,15 @@ const Detail = () => {
                     </div>
                   )}
                 </div>
-                <Link
-                  to={`/dash/issues/${batchId}`}
-                  className="ds-btn ds-btn-ghost ds-btn-sm"
-                  style={{ flexShrink: 0, textDecoration: 'none' }}
-                >
-                  {t('detail.incident.viewIssue')} <FaArrowRight aria-hidden="true" />
-                </Link>
+                {!isSample && (
+                  <Link
+                    to={`/dash/issues/${batchId}`}
+                    className="ds-btn ds-btn-ghost ds-btn-sm"
+                    style={{ flexShrink: 0, textDecoration: 'none' }}
+                  >
+                    {t('detail.incident.viewIssue')} <FaArrowRight aria-hidden="true" />
+                  </Link>
+                )}
               </div>
             ))}
           </div>
@@ -844,6 +861,7 @@ const Detail = () => {
               {batchMeta.model_name && <div className="ds-kv"><span>{t('detail.incident.model')}</span><span className="ds-mono">{batchMeta.model_name}</span></div>}
               {batchMeta.analyzed_at && <div className="ds-kv"><span>{t('detail.incident.analysed')}</span><span>{relTime(batchMeta.analyzed_at)}</span></div>}
             </section>
+            {!isSample && (
             <section className="ds-section incident-rail-card">
               <h2 className="incident-rail-title">{t('detail.incident.related')}</h2>
               <div className="ds-kv"><Link to={`/dash/issues/${batchId}`}>{t('detail.incident.allIssues')}</Link><span>{issues.length}</span></div>
@@ -852,6 +870,7 @@ const Detail = () => {
               <div className="ds-kv"><Link to={`/dash/code-changes/${batchId}`}>{t('detail.codeChanges')}</Link><span>{codeCount || ''}</span></div>
               <div className="ds-kv"><Link to={`/dash/timeline/${batchId}`}>{t('detail.timeline')}</Link><span /></div>
             </section>
+            )}
           </aside>
         </div>
       )}
@@ -860,7 +879,7 @@ const Detail = () => {
           view (we're on Detail); the others are sibling pages with the
           same batch context. Active tab gets a 2 px primary underline
           overlapping the strip's bottom border. */}
-      {batchMeta && (
+      {batchMeta && !isSample && (
         <div
           role="tablist"
           aria-label="Batch data source"

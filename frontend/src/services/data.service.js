@@ -1,6 +1,7 @@
 import apiClient from "./api-client";
 import JSON5 from "json5";
 import { ProjectService } from "./project.service";
+import { isSampleBatch, loadSampleIncident } from "../sample/sampleIncident";
 
 // URLs are now relative to baseURL in apiClient, or absolute overrides
 // Since apiClient has baseURL set to AUTH_HOST, we can just use paths if we want, 
@@ -74,6 +75,13 @@ const getBatches = async (params = {}) => {
   }
 };
 
+// The batch envelope, or the sample incident's fixture (see sample/).
+const fetchBatch = async (batchId) => {
+  if (isSampleBatch(batchId)) return (await loadSampleIncident()).details;
+  const response = await apiClient.get(`${API_URL}/${batchId}/`);
+  return response.data;
+};
+
 const getBatchLogs = async (batchId) => {
   if (!batchId) {
     console.error("No batch ID provided");
@@ -81,10 +89,10 @@ const getBatchLogs = async (batchId) => {
   }
 
   try {
-    const response = await apiClient.get(`${API_URL}/${batchId}/`);
+    const batch = await fetchBatch(batchId);
 
-    const logs = response.data.data?.logs || [];
-    const cicdLogs = response.data.data?.cicd_logs || [];
+    const logs = batch.data?.logs || [];
+    const cicdLogs = batch.data?.cicd_logs || [];
 
     // Adapter for CI/CD logs to match Detail.jsx expectation (Elasticsearch hit structure)
     const adaptedCicdLogs = cicdLogs.map((log, index) => {
@@ -282,6 +290,7 @@ const buildMetricSummary = (batchPayload) => {
 
 const getBatchTimeline = async (batchId, maxEvents = 200) => {
   try {
+    if (isSampleBatch(batchId)) return (await loadSampleIncident()).timeline;
     const response = await apiClient.get(
       `${API_URL}/${batchId}/timeline/`,
       { params: { max_events: maxEvents } },
@@ -295,8 +304,7 @@ const getBatchTimeline = async (batchId, maxEvents = 200) => {
 
 const getBatchDetails = async (batchId) => {
   try {
-    const response = await apiClient.get(`${API_URL}/${batchId}/`);
-    return response.data;
+    return await fetchBatch(batchId);
   } catch (error) {
     console.error(`Erreur lors de la récupération du batch ${batchId}:`, error);
     return null;
@@ -689,6 +697,7 @@ const promoteAnalysisEntry = async (batchId, analyzedAt) => {
  */
 const getAnalysisHistory = async (batchId) => {
   try {
+    if (isSampleBatch(batchId)) return (await loadSampleIncident()).history;
     const response = await apiClient.get(`/data/batches/${batchId}/history/`);
     return response.data;
   } catch (error) {

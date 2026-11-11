@@ -31,6 +31,7 @@ spec:
     spec:
       # SerOps never calls the Kubernetes API: no token in the pod.
       automountServiceAccountToken: false
+      serviceAccountName: {{ include "serops.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.devServices.postgresql.podSecurityContext | nindent 8 }}
       containers:
@@ -41,7 +42,10 @@ spec:
             - name: POSTGRES_USER
               value: {{ .Values.devServices.postgresql.user | quote }}
             - name: POSTGRES_PASSWORD
-              value: {{ .Values.devServices.postgresql.password | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "serops.fullname" . }}-secrets
+                  key: dev-postgres-password
             - name: POSTGRES_DB
               value: {{ .Values.devServices.postgresql.database | quote }}
             # The default data directory is the mount point itself, which
@@ -99,18 +103,28 @@ spec:
     spec:
       # SerOps never calls the Kubernetes API: no token in the pod.
       automountServiceAccountToken: false
+      serviceAccountName: {{ include "serops.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.devServices.redis.podSecurityContext | nindent 8 }}
       containers:
         - name: redis
           image: {{ .Values.devServices.redis.image | quote }}
           {{- include "serops.devContainerSecurity" . | nindent 10 }}
+          # The password comes from the Secret; $(VAR) is expanded by the
+          # kubelet, so it never appears in the manifest.
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "serops.fullname" . }}-secrets
+                  key: dev-redis-password
+          args: ["--requirepass", "$(REDIS_PASSWORD)"]
           ports:
             - name: redis
               containerPort: 6379
           readinessProbe:
             exec:
-              command: ["redis-cli", "ping"]
+              command: ["sh", "-c", "redis-cli --no-auth-warning -a \"$REDIS_PASSWORD\" ping | grep -q PONG"]
             initialDelaySeconds: 3
             periodSeconds: 5
           resources:

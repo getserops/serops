@@ -1,4 +1,5 @@
 from Middlewares.rbac import Requires
+from Middlewares.project_access import scope, scope_request, scope_signature
 import ast
 import json
 from rest_framework.views import APIView
@@ -108,7 +109,7 @@ class BatchReanalyzeView(APIView):
             batches = []
             user_org = getattr(request.user, 'organisation', None)
             qs = AIAnalyzedBatch.objects.all()
-            qs = qs.filter(organisation=user_org) if user_org else qs.none()
+            qs = scope_request(self, request, qs.filter(organisation=user_org), 'batch.read', ('batch.analyze',)) if user_org else qs.none()
 
             for batch_id in batch_ids:
                 batch = qs.filter(batch_id=batch_id).first()
@@ -177,7 +178,7 @@ class BatchAnalysisHistoryView(APIView):
             # Org-scoped fetch (filter on queryset, not post-fetch check).
             qs = AIAnalyzedBatch.objects.all()
             user_org = getattr(request.user, 'organisation', None)
-            qs = qs.filter(organisation=user_org) if user_org else qs.none()
+            qs = scope_request(self, request, qs.filter(organisation=user_org), 'batch.read', ('batch.analyze',)) if user_org else qs.none()
             batch = qs.filter(batch_id=batch_id).first()
             if batch is None:
                 return Response(
@@ -230,7 +231,7 @@ class BatchPromoteAnalysisView(APIView):
 
         qs = AIAnalyzedBatch.objects.all()
         user_org = getattr(request.user, 'organisation', None)
-        qs = qs.filter(organisation=user_org) if user_org else qs.none()
+        qs = scope_request(self, request, qs.filter(organisation=user_org), 'batch.read', ('batch.analyze',)) if user_org else qs.none()
         batch = qs.filter(batch_id=batch_id).first()
         if batch is None:
             return Response(
@@ -289,13 +290,12 @@ class HostDiscoveryView(APIView):
         
         # Get project
         if project_slug:
-            project = Project.objects.filter(
-                name__iexact=project_slug,
-                organisation=user_org
+            project = scope(Project.objects.filter(organisation=user_org), request.user, 'batch.read', field='').filter(
+                name__iexact=project_slug
             ).first()
         else:
             # Default to first project
-            project = Project.objects.filter(organisation=user_org).first()
+            project = scope(Project.objects.filter(organisation=user_org), request.user, 'batch.read', field='').first()
         
         if not project:
             return Response({'hosts': [], 'message': 'No project found'})
@@ -354,7 +354,7 @@ class MetricCorrelationView(APIView):
             # internal debugging on the demo host).
             qs = AIAnalyzedBatch.objects.all()
             user_org = getattr(request.user, 'organisation', None)
-            qs = qs.filter(organisation=user_org) if user_org else qs.none()
+            qs = scope_request(self, request, qs.filter(organisation=user_org), 'batch.read', ('batch.analyze',)) if user_org else qs.none()
             batch = qs.filter(batch_id=batch_id).first()
             if batch is None:
                 # Same 404 response whether the batch doesn't exist or
@@ -642,7 +642,7 @@ class BatchDetailView(OrgFilterMixin, APIView):
             # (needed for internal debugging on the demo host).
             qs = AIAnalyzedBatch.objects.all()
             user_org = getattr(request.user, 'organisation', None)
-            qs = qs.filter(organisation=user_org) if user_org else qs.none()
+            qs = scope_request(self, request, qs.filter(organisation=user_org), 'batch.read', ('batch.analyze',)) if user_org else qs.none()
             batch = qs.filter(batch_id=batch_id).first()
             if batch is None:
                 # Same 404 response whether the batch doesn't exist or
@@ -1002,7 +1002,7 @@ class IssueListView(OrgFilterMixin, APIView):
             org_id = user_org.id if user_org else 0
             summary = _build_issue_summary(
                 base_queryset, include_batch_count=True,
-                cache_key=f'issue_summary:org:{org_id}'
+                cache_key=f'issue_summary:org:{org_id}{scope_signature(request.user, "issue.read")}'
             )
             summary['filter_applied'] = severity_filter
 
@@ -1161,7 +1161,12 @@ class BatchIssuesView(OrgFilterMixin, APIView):
                 if user_org is None or user_org != batch_org:
                     logger.warning(f"User {request.user.id} attempted to access batch {batch_id} from different org")
                     return Response({'error': f'Batch with ID {batch_id} not found'}, status=status.HTTP_404_NOT_FOUND)
-                        
+                # And the batch's project, when restricted: the organisation
+                # check alone served a restricted project's issues to any
+                # member who knew the batch id (review 2026-11-05).
+                if not scope(AIAnalyzedBatch.objects.filter(pk=batch.pk), request.user, 'issue.read').exists():
+                    return Response({'error': f'Batch with ID {batch_id} not found'}, status=status.HTTP_404_NOT_FOUND)
+
             except AIAnalyzedBatch.DoesNotExist:
                 return Response({'error': f'Batch with ID {batch_id} not found'}, status=status.HTTP_404_NOT_FOUND)
             
@@ -1354,7 +1359,7 @@ class IssueActionsView(OrgFilterMixin, APIView):
         """
         qs = Issue.objects.all()
         user_org = getattr(request.user, 'organisation', None)
-        qs = qs.filter(organisation=user_org) if user_org else qs.none()
+        qs = scope_request(self, request, qs.filter(organisation=user_org), 'issue.read', ('issue.update',)) if user_org else qs.none()
         issue = qs.filter(id=issue_id).first()
         if issue is None:
             return None, Response(
@@ -1606,7 +1611,7 @@ class SimilarIssuesView(OrgFilterMixin, APIView):
     def get(self, request, issue_id):
         qs = Issue.objects.all()
         user_org = getattr(request.user, 'organisation', None)
-        qs = qs.filter(organisation=user_org) if user_org else qs.none()
+        qs = scope_request(self, request, qs.filter(organisation=user_org), 'issue.read', ('issue.update',)) if user_org else qs.none()
         issue = qs.filter(pk=issue_id).first()
         if issue is None:
             return Response({'error': f'Issue {issue_id} not found'}, status=404)
@@ -1616,7 +1621,7 @@ class SimilarIssuesView(OrgFilterMixin, APIView):
         except (TypeError, ValueError):
             top_k = 5
 
-        matches = issue.find_similar(top_k=top_k)
+        matches = issue.find_similar(top_k=top_k, user=request.user)
         results = [
             {
                 'id': m['issue'].pk,
@@ -1656,14 +1661,14 @@ class BatchPostmortemView(OrgFilterMixin, APIView):
     def post(self, request, batch_id):
         qs = AIAnalyzedBatch.objects.all()
         user_org = getattr(request.user, 'organisation', None)
-        qs = qs.filter(organisation=user_org) if user_org else qs.none()
+        qs = scope_request(self, request, qs.filter(organisation=user_org), 'batch.read', ('batch.analyze',)) if user_org else qs.none()
         batch = qs.filter(batch_id=batch_id).first()
         if batch is None:
             return Response({'error': f'Batch {batch_id} not found'}, status=404)
 
         try:
             from ai_model.postmortem import generate_postmortem_draft
-            markdown = generate_postmortem_draft(batch)
+            markdown = generate_postmortem_draft(batch, user=request.user)
         except Exception as exc:
             logger.exception('postmortem generation failed for batch %s: %s',
                              batch_id, exc)
@@ -1694,7 +1699,7 @@ class BatchTimelineView(OrgFilterMixin, APIView):
     def get(self, request, batch_id):
         qs = AIAnalyzedBatch.objects.all()
         user_org = getattr(request.user, 'organisation', None)
-        qs = qs.filter(organisation=user_org) if user_org else qs.none()
+        qs = scope_request(self, request, qs.filter(organisation=user_org), 'batch.read', ('batch.analyze',)) if user_org else qs.none()
         batch = qs.filter(batch_id=batch_id).first()
         if batch is None:
             return Response(

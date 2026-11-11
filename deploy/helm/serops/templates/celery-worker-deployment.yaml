@@ -23,6 +23,7 @@ spec:
     spec:
       # SerOps never calls the Kubernetes API: no token in the pod.
       automountServiceAccountToken: false
+      serviceAccountName: {{ include "serops.serviceAccountName" . }}
       {{- include "serops.backendPodSecurity" . | nindent 6 }}
       containers:
         - name: worker
@@ -47,6 +48,17 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.django.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
                   key: django-secret-key
+            - name: SEROPS_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.django.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
+                  key: encryption-key
+            - name: SEROPS_ENCRYPTION_KEY_PREVIOUS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.django.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
+                  key: encryption-key-previous
+                  optional: true
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

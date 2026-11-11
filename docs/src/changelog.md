@@ -16,6 +16,150 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.3.0] - 2026-11-11
+
+Users, roles and teams, the Enterprise edition, and a security release.
+Read [Upgrading → 1.3.0](deployment/upgrading.md#130-users-roles-and-teams)
+first: `SEROPS_ENCRYPTION_KEY` is now required (then run `rotate_secrets`
+once), and the Helm chart refuses an ingress without TLS. Set
+`SEROPS_VERSION=1.3.0` or `--version 1.3.0`.
+
+Teams and SSO group mapping are in Community; custom roles and per-project
+access are Enterprise, published in the same repository under the
+[SerOps Enterprise License](license.md). A new install can open a sample
+incident before connecting anything.
+
+### Security
+
+- Stored credentials have their own key, `SEROPS_ENCRYPTION_KEY`, instead of a hash of `DJANGO_SECRET_KEY`, so a leaked signing key no longer opens them. The key can be changed with `rotate_secrets`, and a value that cannot be decrypted is reported rather than read as empty. **Required on upgrade:** see [Upgrading](deployment/upgrading.md).
+- Erasing an account now removes the email from the audit log, where it stayed in `details`, and application logs in the account code name users by ID. The sole admin of an organisation is refused (409), as documented: it used to delete the organisation and every other member with it.
+- HSTS was never sent behind a proxy (the Helm ingress, Caddy), though 1.2.14 said so: the proxy talks plain HTTP to the backend, which saw every request as insecure. With `SEROPS_HTTPS` the backend now trusts the proxy's `X-Forwarded-Proto`. The same cause made **Setup webhook** register an `http://` URL with GitHub and GitLab on an HTTPS install, and `SECURE_SSL_REDIRECT=True` behind a load balancer, which the docs advised, redirected forever; the docs now say to keep `SEROPS_HTTPS` and let the load balancer redirect.
+- Changing your email needs your password and a link sent to the new address; every session then ends and the old address is told. A stolen session could move the account to another address for good, or squat an address another organisation's SSO claims. SSO accounts keep their identity provider's email.
+- OpenID Connect: each sign-in is bound to the browser that started it, and uses a nonce and PKCE. Before, someone could get a victim to load their callback URL and sign the victim in to their own account. A provider must now say the email is verified: providers that leave `email_verified` out are refused unless their host is in `SSO_TRUST_MISSING_EMAIL_VERIFIED` (default `login.microsoftonline.com`).
+- The session timeout in Settings → Security is now enforced, including the 8-hour default: nothing read it before. Set it to Never to keep the previous behaviour.
+- Failed logins are in the audit log: JSON clients, so every normal login, were never recorded.
+- New passwords are validated when changed from the profile and when set from an invitation, as they already were on registration and reset.
+- The backend refuses to start outside DEBUG with `replace-me` or a similar placeholder as a secret, or with a `DJANGO_SECRET_KEY` under 32 characters.
+- After an SSO sign-in the app now has the user's permissions straight
+  away, and the user payload of login, profile and SSO has one shape (the
+  organisation's name, plus `organisation_id`).
+- **Settings → Team is now Settings → Users**, next to Roles and Teams, as
+  in Grafana. Project buttons follow what you may do on each project.
+- The "Setup is N% done" reminder covered the Save button of dialogs; it
+  now stays behind them.
+- `GET /api/services/all/` answered with a server error whenever services
+  existed.
+
+### Added
+
+- A sample incident, offered from the setup wizard and from the empty analyses card: the real incident page on made-up data, labelled as such, so a new install shows what SerOps produces before anything is connected. It stores nothing in the organisation and calls no AI provider
+- **[Open source promise](open-source-promise.md)**: every feature in SerOps
+  Community stays in Community, under AGPL-3.0, forever, with no limits on
+  users, projects, services or data. The page lists what Community includes
+  as of 1.2.4 and the rule for anything new: governance features for large
+  organisations go to Enterprise; security, reliability and the analysis
+  stay in Community.
+- **Enterprise edition.** The `ee/` directories hold Enterprise code under
+  the SerOps Enterprise License; SerOps is complete without them,
+  and CI runs every test with them deleted. **Settings → Enterprise license** installs
+  an offline license key (Ed25519, no license server, no network call, no
+  telemetry); without one, nothing changes. New platform permission
+  `license.manage`; `GET /api/organisation/edition/` tells the app which
+  Enterprise features are licensed.
+- **Roles from your identity provider's groups.** In Settings → Security →
+  Single Sign-On, map groups to roles (`platform-admins → Admin`,
+  `sre → User`); the first matching rule wins. Choose the role of people
+  in no mapped group, or refuse their sign-in, and whether roles are
+  updated at every sign-in so your identity provider decides. The last
+  admin is never demoted. People of listed email domains get an account
+  at their first SSO sign-in without an invitation (on installs with
+  several organisations the operator sets domains with
+  `manage.py sso_domains`). Account creations, refusals and role
+  changes are audited. Migrations `Users 0014`, `Data 0057`.
+- **Custom roles (Enterprise).** Settings → Roles builds roles from individual
+  permissions (*On-call*, *Auditor*…) next to Viewer, User and Admin.
+  Assign them in Users or from an identity-provider group; editing a role
+  applies to its members at once. Nobody can hand out, or edit a role
+  with, more permissions than they hold, nor change a member who holds
+  more; a role in use can't be deleted. Without a license, existing custom
+  roles keep working and can be removed, not created, edited or handed out.
+  Migrations `Users 0015`, `Data 0058`.
+- **Teams, and per-project access (Enterprise).** Group members in
+  Settings → Teams (Community, also from SSO groups) and, with Enterprise,
+  keep a project to the teams given access (project → Access), each with
+  a Viewer, User or Admin role on that project. Members outside see
+  nothing of it: services, analyses, issues, investigations, dashboards,
+  notifications or AI Chat context. Team roles add to organisation roles
+  (a Viewer can be User on one project). SSO groups can fill teams. A
+  test walks every API route as a member outside a restricted project.
+  Migrations `Organisations 0014`, `Projects 0017`, `Users 0016`,
+  `Data 0059`.
+
+### Changed
+
+- Our website said "every feature, no lite tier". That was too absolute to
+  stay true once paid features exist, so it now says what we commit to: the
+  full product in Community, no lite tier, no limits, and nothing ever moved
+  out of it. We clarified it before any paid feature was built.
+- The Contributor License Agreement covers the Enterprise edition; pull
+  requests are checked by a signing bot.
+
+### Removed
+
+- `password_policy` from `GET` and `PUT /api/data/settings/security/`, and the redaction settings the docs described: no code applied them. Password rules are fixed, see [Settings](admin/settings.md).
+
+### Helm
+
+- **`ingress.tls` is required** when the ingress is enabled. A copy-paste
+  install used to serve the login form and API tokens over plain HTTP, with
+  no Secure cookies or HSTS. `ingress.allowInsecure=true` is the explicit
+  opt-out, for TLS terminated in front of the ingress controller; plain
+  requests redirect to HTTPS.
+- **NetworkPolicies** are on: only the ingress controller reaches the
+  frontend and the backend, nothing reaches the worker, beat or migration
+  job, and only the release's own pods reach the dev Postgres and Redis.
+  Egress stays open by default (`networkPolicy.egress` narrows it).
+- **PodDisruptionBudgets** keep one backend, frontend and worker pod through
+  a node drain, for components with more than one replica.
+- Every pod runs as the release's own **ServiceAccount**, still with no token
+  mounted.
+- The dev services' passwords are generated at install and kept across
+  upgrades, the bundled Redis requires one, and images are pinned to a patch
+  version. `existingSecret` is the documented production path.
+- Quick-start: images pinned, `no-new-privileges` everywhere, all
+  capabilities dropped on the backend and frontend containers, the Redis
+  password out of the process arguments, no slow-statement log (it wrote
+  query parameters to the Postgres log), empty required values in
+  `.env.example` so compose refuses to start on a placeholder, HSTS with
+  `includeSubDomains`, backups written owner-only.
+
+### CI and supply chain
+
+- Every GitHub Action is pinned to a commit SHA; Dependabot opens the bumps
+  weekly.
+- Images are scanned before they are pushed and the build fails on a fixable
+  critical or high finding. They are published with an SBOM and SLSA
+  provenance, signed with cosign (keyless) and attested by GitHub; the chart
+  is signed the same way. [SECURITY.md](https://github.com/getserops/serops/blob/main/SECURITY.md)
+  explains how to verify them.
+- `latest` now moves only with release tags; `main` publishes `edge`.
+- The frontend build fails on a high or critical advisory in production
+  dependencies.
+- CLA signatures are kept in a separate repository, so mirroring the code
+  never touches them.
+
+### Upgrade notes
+
+New migrations `Users 0014`–`0016`, `Data 0057`–`0059`, `Organisations 0014`
+and `Projects 0017`, plus `ee.0001_initial` (the license key table) when the
+`ee/` directories are present, applied by `migrate` as usual. Images built
+without the `ee/` directories have no Enterprise code and no such table.
+`SEROPS_ENCRYPTION_KEY` is required, the chart needs `ingress.tls` or
+`ingress.allowInsecure`, and `latest` images follow releases only. See
+[Upgrading](deployment/upgrading.md#130-users-roles-and-teams).
+
+---
+
 ## [1.2.14] - 2026-11-07
 
 Security and Kubernetes release. Migrations run on their own: Data 0056,

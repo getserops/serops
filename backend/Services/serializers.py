@@ -1,17 +1,26 @@
 from rest_framework import serializers
-from Utils.scoped_relations import limit_relations
 from .models import Service, SCMService, InfraService, CustomService
 
 
 class OwnProjectMixin:
-    """The ``project`` of a service must be of the requester's organisation:
-    without this a member could create a service in, or move one to,
-    another organisation's project by sending its id."""
+    """The ``project`` of a service must be one the requester may change:
+    of their organisation, and within their project access. Without this a
+    member could create a service in, or move one to, another
+    organisation's project by sending its id. With no request in context
+    nothing can be written."""
 
     def get_fields(self):
-        from Projects.models import Project
-        return limit_relations(super().get_fields(), self.context.get('request'),
-                               project=lambda u, org: Project.objects.filter(organisation=org))
+        fields = super().get_fields()
+        if 'project' in fields and not fields['project'].read_only:
+            from Middlewares.project_access import scope
+            from Projects.models import Project
+            request = self.context.get('request')
+            user = getattr(request, 'user', None)
+            organisation = getattr(user, 'organisation', None)
+            fields['project'].queryset = (
+                scope(Project.objects.filter(organisation=organisation), user, 'project.write', field='')
+                if organisation else Project.objects.none())
+        return fields
 
 
 class ServiceSerializer(OwnProjectMixin, serializers.ModelSerializer):

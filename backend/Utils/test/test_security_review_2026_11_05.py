@@ -12,6 +12,7 @@ from rest_framework.test import APIClient, APITestCase
 
 from Organisations.models import Organisations
 from Users.models import SecuritySettings, User
+from Users.test.test_sso_flow import start_flow
 
 
 class GoogleKeyTest(SimpleTestCase):
@@ -162,9 +163,9 @@ class SSOAccountCreationTest(TestCase):
     @patch('Users.sso_views.SSOService')
     def callback(self, email, MockSSO):
         MockSSO.return_value.exchange_code_for_token.return_value = 'idp-token'
-        MockSSO.return_value.get_user_info.return_value = {'email': email}
-        return APIClient().get('/api/auth/sso/callback', {
-            'code': 'c', 'state': signing.dumps({'org_id': self.org.id})})
+        MockSSO.return_value.get_user_info.return_value = {'email': email, 'email_verified': True}
+        client = APIClient()
+        return client.get('/api/auth/sso/callback', {'code': 'c', 'state': start_flow(client, self.org.id)})
 
     def test_no_listed_domain_creates_no_account(self):
         self.callback('ceo@victimcorp.com')
@@ -188,7 +189,9 @@ class SSODomainsOnSharedInstallTest(APITestCase):
     def test_an_org_admin_cannot_claim_domains(self):
         self.client.force_authenticate(self.admin)
         response = self.client.put(self.url, {'sso_provider': 'oidc', 'sso_domains': ['victimcorp.com']}, format='json')
-        self.assertEqual(response.status_code, 403)
+        # Community answers 403; Enterprise refuses it with its field errors (400).
+        self.assertIn(response.status_code, (400, 403))
+        self.assertFalse(SecuritySettings.objects.filter(sso_domains__contains=['victimcorp.com']).exists())
 
     def test_the_operator_can(self):
         self.admin.is_staff = True

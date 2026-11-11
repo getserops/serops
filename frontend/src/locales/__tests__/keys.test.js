@@ -27,7 +27,8 @@ function usedKeys() {
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) { if (entry.name !== '__tests__') walk(full); continue; }
+      // src/ee/ modules ship their own strings (i18n.addResourceBundle) and test them there.
+      if (entry.isDirectory()) { if (entry.name !== '__tests__' && full !== path.join(SRC, 'ee')) walk(full); continue; }
       if (!/\.(jsx?|tsx?)$/.test(entry.name)) continue;
       const src = fs.readFileSync(full, 'utf8');
       for (const m of src.matchAll(/\bt\(\s*['"]([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)['"]/g)) {

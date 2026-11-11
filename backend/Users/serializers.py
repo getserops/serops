@@ -23,13 +23,16 @@ class UserSerializer(serializers.ModelSerializer):
     # shows it); views that create users set the organisation themselves.
     organisation = serializers.SlugRelatedField(slug_field='name', read_only=True)
     organisation_id = serializers.IntegerField(read_only=True)
+    # One string per role ('viewer' … 'custom:<id>') and its display name.
+    role_key = serializers.SerializerMethodField()
+    role_name = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'first_name', 'last_name', 'email', 'password',
             'phone', 'role', 'avatar', 'username', 'organisation', 'organisation_id',
-            'is_active', 'last_login', 'status', 'is_staff', 'permissions',
+            'is_active', 'last_login', 'status', 'is_staff', 'permissions', 'role_key', 'role_name',
         ]
         extra_kwargs = {
             'password': {'write_only': True},
@@ -42,6 +45,15 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_avatar(self, obj):
         return f'/auth/avatar/{obj.avatar_key}' if obj.avatar_key else None
+
+    def get_role_key(self, obj):
+        from Middlewares.rbac import role_key
+        return role_key(obj)
+
+    def get_role_name(self, obj):
+        if obj.role == 'custom':
+            return obj.custom_role.name if obj.custom_role_id else 'Custom'
+        return {'viewer': 'Viewer', 'user': 'User', 'admin': 'Admin'}.get(obj.role, obj.role)
 
     def get_permissions(self, obj):
         from Middlewares.rbac import get_user_permissions

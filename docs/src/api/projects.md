@@ -37,7 +37,7 @@ POST /api/projects/
 GET /api/projects/{id}/
 ```
 
-Returns details for a single project, including its services.
+Returns details for a single project, including its services, `access_mode` (`organisation` or `restricted`) and `permissions`: what the caller may do on this project (team grants can give more than the organisation role, a restricted project less). The project list carries the same fields. Projects the caller can't see are left out of lists and answer `404`.
 
 ### Update Project
 
@@ -58,6 +58,24 @@ PUT /api/projects/{id}/
 ```
 DELETE /api/projects/{id}/
 ```
+
+### Project Access (Enterprise)
+
+```
+GET /api/ee/projects/{id}/access/
+PUT /api/ee/projects/{id}/access/
+```
+
+Who sees the project. Available when the Enterprise directories are installed. Restricting a project, or adding or raising a grant, needs the *Per-project access* license feature (`403` with `"code": "enterprise_license_required"` otherwise); opening a project and lowering or removing grants never does. `GET` needs `project.read` on it; `PUT` needs `team.manage` and the admin permissions on this project (organisation admins have them on every project).
+
+```json
+{
+  "access_mode": "restricted",
+  "grants": [{ "team_id": 3, "role": "user" }]
+}
+```
+
+`access_mode`: `organisation` (every member, their role applies) or `restricted` (only the teams in `grants`, and organisation admins). `role` is the team's role on this project: `viewer`, `user` or `admin`. Grants add to what members' organisation roles allow, on either mode. `grants` replaces the list. Changes are audited (`PROJECT_ACCESS_CHANGE`).
 
 ---
 

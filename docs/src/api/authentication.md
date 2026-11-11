@@ -113,7 +113,15 @@ Returns the authenticated user's profile information. The login response's `user
 |-------|---------|
 | `role` | `viewer`, `user` or `admin` in the user's organisation. |
 | `is_staff` | Platform staff (read-only). |
-| `permissions` | Every permission the user holds, sorted, e.g. `["batch.read", "issue.read", "org.read", …]`. See [Team Management](../admin/team.md#roles) for the list. Clients should show or hide actions from this list rather than from `role`. |
+| `permissions` | Every permission the user holds, sorted, e.g. `["batch.read", "issue.read", "org.read", …]`. See [Users, roles and teams](../admin/team.md#roles) for the list. Clients should show or hide actions from this list rather than from `role`. |
+
+## Update Profile
+
+```
+POST /api/auth/profile
+```
+
+Updates `first_name`, `last_name` and `phone`. To change `email`, also send `current_password`: the response then has `email_change_pending` with the new address, and the email changes only when the link sent there is used (`POST /api/auth/email/confirm/{token}`).
 
 ## Upload Avatar
 
@@ -242,6 +250,20 @@ GET /api/auth/sso/config
 
 Returns the organisation's OpenID Connect settings (`sso_enabled`, `sso_provider` — `oidc` or `none`, `sso_client_id`, `sso_discovery_url`, `sso_client_secret_configured`) and `sso_redirect_uri`, the URL to register at the identity provider. `PUT` (admin only) updates them; the client secret is write-only. SAML is not supported.
 
+Group mapping fields:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `sso_groups_claim` | string | Claim name or dotted path holding the groups (default `groups`). |
+| `sso_extra_scopes` | string | Space-separated scopes added to `openid email profile`. |
+| `sso_role_mappings` | list | Ordered `[{"group": "sre", "role": "user"}]`; the first match wins. `role` is a role key: `viewer`, `user`, `admin` or `custom:<id>`. You can only name roles whose permissions you hold. |
+| `sso_default_role` | string | Role when no rule matches, or `deny`. |
+| `sso_sync_role` | bool | Re-apply the rules at every sign-in. |
+| `sso_team_mappings` | list | Ordered `[{"group": "payments-eng", "team_id": 3}]`: members of the group are put in the team at each sign-in, and taken out when they leave the group (only memberships SSO added). You can only name teams whose project access you hold. |
+| `sso_domains` | list | Domains whose people get an account at their first sign-in. On installs with several organisations only platform staff can change it (`sso_domains_editable` says whether the caller can); otherwise `manage.py sso_domains`. |
+
+Invalid rules, an unknown role or a domain used by another organisation return `400` with `errors`.
+
 ## SSO Login Init
 
 ```
@@ -256,7 +278,7 @@ POST /api/auth/sso/init
 }
 ```
 
-Looks up the organisation that owns the email and returns `{"auth_url": "..."}`, the identity provider's sign-in page. Every case without an auth URL — unknown email, SSO switched off, inactive or demo account — returns the same `400 {"error": "SSO is not available for this account."}`, so the endpoint does not reveal who has an account. `502` means the identity provider's discovery URL could not be reached.
+Looks up the organisation that owns the email (or, for an email without an account, the organisation that lists its domain in `sso_domains`) and returns `{"auth_url": "..."}`, the identity provider's sign-in page. Every case without an auth URL — unknown email, SSO switched off, inactive or demo account — returns the same `400 {"error": "SSO is not available for this account."}`, so the endpoint does not reveal who has an account. `502` means the identity provider's discovery URL could not be reached.
 
 ## SSO Callback
 
@@ -267,10 +289,13 @@ GET /api/auth/sso/callback
 The identity provider redirects the browser here. SerOps exchanges the code, reads the user's email from the userinfo endpoint and signs them in:
 
 - An existing user signs in only if they belong to the organisation that started the flow and are active.
-- An unknown email becomes a new `viewer` in that organisation, with no password.
+- The user's groups (from userinfo or the ID token, at `sso_groups_claim`) pick the role through `sso_role_mappings`; with no match `sso_default_role` applies. `deny` redirects to `/login?sso=denied`.
+- An unknown email becomes a new member of that organisation, with that role and no password, only if its domain is in `sso_domains`.
+- With `sso_sync_role`, an existing member's role is updated to the mapped one (never demoting the last admin).
+- Team memberships follow `sso_team_mappings` at every sign-in.
 - An email the provider marks `email_verified: false` is refused.
 
-On success it sets a short-lived HttpOnly handoff cookie and redirects to the frontend's `/auth/callback`, which calls `sso/exchange` to swap the cookie for a Knox token. On any failure it redirects to `/login?sso=failed`.
+On success it sets a short-lived HttpOnly handoff cookie and redirects to the frontend's `/auth/callback`, which calls `sso/exchange` to swap the cookie for a Knox token and the user (same shape as the login response). On any other failure it redirects to `/login?sso=failed`.
 
 ## SSO Token Exchange
 

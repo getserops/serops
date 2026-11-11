@@ -35,6 +35,7 @@ Open `.env` and set at minimum:
 | Variable | How to generate |
 |---|---|
 | `DJANGO_SECRET_KEY` | `python3 -c "import secrets; print(secrets.token_urlsafe(64))"` |
+| `SEROPS_ENCRYPTION_KEY` | `openssl rand -base64 32 \| tr '+/' '-_'` |
 | `POSTGRES_PASSWORD` | `openssl rand -hex 24` |
 | `REDIS_PASSWORD` | `openssl rand -hex 24` |
 
@@ -104,6 +105,11 @@ docker compose logs -f backend        # or any service name
 ```bash
 docker compose exec postgres pg_dump -U serops serops > backup-$(date +%F).sql
 ```
+
+The dump holds every credential SerOps stores (encrypted with the key in
+`.env`) and every user's email. Keep it readable by you only
+(`scripts/backup.sh` does), copy it off the host, and encrypt it there,
+for example with `gpg --symmetric`.
 
 **Stop everything (keep data)**
 

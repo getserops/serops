@@ -14,6 +14,7 @@ const PUBLIC_AUTH_PATHS = [
     "/invitation_password",
     "/password/reset",      // /password/reset/:uid/:token
     "/auth/callback",       // SSO callback
+    "/email/confirm",       // /email/confirm/:token
 ];
 
 function isPublicAuthPath(pathname) {

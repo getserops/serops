@@ -24,6 +24,8 @@
 /* =============================================================
    Incident page (v2): header, root cause, timeline, fix, side rail
    ============================================================= */
+.incident-sample-banner { display: flex; flex-direction: column; gap: 2px; margin-bottom: 16px; padding: 12px 16px; font-size: 13px; color: var(--text-secondary); background: var(--bg-surface); border: 1px solid var(--border-default); border-left: 3px solid var(--tone-brand-text); border-radius: 8px; }
+.incident-sample-banner strong { color: var(--text-primary); }
 .incident-meta { display: inline-flex; flex-wrap: wrap; gap: 4px 0; }
 .incident-meta > span + span::before { content: "·"; margin: 0 8px; color: var(--text-tertiary); }
 .incident-grid { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; margin-bottom: 24px; }

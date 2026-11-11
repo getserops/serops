@@ -23,6 +23,13 @@ SerOps {{ .Chart.AppVersion }} is installing in namespace {{ .Release.Namespace 
    put your own proxy or ingress in front of both services.
 {{- end }}
 
+{{- if and .Values.ingress.enabled (not .Values.ingress.tls) }}
+
+   WARNING: ingress.tls is empty (ingress.allowInsecure=true). Unless TLS
+   terminates in front of the ingress controller and django.publicUrl is an
+   https URL, logins and API tokens travel in clear. Set ingress.tls.
+{{- end }}
+
 4. Add an AI provider key under Settings → AI Providers.
 
 Docs: https://serops.ai/docs/deployment/helm/

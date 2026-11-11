@@ -58,6 +58,7 @@ Edit `.env` — at minimum:
 ```env
 # Security — REQUIRED
 DJANGO_SECRET_KEY=<generate one: python3 -c 'import secrets; print(secrets.token_urlsafe(50))'>
+SEROPS_ENCRYPTION_KEY=<generate one: openssl rand -base64 32 | tr '+/' '-_'>
 
 # Database (Postgres bundled — set your own password)
 POSTGRES_PASSWORD=<pick something long>
@@ -152,7 +153,11 @@ elsewhere:
 2. Point your ingress at `frontend:3000` and `backend:8000` (routing
    `/api/*` and `/images/*` to backend, everything else to frontend
    — see `config/caddy/Caddyfile` for the exact rules).
-3. Set `SECURE_SSL_REDIRECT=True` in `.env`.
+3. Keep `SEROPS_HTTPS: "True"` on the backend (already in
+   `docker-compose.yml`): cookies are Secure and responses send HSTS. Your
+   load balancer must set `X-Forwarded-Proto` and replace any value the
+   client sent; SerOps reads it to know a request came in over HTTPS.
+   Leave the HTTP to HTTPS redirect to the load balancer.
 
 ### Database backups
 
@@ -221,4 +226,4 @@ provider-specific setup.
 
 - [Configuration Reference](configuration.md) — every environment variable
 - [Upgrading](upgrading.md) — how to move between versions
-- [Team Management](../admin/team.md) — invite the rest of your team
+- [Users, roles and teams](../admin/team.md) — invite the rest of your team
