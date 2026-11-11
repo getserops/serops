@@ -26,9 +26,12 @@ on:
   pull_request_target:
     types: [opened, closed, synchronize]
 
+# contents: read, since the signatures are written to the other repository
+# with CLA_SIGNATURES_TOKEN. The bot still comments on and locks the pull
+# request, sets its status and re-runs itself on "recheck".
 permissions:
   actions: write
-  contents: write
+  contents: read
   pull-requests: write
   statuses: write
 
