@@ -3,7 +3,7 @@
 # output is static JS/CSS, identical for every target, so building it under
 # QEMU for arm64 only made the release take ~30 min instead of a few. Only
 # the nginx stage below is per-architecture.
-FROM --platform=$BUILDPLATFORM node:22.12.0-alpine AS builder
+FROM --platform=$BUILDPLATFORM node:26.13.0-alpine AS builder
 
 # API base URL baked into the JS bundle at build time (Vite requirement —
 # import.meta.env values are compile-time constants). Default is the
