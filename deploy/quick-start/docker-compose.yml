@@ -55,7 +55,7 @@ services:
       - serops
 
   redis:
-    image: redis:7.4.12-alpine
+    image: redis:8.10.3-alpine
     container_name: serops-redis
     restart: unless-stopped
     security_opt: ["no-new-privileges:true"]
