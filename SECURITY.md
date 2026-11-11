@@ -66,25 +66,27 @@ attestation, is signed with [cosign](https://docs.sigstore.dev) keyless
 attested through GitHub artifact attestations. The chart pushed to
 `oci://ghcr.io/getserops/charts/serops` is signed the same way.
 
-Verify before you run:
+Verify before you run (cosign 3; cosign 2.4 and older do not find these
+signatures):
 
 ```bash
 # Image signature (replace the tag you pull)
-cosign verify ghcr.io/getserops/backend:1.2.15 \
+cosign verify ghcr.io/getserops/backend:1.3.0 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/docker\.yml@refs/tags/v'
 
 # GitHub attestation (provenance): which commit and workflow built it
-gh attestation verify oci://ghcr.io/getserops/backend:1.2.15 --owner getserops
+gh attestation verify oci://ghcr.io/getserops/backend:1.3.0 --owner getserops
 
 # SBOM and SLSA provenance attached to the image
-docker buildx imagetools inspect ghcr.io/getserops/backend:1.2.15 \
+docker buildx imagetools inspect ghcr.io/getserops/backend:1.3.0 \
   --format '{{ json .SBOM }}'
 
-# Helm chart
-cosign verify ghcr.io/getserops/charts/serops:1.2.15 \
+# Helm chart. A tag publishes it; a failed publish is redone by hand from
+# main without moving the tag (chart 1.3.0 was), hence both refs.
+cosign verify ghcr.io/getserops/charts/serops:1.3.0 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/helm-release\.yml@refs/tags/v'
+  --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/helm-release\.yml@refs/(tags/v|heads/main$)'
 ```
 
 Every GitHub Action the workflows use is pinned to a commit SHA, and
