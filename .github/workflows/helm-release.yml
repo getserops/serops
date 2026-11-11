@@ -31,6 +31,13 @@ on:
   pull_request:
     paths:
       - 'deploy/helm/serops/**'
+  # Publish an existing release tag again (a failed publish, a fixed
+  # workflow), without moving the tag. The chart comes from the tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish again, e.g. v1.3.0'
+        required: true
 
 # Least privilege at the workflow level; the release job adds what it needs.
 # `packages: write` used to apply to the whole workflow, PR lint job included.
@@ -49,6 +56,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310  # v5.0.1
         with:
           version: v3.19.0
@@ -72,7 +81,7 @@ jobs:
     # Only on tag push. Publishes to OCI and optionally to a
     # gh-pages branch for the classic Helm HTTP repo.
     name: package + push
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     needs: lint
     runs-on: ubuntu-latest
     permissions:
@@ -83,15 +92,24 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310  # v5.0.1
         with:
           version: v3.19.0
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532  # v4.1.3
 
       - name: Log in to GHCR
+        # helm keeps its own registry login; cosign reads Docker's, so it
+        # logs in separately to push the signature (v1.3.0 failed there).
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | \
             helm registry login ghcr.io \
+              --username ${{ github.actor }} \
+              --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            cosign login ghcr.io \
               --username ${{ github.actor }} \
               --password-stdin
 
@@ -100,9 +118,12 @@ jobs:
 
       - name: Extract chart version from git tag
         # Strip the leading 'v' from the tag so chart version matches SemVer.
+        env:
+          REF: ${{ inputs.tag || github.ref }}
         run: |
-          TAG=${GITHUB_REF#refs/tags/v}
-          echo "CHART_VERSION=${TAG}" >> "$GITHUB_ENV"
+          TAG=${REF#refs/tags/}
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not a release tag: $TAG"; exit 1; }
+          echo "CHART_VERSION=${TAG#v}" >> "$GITHUB_ENV"
 
       - name: Package chart
         run: |
