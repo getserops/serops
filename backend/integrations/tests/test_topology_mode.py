@@ -74,6 +74,16 @@ class TopologyModeFieldTest(TestCase):
         config = integration.get_config()
         self.assertEqual(config['topology_mode'], 'kubernetes')
 
+    def test_get_config_names_the_integrations_cluster(self):
+        from integrations.models import Cluster
+        cluster = Cluster.objects.create(organisation=self.org, name='serops-validate', provider='eks')
+        integration = ObservabilityIntegration.objects.create(
+            organisation=self.org, provider='cloudwatch', display_name='cw',
+            capabilities=['metrics'], cluster=cluster, topology_mode='kubernetes')
+        self.assertEqual(integration.get_config()['cluster_name'], 'serops-validate')
+        integration.cluster = None
+        self.assertNotIn('cluster_name', integration.get_config())
+
     def test_extra_config_cannot_override_topology_mode(self):
         """Regression guard: canonical `topology_mode` field on the model
         wins over any stray value users might drop into extra_config.
@@ -667,3 +677,68 @@ class RootCgroupMatcherTest(SimpleTestCase):
         self.assertTrue(anchored.match('/kubepods/burstable/podabc/container1'))
         self.assertTrue(anchored.match('/kubepods.slice/kubepods-burstable.slice/x'))
         self.assertFalse(anchored.match('/docker/deadbeef/kubepods/burstable/podabc/c1'))
+
+
+class CloudWatchSeveralClustersTest(SimpleTestCase):
+    """Two EKS clusters in one account and region (or one deleted in the last
+    two weeks, which ListMetrics still returns) with the same namespace and
+    Service: found on EKS on 2026-11-13, the old cluster's series was read and
+    the investigation got no metrics."""
+
+    OLD = {'ClusterName': 'old', 'Namespace': 'production', 'Service': 'payments'}
+    NEW = {'ClusterName': 'new', 'Namespace': 'production', 'Service': 'payments'}
+
+    def _provider(self, **config):
+        with patch('integrations.adapters.cloudwatch_metrics._get_boto3_client'):
+            from integrations.adapters.cloudwatch_metrics import CloudWatchMetricProvider
+            provider = CloudWatchMetricProvider({'aws_region': 'eu-central-1',
+                                                 'topology_mode': 'kubernetes', **config})
+        provider.client.get_paginator.return_value.paginate.return_value = [
+            {'Metrics': [{'Dimensions': [{'Name': k, 'Value': v} for k, v in d.items()]}
+                         for d in (self.OLD, self.NEW)]}]
+        return provider
+
+    def _clusters(self, provider):
+        queries = provider.client.get_metric_data.call_args.kwargs['MetricDataQueries']
+        return sorted({d['Value'] for q in queries if 'MetricStat' in q
+                       for d in q['MetricStat']['Metric']['Dimensions'] if d['Name'] == 'ClusterName'})
+
+    def test_every_cluster_is_read_and_the_series_with_data_kept(self):
+        provider = self._provider()
+        provider.client.get_metric_data = MagicMock(return_value={'MetricDataResults': [
+            {'Id': 'r0', 'Timestamps': [], 'Values': []},
+            {'Id': 'r1', 'Timestamps': [datetime(2026, 1, 1), datetime(2026, 1, 1, 0, 1)], 'Values': [40.0, 41.0]}]})
+        [ts] = provider.query_range('node_memory_MemFree_bytes', {'environment': 'production'},
+                                    datetime(2026, 1, 1), datetime(2026, 1, 1, 1))
+        self.assertEqual(self._clusters(provider), ['new', 'old'])
+        self.assertEqual(ts.labels['ClusterName'], 'new')
+        self.assertEqual(ts.labels['service_name'], 'payments')
+        self.assertEqual([p.value for p in ts.points], [40.0, 41.0])
+
+    def test_one_series_per_service_when_both_clusters_have_data(self):
+        provider = self._provider()
+        provider.client.get_metric_data = MagicMock(return_value={'MetricDataResults': [
+            {'Id': 'r0', 'Timestamps': [datetime(2026, 1, 1)], 'Values': [1.0]},
+            {'Id': 'r1', 'Timestamps': [datetime(2026, 1, 1), datetime(2026, 1, 1, 0, 1)], 'Values': [2.0, 3.0]}]})
+        series = provider.query_range('node_memory_MemFree_bytes', {'environment': 'production'},
+                                      datetime(2026, 1, 1), datetime(2026, 1, 1, 1))
+        self.assertEqual([ts.labels['ClusterName'] for ts in series], ['new'])
+
+    def test_the_integrations_cluster_scopes_the_series(self):
+        provider = self._provider(cluster_name='new')
+        provider.client.get_metric_data = MagicMock(return_value={'MetricDataResults': []})
+        provider.query_range('node_cpu_seconds_total', {'environment': 'production'},
+                             datetime(2026, 1, 1), datetime(2026, 1, 1, 1))
+        self.assertEqual(self._clusters(provider), ['new'])
+
+    def test_a_cluster_label_that_is_not_an_eks_name_does_not_hide_the_series(self):
+        provider = self._provider(cluster_name='prod-eks')
+        provider.client.get_metric_data = MagicMock(return_value={'MetricDataResults': []})
+        provider.query_range('node_memory_MemFree_bytes', {'environment': 'production'},
+                             datetime(2026, 1, 1), datetime(2026, 1, 1, 1))
+        self.assertEqual(self._clusters(provider), ['new', 'old'])
+
+    def test_discover_hosts_lists_each_service_once(self):
+        provider = self._provider()
+        hosts = provider.discover_hosts('acme', environment='production')
+        self.assertEqual([h.hostname for h in hosts], ['payments'])

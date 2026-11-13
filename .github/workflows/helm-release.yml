@@ -4,7 +4,7 @@ name: helm-release
 # every release tag. Users install with:
 #
 #     helm install serops oci://ghcr.io/getserops/charts/serops \
-#         --version 1.3.0
+#         --version 1.3.1
 #
 # There is no classic HTTP repo: GitHub Pages was never enabled, and
 # chart-releaser, which fed it, created a GitHub release named after

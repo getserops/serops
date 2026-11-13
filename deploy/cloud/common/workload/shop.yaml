@@ -1,0 +1,113 @@
+# The customer's application: three services in namespace "production"
+# (Promtail and Prometheus map namespace -> environment, as in our docs),
+# plus steady traffic. Pods carry `app` (-> service_name) and opt in to
+# Prometheus scraping with the usual annotation. Generated once from a
+# loop; edit freely.
+apiVersion: v1
+kind: Namespace
+metadata: {name: production}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: frontend, namespace: production}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: frontend}}
+  template:
+    metadata:
+      labels: {app: frontend}
+      annotations: {prometheus.io/scrape: "true", prometheus.io/port: "8080"}
+    spec:
+      containers:
+        - name: frontend
+          image: python:3.12-alpine
+          command: ["python", "-u", "/app/shop.py"]
+          env:
+            - {name: SERVICE, value: frontend}
+            - {name: DOWNSTREAM, value: "checkout:8080"}
+          ports: [{containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
+          volumeMounts: [{name: app, mountPath: /app}]
+          resources: {requests: {memory: 32Mi, cpu: 20m}, limits: {memory: 128Mi}}
+      volumes: [{name: app, configMap: {name: shop-scripts}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: frontend, namespace: production}
+spec: {selector: {app: frontend}, ports: [{port: 8080, targetPort: 8080}]}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: checkout, namespace: production}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: checkout}}
+  template:
+    metadata:
+      labels: {app: checkout}
+      annotations: {prometheus.io/scrape: "true", prometheus.io/port: "8080"}
+    spec:
+      containers:
+        - name: checkout
+          image: python:3.12-alpine
+          command: ["python", "-u", "/app/shop.py"]
+          env:
+            - {name: SERVICE, value: checkout}
+            - {name: DOWNSTREAM, value: "payments:8080"}
+          ports: [{containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
+          volumeMounts: [{name: app, mountPath: /app}]
+          resources: {requests: {memory: 32Mi, cpu: 20m}, limits: {memory: 128Mi}}
+      volumes: [{name: app, configMap: {name: shop-scripts}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: checkout, namespace: production}
+spec: {selector: {app: checkout}, ports: [{port: 8080, targetPort: 8080}]}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: payments, namespace: production}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: payments}}
+  template:
+    metadata:
+      labels: {app: payments}
+      annotations: {prometheus.io/scrape: "true", prometheus.io/port: "8080"}
+    spec:
+      containers:
+        - name: payments
+          image: python:3.12-alpine
+          command: ["python", "-u", "/app/shop.py"]
+          env:
+            - {name: SERVICE, value: payments}
+            - {name: DB_POOL_SIZE, value: "20"}
+          ports: [{containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
+          volumeMounts: [{name: app, mountPath: /app}]
+          resources: {requests: {memory: 32Mi, cpu: 20m}, limits: {memory: 128Mi}}
+      volumes: [{name: app, configMap: {name: shop-scripts}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: payments, namespace: production}
+spec: {selector: {app: payments}, ports: [{port: 8080, targetPort: 8080}]}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: loadgen, namespace: production}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: loadgen}}
+  template:
+    metadata: {labels: {app: loadgen}}
+    spec:
+      containers:
+        - name: loadgen
+          image: python:3.12-alpine
+          command: ["python", "-u", "/app/loadgen.py"]
+          env: [{name: TARGET, value: "http://frontend:8080/"}, {name: RPS, value: "15"}]
+          volumeMounts: [{name: app, mountPath: /app}]
+          resources: {requests: {memory: 32Mi, cpu: 20m}, limits: {memory: 128Mi}}
+      volumes: [{name: app, configMap: {name: shop-scripts}}]

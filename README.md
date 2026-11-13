@@ -98,8 +98,8 @@ counted or limited in the product:
 | Enterprise | up to 5,000 | €30,000 |
 | Strategic | above 5,000, or a regulated sector | from €60,000 |
 
-Custom roles and per-project access arrive in 1.3.0, with a commercial license and a
-support contract. Planned next: SAML 2.0 and SCIM, then real-time audit streaming to a
+Custom roles and per-project access are available since 1.3.0, with a commercial license
+and a support contract. Planned next: SAML 2.0 and SCIM, then real-time audit streaming to a
 SIEM, delegated administration across organisations, and compliance reports. Cloud is
 planned for 2027.
 

@@ -121,11 +121,38 @@ Cloud Logging and Cloud Monitoring are both paged iterators. SerOps intentionall
 
 ## Kubernetes (GKE) mode
 
-Checked on a live GKE 1.36 cluster running Google's Online Boutique
-(November 2026): health check, Check my data, logs and metrics, read with a
-key holding only Logs Viewer and Monitoring Viewer. End-to-end incident
-analyses on GKE have not run yet; see
-[Tested environments](overview.md#tested-environments).
+Tested end to end on 2026-11-12: SerOps 1.3.0 on GKE 1.36.4 (two nodes,
+Dataplane V2), a bad rollout of a sample application found by an
+investigation in 41 seconds (the payments database pool exhausted, 502s
+upstream). See [Install on GKE](../deployment/gke.md). Earlier (November
+2026) Google's Online Boutique on GKE 1.36: health check, Check my data,
+logs and metrics.
+
+!!! warning "Plain-text errors on stdout (fixed in 1.3.1)"
+    GKE stores a plain-text line written to stdout with severity INFO. Up to
+    1.3.0, SerOps left those lines out of an analysis even when they say
+    `ERROR`: Check my data reported 5 errors where there were 1,000 and the
+    investigation missed the cause. Fixed in 1.3.1; on 1.3.0,
+    write errors to stderr or log JSON with a `severity` field.
+
+**Least privilege.** Instead of Logs Viewer and Monitoring Viewer, a custom
+role with three permissions is enough (checked on GKE: health check, Check my
+data, an investigation):
+
+| Permission | For |
+|---|---|
+| `logging.logEntries.list` | Reading log entries |
+| `monitoring.timeSeries.list` | Container CPU and memory |
+| `monitoring.metricDescriptors.list` | The health check |
+
+```bash
+gcloud iam roles create seropsMonitoringReader --project <project> \
+  --title "SerOps Cloud Logging and Monitoring reader" --stage GA \
+  --permissions logging.logEntries.list,monitoring.timeSeries.list,monitoring.metricDescriptors.list
+gcloud projects add-iam-policy-binding <project> \
+  --member serviceAccount:<reader>@<project>.iam.gserviceaccount.com \
+  --role projects/<project>/roles/seropsMonitoringReader
+```
 
 Set the integration's `topology_mode` to `kubernetes` (the wizard's *My
 services run on GKE*). GKE writes container logs to Cloud Logging and

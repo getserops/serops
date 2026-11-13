@@ -30,7 +30,7 @@ at your own:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.3.0 \
+  --version 1.3.1 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set django.encryptionKey="$(openssl rand -base64 32 | tr '+/' '-_')" \
@@ -57,7 +57,7 @@ For a lab or demo cluster, let the chart run Postgres and Redis itself:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.3.0 \
+  --version 1.3.1 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set django.encryptionKey="$(openssl rand -base64 32 | tr '+/' '-_')" \
@@ -308,6 +308,10 @@ The chart ships them on by default (chart 0.2.0):
 | `networkPolicy.egress` | `[]` = anywhere | Where backend, worker, beat and the migration job may connect. SerOps queries the providers, SCM and AI endpoints you configure, on their own hosts and ports, so the chart cannot guess a tighter default; narrow it once you know them. DNS (`networkPolicy.dnsNamespace`) and the dev services stay allowed. |
 | `networkPolicy.enabled` | `true` | Set `false` on a CNI that does not enforce NetworkPolicy, or to bring your own. |
 
+The policies cover the pods this chart runs, including the dev Postgres and
+Redis. A database or Redis you run yourself in the cluster needs its own
+NetworkPolicy: without one, any pod in the cluster can reach it.
+
 !!! warning "Check the ingress controller's namespace"
     If the controller is not in a namespace labelled
     `kubernetes.io/metadata.name: ingress-nginx`, set
@@ -321,11 +325,13 @@ release workflows of `github.com/getserops/serops`) and carry SBOM and
 provenance attestations. Before installing:
 
 ```bash
-cosign verify ghcr.io/getserops/charts/serops:1.2.15 \
+# A tag publishes the chart; a failed publish is redone by hand from main
+# without moving the tag (chart 1.3.0 was), hence both refs.
+cosign verify ghcr.io/getserops/charts/serops:1.3.1 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/helm-release\.yml@refs/tags/v'
+  --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/helm-release\.yml@refs/(tags/v|heads/main$)'
 
-cosign verify ghcr.io/getserops/backend:1.2.15 \
+cosign verify ghcr.io/getserops/backend:1.3.1 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/docker\.yml@refs/tags/v'
 ```
@@ -348,15 +354,47 @@ kubectl get servicemonitor -n serops
 
 ## Upgrading
 
+Read the release's notes in [Upgrading](upgrading.md#upgrade-notes) first,
+back up the database, then upgrade from the same chart source you installed
+from, with the same values:
+
 ```bash
-git pull                       # get latest chart + app
-helm upgrade serops deploy/helm/serops --namespace serops --values my-values.yaml
-# Migrations run as a post-upgrade hook — no manual step. Watch it:
-kubectl logs -n serops job/serops-migrate
+# OCI (as installed above)
+helm upgrade serops oci://ghcr.io/getserops/charts/serops --version 1.3.1 \
+  --namespace serops -f my-values.yaml --wait --timeout 15m
+
+# From a clone of the repository
+git pull
+helm upgrade serops deploy/helm/serops --namespace serops -f my-values.yaml --wait
+
+# Migrations run as a post-upgrade hook. Watch them:
+kubectl logs -n serops job/serops-migrate -c migrate
 ```
 
-Rolling update on backend/frontend/worker is safe; beat is `Recreate`
-strategy (single replica).
+Management commands, such as `rotate_secrets` after the 1.3.0 upgrade, run
+in a backend pod:
+
+```bash
+kubectl -n serops exec deploy/serops-backend -- python manage.py rotate_secrets --dry-run
+kubectl -n serops exec deploy/serops-backend -- python manage.py rotate_secrets
+```
+
+Backend, frontend and worker roll one pod at a time and beat is `Recreate`
+(single replica).
+
+!!! warning "Leave room for the rolling update"
+    A rolling update starts each new pod before it stops an old one, so the
+    nodes need free CPU for the largest pod: a worker requests 500m. With the
+    default replicas the release requests about 3.2 vCPU; on two 2-vCPU nodes
+    (about 1.9 allocatable each) the new worker stays `Pending` and the upgrade
+    waits until `--timeout`. Add a node for the upgrade, or lower
+    `celeryWorker.resources.requests.cpu`.
+
+!!! note "Migrations run after the new pods are ready"
+    The migration Job is a `post-upgrade` hook: Helm runs it once every
+    Deployment of the release is ready. Until then the new version serves on
+    the previous schema, so a rollout that cannot schedule also delays the
+    migrations. Upgrade in a quiet period and keep the rollout unblocked.
 
 ## Uninstall
 

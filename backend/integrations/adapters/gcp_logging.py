@@ -351,11 +351,16 @@ class GcpCloudLoggingProvider(LogProvider):
 
         level = _detect_level(raw_severity)
         k8s = getattr(resource, "type", "") == "k8s_container"
-        if k8s and isinstance(payload, str) and str(getattr(gcp_entry, "log_name", "")).endswith("/stderr"):
+        stream = str(getattr(gcp_entry, "log_name", "")).rsplit("/", 1)[-1]
+        if k8s and isinstance(payload, str) and stream == "stderr":
             # GKE rates every plain-text stderr line ERROR (and stdout INFO):
             # the stream, not the line. Read the line's own level instead; a
             # line naming none stays INFO. Observed on GKE: an OpenTelemetry
             # collector's 660 ordinary lines a hour all showed as errors.
+            level = _detect_level_from_line(message, default="INFO")
+        elif k8s and isinstance(payload, str) and stream == "stdout" and level == "INFO":
+            # The stdout side of the same rule: "... ERROR payments 503 ..."
+            # arrives as INFO; the line's own level wins.
             level = _detect_level_from_line(message, default="INFO")
 
         # GKE names the workload in pod labels and the namespace on the

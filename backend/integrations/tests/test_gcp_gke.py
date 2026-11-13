@@ -56,6 +56,22 @@ class GkeLogEntryTest(SimpleTestCase):
         self.assertEqual(info.level, 'INFO')
         self.assertEqual(error.level, 'ERROR')
 
+    def test_a_stdout_line_keeps_its_own_level(self):
+        # GKE rates every plain stdout line INFO (GKE 1.36 validation,
+        # 2026-11-12: a bad rollout's "ERROR ... 503 pool exhausted" lines).
+        line = ('2026-11-12T22:15:17.204Z ERROR payments GET /charge 503 pool exhausted: '
+                'timeout acquiring database connection (pool_size=2, in_use=2)')
+        error = GcpCloudLoggingProvider._to_log_entry(gke_entry(line, app='payments', severity='INFO', stream='stdout'))
+        info = GcpCloudLoggingProvider._to_log_entry(gke_entry(
+            '2026-11-12T22:15:17.240Z INFO payments GET /charge 200 152ms', app='payments',
+            severity='INFO', stream='stdout'))
+        self.assertEqual(error.level, 'ERROR')
+        self.assertEqual(info.level, 'INFO')
+
+    def test_a_stdout_line_rated_above_info_keeps_googles_severity(self):
+        entry = gke_entry('disk almost full', severity='WARNING', stream='stdout')
+        self.assertEqual(GcpCloudLoggingProvider._to_log_entry(entry).level, 'WARN')
+
     def test_a_structured_line_keeps_googles_severity(self):
         entry = gke_entry({'message': 'payment failed', 'severity': 'ERROR'})
         self.assertEqual(GcpCloudLoggingProvider._to_log_entry(entry).level, 'ERROR')
@@ -89,7 +105,7 @@ class GkeLogQueryTest(SimpleTestCase):
     def test_stream_rated_stderr_lines_are_left_out_of_errors(self):
         f = LogQuery(severity=['WARN', 'ERROR']).to_gcp_filter()
         self.assertIn('NOT (resource.type="k8s_container" AND logName:"/logs/stderr"', f)
-        self.assertIn('(severity=DEFAULT AND (', f)        # a stdout line naming ERROR is kept
+        self.assertIn('(severity<=INFO AND textPayload:* AND (', f)   # a stdout line naming ERROR is kept
         self.assertIn('textPayload:"ERROR"', f)
         self.assertNotIn('textPayload:"INFO"', f)
 

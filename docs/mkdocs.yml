@@ -117,6 +117,9 @@ nav:
     - System Requirements: deployment/requirements.md
     - Production Deployment: deployment/production.md
     - Kubernetes (Helm): deployment/helm.md
+    - Install on AKS: deployment/aks.md
+    - Install on GKE: deployment/gke.md
+    - Install on EKS: deployment/eks.md
     - Configuration Reference: deployment/configuration.md
     - Backup & Restore: deployment/backup-restore.md
     - Upgrading: deployment/upgrading.md

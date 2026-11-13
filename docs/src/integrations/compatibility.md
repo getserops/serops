@@ -40,9 +40,9 @@ Last full run: **2026-10-24**, SerOps `main` after 1.2.5, Kubernetes 1.31
 | [Grafana Loki](loki.md) | 2.9 and later (3.x) | 2.9.10, 3.2.1 | Live-tested |
 | [Splunk Enterprise](splunk.md) | 8.2 and later (9.x) | 8.2.12, 9.3.2 | Live-tested |
 | [Datadog](datadog.md) | Cloud service | Datadog EU, Agent 7 (Helm chart 3.264) | Live-tested |
-| [AWS CloudWatch](cloudwatch.md) | Cloud service (Logs Insights) | `eu-central-1`: ECS and Lambda log groups, Container Insights (Fluent Bit 3.0) | Live-tested |
-| [Google Cloud Logging](gcp.md) | Cloud service | — | Unit-tested |
-| [Azure Monitor](azure.md) | Cloud service (Log Analytics) | AKS Container Insights (`ContainerLogV2`), Application Insights from an OpenTelemetry collector (`AppTraces`) | Live-tested |
+| [AWS CloudWatch](cloudwatch.md) | Cloud service (Logs Insights) | `eu-central-1`: ECS and Lambda log groups, Container Insights (Fluent Bit 3.0); EKS 1.36 with the CloudWatch Observability add-on, SerOps 1.3.0, 2026-11-13, five-action IAM policy | Live-tested |
+| [Google Cloud Logging](gcp.md) | Cloud service | GKE 1.36.4 container logs (stdout, stderr); SerOps 1.3.0, 2026-11-12, three-permission custom role | Live-tested |
+| [Azure Monitor](azure.md) | Cloud service (Log Analytics) | AKS Container Insights (`ContainerLogV2`), Application Insights from an OpenTelemetry collector (`AppTraces`); SerOps 1.3.0 on AKS 1.36.5, 2026-11-11, least-privilege custom role | Live-tested |
 
 Log shippers used in the tests, with the configurations on the integration
 pages: Promtail 3.5.0 (Loki), Fluent Bit 3.1.9 (Elasticsearch, OpenSearch,
@@ -56,8 +56,8 @@ and Splunk through HEC).
 | [VictoriaMetrics](victoriametrics.md) | Single node 1.x | 1.106.1 | Live-tested |
 | [Grafana Mimir](mimir.md) | 2.x | 2.14.2 (multi-tenant) | Live-tested |
 | [Datadog](datadog.md) | Cloud service | Datadog EU, Agent 7: host and Kubernetes container metrics | Live-tested |
-| [AWS CloudWatch](cloudwatch.md) | Cloud service | `eu-central-1`: CloudWatch agent 1.300074, host and Container Insights metrics | Live-tested |
-| [Google Cloud Monitoring](gcp.md) | Cloud service | — | Unit-tested |
+| [AWS CloudWatch](cloudwatch.md) | Cloud service | `eu-central-1`: CloudWatch agent 1.300074, host and Container Insights metrics; EKS 1.36, 2026-11-13 (per-service metrics need 1.3.1 when another cluster in the region has the same namespace) | Live-tested |
+| [Google Cloud Monitoring](gcp.md) | Cloud service | GKE 1.36.4: per-workload container CPU and memory; SerOps 1.3.0, 2026-11-12 | Live-tested |
 | [Azure Monitor](azure.md) | Cloud service | AKS: per-container metrics from Container Insights, cluster metrics. VM metrics not yet live-tested | Live-tested |
 
 ## Traces
@@ -101,14 +101,21 @@ and Splunk through HEC).
 | Integration | Supported | Tested end to end | Maturity |
 |---|---|---|---|
 | [Keycloak](../security/authentication.md) | 26 | 26.0 | Live-tested |
-| Okta, Microsoft Entra ID, Google | Any OpenID Connect provider with a discovery URL | — | Not yet tested |
+| [Microsoft Entra ID](../deployment/aks.md#6-sign-in-with-entra-id-enterprise) | Entra ID (v2.0 endpoint), groups as object IDs in the ID token | SerOps 1.3.0, 2026-11-12: role and team rules, default deny | Live-tested |
+| Okta, Google | Any OpenID Connect provider with a discovery URL | — | Not yet tested |
 
 ## Not yet validated
 
-- **Managed Kubernetes on EKS and GKE**: not yet validated. AKS was
-  validated in November 2026 (Azure Monitor with Container Insights, on one
-  node and then two); the rest of the Kubernetes testing above ran on one
-  node. See [Tested environments](overview.md#tested-environments).
+- **Managed Kubernetes, one run per cloud**: EKS, GKE and AKS were each
+  validated with the cloud's own logs and metrics: EKS on 2026-11-13
+  (SerOps 1.3.0 on EKS 1.36, three nodes, CloudWatch Container Insights, see
+  [Install on EKS](../deployment/eks.md)), GKE on 2026-11-12 (SerOps 1.3.0 on
+  GKE 1.36.4, two nodes, Google Cloud Logging and Monitoring, see
+  [Install on GKE](../deployment/gke.md)), AKS in November 2026 (Azure
+  Monitor with Container Insights, on one node and then two; SerOps 1.3.0
+  upgrade and install on 2026-11-11, see [Install on AKS](../deployment/aks.md)).
+  The rest of the Kubernetes testing above ran on one node of a local
+  cluster. See [Tested environments](overview.md#tested-environments).
 - **containerd vs Docker runtime**: the suite runs on minikube's Docker
   runtime as well as the containerd one the integration pages were written
   for. On a Docker runtime, add the `docker` parser to Promtail and Fluent

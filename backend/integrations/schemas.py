@@ -831,10 +831,14 @@ class LogQuery:
                 # (GcpCloudLoggingProvider._to_log_entry); otherwise one
                 # chatty container filled the page with INFO lines and
                 # pushed real errors out (GKE live test: 4287 of 5000).
+                # A plain-text stdout line is rated INFO by GKE (DEFAULT
+                # elsewhere): keep it when it names a requested level
+                # (GKE 1.36 validation, 2026-11-12: every "ERROR" line of a
+                # bad rollout was stored as INFO and the analysis saw none).
                 stream_rated = ('resource.type="k8s_container" AND logName:"/logs/stderr" '
                                 f'AND textPayload:* AND NOT ({text})')
                 clauses.append(f'((severity>={_gcp_bareword(severity_name)} AND NOT ({stream_rated}))'
-                               f' OR (severity=DEFAULT AND ({text})))')
+                               f' OR (severity<=INFO AND textPayload:* AND ({text})))')
             else:
                 clauses.append(f'severity>={_gcp_bareword(severity_name)}')
 

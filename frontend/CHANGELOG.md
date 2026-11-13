@@ -10,6 +10,14 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-13
+
+Dependency updates. Same version as the backend and the chart.
+
+### Changed
+
+- Dependencies: minor and patch updates (React 19.3, React Router 7.18.5, TanStack Query 5.107, axios 1.21, Playwright 1.65 and its CI image). react-icons stays on 5.5: 5.7 removed an icon the integrations page uses.
+
 ## [1.3.0] - 2026-11-11
 
 Roles, teams and per-project access screens, Settings → Enterprise license, the sample incident and the email-change confirmation. Same version as the backend and the chart.

@@ -143,7 +143,7 @@ ui-quality:
     # Bind mounts don't reach the dind daemon: copy the sources in instead.
     - >
       CID=$(docker create --network host -w /app -e CI=1 -e UI_BASE_URL=https://localhost
-      mcr.microsoft.com/playwright:v1.63.0-jammy
+      mcr.microsoft.com/playwright:v1.65.0-jammy
       sh -c "npm ci --no-audit --fund=false && npx playwright test -c playwright.ui-quality.config.ts")
     - docker cp frontend/. "$CID":/app
     - STATUS=0; docker start -a "$CID" || STATUS=$?

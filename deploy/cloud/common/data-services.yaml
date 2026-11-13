@@ -1,0 +1,68 @@
+# Postgres and Redis for a validation install: what an operator brings as
+# "your own database and broker", kept in the cluster so the whole test goes
+# away with it. Postgres sits on a persistent volume so it survives a SerOps
+# upgrade (the chart's devServices use emptyDir). Passwords come from the
+# serops-data Secret, created by the cluster script; nothing here is secret.
+apiVersion: v1
+kind: Service
+metadata: {name: postgres, labels: {app: postgres}}
+spec:
+  selector: {app: postgres}
+  ports: [{port: 5432, targetPort: 5432}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: {name: postgres}
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector: {matchLabels: {app: postgres}}
+  template:
+    metadata: {labels: {app: postgres}}
+    spec:
+      securityContext: {fsGroup: 70, runAsUser: 70, runAsGroup: 70, runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: postgres
+          image: postgres:16.15-alpine
+          env:
+            - {name: POSTGRES_DB, value: serops}
+            - {name: POSTGRES_USER, value: serops}
+            - {name: POSTGRES_PASSWORD, valueFrom: {secretKeyRef: {name: serops-data, key: postgres-password}}}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          ports: [{containerPort: 5432}]
+          readinessProbe: {exec: {command: [pg_isready, -U, serops, -d, serops]}, periodSeconds: 5}
+          resources: {requests: {cpu: 100m, memory: 256Mi}, limits: {memory: 1Gi}}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          volumeMounts: [{name: data, mountPath: /var/lib/postgresql/data}]
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec: {accessModes: [ReadWriteOnce], resources: {requests: {storage: 8Gi}}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: redis, labels: {app: redis}}
+spec:
+  selector: {app: redis}
+  ports: [{port: 6379, targetPort: 6379}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: redis}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: redis}}
+  template:
+    metadata: {labels: {app: redis}}
+    spec:
+      securityContext: {runAsUser: 999, runAsGroup: 999, runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: redis
+          image: redis:7.4.12-alpine
+          # The password is read from the environment by redis itself, so it
+          # never appears in the process arguments.
+          command: [sh, -c, 'exec redis-server --save "" --appendonly no --requirepass "$REDIS_PASSWORD"']
+          env: [{name: REDIS_PASSWORD, valueFrom: {secretKeyRef: {name: serops-data, key: redis-password}}}]
+          ports: [{containerPort: 6379}]
+          readinessProbe: {tcpSocket: {port: 6379}, periodSeconds: 5}
+          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}

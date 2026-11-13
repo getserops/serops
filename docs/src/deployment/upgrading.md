@@ -46,7 +46,7 @@ Since 1.1.0 the Helm chart is versioned with the app: chart 1.2.0 deploys SerOps
 
 | Chart version | App version | Kubernetes tested |
 |---|---|---|
-| Same as the app (1.1.0 and later) | 1.1.0 and later | 1.28, 1.29, 1.30, 1.31 |
+| Same as the app (1.1.0 and later) | 1.1.0 and later | 1.28, 1.29, 1.30, 1.31; AKS 1.36 (upgrade 1.2.14 → 1.3.0, 2026-11-11) |
 | 0.1.x | 1.0.x | 1.28, 1.29, 1.30, 1.31 |
 
 We test the newest patch of each supported Kubernetes minor against
@@ -80,7 +80,12 @@ Releases that need something from you after upgrading. Migrations run on their o
 
 ### 1.3.0: users, roles and teams
 
-- **`SEROPS_ENCRYPTION_KEY` is required.** Stored credentials now have their own key instead of being encrypted with `DJANGO_SECRET_KEY`, and SerOps refuses to start without it. Generate one with `openssl rand -base64 32 | tr '+/' '-_'`, add it to your environment (Helm: `django.encryptionKey`, or `encryption-key` in your `existingSecret`), and back it up. Keep `DJANGO_SECRET_KEY` unchanged. Once upgraded, run `python manage.py rotate_secrets` once: until then, existing credentials still depend on `DJANGO_SECRET_KEY`.
+- **`SEROPS_ENCRYPTION_KEY` is required.** Stored credentials now have their own key instead of being encrypted with `DJANGO_SECRET_KEY`, and SerOps refuses to start without it. Generate one with `openssl rand -base64 32 | tr '+/' '-_'`, add it to your environment, and back it up. Keep `DJANGO_SECRET_KEY` unchanged. Once upgraded, run `python manage.py rotate_secrets` once: until then, existing credentials still depend on `DJANGO_SECRET_KEY`.
+  - Quick-start: add `SEROPS_ENCRYPTION_KEY=<key>` to `.env`, then `docker compose exec backend python manage.py rotate_secrets`.
+  - Helm with `django.secretKey` in your values: add `django.encryptionKey: <key>`.
+  - Helm with `django.existingSecret`: add the key to that Secret before `helm upgrade`, or every pod fails to start:
+    `kubectl -n serops patch secret <your-secret> --type merge -p '{"stringData":{"encryption-key":"<key>"}}'`.
+  - Helm: then `kubectl -n serops exec deploy/serops-backend -- python manage.py rotate_secrets` (see [Helm → Upgrading](helm.md#upgrading)).
 - **What happens to an existing install**: without the key, the backend refuses to start and says how to generate one. With it, existing credentials stay readable (they are still decrypted with the key derived from `DJANGO_SECRET_KEY`) and new ones use the new key; `rotate_secrets` (`--dry-run` reports first) re-encrypts the old ones and names any it cannot read. After that, `DJANGO_SECRET_KEY` no longer protects them.
 - **Helm (chart 1.3.0)**: `ingress.tls` is required when the ingress is enabled; an install that relied on plain HTTP fails to render until you set it, or `ingress.allowInsecure=true` when TLS ends in front of the ingress controller. NetworkPolicies, PodDisruptionBudgets and a ServiceAccount per release are on by default; if your ingress controller is not in a namespace labelled `kubernetes.io/metadata.name: ingress-nginx`, set `networkPolicy.ingressFrom` first, or the ingress gets 502s. Your CNI must enforce NetworkPolicy (`networkPolicy.enabled=false` skips them). The bundled lab Redis now needs a password, generated at install. Details: [Helm → Upgrading](helm.md#upgrading).
 - **Images**: the backend still runs as uid 10001 and the frontend's nginx as uid 101 (since 1.2.9). The quick-start now drops every capability and sets `no-new-privileges` on them; a `backend_logs` volume created before 1.2.9 still needs the one-off `chown` below. `latest` now follows release tags only, and `main` builds are tagged `edge`: pin a version.
@@ -124,9 +129,19 @@ Releases that need something from you after upgrading. Migrations run on their o
 3. Run `python manage.py rotate_secrets` (`--dry-run` reports first). It exits with an error and names any secret it cannot read.
 4. Remove `SEROPS_ENCRYPTION_KEY_PREVIOUS` and restart.
 
+## Upgrading a Helm install
+
+1. Back up the database (`pg_dump`, or your managed database's snapshot) and the release's values and Secrets.
+2. Apply the release's [upgrade notes](#upgrade-notes) to your values and Secrets.
+3. `helm upgrade` with the same chart source and values ([Helm → Upgrading](helm.md#upgrading)); leave the nodes room for the rolling update.
+4. Run any command the notes ask for (`rotate_secrets` for 1.3.0) in a backend pod.
+5. Check `kubectl -n serops get pods`, `kubectl logs -n serops job/serops-migrate -c migrate` and `/api/version/`, then sign in.
+
+The rest of this page (`scripts/upgrade.sh`, `.env`, `docker compose`) is for the quick-start.
+
 ## Automated Upgrade
 
-The simplest way to upgrade is using the included upgrade script:
+The simplest way to upgrade the quick-start is using the included upgrade script:
 
 ```bash
 ./scripts/upgrade.sh [version]

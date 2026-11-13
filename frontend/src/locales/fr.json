@@ -936,7 +936,7 @@
     "redirectUri": "URI de redirection",
     "redirectUriHint": "Enregistrez exactement cette URL comme URI de redirection valide dans votre fournisseur d'identité.",
     "ssoDomains": "Domaines de connexion (facultatif)",
-    "ssoDomainsHint": "Les personnes dont l'e-mail est sur ces domaines peuvent se connecter par SSO sans invitation, avec le rôle Lecteur. Laissez vide pour n'autoriser que les personnes invitées.",
+    "ssoDomainsHint": "Les personnes dont l'e-mail est sur ces domaines peuvent se connecter par SSO sans invitation, avec le rôle donné par leurs groupes (ou le rôle par défaut). Laissez vide pour n'autoriser que les personnes invitées.",
     "authenticationProtocol": "Protocole d'authentification",
     "enableSso": "Activer l'authentification unique",
     "enableSsoHint": "Permet de se connecter via votre fournisseur d'identité avec OpenID Connect (Okta, Azure AD, Google, Keycloak).",

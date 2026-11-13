@@ -55,7 +55,7 @@ The backend writes `django.log` and `user_actions.log` in `/app/logs` (the `back
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SEROPS_VERSION` | No | `1.3.0` | Version tag for SerOps Docker images (backend + frontend) |
+| `SEROPS_VERSION` | No | `1.3.1` | Version tag for SerOps Docker images (backend + frontend) |
 
 ---
 

@@ -405,6 +405,9 @@ class ObservabilityIntegration(models.Model):
                     )
                     continue
             config[key] = value
+        if self.cluster_id and not config.get('cluster_name'):
+            # Adapters that can scope by cluster (CloudWatch Container Insights).
+            config['cluster_name'] = self.cluster.name
         return config
 
     def secret_fields_set(self) -> list:

@@ -1,0 +1,11 @@
+# Let's Encrypt (production) through cert-manager, HTTP-01 on the nginx
+# ingress class. No account e-mail: Let's Encrypt does not require one.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata: {name: letsencrypt}
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef: {name: letsencrypt-account}
+    solvers:
+      - http01: {ingress: {ingressClassName: nginx}}

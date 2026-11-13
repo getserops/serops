@@ -18,6 +18,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { liveTested, liveTestedText } from '../../../utils/integrationMaturity';
 import {
     Alert,
     Box,
@@ -308,6 +309,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                             disabled={!supportsLogs}
                                         >
                                             {p.name}
+                                            {supportsLogs && liveTested(p.code) && ` — ${liveTestedText(p.code)}`}
                                             {!supportsLogs && ` (${notLogsLabel(p.capabilities)}: add it later in Settings → Integrations)`}
                                         </MenuItem>
                                     );

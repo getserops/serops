@@ -7,6 +7,19 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-13
+
+Fixes from running 1.3.0 on AKS, GKE and EKS, and dependency updates. No migrations, nothing to change on upgrade: set `SEROPS_VERSION=1.3.1` or `--version 1.3.1`.
+
+### Fixed
+
+- Google Cloud Logging: GKE stores a plain-text line written to stdout with severity INFO, and the error filter expected DEFAULT, so every `ERROR ...` line an application writes to stdout was left out of Check my data and investigations (on GKE, 5 errors reported where there were 1,000). A plain-text line rated INFO or below is now kept when it names the level asked for, and takes that level.
+- AWS CloudWatch, Kubernetes mode: when the account and region list Container Insights series of more than one cluster with the same namespace and Service (a second cluster, or one deleted in the last two weeks, which CloudWatch keeps listing), SerOps kept the first series listed per Service, which could be the other cluster's, and the investigation got no metrics. It now keeps, per Service, the series with data in the window, and the integration's **Cluster** limits it to that EKS cluster when the names match.
+
+### Changed
+
+- Dependencies: minor and patch updates (45 packages, among them boto3, Google Cloud client libraries, grpcio, protobuf 6.33, pydantic, numpy 2.4.6, celery 5.5.3, tzdata 2026.6). celery and kombu stay on 5.5: kombu 5.7 needs redis-py 6.1 or later, a major upgrade kept for later. The Anthropic SDK resolves to 2.8 in new builds; two real Claude analyses pass with it.
+
 ## [1.3.0] - 2026-11-11
 
 Users, roles and teams, the Enterprise edition, and a security release. Migrations Users 0014-0016, Data 0057-0059, Organisations 0014, Projects 0017 (and ee 0001 with the `ee/` directories) run on their own. `SEROPS_ENCRYPTION_KEY` is now required, then run `rotate_secrets` once; the Helm chart refuses an ingress without TLS. Set `SEROPS_VERSION=1.3.0` or `--version 1.3.0`; read Upgrading → 1.3.0 first.

@@ -15,7 +15,7 @@ AWS CloudWatch is a monitoring and observability service from Amazon Web Service
 ## Prerequisites
 
 - An AWS account with CloudWatch access
-- An IAM user or role with permissions for `logs:StartQuery`, `logs:GetQueryResults`, `logs:CreateLogGroup`, `logs:CreateLogStream`, `logs:PutLogEvents`, `logs:DescribeLogGroups`, `cloudwatch:GetMetricData`, `cloudwatch:ListMetrics`
+- An IAM user or role with permissions for `logs:StartQuery`, `logs:GetQueryResults`, `logs:CreateLogGroup`, `logs:CreateLogStream`, `logs:PutLogEvents`, `logs:DescribeLogGroups`, `cloudwatch:GetMetricData`, `cloudwatch:ListMetrics`. To read logs and metrics only, the five without `Create`/`Put` are enough; those three store CI/CD pipeline logs in CloudWatch
 - AWS access key ID and secret access key
 - Network access from the SerOps backend to the AWS CloudWatch API endpoint
 
@@ -137,7 +137,10 @@ SerOps keeps only the matching ones.
     Checked in October 2026 with AWS's Container Insights quickstart
     (CloudWatch agent 1.300074, Fluent Bit 3.0) on a local Kubernetes
     cluster, sending to AWS `eu-central-1`: logs, Check my data, metrics per
-    service and an investigation. Not yet on EKS itself.
+    service and an investigation. On EKS 1.36 on 2026-11-13, with the Amazon
+    CloudWatch Observability add-on and SerOps 1.3.0: logs, metrics, Check my
+    data and an investigation, read with five IAM actions (see
+    [Install on EKS](../deployment/eks.md#4-cloudwatch-logs-and-metrics)).
     See [Tested environments](overview.md#tested-environments).
 
 Set the integration's **Topology mode** to **Kubernetes** (Settings →
@@ -193,6 +196,13 @@ project's **Data** tab, run **Check my data** and accept the grouping it offers
 project. A namespace named after the environment also puts its logs in that
 environment; with a namespace named after the project, give the environment
 the namespace's name as a label, or keep one environment per project.
+
+**4. Several clusters in one account and region.** Container Insights names
+each series after its cluster (`ClusterName`), and CloudWatch keeps listing a
+deleted cluster's series for two weeks. SerOps reads each cluster's series and
+keeps, per Service, the one with data. When two live clusters run the same
+namespace and Services, give the integration the EKS cluster's name as its
+**Cluster** (Settings → Integrations): it then reads only that cluster.
 
 SerOps' own key needs `cloudwatch:ListMetrics` and `cloudwatch:GetMetricData`
 (see [Prerequisites](#prerequisites)); nothing else for Kubernetes mode.

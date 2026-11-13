@@ -1020,7 +1020,7 @@
     "redirectUri": "Redirect URI",
     "redirectUriHint": "Register this exact URL as a valid redirect URI in your identity provider.",
     "ssoDomains": "Sign-in domains (optional)",
-    "ssoDomainsHint": "People with an email at these domains can sign in with SSO before they are invited, and get the Viewer role. Leave empty to let only invited people sign in.",
+    "ssoDomainsHint": "People with an email at these domains can sign in with SSO before they are invited, with the role their groups map to (or the default role). Leave empty to let only invited people sign in.",
     "enableSso": "Enable single sign-on",
     "enableSsoHint": "Let people sign in through your identity provider with OpenID Connect (Okta, Azure AD, Google, Keycloak).",
     "oidcConfig": "OpenID Connect configuration",

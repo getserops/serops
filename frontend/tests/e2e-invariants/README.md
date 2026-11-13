@@ -17,7 +17,7 @@ Creates 10 stable-id `gt-ui-*` batches on org 1. Idempotent — safe to re-run. 
 ```bash
 docker run --rm --network host \
   -v $(pwd):/app:rw -w /app \
-  mcr.microsoft.com/playwright:v1.63.0-jammy \
+  mcr.microsoft.com/playwright:v1.65.0-jammy \
   npx playwright test
 ```
 

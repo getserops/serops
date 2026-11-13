@@ -16,6 +16,43 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.3.1] - 2026-11-13
+
+Fixes found by installing 1.3.0 on AKS, GKE and EKS, and dependency updates.
+No migrations and nothing to change: set `SEROPS_VERSION=1.3.1` or
+`--version 1.3.1`.
+
+### Fixed
+
+- **Google Cloud Logging**: plain-text `ERROR` lines on stdout reach Check
+  my data and investigations. GKE rates every plain-text stdout line INFO,
+  and 1.3.0 left them out: an investigation on GKE collected 1 log out of
+  1,000 errors and missed the cause.
+- **AWS CloudWatch, Kubernetes mode**: metrics are read from the right
+  cluster when the account and region list several with the same namespace
+  and Service names. CloudWatch keeps listing a deleted cluster's series for
+  two weeks; 1.3.0 could read those and give an investigation no metrics.
+
+### Documentation
+
+- [Install on AKS](deployment/aks.md), [GKE](deployment/gke.md) and
+  [EKS](deployment/eks.md): the exact commands we ran, least-privilege
+  roles for Azure Monitor, Google Cloud and CloudWatch, and a teardown
+  script per cloud in `deploy/cloud/`. Azure Monitor, Google Cloud and
+  CloudWatch are live-tested on managed Kubernetes in the
+  [compatibility](integrations/compatibility.md) table.
+- Helm: the chart verify command accepts a chart re-published from `main`,
+  as 1.3.0 was.
+
+### Dependencies
+
+- Backend: minor and patch updates (boto3, Google Cloud client libraries,
+  grpcio, protobuf, pydantic, numpy, celery 5.5.3).
+- Frontend: minor and patch updates (React 19.3, React Router 7.18.5,
+  TanStack Query 5.107, axios 1.21).
+
+---
+
 ## [1.3.0] - 2026-11-11
 
 Users, roles and teams, the Enterprise edition, and a security release.

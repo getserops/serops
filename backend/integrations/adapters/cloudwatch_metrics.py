@@ -138,6 +138,9 @@ class CloudWatchMetricProvider(MetricProvider):
         # Topology mode: 'vm' uses AWS/EC2 + CWAgent, 'kubernetes' uses
         # ContainerInsights pod_* metrics.
         self._topology_mode = self._config.get("topology_mode", "vm")
+        # The integration's cluster, if it has one: Container Insights series
+        # of other clusters in the account and region are left out (_series).
+        self._cluster = str(self._config.get("cluster_name") or "").strip()
 
     # ------------------------------------------------------------------
     # MetricProvider ABC
@@ -215,11 +218,19 @@ class CloudWatchMetricProvider(MetricProvider):
             logger.error("CloudWatch query_range failed: %s", exc)
             return []
 
-        series_list: List[TimeSeries] = []
+        # A host can have several candidate series (one per cluster, see
+        # _series): keep the one with the most points in the window.
+        best = {}
         for result in response.get("MetricDataResults", []):
-            timestamps = result.get("Timestamps", [])
-            if not timestamps:
+            if not result.get("Timestamps"):
                 continue
+            host = series[int(result["Id"][1:])].get(mapping["host"], "")
+            if len(result["Timestamps"]) > len(best.get(host, {}).get("Timestamps", [])):
+                best[host] = result
+
+        series_list: List[TimeSeries] = []
+        for result in best.values():
+            timestamps = result["Timestamps"]
             dims = series[int(result["Id"][1:])]
             host = dims.get(mapping["host"], "")
             extra = {"service_name": host} if mapping["host"] == "Service" else {}
@@ -256,6 +267,7 @@ class CloudWatchMetricProvider(MetricProvider):
         except Exception as exc:
             logger.error("CloudWatch discover_hosts failed: %s", exc)
             return []
+        series = list({dims[mapping["host"]]: dims for dims in reversed(series)}.values())
         return [
             HostInfo(
                 hostname=dims[mapping["host"]],
@@ -332,10 +344,18 @@ class CloudWatchMetricProvider(MetricProvider):
         namespaces = {str((labels or {}).get(k) or "").lower() for k in NAMESPACE_SCOPE} - {""}
         if namespaces and any("Namespace" in d for d in found):
             found = [d for d in found if str(d.get("Namespace", "")).lower() in namespaces]
-        # One series per host: the agent may also send aggregated copies.
+        # A cluster's label in SerOps need not be its EKS name: it scopes
+        # only when a series carries it.
+        if self._cluster and any(d.get("ClusterName") == self._cluster for d in found):
+            found = [d for d in found if d.get("ClusterName") == self._cluster]
+        # One series per host and cluster: the agent may also send aggregated
+        # copies. Two clusters in the account and region (or one deleted in
+        # the last two weeks, which ListMetrics still returns) can both have
+        # the Service: each stays a candidate, and query_range keeps the one
+        # with data.
         by_host = {}
         for dims in sorted(found, key=len):
-            by_host.setdefault(dims[host], dims)
+            by_host.setdefault((dims[host], dims.get("ClusterName", "")), dims)
         return list(by_host.values())[:MAX_SERIES]
 
     @staticmethod

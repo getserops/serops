@@ -41,6 +41,7 @@ import ClusterService from "../../services/cluster.service";
 import ChoiceGroup from "./ChoiceGroup";
 import IntegrationsSectionHeader from "./IntegrationsSectionHeader";
 import { usePermissions } from "../../utils/permissions";
+import { liveTested, liveTestedDetail, liveTestedText } from "../../utils/integrationMaturity";
 
 /* ─── Provider Metadata ──────────────────────────────────────────────── */
 
@@ -427,6 +428,8 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                         // The provider can't change once an integration exists.
                         disabled: isEdit && code !== integration.provider,
                         label: <span className="d-inline-flex align-items-center gap-2">{React.createElement(meta.icon, { size: 18, color: meta.color, "aria-hidden": true })}{meta.name}</span>,
+                        description: liveTestedDetail(code) || undefined,
+                        badge: liveTested(code) && <span className="badge ds-chip ds-chip-ok" title={liveTestedText(code)}>Live-tested</span>,
                     }))}
                 />
 
