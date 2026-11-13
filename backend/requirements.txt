@@ -84,4 +84,4 @@ opensearch-py>=2.4,<3
 # to accept application/x-protobuf payloads (E31-6). Python OTel SDK's
 # default HTTP exporter sends protobuf; without this dep the receiver
 # would only handle JSON and reject every stock SDK client with 415.
-opentelemetry-proto>=1.27,<2
+opentelemetry-proto>=1.45.2,<2
