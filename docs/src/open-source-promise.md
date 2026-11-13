@@ -4,7 +4,7 @@ description: "Every feature in SerOps Community stays in Community, under AGPL-3
 ---
 # Our open source promise
 
-**Effective 21 October 2026, updated 9 November 2026.** Every change to this page is public: see its
+**Effective 21 October 2026, updated 13 November 2026.** Every change to this page is public: see its
 [history](https://github.com/getserops/serops/commits/main/docs/src/open-source-promise.md).
 [Version française ci-dessous](#notre-engagement-open-source).
 
@@ -20,7 +20,7 @@ SerOps comes in three forms:
 - **Enterprise**: Community plus governance features for large
   organisations, under a commercial license, self-hosted with a license key or
   in a higher Cloud tier. The first Enterprise features, custom roles and
-  per-project access, arrive in 1.3.0.
+  per-project access, shipped in 1.3.0 (11 November 2026).
 
 Enterprise only ever **adds**. Nothing below will be removed from Community,
 restricted, or moved to Enterprise.
@@ -141,7 +141,7 @@ made it precise before any paid feature was built.
 
 ## Notre engagement open source
 
-**En vigueur le 21 octobre 2026, mis à jour le 9 novembre 2026.** Chaque modification de cette page est
+**En vigueur le 21 octobre 2026, mis à jour le 13 novembre 2026.** Chaque modification de cette page est
 publique : voir son
 [historique](https://github.com/getserops/serops/commits/main/docs/src/open-source-promise.md).
 
@@ -159,7 +159,7 @@ SerOps existe sous trois formes :
   grandes organisations, sous licence commerciale, auto-hébergé avec une clé
   de licence ou dans une offre Cloud supérieure. Les premières
   fonctionnalités Enterprise, rôles personnalisés et accès par projet,
-  arrivent en 1.3.0.
+  sont disponibles depuis la 1.3.0 (11 novembre 2026).
 
 Enterprise ne fait qu'**ajouter**. Rien de ce qui suit ne sera retiré de
 Community, restreint, ou déplacé vers Enterprise.

@@ -95,7 +95,7 @@ counted or limited in the product:
 | Band | Employees | Price per year |
 |---|---|---|
 | Business | up to 500 | €7,500, introductory |
-| Enterprise | up to 5,000 | €30,000 |
+| Enterprise | up to 5,000 | from €30,000 |
 | Strategic | above 5,000, or a regulated sector | from €60,000 |
 
 Custom roles and per-project access are available since 1.3.0, with a commercial license
