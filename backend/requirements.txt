@@ -79,7 +79,7 @@ wcwidth==0.9.4
 django-rest-knox
 gunicorn==23.0.0
 anthropic>=2.7.0
-opensearch-py>=2.4,<3
+opensearch-py>=3.2.0,<4
 # opentelemetry-proto: enables the OTLP receiver at /api/traces/v1/traces
 # to accept application/x-protobuf payloads (E31-6). Python OTel SDK's
 # default HTTP exporter sends protobuf; without this dep the receiver
