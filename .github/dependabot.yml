@@ -41,3 +41,10 @@ updates:
   - package-ecosystem: docker-compose
     directory: /deploy/quick-start
     schedule: {interval: weekly, day: monday}
+    ignore:
+      # A new Postgres major cannot open the previous major's data directory,
+      # so bumping it would stop existing quick-start databases from starting
+      # (GitHub #19, 16 -> 18). Major upgrades need a documented dump and
+      # restore; minor and patch updates still come through.
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]

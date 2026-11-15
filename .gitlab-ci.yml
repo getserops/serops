@@ -75,7 +75,7 @@ backend:
 # ---------------------------------------------------------------------------
 frontend:
   stage: test
-  image: node:22  # same major as the image build (frontend/Dockerfile); rollup-plugin-visualizer 7 needs >=22
+  image: node:26  # same major as the image build (frontend/Dockerfile); rollup-plugin-visualizer 7 needs >=22
   cache:
     key:
       files: [frontend/package-lock.json]
