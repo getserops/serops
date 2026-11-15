@@ -734,7 +734,7 @@ class AdapterDefaultModelsTest(SimpleTestCase):
 
     def test_claude_default_model(self):
         from ai_model.adapters import claude
-        self.assertEqual(claude.DEFAULT_MODEL, 'claude-sonnet-5')
+        self.assertEqual(claude.DEFAULT_MODEL, 'claude-sonnet-5-5')
 
     def test_openai_generic_default_model(self):
         from ai_model.adapters import openai_generic

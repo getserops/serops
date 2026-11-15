@@ -21,6 +21,11 @@ class AIServiceError:
             'message': 'The AI provider account has no credit left.',
             'user_action': "Add credit or a payment method in the provider's billing settings, or choose another provider in Settings → AI."
         },
+        'spend_limit': {
+            'code': 'SPEND_LIMIT',
+            'message': 'The AI provider account reached the spending limit set on it.',
+            'user_action': "Raise the limit in the provider's console, wait until it resets, or choose another provider in Settings → AI."
+        },
         'auth_error': {
             'code': 'AUTH_ERROR',
             'message': 'API authentication failed.',
@@ -112,6 +117,16 @@ class AIServiceError:
     _OUT_OF_CREDIT_MARKERS = ('credit balance is too low', 'insufficient_quota',
                               'insufficient balance', 'payment required', 'error code: 402')
 
+    # A spending limit the account owner set (Anthropic console, 2026-11-15:
+    # "You have reached your specified API usage limits. You will regain
+    # access on 2026-12-01 at 00:00 UTC."): not a rate limit, not empty credit.
+    _SPEND_LIMIT_MARKERS = ('reached your specified api usage limits',)
+
+    @classmethod
+    def is_spend_limit(cls, raw: str) -> bool:
+        msg = (raw or '').lower()
+        return any(m in msg for m in cls._SPEND_LIMIT_MARKERS)
+
     @classmethod
     def is_out_of_credit(cls, raw: str) -> bool:
         msg = (raw or '').lower()
@@ -155,6 +170,18 @@ class AIServiceError:
         else:
             error.user_action = 'Wait a few minutes, raise the quota with the provider, or choose another provider in Settings → AI.'
         error.retry_after_seconds = seconds
+        return error
+
+    _REGAIN = re.compile(r'regain access on (\d{4}-\d{2}-\d{2})(?: at (\d{2}:\d{2}) ?UTC)?', re.I)
+
+    @classmethod
+    def spend_limit(cls, raw: str):
+        """The provider's spending limit, with the date access returns when given."""
+        error = cls.from_type('spend_limit', raw_error=(raw or '')[:500])
+        m = cls._REGAIN.search(raw or '')
+        if m:
+            when = m.group(1) + (f' at {m.group(2)} UTC' if m.group(2) else '')
+            error.message += f' Access returns on {when}.'
         return error
 
     def get_display_status(self) -> str:

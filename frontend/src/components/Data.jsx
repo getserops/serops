@@ -681,6 +681,7 @@ const Data = () => {
                             'TRUNCATED': 'AI response was truncated (hit output token limit)',
                             'QUOTA_EXCEEDED': 'AI provider quota or rate limit reached',
                             'OUT_OF_CREDIT': 'AI provider account has no credit left',
+                            'SPEND_LIMIT': 'AI provider account reached its spending limit',
                             'OVERLOADED': 'AI provider overloaded',
                             'SERVER_ERROR': 'AI provider server error',
                             'REDACTION_FAILED': 'Redaction failed, nothing was sent to the AI',

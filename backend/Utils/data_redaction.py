@@ -219,6 +219,21 @@ class DataRedactionService:
             r'(?i)(?<![0-9A-Za-z_])(?:ssn|social security(?: number)?)["\']?\s*[:=#]?\s*["\']?\d{9}(?!\d)',
             SensitivityLevel.HIGH
         ),
+        # An IBAN, compact or in groups of four: two letters, two check
+        # digits, 11-30 letters and digits. Only a valid mod-97 checksum
+        # counts (see VALIDATORS), so upper-case IDs are left alone. Without
+        # this pattern only the middle groups matched credit_card_formatted,
+        # and the country, check digits and last digits reached the AI
+        # (RCA benchmark v2, 2026-11-15).
+        'iban': (
+            r'(?<![A-Za-z0-9])[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,4})?(?![A-Za-z0-9])',
+            SensitivityLevel.HIGH
+        ),
+        # A labelled IBAN is masked whatever its checksum.
+        'iban_labeled': (
+            r'(?i)(?<![0-9A-Za-z_])iban["\']?\s*[:=#]?\s*["\']?(?P<secret>[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{1,4}){3,8})(?![A-Za-z0-9])',
+            SensitivityLevel.HIGH
+        ),
         'credit_card': (
             r'\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b',
             SensitivityLevel.HIGH
@@ -296,6 +311,8 @@ class DataRedactionService:
         'phone_labeled': '[PHONE]',
         'ssn': '[SSN]',
         'ssn_labeled': '[SSN]',
+        'iban': '[IBAN]',
+        'iban_labeled': '[IBAN]',
         'credit_card': '[CREDIT_CARD]',
         'credit_card_formatted': '****-****-****-XXXX',
         'connection_string': '[CONNECTION_STRING]',
@@ -349,8 +366,16 @@ class DataRedactionService:
             if pattern_name not in self.enabled_patterns:
                 continue
             
+            validator = self.VALIDATORS.get(pattern_name)
             try:
                 for match in re.finditer(regex, text):
+                    if validator is not None:
+                        try:
+                            keep = validator(match.group(0))
+                        except Exception:
+                            keep = True  # fail closed: mask when unsure
+                        if not keep:
+                            continue
                     # A pattern with a ``secret`` group masks only that group,
                     # so the surrounding context (``docker login -u ci -p``)
                     # still reaches the AI. Masking just the value also keeps
@@ -416,6 +441,22 @@ class DataRedactionService:
         """Get the appropriate mask for a finding."""
         return self.masks.get(finding.pattern_type, '[REDACTED]')
     
+    @staticmethod
+    def _valid_iban(candidate: str) -> bool:
+        """ISO 13616 check: 15-34 characters and mod 97 == 1."""
+        compact = candidate.replace(' ', '').upper()
+        if not 15 <= len(compact) <= 34:
+            return False
+        rearranged = compact[4:] + compact[:4]
+        digits = ''.join(str(int(ch, 36)) for ch in rearranged)
+        return int(digits) % 97 == 1
+
+    # Extra checks a match must pass to count (pattern name -> callable).
+    # A validator that raises keeps the match: redaction fails closed.
+    VALIDATORS = {
+        'iban': _valid_iban.__func__,
+    }
+
     # Catch-alls that match a key name plus whatever follows it. When one of
     # these overlaps a specific pattern (jwt_token, gitlab_token, ...), the
     # specific one names the finding.

@@ -26,6 +26,8 @@ def classify_error(error_msg: str) -> str:
     """Classify an error message into a known error type"""
     error_lower = error_msg.lower()
 
+    if AIServiceError.is_spend_limit(error_msg):
+        return 'spend_limit'
     if AIServiceError.is_out_of_credit(error_msg):
         return 'out_of_credit'
     elif '429' in error_msg or 'quota' in error_lower or 'rate limit' in error_lower:

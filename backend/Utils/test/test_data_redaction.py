@@ -597,3 +597,51 @@ class TestReviewFindingPatterns(SimpleTestCase):
     def test_every_mask_is_stable_under_redaction(self):
         for name, mask in DataRedactionService.MASKS.items():
             self.assertEqual(self.redact(mask), mask, name)
+
+
+class TestIbanIsMaskedWhole(SimpleTestCase):
+    """RCA benchmark v2 (2026-11-15): with no IBAN pattern, only the middle
+    groups matched credit_card_formatted and ``FR76 ****… 7890 189`` -- the
+    country, check digits and last digits -- went to the AI provider."""
+
+    def setUp(self):
+        self.service = DataRedactionService()
+
+    def test_grouped_compact_and_labelled_ibans_leave_no_digit_behind(self):
+        for text, secret in [
+            ('iban FR76 3000 6000 0112 3456 7890 189: HTTP 404 from card-vault', 'FR76 3000 6000 0112 3456 7890 189'),
+            ('payout to DE89370400440532013000 failed', 'DE89370400440532013000'),
+            ('account GB82 WEST 1234 5698 7654 32 locked', 'GB82 WEST 1234 5698 7654 32'),
+            ('"iban": "FR00 1234 5678 9012 3456 789"', 'FR00 1234 5678 9012 3456 789'),  # bad checksum, labelled
+        ]:
+            redacted, findings = self.service.redact(text)
+            assert '[IBAN]' in redacted, (text, redacted)
+            for part in secret.split():
+                assert part not in redacted, (text, redacted)
+            assert not any(ch.isdigit() for ch in redacted.split('[IBAN]')[1][:3]), redacted
+
+    def test_upper_case_ids_and_the_false_positive_set_stay_readable(self):
+        for text in [
+            'request id AB12CDEF3456GHIJ7890 ok',  # IBAN-shaped, checksum fails
+            'US12 3456 7890 1234 is a part number',
+            'memory working set 1073741824 bytes, limit 1610612736 bytes',
+            'iat=1792332094, now=1792332000',
+            'trace 41cce4155550123d0c9a8b7c6d5e4f30',
+            'commit 3f9c2a1b7e4d5f6a8b9c0d1e2f3a4b5c6d7e8f90',
+            '@@ -54,11 +54,15 @@ class StockService:',
+            'pod web-7d9f8b6c5-x2k4p OOMKilled',
+            'build 20261104.3, 3001ms, 1840 spans',
+        ]:
+            redacted, _ = self.service.redact(text)
+            assert '[IBAN]' not in redacted, (text, redacted)
+
+    def test_a_validator_that_raises_masks_the_match(self):
+        service = DataRedactionService()
+        service.VALIDATORS = {'iban': lambda value: 1 / 0}
+        redacted, _ = service.redact('request id AB12CDEF3456GHIJ7890 ok')
+        assert '[IBAN]' in redacted
+
+    def test_redaction_is_idempotent(self):
+        once, _ = self.service.redact('iban FR76 3000 6000 0112 3456 7890 189 rejected')
+        twice, _ = self.service.redact(once)
+        assert once == twice

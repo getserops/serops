@@ -34,20 +34,27 @@ export default defineConfig({
     },
     build: {
         sourcemap: false,
-        rollupOptions: {
+        // Vite 8 bundles with Rolldown: the vendor chunks are code-splitting
+        // groups (Rolldown has no object form of manualChunks).
+        rolldownOptions: {
             output: {
-                manualChunks: {
-                    'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-                    'ui-bootstrap': ['bootstrap', 'react-bootstrap', 'reactstrap'],
-                    'ui-mui': ['@mui/material', '@emotion/react', '@emotion/styled'],
-                    'ui-antd': ['antd'],
-                    'query-vendor': ['@tanstack/react-query'],
-                    'charts-vendor': ['recharts'],
-                    'icons': ['react-icons', 'lucide-react'],
-                    'i18n': ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
-                    'motion': ['framer-motion'],
-                }
-            }
+                codeSplitting: {
+                    groups: Object.entries({
+                        'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+                        'ui-bootstrap': ['bootstrap', 'react-bootstrap', 'reactstrap'],
+                        'ui-mui': ['@mui/material', '@emotion/react', '@emotion/styled'],
+                        'ui-antd': ['antd'],
+                        'query-vendor': ['@tanstack/react-query'],
+                        'charts-vendor': ['recharts'],
+                        'icons': ['react-icons', 'lucide-react'],
+                        'i18n': ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
+                        'motion': ['framer-motion'],
+                    }).map(([name, packages]) => ({
+                        name,
+                        test: new RegExp(`[\\\\/]node_modules[\\\\/](${packages.join('|')})[\\\\/]`),
+                    })),
+                },
+            },
         },
         chunkSizeWarningLimit: 1000,
     }

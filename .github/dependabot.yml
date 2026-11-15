@@ -1,5 +1,6 @@
 # Weekly dependency updates, grouped so a week's bumps arrive as a few PRs
-# rather than dozens. Security updates are opened as soon as an advisory
+# rather than dozens (major updates in their own group per ecosystem, so
+# they stay apart from the routine ones and can be split when one breaks). Security updates are opened as soon as an advisory
 # is published regardless of the schedule. The frontend sat on a two-year-old
 # pinned framework version before this existed.
 version: 2
@@ -16,6 +17,8 @@ updates:
     groups:
       frontend-minor-and-patch:
         update-types: [minor, patch]
+      frontend-major:
+        update-types: [major]
 
   - package-ecosystem: pip
     directory: /backend
@@ -23,6 +26,13 @@ updates:
     groups:
       backend-minor-and-patch:
         update-types: [minor, patch]
+      backend-major:
+        update-types: [major]
+    ignore:
+      # numpy 2.5 needs Python >= 3.12 and the image (backend/Dockerfile) is
+      # on 3.11. Drop this when the image moves to 3.12.
+      - dependency-name: numpy
+        versions: [">=2.5"]
 
   - package-ecosystem: docker
     directories: [/backend, /frontend, /docs]

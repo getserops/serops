@@ -55,6 +55,27 @@ class OutOfCreditTest(SimpleTestCase):
         self.assertEqual(error.code, 'QUOTA_EXCEEDED')
 
 
+ANTHROPIC_SPEND_LIMIT = (
+    "Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': "
+    "'You have reached your specified API usage limits. You will regain access on 2026-12-01 at 00:00 UTC.'}}"
+)
+
+
+class SpendLimitTest(SimpleTestCase):
+    # Seen live on the RCA benchmark, 2026-11-15 14:40-14:50 UTC (the org's
+    # $10 monthly limit): batches showed FAILED (UNKNOWN_ERROR). Real body.
+    def test_anthropic_usage_limit_is_a_spend_limit(self):
+        error = ClaudeAdapter().normalize_error(Exception(ANTHROPIC_SPEND_LIMIT))
+        self.assertEqual(error.code, 'SPEND_LIMIT')
+        self.assertIn('spending limit', error.get_user_message())
+        self.assertIn('Access returns on 2026-12-01 at 00:00 UTC.', error.get_user_message())
+        self.assertEqual(error.get_display_status(), 'FAILED (SPEND_LIMIT)')
+
+    def test_classify_error_names_it(self):
+        from ai_model.ai_service import classify_error
+        self.assertEqual(classify_error(ANTHROPIC_SPEND_LIMIT), 'spend_limit')
+
+
 class QuotaResetTest(SimpleTestCase):
     def test_gemini_daily_limit_says_daily_and_when_it_resets(self):
         error = GeminiAdapter().normalize_error(Exception(GEMINI_DAILY))

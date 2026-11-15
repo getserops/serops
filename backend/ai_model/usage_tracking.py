@@ -19,6 +19,16 @@ first, then falls back to searching by provider name substring
 inside the model ID (``gemini-3.5-flash`` contains ``gemini``).
 Unknown models fall back to a conservative mid-tier estimate so
 nothing is silently reported as free.
+
+Known Anthropic model IDs (2026-11) are priced from ``KNOWN_MODEL_PRICES``
+first: one provider row carries one price, and an organisation that
+points the Claude row at Opus or Haiku would otherwise be charged at
+Sonnet's rate (Opus 5.5 is twice that, Haiku 5.5 a twentieth).
+
+Prompt caching: Anthropic bills cache writes at 1.25x the input price
+(5-minute TTL, the only one SerOps uses) and cache reads at a fraction
+that depends on the model. ``tokens_input`` may be a ``PromptTokens``
+carrying those shares; a plain int is priced as uncached input.
 """
 
 import logging
@@ -27,6 +37,7 @@ from decimal import Decimal
 from django.db.models import Count, Sum
 
 from .models import AITokenUsage
+from .token_counts import cache_parts
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +48,42 @@ logger = logging.getLogger(__name__)
 _FALLBACK_PRICE_INPUT = Decimal('0.02')
 _FALLBACK_PRICE_OUTPUT = Decimal('0.08')
 
+# Anthropic list prices, USD per 1M tokens: (input, output, cache-read
+# ratio of the input price). Source: Anthropic's model and pricing
+# pages, 2026-11. Haiku 5.5 is the price for prompts up to 100K tokens
+# (SerOps prompts stay well under it).
+KNOWN_MODEL_PRICES = {
+    'claude-opus-5-5': (Decimal('4.00'), Decimal('20.00'), Decimal('0.05')),
+    'claude-sonnet-5-5': (Decimal('2.00'), Decimal('10.00'), Decimal('0.10')),
+    'claude-haiku-5-5': (Decimal('0.10'), Decimal('0.50'), Decimal('0.10')),
+    'claude-opus-5': (Decimal('5.00'), Decimal('25.00'), Decimal('0.10')),
+    'claude-sonnet-5': (Decimal('2.00'), Decimal('10.00'), Decimal('0.10')),
+}
+CACHE_WRITE_RATIO = Decimal('1.25')
+DEFAULT_CACHE_READ_RATIO = Decimal('0.10')
+
 
 class AITokenUsageService:
     """Helpers for recording and aggregating AI cost data."""
+
+    @staticmethod
+    def _model_id(model_name):
+        """The model ID behind ``model_name``.
+
+        The analysis task records the *provider* that answered (``claude``),
+        not the model, so a provider name resolves to that row's model.
+        """
+        name = (model_name or '').strip().lower()
+        if name in KNOWN_MODEL_PRICES:
+            return name
+        try:
+            from org_settings.models import AIModelProvider
+            row = AIModelProvider.objects.filter(name=name).only('default_model').first()
+            if row and row.default_model:
+                return row.default_model.strip().lower()
+        except Exception as exc:
+            logger.warning("Provider lookup failed for %r: %s", model_name, exc)
+        return name
 
     @staticmethod
     def _resolve_provider_prices(model_name):
@@ -55,6 +99,9 @@ class AITokenUsageService:
         Lazy import of the provider model avoids Django app-registry
         ordering issues at import time.
         """
+        known = KNOWN_MODEL_PRICES.get(AITokenUsageService._model_id(model_name))
+        if known:
+            return known[0], known[1]
         try:
             from org_settings.models import AIModelProvider
 
@@ -88,8 +135,14 @@ class AITokenUsageService:
     @classmethod
     def _estimate_cost(cls, model_name: str, tokens_input: int, tokens_output: int) -> Decimal:
         price_in, price_out = cls._resolve_provider_prices(model_name)
-        cost_in = (Decimal(tokens_input) / Decimal(1_000_000)) * price_in
-        cost_out = (Decimal(tokens_output) / Decimal(1_000_000)) * price_out
+        known = KNOWN_MODEL_PRICES.get(cls._model_id(model_name))
+        read_ratio = known[2] if known else DEFAULT_CACHE_READ_RATIO
+        uncached, cache_write, cache_read = cache_parts(tokens_input)
+        million = Decimal(1_000_000)
+        cost_in = (
+            Decimal(uncached) + Decimal(cache_write) * CACHE_WRITE_RATIO + Decimal(cache_read) * read_ratio
+        ) / million * price_in
+        cost_out = (Decimal(tokens_output) / million) * price_out
         return cost_in + cost_out
 
     @classmethod
@@ -113,9 +166,9 @@ class AITokenUsageService:
                 organisation=organisation,
                 batch=batch,
                 model_name=model_name,
-                tokens_input=tokens_input,
-                tokens_output=tokens_output,
-                tokens_total=tokens_input + tokens_output,
+                tokens_input=int(tokens_input),
+                tokens_output=int(tokens_output),
+                tokens_total=int(tokens_input) + int(tokens_output),
                 cost_usd=cost,
                 usage_type=usage_type,
             )

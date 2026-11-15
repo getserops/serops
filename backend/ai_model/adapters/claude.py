@@ -5,13 +5,14 @@ Adapter for Anthropic Claude API.
 import anthropic
 import logging
 from .base import BaseProviderAdapter, AIServiceError
+from ..token_counts import PromptTokens
 
 logger = logging.getLogger(__name__)
 
-# Default model — verified against platform.claude.com 2026-08-30.
-# Sonnet 5 is the current balanced tier; older 3.x IDs (previously
-# seeded as ``claude-3-sonnet``) return 404 from the current API.
-DEFAULT_MODEL = 'claude-sonnet-5'
+# Default model for a Claude provider row that names none. Sonnet 5.5
+# (2026-11) is the current balanced tier at Sonnet 5's price; Sonnet 5
+# is still served, so rows that name it keep working unchanged.
+DEFAULT_MODEL = 'claude-sonnet-5-5'
 
 
 # Minimum static-prefix size (tokens) below which Claude Sonnet 5's
@@ -120,9 +121,19 @@ class ClaudeAdapter(BaseProviderAdapter):
             message = client.messages.create(**create_kwargs)
 
             # Extract token usage
-            tokens_input = getattr(message.usage, 'input_tokens', 0)
-            tokens_output = getattr(message.usage, 'output_tokens', 0)
-            logger.debug(f"Claude token usage: {tokens_input} input, {tokens_output} output")
+            # ``input_tokens`` is only the uncached remainder: the cached
+            # system prefix is reported apart, and is billed apart.
+            usage = message.usage
+            tokens_input = PromptTokens(
+                getattr(usage, 'input_tokens', 0),
+                getattr(usage, 'cache_creation_input_tokens', 0),
+                getattr(usage, 'cache_read_input_tokens', 0),
+            )
+            tokens_output = getattr(usage, 'output_tokens', 0) or 0
+            logger.debug(
+                "Claude token usage: %s input (%s cache write, %s cache read), %s output",
+                int(tokens_input), tokens_input.cache_write, tokens_input.cache_read, tokens_output,
+            )
 
             # Check for truncation via stop_reason
             if message.stop_reason == 'max_tokens':
@@ -157,6 +168,8 @@ class ClaudeAdapter(BaseProviderAdapter):
             return AIServiceError.from_type('timeout', raw_error=str(e)[:500])
         # Rate limit
         # No credit left is not a rate limit: it does not reset on its own.
+        if AIServiceError.is_spend_limit(str(e)):
+            return AIServiceError.spend_limit(str(e))
         if AIServiceError.is_out_of_credit(str(e)):
             return AIServiceError.from_type('out_of_credit', raw_error=str(e)[:500])
         if '429' in msg or 'rate' in msg:

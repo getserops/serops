@@ -25,7 +25,6 @@ import {
     SiGrafana,
     SiPrometheus,
     SiDatadog,
-    SiAmazonwebservices,
     SiOpensearch,
     SiSplunk,
     SiGooglecloud,
@@ -34,6 +33,8 @@ import {
 import {
     FaChartLine, FaCheck, FaTimes, FaSpinner, FaPlug, FaTrash,
     FaServer, FaPlus, FaEdit, FaTag, FaGlobe, FaCube, FaMicrosoft, FaProjectDiagram,
+    // Simple Icons dropped the AWS logo (react-icons 5.6+ ships without SiAmazonwebservices).
+    FaAws,
 } from "react-icons/fa";
 import { describeRequestError } from "../../utils/apiError";
 import ObservabilityService from "../../services/observability.service";
@@ -133,7 +134,7 @@ const PROVIDERS = {
         ],
     },
     cloudwatch: {
-        name: "AWS CloudWatch", icon: SiAmazonwebservices, color: "#FF9900",
+        name: "AWS CloudWatch", icon: FaAws, color: "#FF9900",
         capabilities: ["logs", "metrics"],
         fields: [
             { name: "extra_config.aws_region", label: "AWS Region", placeholder: "us-east-1", required: true },
