@@ -7,6 +7,14 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+### Changed
+
+- Dependencies: redis-py 8.1, gunicorn 27, protobuf 7, openai 3.50, python-json-logger 4.2 (formatter now `pythonjsonlogger.json.JsonFormatter`), attrs 26, cachetools 8, packaging 26, pytz 2026.6. opensearch-py 3.2 (tested against OpenSearch 2.19: bulk index, search, index listing, health); minimum cryptography raised to 50.0.2, the version 1.4.0 already ships. Held, with the reason next to each pin: Django 5.2 LTS, elasticsearch 8 (Elasticsearch 8 servers refuse the 9.x client), azure-monitor-query 1.4 (2.0 drops `MetricsQueryClient`), python-dateutil 2.9 (pinned by celery).
+
+### Fixed
+
+- gunicorn 27 no longer logs `Control server error: Permission denied: '/app/.gunicorn'` at start: `gunicorn.conf.py` turns its control socket off, for start.sh and the Helm chart alike.
+
 ## [1.4.0] - 2026-11-15
 
 Enterprise: SAML 2.0 single sign-on, SCIM 2.0 provisioning and audit streaming to a SIEM, each behind its license feature. Community: Require single sign-on, and CV-01 (a refused SSO sign-in ends the sessions already held). Six reversible migrations; new dependency python3-saml 1.16.

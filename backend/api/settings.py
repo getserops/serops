@@ -17,7 +17,6 @@ from pathlib import Path
 from datetime import timedelta
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
-from pythonjsonlogger import jsonlogger
 
 
 
@@ -411,7 +410,7 @@ LOGGING = {
     'formatters': {
         # JSON formatter
         'json': {
-            '()': 'pythonjsonlogger.jsonlogger.JsonFormatter',
+            '()': 'pythonjsonlogger.json.JsonFormatter',
             'format': '%(asctime)s %(levelname)s %(name)s %(module)s %(process)d %(thread)d %(message)s',
             'rename_fields': {'asctime': 'timestamp'},
         },

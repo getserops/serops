@@ -27,7 +27,7 @@
     "@testing-library/user-event": "^13.5.0",
     "antd": "^5.24.2",
     "axios": "^1.21.0",
-    "bootstrap": "^5.3.8",
+    "bootstrap": "^5.3.9",
     "date-fns": "^4.4.0",
     "framer-motion": "^14.14.0",
     "highlight.js": "^11.12.0",

@@ -33,6 +33,17 @@ updates:
       # on 3.11. Drop this when the image moves to 3.12.
       - dependency-name: numpy
         versions: [">=2.5"]
+      # Held on purpose; each reason is next to the pin in requirements.txt.
+      - dependency-name: Django            # 5.2 LTS
+        update-types: ["version-update:semver-major"]
+      - dependency-name: elasticsearch     # ES 8 servers refuse the 9.x client
+        update-types: ["version-update:semver-major"]
+      - dependency-name: elastic-transport
+        update-types: ["version-update:semver-major"]
+      - dependency-name: azure-monitor-query   # 2.0 drops MetricsQueryClient
+        update-types: ["version-update:semver-major"]
+      - dependency-name: python-dateutil   # celery pins it exactly
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directories: [/backend, /frontend, /docs]
