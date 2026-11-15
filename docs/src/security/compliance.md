@@ -24,7 +24,7 @@ Every significant action is logged with:
 
 | Action | Trigger |
 |--------|---------|
-| `LOGIN` | Successful login |
+| `LOGIN` | Successful login (password, or SSO with `source: sso` / `saml`) |
 | `LOGIN_FAILED` | Failed login attempt |
 | `LOGOUT` | User logout |
 | `PASSWORD_CHANGE` | Password updated |

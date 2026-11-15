@@ -98,10 +98,19 @@ counted or limited in the product:
 | Enterprise | up to 5,000 | from €30,000 |
 | Strategic | above 5,000, or a regulated sector | from €60,000 |
 
-Custom roles and per-project access are available since 1.3.0, with a commercial license
-and a support contract. Planned next: SAML 2.0 and SCIM, then real-time audit streaming to a
-SIEM, delegated administration across organisations, and compliance reports. Cloud is
-planned for 2027.
+Enterprise today, with a commercial license and a support contract:
+
+- custom roles and per-project access (since 1.3.0);
+- SAML 2.0 single sign-on, from Entra ID, Okta, Keycloak or any SAML identity provider
+  (since 1.4.0);
+- SCIM 2.0 provisioning: accounts, roles and teams follow the identity provider, and people
+  who leave are signed out at once (since 1.4.0);
+- real-time audit streaming to a SIEM, over syslog with TLS or HTTPS (Splunk, Datadog,
+  Elastic) (since 1.4.0).
+
+OpenID Connect sign-in, with the same group-to-role and group-to-team rules, stays in
+Community. Planned next: delegated administration across organisations and compliance
+reports. Cloud is planned for 2027.
 
 ## Contributing
 

@@ -939,7 +939,7 @@
     "ssoDomainsHint": "Les personnes dont l'e-mail est sur ces domaines peuvent se connecter par SSO sans invitation, avec le rôle donné par leurs groupes (ou le rôle par défaut). Laissez vide pour n'autoriser que les personnes invitées.",
     "authenticationProtocol": "Protocole d'authentification",
     "enableSso": "Activer l'authentification unique",
-    "enableSsoHint": "Permet de se connecter via votre fournisseur d'identité avec OpenID Connect (Okta, Azure AD, Google, Keycloak).",
+    "enableSsoHint": "Permettre la connexion par votre fournisseur d'identité (Okta, Microsoft Entra ID, Google, Keycloak).",
     "oidcConfig": "Configuration OpenID Connect",
     "ssoRoles": "Rôles depuis votre fournisseur d'identité",
     "ssoRolesHint": "Les règles sont lues de haut en bas : le premier groupe dont la personne fait partie fixe son rôle. Les noms de groupe ne tiennent pas compte de la casse.",
@@ -967,7 +967,20 @@
     "ruleTeam": "Équipe",
     "noTeamRules": "Aucune règle d'équipe.",
     "noTeamsYet": "Créez des équipes dans Paramètres → Équipes pour y associer des groupes.",
-    "addTeamRule": "Ajouter une règle d'équipe"
+    "addTeamRule": "Ajouter une règle d'équipe",
+    "protocol": "Protocole",
+    "protocolOidc": "OpenID Connect",
+    "protocolOidcDesc": "Inclus dans Community. Okta, Entra ID, Google, Keycloak.",
+    "protocolSaml": "SAML 2.0",
+    "protocolSamlDesc": "Pour les fournisseurs d'identité configurés en SAML uniquement (ADFS, anciennes applications Okta et Entra ID).",
+    "samlEnterprise": "La connexion SAML 2.0 fait partie de SerOps Enterprise. OpenID Connect, avec la même correspondance groupes → rôles et groupes → équipes, est inclus dans Community.",
+    "groupsAttribute": "Attribut des groupes",
+    "groupsAttributeHint": "Nom de l'attribut de l'assertion qui liste les groupes. Entra ID : http://schemas.microsoft.com/ws/2008/06/identity/claims/groups (ID d'objet des groupes).",
+    "enforceSso": "Exiger l'authentification unique",
+    "enforceSsoHint": "Les membres ne peuvent plus se connecter par mot de passe. Les administrateurs de l'organisation gardent le leur, pour pouvoir revenir si le fournisseur d'identité est indisponible.",
+    "scim": "Approvisionnement (SCIM)",
+    "scimDesc": "Comptes, rôles et désactivations envoyés par votre fournisseur d'identité",
+    "scimEnterprise": "L'approvisionnement SCIM fait partie de SerOps Enterprise : Entra ID ou Okta créent les comptes, alignent rôles et équipes sur les groupes et désactivent les personnes dès leur départ. Avec Community, les comptes sont créés à la première connexion SSO."
   },
   "batchInterval": {
     "title": "Intervalle de Génération des Lots",
@@ -1087,6 +1100,8 @@
     "cicdDesc": "Les pipelines et déploiements que SerOps met en regard des incidents."
   },
   "auditLog": {
+    "streaming": "Envoyer à votre SIEM",
+    "streamingEnterprise": "Le streaming d'audit en temps réel (syslog sur TLS, Splunk HEC, Datadog, Elastic ou tout collecteur HTTPS) fait partie de SerOps Enterprise. Le journal d'audit, ses filtres et son export CSV sont inclus dans Community.",
     "title": "Journal d'Audit",
     "subtitle": "Suivre et examiner toutes les actions importantes dans votre organisation",
     "loading": "Chargement des journaux d'audit...",
@@ -1847,5 +1862,10 @@
   },
   "onboarding": {
     "viewSample": "Voir un incident d'exemple"
+  },
+  "enterprise": {
+    "label": "Enterprise",
+    "notice": "Cette fonctionnalité fait partie de SerOps Enterprise. Tout le reste fonctionne sans licence.",
+    "seePricing": "À propos de SerOps Enterprise"
   }
 }

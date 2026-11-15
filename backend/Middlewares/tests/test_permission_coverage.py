@@ -32,6 +32,8 @@ PUBLIC = {
     'auth/sso/init': 'starts OIDC flow, throttled',
     'auth/sso/callback': 'OIDC state + code',
     'auth/sso/exchange': 'one-time SSO exchange code',
+    'ee/saml/<uuid:sp_id>/': 'SAML: assertion signed by the organisation\'s identity provider (acs), public SP metadata',
+    'ee/scim/v2/': 'SCIM: the organisation\'s SCIM bearer token (stored hashed, revocable), scoped to that organisation',
     'providers/webhook/': 'binding webhook secret (HMAC or bearer)',
     'webhooks/': 'binding webhook secret / signature, or org alert-ingest secret',
     'traces/v1/traces': 'per-org ingest key',

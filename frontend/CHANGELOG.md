@@ -10,6 +10,16 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-15
+
+The Enterprise panels for SAML, SCIM and audit streaming, and the Enterprise notices shown in their place without a license. Same version as the backend and the chart.
+
+### Added
+
+- Settings → Security → Single Sign-On: choose the protocol (OpenID Connect, or SAML 2.0 marked Enterprise), and **Require single sign-on**. With the SAML license the Enterprise panel (`src/ee/saml`) shows what to register at the identity provider, reads its metadata, and sets attributes and security options; without it the page explains the feature and links to the pricing page.
+- Settings → Security → Provisioning (SCIM): with the SCIM license the Enterprise panel (`src/ee/scim`) shows the Tenant URL and manages SCIM tokens (created and shown once, listed by prefix, revoked); without it the page explains the feature and links to the pricing page.
+- Settings → Audit Streaming (`src/ee/audit_stream`, Enterprise): destinations (syslog or HTTPS), their delivery state, a test button, and the form to add or change one; without the license, existing destinations can be turned off or removed. The Audit Log page explains the feature when it is not licensed.
+
 ## [1.3.1] - 2026-11-13
 
 Dependency updates. Same version as the backend and the chart.

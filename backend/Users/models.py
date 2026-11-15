@@ -170,14 +170,21 @@ class SecuritySettings(models.Model):
         default=480  # 8 hours
     )
     
-    # SSO: OpenID Connect only. Okta, Entra ID, Google and Keycloak all
-    # speak it; SAML is not supported.
+    # SSO: OpenID Connect (Community), or SAML 2.0 (Enterprise, feature
+    # "saml", configured in backend/ee/saml). The group mapping below
+    # serves both.
     SSO_TYPES = [
         ('none', 'Disabled'),
         ('oidc', 'OpenID Connect (OIDC)'),
+        ('saml', 'SAML 2.0'),
     ]
     sso_enabled = models.BooleanField(default=False)
     sso_provider = models.CharField(max_length=50, choices=SSO_TYPES, default='none')
+    # Members sign in only through SSO: password sign-in is refused for
+    # them, except for the organisation's admins (a way back in when the
+    # identity provider is down or misconfigured). Applies only while the
+    # SSO above can actually be used (on, and licensed for SAML).
+    sso_enforced = models.BooleanField(default=False)
 
     sso_client_id = models.CharField(max_length=255, blank=True, null=True, help_text="OIDC Client ID")
     sso_client_secret_encrypted = models.TextField(blank=True, null=True)
@@ -194,7 +201,9 @@ class SecuritySettings(models.Model):
     # Roles from the identity provider's groups (Users/sso_roles.py).
     # The claim is a dotted path into the userinfo / ID token claims, e.g.
     # "groups" (Okta, Keycloak with a group mapper, Entra ID) or
-    # "realm_access.roles" (Keycloak realm roles).
+    # "realm_access.roles" (Keycloak realm roles). With SAML it is the
+    # name of the assertion attribute that lists the groups, taken whole
+    # (Entra ID: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups).
     sso_groups_claim = models.CharField(max_length=255, blank=True, default='groups')
     # Scopes requested on top of "openid email profile" (e.g. "groups").
     sso_extra_scopes = models.CharField(max_length=255, blank=True, default='')

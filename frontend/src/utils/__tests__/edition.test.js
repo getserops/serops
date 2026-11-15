@@ -36,13 +36,13 @@ describe('edition', () => {
 
     it('places each Enterprise page after the menu item it names, or last', async () => {
         const { withEnterprisePages, enterpriseSettingsPages } = await import('../edition');
-        const items = [{ path: '/a' }, { path: '/dash/settings/team' }, { path: '/z' }];
+        const items = [{ path: '/a' }, { path: '/dash/settings/team' }, { path: '/dash/settings/audit' }, { path: '/z' }];
         const out = withEnterprisePages(items, (page) => ({ path: `/dash/settings/${page.path}`, after: page.after }));
         expect(out).toHaveLength(items.length + enterpriseSettingsPages.length);
         enterpriseSettingsPages.forEach((page) => {
             const at = out.findIndex((i) => i.path === `/dash/settings/${page.path}`);
             if (page.after) expect(out[at - 1].path).toBe(page.after);
         });
-        expect(items).toHaveLength(3); // input untouched
+        expect(items).toHaveLength(4); // input untouched
     });
 });

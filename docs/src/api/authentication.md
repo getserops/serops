@@ -34,7 +34,7 @@ POST /api/auth/login
 }
 ```
 
-An unknown email and a wrong password both return `401` with `{"error": "Invalid email or password"}`, so the endpoint does not reveal which emails have an account. On a host with `DEMO_ONLY_LOGIN=true` it returns `403` with `{"error": "demo_only"}`.
+An unknown email and a wrong password both return `401` with `{"error": "Invalid email or password"}`, so the endpoint does not reveal which emails have an account. When the person's organisation requires single sign-on and they are not one of its admins, a correct password returns `403` with `{"code": "sso_required"}` ([Require single sign-on](../security/authentication.md#require-single-sign-on)). On a host with `DEMO_ONLY_LOGIN=true` it returns `403` with `{"error": "demo_only"}`.
 
 ## Registration Status
 
@@ -248,7 +248,7 @@ If the user is the sole admin of an organisation, the request is rejected — tr
 GET /api/auth/sso/config
 ```
 
-Returns the organisation's OpenID Connect settings (`sso_enabled`, `sso_provider` — `oidc` or `none`, `sso_client_id`, `sso_discovery_url`, `sso_client_secret_configured`) and `sso_redirect_uri`, the URL to register at the identity provider. `PUT` (admin only) updates them; the client secret is write-only. SAML is not supported.
+Returns the organisation's SSO settings (`sso_enabled`, `sso_provider` — `oidc`, `saml` or `none`, `sso_enforced`, `sso_client_id`, `sso_discovery_url`, `sso_client_secret_configured`), `sso_redirect_uri` (the OIDC URL to register at the identity provider), and `saml_installed` / `saml_licensed`. `PUT` (admin only) updates them; the client secret is write-only. Choosing `saml` needs an Enterprise license with `saml` (`403`, `code: enterprise_license_required`); the SAML identity provider settings are under `GET/PUT /api/ee/saml/config/` (see [SAML 2.0 single sign-on](../enterprise/saml.md#api)).
 
 Group mapping fields:
 

@@ -93,3 +93,39 @@ def require(feature):
     """Raise ``LicenseRequired`` unless ``feature`` is licensed."""
     if not has_feature(feature):
         raise LicenseRequired(feature)
+
+
+# --- Sign-in protocols added by Enterprise --------------------------------
+#
+# OpenID Connect is Community (Users/sso_views.py). An Enterprise module can
+# add another protocol (SAML 2.0) by registering a handler here; Community
+# code asks for it by name and never imports ``ee``.
+#
+# A handler has ``feature`` (the license feature code) and
+# ``start(request, sec_settings)``, which returns the URL the browser goes
+# to, or raises an exception (logged, shown as "SSO not available").
+
+_sso_protocols = {}
+
+
+def register_sso_protocol(name, handler):
+    """Called by an Enterprise app at startup (ee/apps.py)."""
+    _sso_protocols[name] = handler
+
+
+def sso_protocol(name):
+    """The handler for ``name`` when it is installed and licensed, else None.
+
+    Without the license the protocol is inert: no sign-in starts, its
+    endpoints refuse, and SSO enforcement does not apply (so nobody is
+    locked out by an expired key).
+    """
+    handler = _sso_protocols.get(name)
+    if handler is None or not has_feature(handler.feature):
+        return None
+    return handler
+
+
+def sso_protocol_installed(name):
+    """True when the code for ``name`` is present, licensed or not."""
+    return name in _sso_protocols

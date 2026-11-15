@@ -350,6 +350,18 @@ class LoginView(APIView):
                     status=status.HTTP_401_UNAUTHORIZED
                 )
 
+            # The organisation signs in through its identity provider only
+            # (Settings → Security → Require single sign-on). Checked after
+            # the password, so it says nothing about who has an account.
+            from .sso_views import sso_required_for
+            if sso_required_for(user):
+                log_login(request, user=user, success=False)
+                return Response(
+                    {'error': 'Your organisation signs in with single sign-on. Use "Sign in with SSO".',
+                     'code': 'sso_required'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
             try:
                 # Use Knox for token with expiration
                 # Delete any existing DRF tokens (for migration)

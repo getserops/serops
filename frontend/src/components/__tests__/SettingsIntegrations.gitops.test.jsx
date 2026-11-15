@@ -3,9 +3,10 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key, fallback) => (typeof fallback === 'string' ? fallback : key) }),
-}));
+// One t for every render, as react-i18next gives (see the Jenkins test: a new
+// t per render made SettingsIntegrations refetch after every render).
+const i18n = vi.hoisted(() => ({ t: (key, fallback) => (typeof fallback === 'string' ? fallback : key) }));
+vi.mock('react-i18next', () => ({ useTranslation: () => i18n }));
 vi.mock('react-toastify', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } }));
 const create = vi.fn().mockResolvedValue({ id: 9 });
 vi.mock('../../services/integration.service', () => ({

@@ -349,6 +349,10 @@ REST_FRAMEWORK = {
         'auth_register': '5/hour',
         'auth_password_reset': '5/hour',
         'auth_sso_init': '20/hour',
+        # SAML assertion consumer: one post per sign-in, per client IP.
+        'auth_saml_acs': '60/min',
+        # SCIM provisioning, per token (Entra ID syncs in bursts every 40 minutes).
+        'scim': '600/min',
         # Public demo bootstrap — generous enough that real visitors are
         # never blocked, tight enough that someone can't script the
         # endpoint to spawn thousands of Knox tokens.

@@ -198,6 +198,10 @@ nav:
     - Authentication & SSO: security/authentication.md
     - Data Protection: security/data-protection.md
     - Compliance & Audit: security/compliance.md
+  - Enterprise:
+    - SAML 2.0 Single Sign-On: enterprise/saml.md
+    - SCIM 2.0 Provisioning: enterprise/scim.md
+    - Audit Streaming to a SIEM: enterprise/audit-streaming.md
   - Architecture:
     - System Overview: architecture/overview.md
     - Data Model: architecture/data-model.md

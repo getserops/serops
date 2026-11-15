@@ -1606,6 +1606,18 @@ class AuditLog(models.Model):
         ('TEAM_UPDATE', 'Team Changed'),
         ('TEAM_DELETE', 'Team Deleted'),
         ('PROJECT_ACCESS_CHANGE', 'Project Access Changed'),
+        ('SCIM_USER_CREATE', 'User Provisioned by SCIM'),
+        ('SCIM_USER_UPDATE', 'User Updated by SCIM'),
+        ('SCIM_USER_DEACTIVATE', 'User Deprovisioned by SCIM'),
+        ('SCIM_USER_DELETE', 'User Deleted by SCIM'),
+        ('SCIM_GROUP_CREATE', 'Group Created by SCIM'),
+        ('SCIM_GROUP_UPDATE', 'Group Changed by SCIM'),
+        ('SCIM_GROUP_DELETE', 'Group Deleted by SCIM'),
+        ('SCIM_TOKEN_CREATE', 'SCIM Token Created'),
+        ('SCIM_TOKEN_REVOKE', 'SCIM Token Revoked'),
+        ('AUDIT_STREAM_CREATE', 'Audit Stream Added'),
+        ('AUDIT_STREAM_UPDATE', 'Audit Stream Changed'),
+        ('AUDIT_STREAM_DELETE', 'Audit Stream Removed'),
     ]
     
     organisation = models.ForeignKey(

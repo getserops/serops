@@ -11,6 +11,8 @@ import enterpriseSettingsService from '../../services/enterpriseSettings.service
 import { OrganisationService } from '../../services/organisation.service';
 import './SettingsLayout.css';
 import PageHeader from '../PageHeader';
+import EnterpriseNotice from './EnterpriseNotice';
+import { hasFeature, useEdition } from '../../utils/edition';
 
 const ACTION_ICONS = {
     'LOGIN': FaSignInAlt,
@@ -43,6 +45,8 @@ const EMPTY_FILTERS = {
 
 const AuditLogSettings = () => {
     const { t } = useTranslation();
+    // Streaming to a SIEM is Enterprise (src/ee/audit_stream, its own page).
+    const streamingLicensed = hasFeature(useEdition(), 'audit_streaming');
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
@@ -409,6 +413,10 @@ const AuditLogSettings = () => {
                     </div>
                 )}
             </div>
+
+            {!streamingLicensed && (
+                <EnterpriseNotice title={t('auditLog.streaming')}>{t('auditLog.streamingEnterprise')}</EnterpriseNotice>
+            )}
         </div>
     );
 };

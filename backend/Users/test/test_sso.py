@@ -56,9 +56,10 @@ class TestSSOConfigView(APITestCase):
         self.sec_settings.refresh_from_db()
         self.assertEqual(self.sec_settings.sso_client_id, 'updated-client-id')
 
-    def test_saml_is_rejected(self):
+    def test_saml_needs_the_enterprise_license(self):
         response = self.client.put(self.url, {'sso_enabled': True, 'sso_provider': 'saml'}, format='json')
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data['code'], 'enterprise_license_required')
         self.sec_settings.refresh_from_db()
         self.assertEqual(self.sec_settings.sso_provider, 'oidc')
 

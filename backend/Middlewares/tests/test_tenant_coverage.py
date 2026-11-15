@@ -108,6 +108,9 @@ TARGETS = {
 EE_TARGETS = {
     'api/ee/roles/<int:pk>/': {'pk': 'custom_role'},
     'api/ee/projects/<int:pk>/access/': {'pk': 'project'},
+    'api/ee/scim/tokens/<int:pk>/': {'pk': 'scim_token'},
+    'api/ee/audit-streams/<int:pk>/': {'pk': 'audit_stream'},
+    'api/ee/audit-streams/<int:pk>/test/': {'pk': 'audit_stream'},
 }
 if importlib.util.find_spec('ee') is not None:
     TARGETS.update(EE_TARGETS)
@@ -247,6 +250,12 @@ class TenantCoverageTest(TestCase):
             'trace': Trace.objects.create(
                 trace_id=trace_id, organisation=a, start_time=now, end_time=now, root_service_name=f'{m}-svc').trace_id,
         }
+        if importlib.util.find_spec('ee') is not None:
+            from ee.scim.service import create_token
+            cls.seed['scim_token'] = create_token(a, f'{m} idp', owner)[0].id
+            from ee.models import AuditStreamDestination
+            cls.seed['audit_stream'] = AuditStreamDestination.objects.create(
+                organisation=a, name=f'{m} siem', kind='http', url='https://siem.invalid/ingest').id
 
     def setUp(self):
         # A crash comes back as a 500 (listed by test_no_route_crashes) rather

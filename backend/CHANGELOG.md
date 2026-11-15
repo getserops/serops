@@ -7,6 +7,33 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-15
+
+Enterprise: SAML 2.0 single sign-on, SCIM 2.0 provisioning and audit streaming to a SIEM, each behind its license feature. Community: Require single sign-on, and CV-01 (a refused SSO sign-in ends the sessions already held). Six reversible migrations; new dependency python3-saml 1.16.
+
+### Added
+
+- SAML 2.0 single sign-on (Enterprise, license feature `saml`, `backend/ee/saml`): a service provider per organisation (metadata, ACS, sign-in started from SerOps or from the identity provider), signed assertions required (RSA-SHA256 or stronger), encrypted assertions supported, 180 s clock skew, 10-minute maximum assertion age, single use of each assertion and of each request, group-to-role and group-to-team mapping shared with OIDC. Built on python3-saml 1.16 (MIT). Tested against Keycloak 26 in Docker. Without the license SAML is inert. Single logout is not supported.
+- Require single sign-on (`SecuritySettings.sso_enforced`, Community, OIDC and SAML): password sign-in is refused for members other than the organisation's admins (`403`, `code: sso_required`), only while the SSO can be used.
+- `rotate_secrets` also re-encrypts the SAML service provider keys.
+- The backend refuses to start when python3-saml/xmlsec cannot load (no silently missing SAML routes); system check `ee.W001` warns when `API_URL` does not end in `/api`. xmlsec and lxml are pinned together (one libxml2).
+- SCIM 2.0 provisioning (Enterprise, license feature `scim`, `backend/ee/scim`, `/api/ee/scim/v2/`): Users and Groups as Microsoft Entra ID and Okta send them (eq filters, paging, PATCH with or without a path, PUT, DELETE), discovery endpoints, SCIM errors. Accounts, roles and teams follow the SSO group rules; a disabled or deleted user, or one removed from every mapped group with "Refuse sign-in" as default, is deactivated and its sessions and API tokens are deleted in the same request. The last active admin is never deactivated or demoted. Per-organisation SCIM tokens (`/api/ee/scim/tokens/`, admin only, stored hashed, shown once, revocable without the license), 600 requests a minute per token, every change in the audit log (`SCIM_*`).
+- Audit streaming to a SIEM (Enterprise, license feature `audit_streaming`, `backend/ee/audit_stream`, `/api/ee/audit-streams/`): every audit event, as it is recorded, to syslog (RFC 5424 over TLS, TCP or UDP) or HTTPS (JSON array, NDJSON or Splunk HEC; authorization header, HMAC signature), with an optional private CA. Transactional outbox, at least once, in order per destination, retried with backoff (30 s to 1 h) until delivered or removed by retention. Admins only; secrets encrypted and covered by `rotate_secrets`; outbound policy as for integrations. Turning a destination off is itself delivered to it first. Live-tested against Vector 0.42.
+
+### Security
+
+- CV-01: removing someone from every mapped identity-provider group no longer leaves their sessions running. A refused OIDC/SAML sign-in deletes their existing tokens (Community); with SCIM the account is deactivated at once (Enterprise).
+- A successful SSO sign-in (OIDC or SAML) is now in the audit log as `LOGIN` with `source: sso` or `saml`, like a password login, and so reaches audit streaming. Before, only refused SSO sign-ins, account creations and role or team changes were recorded.
+
+### Migrations
+
+- `Users 0017_sso_enforced_saml_choice`: adds `sso_enforced`, adds `saml` to `sso_provider`'s choices. Reversible.
+- `ee 0002_saml`: `SamlConfig`, `SamlAssertion`. Reversible (drops both tables).
+- `ee 0003_scim`: `ScimToken`, `ScimIdentity`, `ScimGroup`. Reversible (drops the three tables).
+- `Data 0060_auditlog_scim_actions`: the `SCIM_*` audit actions (choices only, no schema change).
+- `ee 0004_audit_streaming`: `AuditStreamDestination`, `AuditStreamPending`. Reversible (drops both tables).
+- `Data 0061_auditlog_stream_actions`: the `AUDIT_STREAM_*` audit actions (choices only).
+
 ## [1.3.1] - 2026-11-13
 
 Fixes from running 1.3.0 on AKS, GKE and EKS, and dependency updates. No migrations, nothing to change on upgrade: set `SEROPS_VERSION=1.3.1` or `--version 1.3.1`.

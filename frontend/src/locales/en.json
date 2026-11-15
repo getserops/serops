@@ -1022,7 +1022,7 @@
     "ssoDomains": "Sign-in domains (optional)",
     "ssoDomainsHint": "People with an email at these domains can sign in with SSO before they are invited, with the role their groups map to (or the default role). Leave empty to let only invited people sign in.",
     "enableSso": "Enable single sign-on",
-    "enableSsoHint": "Let people sign in through your identity provider with OpenID Connect (Okta, Azure AD, Google, Keycloak).",
+    "enableSsoHint": "Let people sign in through your identity provider (Okta, Microsoft Entra ID, Google, Keycloak).",
     "oidcConfig": "OpenID Connect configuration",
     "ssoRoles": "Roles from your identity provider",
     "ssoRolesHint": "Rules are checked from top to bottom: the first group the person is in sets their role. Group names are not case-sensitive.",
@@ -1050,7 +1050,20 @@
     "ruleTeam": "Team",
     "noTeamRules": "No team rules.",
     "noTeamsYet": "Create teams in Settings → Teams to map groups to them.",
-    "addTeamRule": "Add team rule"
+    "addTeamRule": "Add team rule",
+    "protocol": "Protocol",
+    "protocolOidc": "OpenID Connect",
+    "protocolOidcDesc": "Included in Community. Okta, Entra ID, Google, Keycloak.",
+    "protocolSaml": "SAML 2.0",
+    "protocolSamlDesc": "For identity providers set up for SAML only (ADFS, older Okta and Entra ID apps).",
+    "samlEnterprise": "SAML 2.0 sign-in is part of SerOps Enterprise. OpenID Connect, with the same group-to-role and group-to-team mapping, is included in Community.",
+    "groupsAttribute": "Groups attribute",
+    "groupsAttributeHint": "Name of the assertion attribute that lists the groups. Entra ID: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups (group object IDs).",
+    "enforceSso": "Require single sign-on",
+    "enforceSsoHint": "Members can no longer sign in with a password. The organisation's admins keep theirs, as a way back in if the identity provider is down.",
+    "scim": "Provisioning (SCIM)",
+    "scimDesc": "Accounts, roles and deactivation pushed by your identity provider",
+    "scimEnterprise": "SCIM provisioning is part of SerOps Enterprise: Entra ID or Okta create accounts, keep roles and teams in line with groups, and deactivate people the moment they leave. With Community, accounts are created at the first SSO sign-in."
   },
   "batchInterval": {
     "title": "Batch Generation Interval",
@@ -1170,6 +1183,8 @@
     "cicdDesc": "Pipelines and deployments SerOps lines up with incidents."
   },
   "auditLog": {
+    "streaming": "Stream to your SIEM",
+    "streamingEnterprise": "Real-time audit streaming (syslog over TLS, Splunk HEC, Datadog, Elastic or any HTTPS collector) is part of SerOps Enterprise. The audit log, its filters and its CSV export are included in Community.",
     "title": "Audit Log",
     "subtitle": "Track and review all important actions in your organization",
     "loading": "Loading audit logs...",
@@ -1847,5 +1862,10 @@
   },
   "onboarding": {
     "viewSample": "See a sample incident"
+  },
+  "enterprise": {
+    "label": "Enterprise",
+    "notice": "This is a SerOps Enterprise feature. Everything else keeps working without a license.",
+    "seePricing": "About SerOps Enterprise"
   }
 }

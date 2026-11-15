@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Spinner } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-toastify';
@@ -11,7 +11,8 @@ import './SettingsLayout.css';
 import PageHeader from '../PageHeader';
 import SSORoleMapping from './SSORoleMapping';
 import { getRoleDisplayName } from '../../utils/permissions';
-import { hasFeature, useEdition } from '../../utils/edition';
+import { enterpriseSecuritySections, hasFeature, useEdition } from '../../utils/edition';
+import EnterpriseNotice from './EnterpriseNotice';
 
 const BUILTIN_ROLES = ['viewer', 'user', 'admin'].map((r) => ({ value: r, label: getRoleDisplayName(r) }));
 
@@ -23,7 +24,15 @@ const SecuritySettings = () => {
     // Rules can name custom roles (Settings → Roles) too: new ones with the
     // Enterprise license, the ones already used without it.
     const [roleOptions, setRoleOptions] = useState(BUILTIN_ROLES);
-    const customRolesLicensed = hasFeature(useEdition(), 'custom_roles');
+    const edition = useEdition();
+    const customRolesLicensed = hasFeature(edition, 'custom_roles');
+    // SAML is Enterprise: its panel comes from src/ee/saml when installed
+    // and licensed; otherwise the page shows the Enterprise note.
+    const SamlSection = hasFeature(edition, 'saml') ? enterpriseSecuritySections.saml?.Component : null;
+    // SCIM provisioning likewise (src/ee/scim); it saves its tokens itself.
+    const ScimSection = hasFeature(edition, 'scim') ? enterpriseSecuritySections.scim?.Component : null;
+    // The Enterprise panel saves its own settings when the page is saved.
+    const sectionSave = useRef(null);
     const [teams, setTeams] = useState([]);
 
     // Form state - session timeout only (password policy enforced at creation time)
@@ -49,6 +58,7 @@ const SecuritySettings = () => {
             const sso = ssoData ? {
                 enabled: ssoData.sso_enabled,
                 provider: ssoData.sso_provider,
+                enforced: ssoData.sso_enforced,
                 client_id: ssoData.sso_client_id,
                 discovery_url: ssoData.sso_discovery_url,
                 sso_client_secret_configured: ssoData.sso_client_secret_configured,
@@ -86,10 +96,14 @@ const SecuritySettings = () => {
             });
 
             // Save SSO settings if modified
+            if (settings.sso?.provider === 'saml' && SamlSection && sectionSave.current) {
+                await sectionSave.current();
+            }
             if (settings.sso) {
                 const ssoPayload = {
                     sso_enabled: settings.sso.enabled,
                     sso_provider: settings.sso.provider,
+                    sso_enforced: !!settings.sso.enforced && !!settings.sso.enabled,
 
                     // OIDC
                     sso_client_id: settings.sso.client_id,
@@ -125,6 +139,8 @@ const SecuritySettings = () => {
             setSaving(false);
         }
     };
+
+    const ssoOn = !!settings?.sso?.provider && settings.sso.provider !== 'none';
 
     if (loading) {
         return (
@@ -177,14 +193,42 @@ const SecuritySettings = () => {
                             id="sso-enabled"
                             type="checkbox"
                             role="switch"
-                            checked={settings?.sso?.provider === 'oidc'}
+                            checked={ssoOn}
                             onChange={(e) => setSettings(prev => ({
                                 ...prev,
-                                sso: { ...prev.sso, provider: e.target.checked ? 'oidc' : 'none', enabled: e.target.checked }
+                                sso: {
+                                    ...prev.sso,
+                                    // Turning it back on keeps the protocol chosen before.
+                                    provider: e.target.checked ? (prev.sso?.last_provider || 'oidc') : 'none',
+                                    last_provider: prev.sso?.provider !== 'none' ? prev.sso?.provider : prev.sso?.last_provider,
+                                    enabled: e.target.checked,
+                                }
                             }))}
                         />
                         <span className="toggle-slider"></span>
                     </label>
+
+                    {ssoOn && (
+                        <ChoiceGroup
+                            label={t('security.protocol')}
+                            variant="cards"
+                            value={settings.sso.provider}
+                            onChange={(provider) => setSettings((prev) => ({ ...prev, sso: { ...prev.sso, provider } }))}
+                            options={[
+                                { value: 'oidc', label: t('security.protocolOidc'), description: t('security.protocolOidcDesc') },
+                                {
+                                    value: 'saml',
+                                    label: t('security.protocolSaml'),
+                                    description: t('security.protocolSamlDesc'),
+                                    badge: <span className="badge ds-chip ds-chip-brand">{t('enterprise.label')}</span>,
+                                },
+                            ]}
+                        />
+                    )}
+
+                    {settings?.sso?.provider === 'saml' && (SamlSection
+                        ? <SamlSection registerSave={(fn) => { sectionSave.current = fn; }} />
+                        : <EnterpriseNotice title={t('security.protocolSaml')}>{t('security.samlEnterprise')}</EnterpriseNotice>)}
 
                     {/* OIDC Configuration */}
                     {settings?.sso?.provider === 'oidc' && (
@@ -256,8 +300,9 @@ const SecuritySettings = () => {
                         </div>
                     )}
 
-                    {settings?.sso?.provider === 'oidc' && (
+                    {(settings?.sso?.provider === 'oidc' || (settings?.sso?.provider === 'saml' && SamlSection)) && (
                         <SSORoleMapping
+                            protocol={settings.sso.provider}
                             sso={settings.sso}
                             roles={roleOptions.filter((r) => !r.value.startsWith('custom:') || customRolesLicensed
                                 || r.value === settings.sso.default_role
@@ -267,7 +312,34 @@ const SecuritySettings = () => {
                         />
                     )}
 
+                    {ssoOn && (settings.sso.provider === 'oidc' || SamlSection) && (
+                        <label className="toggle-item" htmlFor="sso-enforced">
+                            <div className="toggle-label">
+                                <span>{t('security.enforceSso')}</span>
+                                <small>{t('security.enforceSsoHint')}</small>
+                            </div>
+                            <input
+                                id="sso-enforced"
+                                type="checkbox"
+                                role="switch"
+                                checked={!!settings.sso.enforced}
+                                onChange={(e) => setSettings((prev) => ({ ...prev, sso: { ...prev.sso, enforced: e.target.checked } }))}
+                            />
+                            <span className="toggle-slider"></span>
+                        </label>
+                    )}
+
                 </div>
+            </CollapsibleSection>
+
+            {/* Provisioning (SCIM) */}
+            <CollapsibleSection
+                title={t('security.scim')}
+                description={t('security.scimDesc')}
+            >
+                {ScimSection
+                    ? <ScimSection />
+                    : <EnterpriseNotice title={t('security.scim')}>{t('security.scimEnterprise')}</EnterpriseNotice>}
             </CollapsibleSection>
 
             {/* Save Button */}

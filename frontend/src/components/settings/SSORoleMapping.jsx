@@ -10,7 +10,8 @@ import { Table } from 'react-bootstrap';
 import { FaArrowUp, FaArrowDown, FaTrash, FaPlus } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 
-const SSORoleMapping = ({ sso, roles, teams = [], onChange }) => {
+const SSORoleMapping = ({ sso, roles, teams = [], onChange, protocol = 'oidc' }) => {
+    const saml = protocol === 'saml';
     const { t } = useTranslation();
     const rules = sso.role_mappings || [];
     const set = (patch) => onChange({ ...sso, ...patch });
@@ -32,7 +33,7 @@ const SSORoleMapping = ({ sso, roles, teams = [], onChange }) => {
             <div className="row">
                 <div className="col-md-6">
                     <div className="form-group mb-3">
-                        <label htmlFor="sso-groups-claim">{t('security.groupsClaim')}</label>
+                        <label htmlFor="sso-groups-claim">{t(saml ? 'security.groupsAttribute' : 'security.groupsClaim')}</label>
                         <input
                             id="sso-groups-claim"
                             type="text"
@@ -41,9 +42,10 @@ const SSORoleMapping = ({ sso, roles, teams = [], onChange }) => {
                             onChange={(e) => set({ groups_claim: e.target.value })}
                             placeholder="groups"
                         />
-                        <small className="text-muted">{t('security.groupsClaimHint')}</small>
+                        <small className="text-muted">{t(saml ? 'security.groupsAttributeHint' : 'security.groupsClaimHint')}</small>
                     </div>
                 </div>
+                {!saml && (
                 <div className="col-md-6">
                     <div className="form-group mb-3">
                         <label htmlFor="sso-extra-scopes">{t('security.extraScopes')}</label>
@@ -58,6 +60,7 @@ const SSORoleMapping = ({ sso, roles, teams = [], onChange }) => {
                         <small className="text-muted">{t('security.extraScopesHint')}</small>
                     </div>
                 </div>
+                )}
             </div>
 
             {rules.length === 0 ? (

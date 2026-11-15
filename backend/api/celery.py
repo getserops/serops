@@ -1,3 +1,4 @@
+import importlib.util
 import os
 import logging
 from celery import Celery
@@ -169,6 +170,18 @@ app.conf.beat_schedule = {
         }
     },
 }
+
+# SerOps Enterprise (backend/ee/, when present): retry audit-stream
+# deliveries that failed or that no worker picked up. Only scheduled when
+# ee/ is installed, so a Community worker never receives a task it lacks.
+if importlib.util.find_spec('ee') is not None:
+    app.conf.beat_schedule['audit-stream-deliver-due'] = {
+        'task': 'ee.audit_stream.tasks.deliver_due',
+        'schedule': timedelta(minutes=1),
+        'options': {'queue': 'normal'},
+    }
+    app.conf.task_routes['ee.audit_stream.tasks.deliver_destination'] = {'queue': 'normal'}
+    app.conf.task_routes['ee.audit_stream.tasks.deliver_due'] = {'queue': 'normal'}
 
 # A periodic tick still queued when the next one is due is stale: the next
 # tick does the same job. Expiring it keeps a worker outage (or, before the

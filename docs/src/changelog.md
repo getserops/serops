@@ -16,6 +16,63 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.4.0] - 2026-11-15
+
+The Enterprise features compliance teams ask for by name: SAML 2.0 single
+sign-on, SCIM 2.0 provisioning and audit streaming to a SIEM. Each needs an
+Enterprise license that lists it; without one it is inert and everything
+else works as before. OpenID Connect sign-in with group rules, teams, the
+audit log and its export stay in Community
+([open source promise](open-source-promise.md)).
+
+Set `SEROPS_VERSION=1.4.0` or `--version 1.4.0`. Six migrations run on
+their own and are reversible. Upgrading from 1.2.x: read the 1.3.0 notes
+first.
+
+### Enterprise
+
+- [SAML 2.0 single sign-on](enterprise/saml.md): a service provider per
+  organisation, sign-in started from SerOps or from the identity provider,
+  signed assertions required, encrypted assertions supported, each
+  assertion accepted once. Groups map to roles and teams with the same rules
+  as OpenID Connect. Walkthroughs for Microsoft Entra ID, Okta and Keycloak.
+  Single logout is not supported.
+- [SCIM 2.0 provisioning](enterprise/scim.md): Microsoft Entra ID and Okta
+  create accounts, keep roles and teams in line with groups, and deactivate
+  people the moment they leave; their sessions and API tokens stop at once.
+- [Audit streaming to a SIEM](enterprise/audit-streaming.md): every audit
+  event, within seconds, to syslog (RFC 5424 over TLS, TCP or UDP) or HTTPS
+  (JSON, NDJSON or Splunk HEC, with an authorization header and an optional
+  signature). At least once and in order, retried until accepted.
+
+### Added
+
+- [Require single sign-on](security/authentication.md#require-single-sign-on)
+  for OIDC and SAML: members can no longer sign in with a password; the
+  organisation's admins keep theirs as a way back in.
+
+### Security
+
+- Removing someone from every mapped identity-provider group now ends the
+  sessions they already hold the next time the identity provider refuses
+  them (CV-01); with SCIM, at once.
+- A successful SSO sign-in (OIDC or SAML) is now in the audit log as
+  `LOGIN` with `source: sso` or `saml`, like a password sign-in, and so
+  reaches audit streaming. Before, only refused sign-ins, account creations
+  and role or team changes were recorded.
+- The backend refuses to start when an Enterprise feature's code cannot
+  load, instead of answering 404 on its endpoints; a startup warning flags
+  an `API_URL` that does not end in `/api`.
+
+### Upgrade
+
+- Migrations: `Users 0017`, `ee 0002`–`0004`, `Data 0060`–`0061`.
+- New dependency in the backend image: `python3-saml` 1.16 (with `xmlsec`
+  and `lxml`). `rotate_secrets` also covers the SAML keys and audit-stream
+  secrets.
+
+---
+
 ## [1.3.1] - 2026-11-13
 
 Fixes found by installing 1.3.0 on AKS, GKE and EKS, and dependency updates.

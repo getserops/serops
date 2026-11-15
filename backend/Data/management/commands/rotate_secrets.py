@@ -28,6 +28,15 @@ DICT_FIELDS = [
 ]
 
 
+def _enterprise_fields():
+    """Secrets of the Enterprise app, when it is installed (Community never needs it)."""
+    if not apps.is_installed('ee'):
+        return []
+    return [('ee.SamlConfig', 'sp_private_key_encrypted'),
+            ('ee.AuditStreamDestination', 'auth_header_value_encrypted'),
+            ('ee.AuditStreamDestination', 'signing_secret_encrypted')]
+
+
 class Command(BaseCommand):
     help = 'Re-encrypt every stored secret under the current SEROPS_ENCRYPTION_KEY.'
 
@@ -45,7 +54,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         rewritten, unreadable = 0, []
         with transaction.atomic():
-            for label, field in STRING_FIELDS:
+            for label, field in STRING_FIELDS + _enterprise_fields():
                 model = apps.get_model(label)
                 for pk, value in model.objects.exclude(**{field: ''}).exclude(**{f'{field}__isnull': True}).values_list('pk', field):
                     new, bad = self._rewrite(value, (label, field) in PLAINTEXT_ALLOWED)

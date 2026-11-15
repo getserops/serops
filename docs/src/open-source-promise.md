@@ -108,9 +108,9 @@ Everything SerOps does as of **v1.2.4**, the last release before this page:
 New features only, for the governance needs of large organisations:
 
 - Custom roles and per-project access (from 1.3.0)
-- Planned: SAML 2.0 single sign-on
-- Planned: SCIM provisioning (user and group sync)
-- Planned: real-time streaming of audit events to a SIEM
+- SAML 2.0 single sign-on (from 1.4.0)
+- SCIM provisioning, user and group sync (from 1.4.0)
+- Real-time streaming of audit events to a SIEM (from 1.4.0)
 - Planned: delegated administration across organisations
 - Planned: compliance reports
 - A commercial license (opt-out of AGPL copyleft) and contractual support,
@@ -229,9 +229,9 @@ Uniquement de nouvelles fonctionnalités, pour les besoins de gouvernance des
 grandes organisations :
 
 - Rôles personnalisés et accès par projet (à partir de 1.3.0)
-- Prévu : SSO SAML 2.0
-- Prévu : provisionnement SCIM (synchronisation des utilisateurs et des groupes)
-- Prévu : envoi en temps réel des événements d'audit vers un SIEM
+- SSO SAML 2.0 (à partir de 1.4.0)
+- Provisionnement SCIM, synchronisation des utilisateurs et des groupes (à partir de 1.4.0)
+- Envoi en temps réel des événements d'audit vers un SIEM (à partir de 1.4.0)
 - Prévu : administration déléguée entre organisations
 - Prévu : rapports de conformité
 - Une licence commerciale (sans les obligations copyleft de l'AGPL) et un

@@ -17,11 +17,18 @@ const modules = import.meta.glob('../ee/*/index.js', { eager: true });
  * What each Enterprise module adds:
  *   settingsPages: [{ path, perm, after?, label(t), Component }]   (after: menu path to follow)
  *   projectTabs:   [{ key, label(t), icon?, visible({ project, can, canOnProject }), Component({ projectId }) }]
+ *   securitySections: [{ key, feature, Component({ registerSave, disabled }) }]
+ *                  (Settings → Security; key 'saml' is an SSO protocol, 'scim' the provisioning panel)
  */
 export const enterpriseModules = Object.values(modules).map((m) => m.default).filter(Boolean);
 
 /** Settings pages added by Enterprise modules (routes under /dash/settings/). */
 export const enterpriseSettingsPages = enterpriseModules.flatMap((m) => m.settingsPages || []);
+
+/** Sections of Settings → Security added by Enterprise modules, by key ('saml', 'scim'). */
+export const enterpriseSecuritySections = Object.fromEntries(
+    enterpriseModules.flatMap((m) => m.securitySections || []).map((s) => [s.key, s]),
+);
 
 /** Tabs added to a project's page by Enterprise modules. */
 export const enterpriseProjectTabs = enterpriseModules.flatMap((m) => m.projectTabs || []);

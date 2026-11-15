@@ -85,3 +85,9 @@ opensearch-py>=2.4,<3
 # default HTTP exporter sends protobuf; without this dep the receiver
 # would only handle JSON and reject every stock SDK client with 415.
 opentelemetry-proto>=1.27,<2
+# SAML 2.0 (Enterprise, backend/ee/saml): OneLogin toolkit, MIT; brings xmlsec and lxml wheels.
+python3-saml==1.16.0
+# Pinned together: both wheels bundle libxml2 (2.14.6 here), and xmlsec refuses
+# to load when its libxml2 differs from lxml's. No system libxmlsec1 needed.
+xmlsec==1.3.18
+lxml==6.1.3

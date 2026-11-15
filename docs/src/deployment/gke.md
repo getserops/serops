@@ -63,8 +63,8 @@ helm install serops oci://ghcr.io/getserops/charts/serops --version 1.3.0 \
 kubectl -n serops get certificate serops-tls      # READY True after ~30 s
 ```
 
-Install `--version 1.3.1`: the same chart, with the fix for plain-text
-errors on stdout found on this test (see [Known issues](#known-issues)).
+Install `--version 1.4.0` (the fix for plain-text errors on stdout, found
+on this test, is in every release since 1.3.1; see [Known issues](#known-issues)).
 
 Open `https://HOST`, register the first account (registration then closes),
 and only then restrict the load balancer if you want to (`cluster.sh lock`).

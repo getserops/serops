@@ -14,6 +14,7 @@ from django.core import signing
 from django.test import SimpleTestCase, override_settings
 from rest_framework.test import APITestCase
 
+from Data.models import AuditLog
 from Organisations.models import Organisations
 from Users.models import SecuritySettings, User
 from Users.services.sso import SSOService
@@ -65,6 +66,10 @@ class CallbackBindingTest(FlowTestCase):
         self.assertTrue(response['Location'].endswith('/auth/callback'))
         sso.exchange_code_for_token.assert_called_once_with('c', code_verifier='the-verifier')
         sso.id_token_matches.assert_called_once_with({'access_token': 'a', 'id_token': 'i'}, 'the-nonce')
+        # The sign-in is in the audit log (and so in audit streaming), like a password login.
+        login = AuditLog.objects.get(action='LOGIN')
+        self.assertEqual((login.user, login.organisation, login.details), (self.user, self.org,
+                         {'email': 'flow@example.com', 'source': 'sso'}))
 
     @patch('Users.sso_views.SSOService')
     def test_another_browser_loading_the_callback_is_refused(self, MockSSO):
@@ -91,6 +96,7 @@ class CallbackBindingTest(FlowTestCase):
     def test_id_token_from_another_flow_is_refused(self, MockSSO):
         self._idp(MockSSO, matches=False)
         self.assertFailed(self._callback(start_flow(self.client, self.org.id)))
+        self.assertFalse(AuditLog.objects.filter(action='LOGIN').exists())
 
 
 class InitTest(FlowTestCase):

@@ -11,3 +11,18 @@ services:
     volumes:
       - .:/app
     command: bash start.sh
+
+  # Test identity provider for SSO (OIDC, and SAML for the Enterprise
+  # integration test ee/tests/test_saml_keycloak.py). Not started by default:
+  #   docker-compose --profile sso up -d keycloak
+  # Admin console on http://localhost:8180 (local test container only).
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    profiles: ["sso"]
+    container_name: serops_keycloak_dev
+    command: start-dev
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-local-test-only}
+    ports:
+      - "8180:8080"

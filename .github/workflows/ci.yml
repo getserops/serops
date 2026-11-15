@@ -78,8 +78,9 @@ jobs:
       # Registration and team-invite flows build activation links from these,
       # and the tests assert the link was sent. Locally they come from a .env
       # that is gitignored, so without them four tests fail on a clean checkout
-      # for reasons that look nothing like the cause.
-      API_URL: http://localhost:8000
+      # for reasons that look nothing like the cause. API_URL ends in /api, as in
+      # every deployment (helm, quick-start, .env.example).
+      API_URL: http://localhost:8000/api
       REACT_URL: http://localhost:3000
       SERVER_URL: http://localhost:8000
     steps:

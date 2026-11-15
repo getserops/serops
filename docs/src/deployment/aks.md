@@ -109,8 +109,8 @@ helm install serops oci://ghcr.io/getserops/charts/serops --version 1.3.0 \
 kubectl -n serops get certificate serops-tls      # READY True after ~30 s
 ```
 
-Install `--version 1.3.1`: the same chart, with the fixes found on GKE and
-EKS and dependency updates ([changelog](../changelog.md)).
+Install `--version 1.4.0`: the same chart, with the fixes found on GKE and
+EKS since 1.3.1 ([changelog](../changelog.md)).
 
 Open `https://HOST`, register the first account (it becomes the admin; open
 registration then closes by itself), and only then restrict the load balancer

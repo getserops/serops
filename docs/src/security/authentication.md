@@ -19,10 +19,9 @@ New organizations can sign up directly via the Registration page. The process is
 
 ## Single Sign-On (SSO)
 
-SerOps supports Single Sign-On through **OpenID Connect (OIDC)**, so you can manage user access from your central Identity Provider (IdP). It is part of every edition.
+SerOps supports Single Sign-On through **OpenID Connect (OIDC)**, so you can manage user access from your central Identity Provider (IdP). It is part of every edition: every major IdP (Okta, Entra ID, Google Workspace, Keycloak, Auth0) offers it.
 
-!!! note "SAML 2.0 is not supported yet"
-    Use OIDC — every major IdP (Okta, Azure AD / Entra ID, Google Workspace, Keycloak, Auth0) offers it.
+**SAML 2.0** is available with SerOps Enterprise, for identity providers set up for SAML only: see [SAML 2.0 single sign-on](../enterprise/saml.md). The group rules, teams and sign-in rules below apply to both protocols.
 
 ### Configuring SSO
 
@@ -48,7 +47,7 @@ Under **Roles from your identity provider**, map the groups people are in at you
 | **When no rule matches** | The role of people in none of the groups, or **Refuse sign-in**, so only people in a mapped group can use SerOps. |
 | **Update roles at every sign-in** | On: your identity provider decides, and a role changed in SerOps is replaced at the person's next sign-in. Off: the rules only set the role of new accounts. The last admin of an organisation is never demoted. |
 
-Every SSO account creation, refused sign-in and role change is in **Settings → Audit Log** (`SSO_PROVISION`, `SSO_DENIED`, `TEAM_ROLE_CHANGE` with `source: sso`).
+Every SSO sign-in, account creation, refused sign-in and role change is in **Settings → Audit Log** (`LOGIN`, `SSO_PROVISION`, `SSO_DENIED`, `TEAM_ROLE_CHANGE` with `source: sso`, or `source: saml` for SAML).
 
 Example for Keycloak: add a **Group Membership** mapper to the client (claim name `groups`, *Full group path* off, *Add to userinfo* on), then add the rules `platform-admins → Admin` and `sre → User`.
 
@@ -68,6 +67,12 @@ Under **Teams from your identity provider**, map a group to a team (see [Teams a
 
     A domain belongs to one organisation only.
 - An account of another organisation, a disabled account or an email the identity provider marks unverified is refused.
+
+### Require single sign-on
+
+**Require single sign-on** (under the protocol settings) refuses password sign-in for the organisation's members: they sign in through the identity provider only. The organisation's **admins keep their password**, as a way back in when the identity provider is down or misconfigured; give the admin role to as few people as you can. The refusal comes after the password check (`403`, `code: sso_required`), so it does not tell anyone which emails have an account.
+
+Enforcement applies only while the SSO can actually be used: turning SSO off turns it off too, and an organisation on SAML whose Enterprise license has expired can sign in with passwords again rather than being locked out. API keys are not affected.
 
 ## Token Authentication
 
