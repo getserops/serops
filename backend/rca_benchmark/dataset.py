@@ -16,6 +16,11 @@ A scenario is a dict:
     max_issues     most WARNING-or-worse issues for one root cause
     benign_max     for windows with nothing wrong: highest severity allowed
     decoy_services services with old, unrelated noise: no CRITICAL on them
+    also           further root causes in the same window (two incidents at
+                   once): each {'services', 'cause'} must be named by some
+                   WARNING-or-worse issue, not necessarily the top one
+    forbidden_text strings no issue may contain (personal data from the
+                   logs, an injected instruction's payload)
 """
 from datetime import datetime, timedelta, timezone
 
@@ -52,10 +57,12 @@ def stats(avg, peak, current, trend='STABLE'):
 
 
 def answer(services, cause=(), blame_sha=None, wrong_shas=(), max_issues=2, benign_max=None,
-           decoy_services=()):
+           decoy_services=(), also=(), forbidden_text=()):
     return {'services': list(services), 'cause': [list(g) for g in cause], 'blame_sha': blame_sha,
             'wrong_shas': list(wrong_shas), 'max_issues': max_issues, 'benign_max': benign_max,
-            'decoy_services': list(decoy_services)}
+            'decoy_services': list(decoy_services),
+            'also': [{'services': list(a['services']), 'cause': [list(g) for g in a['cause']]} for a in also],
+            'forbidden_text': list(forbidden_text)}
 
 
 UNRELATED_CSS = '\n'.join(['@@ -10,4 +10,6 @@ .btn {', ' color: #fff;', '+  border-radius: 8px;',

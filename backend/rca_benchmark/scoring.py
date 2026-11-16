@@ -19,6 +19,17 @@ Per incident:
            cause words anywhere in its text. Kept so older results compare.
 
 Healthy windows pass when no issue is worse than ``benign_max``.
+
+Two checks only some scenarios use (benchmark v2): ``also`` (a second root
+cause in the same window must be named by some alerting issue) and
+``forbidden_text`` (personal data or an injected payload must not appear in
+any issue).
+
+Incidents over several windows (benchmark v3, ``batches``): each window is
+scored as above, ``severity_between`` bounds the worst issue of a window,
+and ``sequence_checks`` counts the distinct warning-or-worse issues that name
+the incident's services across all windows: a continuing incident must reuse
+its issue, not open a new one each window.
 """
 import re
 
@@ -70,6 +81,17 @@ def blames(issue, sha):
     return sha in _commits(issue) or sha in str(issue.get('root_cause') or '').lower()
 
 
+def _all_text(issue):
+    return ' '.join(str(issue.get(k) or '') for k in (
+        'component', 'description', 'root_cause', 'recommendation', 'reasoning', 'linked_commits',
+        'affected_services')).lower()
+
+
+def _common_checks(answer, issues, checks):
+    for text in answer.get('forbidden_text') or []:
+        checks[f'no {text[:24]!r}'] = not any(text.lower() in _all_text(i) for i in issues)
+
+
 def score(answer, issues):
     """{'verdict', 'root_cause', 'lenient': bool, 'checks': {name: bool}, ...}."""
     alerting = [i for i in issues if _sev(i) >= SEVERITY['WARNING']]
@@ -80,6 +102,7 @@ def score(answer, issues):
         checks['silent'] = worst <= SEVERITY[answer['benign_max']]
         for sha in answer.get('wrong_shas') or []:
             checks[f'not blamed {sha[:7]}'] = not any(sha[:7] in _commits(i) for i in issues)
+        _common_checks(answer, issues, checks)
         ok = all(checks.values())
         return {'verdict': ok, 'root_cause': ok, 'lenient': ok, 'checks': checks, 'kind': 'healthy',
                 'alerting': len(alerting), 'commit_expected': False}
@@ -94,6 +117,12 @@ def score(answer, issues):
     for sha in answer.get('wrong_shas') or []:
         checks[f'not blamed {sha[:7]}'] = not any(sha[:7] in _commits(i) for i in issues)
     checks['focused'] = len(alerting) <= answer.get('max_issues', 2)
+    for extra in answer.get('also') or []:
+        checks[f"also {extra['services'][0]}"] = any(
+            names_service(f"{_service_fields(i)} {i.get('root_cause') or ''}", extra['services'])
+            and matches_cause(f"{i.get('root_cause') or ''} {i.get('description') or ''}", extra['cause'])
+            for i in alerting)
+    _common_checks(answer, issues, checks)
     for decoy in answer.get('decoy_services') or []:
         checks[f'no critical on {decoy}'] = not any(
             _sev(i) == SEVERITY['CRITICAL'] and names_service(_service_fields(i), [decoy]) for i in issues)
@@ -108,3 +137,19 @@ def score(answer, issues):
     return {'verdict': all(checks.values()), 'root_cause': root_cause, 'lenient': lenient, 'checks': checks,
             'kind': 'incident',
             'alerting': len(alerting), 'commit_expected': bool(answer.get('blame_sha'))}
+
+
+def severity_between(issues, low, high):
+    """The worst issue of a window is between ``low`` and ``high``. No issue at
+    all counts as INFO (a quiet window meets an ``INFO`` lower bound)."""
+    worst = max((_sev(i) for i in issues), default=0)
+    floor = 0 if low == 'INFO' else SEVERITY[low]
+    return floor <= worst <= SEVERITY[high]
+
+
+def sequence_checks(sequence, windows):
+    """``windows`` is one list of issues per window, each issue with its ``id``."""
+    distinct = {i['id'] for issues in windows for i in issues
+                if _sev(i) >= SEVERITY['WARNING'] and names_service(_service_fields(i), sequence['services'])}
+    return {f"one issue across windows (≤{sequence.get('max_distinct', 1)})":
+            len(distinct) <= sequence.get('max_distinct', 1)}

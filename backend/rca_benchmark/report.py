@@ -9,9 +9,12 @@ def _pct(n, d):
 
 
 def summarise(results):
-    """Per set ('tuned', 'held_out', 'all'): counts the report shows."""
+    """Per set ('held_out', 'held_out_v2', 'held_out_v3', 'tuned', 'all'): counts the report shows.
+
+    A window of a multi-window incident counts like a scenario of its own;
+    ``sequences`` also says how many whole incidents passed every window."""
     out = {}
-    for name in ('held_out', 'tuned', 'all'):
+    for name in ('held_out', 'held_out_v2', 'held_out_v3', 'tuned', 'all'):
         rows = [r for r in results if name == 'all' or r['set'] == name]
         if not rows:
             continue
@@ -39,6 +42,12 @@ def summarise(results):
             'cost_usd': round(sum(r['cost_usd'] for r in rows), 4),
             'mean_seconds': round(sum(r['seconds'] for r in rows) / len(rows), 1),
         }
+    runs = defaultdict(list)
+    for r in results:
+        if r.get('sequence'):
+            runs[(r['sequence'], r.get('round', 1))].append(bool(r['score'] and r['score']['verdict']))
+    if runs:
+        out['sequences'] = {'runs': len(runs), 'passed': sum(all(v) for v in runs.values())}
     by_id = defaultdict(list)
     for r in results:
         by_id[r['id']].append(bool(r['score'] and r['score']['root_cause']))
@@ -70,14 +79,18 @@ def markdown(results, meta, stopped=None):
               ('Not analysed (provider error or quota; left out above)', lambda x: str(x['errors'])),
               ('AI cost (USD, from SerOps usage records)', lambda x: f"${x['cost_usd']}"),
               ('Mean time per analysis (s)', lambda x: str(x['mean_seconds']))]
-    sets = [k for k in ('held_out', 'tuned', 'all') if k in s]
-    titles = {'held_out': 'Held-out', 'tuned': 'Tuned', 'all': 'All'}
+    sets = [k for k in ('held_out', 'held_out_v2', 'held_out_v3', 'tuned', 'all') if k in s]
+    titles = {'held_out': 'Held-out', 'held_out_v2': 'Held-out v2', 'held_out_v3': 'Held-out v3', 'tuned': 'Tuned',
+              'all': 'All'}
     lines += ['| | ' + ' | '.join(titles[k] for k in sets) + ' |', '|---|' + '---|' * len(sets)]
     for label, fn in labels:
         lines.append(f'| {label} | ' + ' | '.join(fn(s[k]) for k in sets) + ' |')
     if 'consistency' in s:
         c = s['consistency']
         lines += ['', f"Same root-cause verdict in every round: {_pct(c['stable'], c['scenarios'])} of scenarios."]
+    if 'sequences' in s:
+        q = s['sequences']
+        lines += ['', f"Incidents over several windows passing every window: {_pct(q['passed'], q['runs'])}."]
     lines += ['', '**Held-out** incidents were committed before any model run and no prompt rule was changed for '
               'them. **Tuned** incidents were used while fixing the prompt, so they guard against regressions '
               'and are not evidence of accuracy.', '', '## Scenarios', '',

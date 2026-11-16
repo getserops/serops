@@ -27,7 +27,7 @@ class Command(BaseCommand):
         parser.add_argument('--api-key-env', default='RCA_API_KEY',
                             help='Environment variable holding the API key (default RCA_API_KEY)')
         parser.add_argument('--set', action='append', choices=sorted(runner.SETS), dest='sets',
-                            help='Scenario set; repeat for several (default: held_out and tuned)')
+                            help='Scenario set; repeat for several (default: held_out and tuned; held_out_v2 and v3 are opt-in)')
         parser.add_argument('--only', nargs='*', default=[], help='Scenario id prefixes, e.g. h01 s10')
         parser.add_argument('--repeat', type=int, default=1, help='Rounds, to measure consistency')
         parser.add_argument('--budget-usd', type=float, default=1.0, help='Stop once this much is spent')
@@ -37,13 +37,17 @@ class Command(BaseCommand):
         parser.add_argument('--json', help='Write every result, with all issues, to this file')
         parser.add_argument('--markdown', help='Write the report to this file')
         parser.add_argument('--list', action='store_true', help='List the scenarios and exit')
+        parser.add_argument('--model', help="Model ID for the provider during the run (e.g. claude-opus-5-5)")
+        parser.add_argument('--drop', action='append', choices=sorted(runner.DROPPABLE), default=[],
+                            help='Ablation: take this data source out of every scenario (repeatable)')
 
     def handle(self, *args, **opts):
         builds = runner.select(opts['sets'] or ['held_out', 'tuned'], opts['only'])
         if opts['list']:
             for b in builds:
                 sc = b()
-                self.stdout.write(f"{sc['id']:24s} {sc['set']:9s} {sc['category']:15s} {sc['name']}")
+                windows = f" ({len(sc['batches'])} windows)" if 'batches' in sc else ''
+                self.stdout.write(f"{sc['id']:38s} {sc['set']:11s} {sc['category']:15s} {sc['name']}{windows}")
             return
         if not builds:
             raise CommandError('No scenario matches.')
@@ -67,13 +71,14 @@ class Command(BaseCommand):
 
         results, stopped = runner.run(builds, opts['provider'], api_key, repeat=opts['repeat'],
                                       budget_usd=opts['budget_usd'], pause=opts['pause'], keep=opts['keep'],
-                                      on_result=progress)
+                                      on_result=progress, model=opts['model'], drop=opts['drop'])
         from api.version import version_info
         info = version_info()
         models = sorted({str(r['model']) for r in results if r['model'] and not str(r['model']).startswith('FAILED')})
         meta = {'provider': opts['provider'], 'model': ', '.join(models) or 'unknown',
                 'version': info['version'], 'commit': info['git_sha'] or 'unknown',
-                'date': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'), 'rounds': opts['repeat']}
+                'date': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'), 'rounds': opts['repeat'],
+                'dropped': opts['drop']}
         if opts['json']:
             with open(opts['json'], 'w') as f:
                 json.dump({'meta': meta, 'stopped': stopped, 'summary': report.summarise(results),
@@ -83,7 +88,7 @@ class Command(BaseCommand):
             with open(opts['markdown'], 'w') as f:
                 f.write(md)
         s = report.summarise(results)
-        for name in ('held_out', 'tuned'):
+        for name in ('held_out', 'held_out_v2', 'held_out_v3', 'tuned'):
             if name in s:
                 x = s[name]
                 self.stdout.write(f"{name}: root cause {x['root_cause']}/{x['incidents']}, all checks "
