@@ -174,7 +174,7 @@ X-SerOps-Signature: sha256=<hmac-hex>       # required (or Authorization: Bearer
 }
 ```
 
-- **Required**: `commit_sha` (7-64 hex chars), `environment` (`production` / `staging` / `development` / `preview` / `demo`; aliases like `prod`/`dev`/`stage` accepted).
+- **Required**: `commit_sha` (7-64 hex chars), `environment`: the name of one of the project's environments, any name (`qa`, `uat`, `preview`, `eu-prod`; 1-50 letters, digits, `.`, `_`, `-`). `prod`/`prd`/`live`, `stage`/`stg`/`preprod` and `dev`/`develop` are recorded as `production`, `staging` and `development`, and a project environment named `prod` finds them.
 - **Optional**: `version`, `deployed_at` (defaults to now), `actor` (defaults to `external`), `notes`.
 - If the commit hasn't been ingested via an SCM webhook yet, SerOps creates a stub `CodeChange` so the deployment records anyway — the diff/message hydrate when the SCM webhook eventually arrives.
 

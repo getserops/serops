@@ -43,7 +43,7 @@ import requests
 from Utils.outbound import GuardedSession
 from requests.exceptions import RequestException
 
-from integrations.base import TraceProvider, TraceProviderCapabilities
+from integrations.base import TraceProvider, TraceProviderCapabilities, TraceQueryError, describe_request_error
 from traces.otlp_parsing import iter_resource_spans, parse_span_dict
 from traces.schemas import SpanEntry, TraceEntry
 
@@ -99,7 +99,9 @@ class TempoTraceAdapter(TraceProvider):
         # Tempo /api/search accepts tag-based search + time window in
         # seconds (some builds accept ns — the seconds form is universal).
         params = {
-            'tags': f'service.name={service_name}',
+            # logfmt: a quoted value, so a space or "=" in the name stays
+            # part of it instead of starting another tag.
+            'tags': 'service.name="' + str(service_name).replace('\\', '\\\\').replace('"', '\\"') + '"',
             'start': int(since.timestamp()),
             'end': int(until.timestamp()),
             'limit': min(int(limit or 50), 500),
@@ -113,7 +115,9 @@ class TempoTraceAdapter(TraceProvider):
             resp.raise_for_status()
         except RequestException as exc:
             logger.warning('Tempo fetch_traces failed: %s', exc)
-            return []
+            # Raised, not []: "no traces" reads as "no trace errors" (phase 3
+            # review, MT-1).
+            raise TraceQueryError(f'Tempo refused the trace query: {describe_request_error(exc)}') from exc
 
         payload = resp.json() or {}
         traces_meta = payload.get('traces') or []

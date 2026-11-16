@@ -171,11 +171,12 @@ class TempoFetchTracesTest(TestCase):
         self.assertEqual(traces[0].trace_id, trace_id)
         self.assertEqual(traces[0].span_count, 2)
 
-    def test_fetch_traces_network_error_returns_empty(self):
+    def test_fetch_traces_network_error_raises(self):
+        # Was: returned [], which read as "no trace errors" (phase 3 review, MT-1).
+        from integrations.base import TraceQueryError
         with patch.object(self.adapter._session, 'get', side_effect=ConnectionError('boom')):
-            self.assertEqual(
-                self.adapter.fetch_traces('svc', self.since, self.until), [],
-            )
+            with self.assertRaises(TraceQueryError):
+                self.adapter.fetch_traces('svc', self.since, self.until)
 
     def test_fetch_traces_skips_hits_that_fail_hydrate(self):
         """If /api/traces/<id> 404s, we drop that trace but keep others."""

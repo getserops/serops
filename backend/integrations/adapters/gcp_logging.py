@@ -27,13 +27,16 @@ import logging
 from datetime import datetime
 from typing import List, Optional, Tuple
 
-from integrations.base import LogProvider, LogProviderCapabilities
+from integrations.base import LogProvider, LogProviderCapabilities, LogSearchError, note_partial
+from integrations.field_aliases import LOG_LEVEL_ALIASES, first_present, first_present_with_key
 from integrations.schemas import (
+    MESSAGE_FIELDS,
     LogEntry,
     LogQuery,
     _detect_level,
     _detect_level_from_line,
     _parse_timestamp,
+    level_of,
 )
 
 logger = logging.getLogger(__name__)
@@ -128,6 +131,8 @@ def _health_reason(exc: Exception, project_id: str, role: str) -> str:
                 f"and that the service account has the {role} role on it.")
     if "404" in text or "NotFound" in type(exc).__name__:
         return f"Google found no project {project_id}: check the project ID."
+    if "429" in text or "ResourceExhausted" in type(exc).__name__:
+        return "Google Cloud rate-limited the request (quota exhausted); it is retried on the next run."
     # Never the exception text: it can carry another server's answer.
     return "Google Cloud refused the request; the backend log has the details."
 
@@ -244,7 +249,7 @@ class GcpCloudLoggingProvider(LogProvider):
             )
         except Exception as exc:
             logger.error("GCP Cloud Logging list_entries failed: %s", exc)
-            return []
+            raise LogSearchError(_health_reason(exc, self._project_id, "Logs Viewer")) from exc
 
         entries: List[LogEntry] = []
         try:
@@ -253,13 +258,18 @@ class GcpCloudLoggingProvider(LogProvider):
                 if len(entries) >= size:
                     break
         except Exception as exc:
-            # A mid-iteration failure is common (rate limits, token
-            # expiry). Log it and return what we already have —
-            # partial results are more useful than nothing.
+            # list_entries is lazy: auth, permission, quota (429) and 5xx
+            # errors arrive here. With nothing read, that is a failed search,
+            # not "no logs" (phase 3 review, CL-1). With some pages read, keep
+            # them and say the set is partial.
             logger.warning(
                 "GCP Cloud Logging iteration ended early after %d entries: %s",
                 len(entries), exc,
             )
+            if not entries:
+                raise LogSearchError(_health_reason(exc, self._project_id, "Logs Viewer")) from exc
+            note_partial(self, f'Google Cloud Logging stopped answering after {len(entries)} entries; '
+                               'later pages are missing')
         return entries
 
     def get_indices(self, project) -> List[str]:
@@ -311,7 +321,10 @@ class GcpCloudLoggingProvider(LogProvider):
         payload = getattr(gcp_entry, "payload", None)
         labels_from_payload = {}
         if isinstance(payload, dict):
-            message = payload.get("message") or json.dumps(payload)[:1000]
+            # pino and zap write the text as ``msg``: it fell back to a JSON
+            # dump of the whole record (review CL-4).
+            message = first_present(payload, MESSAGE_FIELDS) or json.dumps(payload)[:1000]
+            message = message if isinstance(message, str) else json.dumps(message)[:1000]
             labels_from_payload = {k: v for k, v in payload.items() if k != "message"}
         elif isinstance(payload, str):
             message = payload
@@ -352,7 +365,13 @@ class GcpCloudLoggingProvider(LogProvider):
         level = _detect_level(raw_severity)
         k8s = getattr(resource, "type", "") == "k8s_container"
         stream = str(getattr(gcp_entry, "log_name", "")).rsplit("/", 1)[-1]
-        if k8s and isinstance(payload, str) and stream == "stderr":
+        unrated = str(raw_severity).upper() in ("DEFAULT", "INFO", "0") or (k8s and stream == "stderr")
+        if isinstance(payload, dict) and unrated and first_present_with_key(payload, LOG_LEVEL_ALIASES)[0]:
+            # A JSON record's own level ({"level":"error"} or pino's 50):
+            # Cloud Logging leaves such entries DEFAULT (Cloud Run) or rates
+            # them by stream (GKE), so its severity says nothing (CL-4).
+            level = level_of(payload, message)
+        elif k8s and isinstance(payload, str) and stream == "stderr":
             # GKE rates every plain-text stderr line ERROR (and stdout INFO):
             # the stream, not the line. Read the line's own level instead; a
             # line naming none stays INFO. Observed on GKE: an OpenTelemetry

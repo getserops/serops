@@ -163,6 +163,47 @@ def _authenticate(request, source: str, organisation) -> bool:
 # ---------------------------------------------------------------------------
 
 
+_FUTURE_SLACK = timedelta(minutes=5)
+
+
+def _parse_time(value):
+    """When an alert started, from a payload value, as an aware datetime.
+
+    RFC 3339 (Alertmanager and Grafana send nanoseconds, ``…:00.123456789Z``)
+    or epoch seconds / milliseconds (Datadog ``$DATE``). Alertmanager's
+    zero time (``0001-01-01T00:00:00Z``), garbage, and times more than a few
+    minutes in the future give None: the caller then anchors on receipt.
+    """
+    from datetime import datetime, timezone as _dtz
+    if value is None or value == '' or isinstance(value, bool):
+        return None
+    out = None
+    try:
+        if isinstance(value, (int, float)) or (isinstance(value, str) and re.fullmatch(r'\d{9,14}(\.\d+)?', value.strip())):
+            num = float(value)
+            out = datetime.fromtimestamp(num / 1000 if num > 1e11 else num, tz=_dtz.utc)
+        elif isinstance(value, str):
+            text = value.strip().replace('Z', '+00:00')
+            # Python takes at most 6 fractional digits.
+            text = re.sub(r'(\.\d{6})\d+', r'\1', text)
+            out = datetime.fromisoformat(text)
+            if out.tzinfo is None:
+                out = out.replace(tzinfo=_dtz.utc)
+    except (ValueError, OverflowError, OSError):
+        return None
+    if out is None or out.year < 2000 or out > timezone.now() + _FUTURE_SLACK:
+        return None
+    return out
+
+
+def _str_labels(labels) -> dict:
+    """Label / tag values as short strings (untrusted payload)."""
+    if not isinstance(labels, dict):
+        return {}
+    return {str(k)[:100]: str(v)[:255] for k, v in list(labels.items())[:64]
+            if isinstance(v, (str, int, float)) and not isinstance(v, bool)}
+
+
 def _parse_alertmanager(payload: dict) -> list:
     """Alertmanager (also Grafana unified alerting v9+) format.
 
@@ -184,6 +225,8 @@ def _parse_alertmanager(payload: dict) -> list:
             'environment': str(labels.get('environment') or labels.get('env') or ''),
             'summary': str(annotations.get('summary') or annotations.get('description') or '')[:2000],
             'external_id': str(alert.get('fingerprint') or ''),
+            'starts_at': _parse_time(alert.get('startsAt')),
+            'labels': _str_labels(labels),
         })
     return out
 
@@ -238,6 +281,10 @@ def _parse_datadog(payload: dict) -> list:
         'summary': str(payload.get('body') or payload.get('message') or '')[:2000],
         # $ID is one notification: a retry of it is the duplicate to drop.
         'external_id': str(payload.get('id') or external or '')[:255],
+        # $DATE (epoch ms) is when the monitor triggered; $LAST_UPDATED is the
+        # last change of state.
+        'starts_at': _parse_time(payload.get('date')) or _parse_time(payload.get('last_updated')),
+        'labels': _str_labels(tags),
     }]
 
 
@@ -294,6 +341,9 @@ def _parse_sentry(payload: dict, resource: str = '') -> list:
             'environment': str(event.get('environment') or _sentry_tag(tags, 'environment')),
             'summary': '\n'.join(lines)[:2000],
             'external_id': str(event.get('event_id') or event.get('id') or ''),
+            'starts_at': _parse_time(event.get('datetime')) or _parse_time(event.get('timestamp')),
+            'labels': _str_labels({_t[0]: _t[1] for _t in tags if isinstance(_t, (list, tuple)) and len(_t) == 2}
+                                  if isinstance(tags, list) else {}),
         }]
     if resource == 'metric_alert' or 'metric_alert' in data:
         alert = data.get('metric_alert') or {}
@@ -307,6 +357,8 @@ def _parse_sentry(payload: dict, resource: str = '') -> list:
             'environment': str(rule.get('environment') or ''),
             'summary': str(desc)[:2000],
             'external_id': str(alert.get('id') or ''),
+            'starts_at': _parse_time(alert.get('date_started')) or _parse_time(alert.get('date_detected')),
+            'labels': {},
         }]
     if (resource == 'issue' or 'issue' in data) and action == 'created':
         issue = data.get('issue') or {}
@@ -327,6 +379,8 @@ def _parse_sentry(payload: dict, resource: str = '') -> list:
             'environment': '',
             'summary': '\n'.join(lines)[:2000],
             'external_id': str(issue.get('id') or ''),
+            'starts_at': _parse_time(issue.get('firstSeen')),
+            'labels': {},
         }]
     return []
 
@@ -454,6 +508,8 @@ class AlertWebhookView(APIView):
                 service=safe_parsed.get('service', ''),
                 environment=safe_parsed.get('environment', ''),
                 summary=safe_parsed.get('summary', ''),
+                starts_at=parsed.get('starts_at'),
+                labels=redact_raw_payload(parsed.get('labels') or {}),
                 raw_payload=redacted_payload,
             )
             events.append(event)

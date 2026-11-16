@@ -395,6 +395,10 @@ def build_code_changes_section(code_changes: list[dict] | None, log_lines: list[
         if change.get('deployed_at'):
             when = (f"deployed to {change.get('deployed_to') or 'this environment'} at "
                     f"{change['deployed_at']}; committed {change.get('timestamp', 'N/A')}")
+        elif change.get('pipeline_status'):
+            # SC-05: a failed or cancelled pipeline did not deploy this commit.
+            when = (f"NOT deployed: pipeline {change['pipeline_status']} at {change.get('pipeline_at', '?')}; "
+                    f"committed {change.get('timestamp', 'N/A')}")
         else:
             when = change.get('timestamp', 'N/A')
         out.append(f"[{sha}] {change.get('author', 'Unknown')} ({when})")

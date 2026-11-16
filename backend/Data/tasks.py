@@ -52,6 +52,8 @@ Metrics_interval = int(os.getenv('BATCH_GENERATION_INTERVAL', 5))
 
 # Toggle to enable/disable metrics collection
 METRICS_ENABLED = getattr(settings, 'METRICS_ENABLED', os.getenv('METRICS_ENABLED', 'false').lower() == 'true')
+# The longest window a scheduled run reads logs over (phase 3 review, LG3).
+MAX_LOG_WINDOW_MINUTES = int(os.getenv('SEROPS_MAX_LOG_WINDOW_MINUTES', 360))
 
 
 # Default lock TTL — a bit longer than the batch interval to prevent overlap
@@ -289,6 +291,7 @@ def create_log_batch(self):
                     metrics_start_time, 
                     metrics_end_time
                 )
+                metrics.pop('_source_status', None)
                 
                 # Log the number of metrics found in each category
                 logger.info(f"Found metrics: total={len(metrics['memory_total'])}, free={len(metrics['memory_free'])}, "
@@ -558,6 +561,7 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         # neither and get the historical "since the last batch" window.
         override_active = bool(window_start_iso and window_end_iso)
         last_batch_time = None
+        window_capped_from = None
         if override_active:
             try:
                 _iso_start = window_start_iso.replace('Z', '+00:00')
@@ -598,6 +602,17 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                 batch_start_time = last_batch_time
             else:
                 batch_start_time = current_time - timezone.timedelta(minutes=effective_interval)
+            # Never further back than MAX_LOG_WINDOW_MINUTES. The window starts
+            # where the last saved scheduled batch ended, and quiet or failed
+            # runs save none, so it used to grow without limit: hours of logs
+            # re-read every tick, the newest 5000 kept and the onset dropped,
+            # and past 30 days Loki refusing the query (phase 3 review, LG3).
+            oldest = current_time - timezone.timedelta(minutes=max(MAX_LOG_WINDOW_MINUTES, effective_interval))
+            if batch_start_time < oldest:
+                logger.info(f"Batch window for {project_name} capped at {MAX_LOG_WINDOW_MINUTES} minutes "
+                            f"(would have started at {batch_start_time.isoformat()})")
+                window_capped_from = batch_start_time
+                batch_start_time = oldest
             batch_end_time = current_time
             logger.info(f"Batch window for {project_name}: {batch_start_time.isoformat()} to {batch_end_time.isoformat()}")
 
@@ -607,6 +622,8 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         # 3. Fetch logs via Provider
         logs = []
         search_error = None
+        log_notes = []
+        log_query = None
         try:
             # Item #17 / Q1.4: prefer the cluster-scoped integration
             # when the project is assigned to a cluster. Falls through
@@ -645,14 +662,22 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                 index_pattern = ','.join(indices) if indices else None
             
             # Execute search — LogQuery is translated by the adapter
+            provider.last_search_notes = []
             log_entries = provider.search(index_pattern, log_query)
             
             logs = log_entries
+            log_notes = list(getattr(provider, 'last_search_notes', None) or [])
             
         except Exception as e:
             logger.error(f"Error searching logs for project {project_name}: {e}")
             search_error = str(e)
             logs = []
+        # What the AI and the project page are told about the log read
+        # (phase 3 review, LG1 / LG3): a refused search, a partial answer or
+        # a result cut at the cap is never presented as the whole window.
+        data_sources = {'logs': _log_source_status(search_error, log_notes, len(logs),
+                                                   getattr(log_query, 'max_results', None),
+                                                   window_capped_from)}
         # Logs left after each filter, kept for the project page (scheduled runs)
         run_counts = {'fetched': len(logs)}
         
@@ -846,6 +871,13 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                                      run_counts)
                 return
             if outcome != DataRunStatus.OUTCOME_EMPTY:
+                if search_error:
+                    # A batch made from other data while the log store refused
+                    # the query: the project page must still say so.
+                    DataRunStatus.record(project, environment, outcome, 'search_failed',
+                                         'A batch was created from other data, but the log store '
+                                         f'refused the query: {search_error}', run_counts)
+                    return
                 DataRunStatus.record(project, environment, outcome, counts=run_counts)
                 return
             reason, detail = _empty_run_reason(run_counts, search_error, unregistered_services)
@@ -910,6 +942,9 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                     project_name_str=project_name,
                     environment_str=batch_environment
                 )
+                metric_status = metrics.pop('_source_status', None)
+                if metric_status:
+                    data_sources['metrics'] = metric_status
 
                 # Log the number of metrics found in each category
                 logger.info(f"Found metrics: total={len(metrics['memory_total'])}, free={len(metrics['memory_free'])}, "
@@ -967,6 +1002,8 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             except Exception as e:
                 logger.error(f"Error fetching metrics for project {project_name}: {e}")
                 serialized_metrics = {}
+                data_sources['metrics'] = {'status': 'unavailable',
+                                           'detail': f'the metrics fetch failed ({type(e).__name__})'}
 
         # Check whether there is anything at all to analyse.
         #
@@ -1048,6 +1085,8 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             )
         except Exception as e:
             logger.warning(f"Failed to fetch code changes via deployments for project {project_name}: {e}")
+            data_sources['code'] = {'status': 'unavailable',
+                                    'detail': f'deployed code changes could not be read ({type(e).__name__})'}
         
         # === FETCH CI/CD LOGS VIA PROVIDER ABSTRACTION ===
         cicd_logs_data = []
@@ -1183,6 +1222,10 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             'metrics_summary': metrics_summary,  # Compact summary for AI analysis
             'code_changes': code_changes_data,  # Code changes DEPLOYED to this environment
             'cicd_logs': cicd_logs_data,  # CI/CD logs for this environment
+            # Per source: ok | unavailable | partial | truncated, with the
+            # reason. Read by the prompt (ai_model.prompts) and by
+            # get_scheduled_window_start (a failed log read is re-read).
+            'data_sources': data_sources,
             'statistics': {
                 'total_logs': len(filtered_hits),
                 'total_metrics': metrics_count,
@@ -1407,6 +1450,24 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         raise self.retry(exc=e, countdown=10 * (2 ** self.request.retries))
     finally:
         _release_task_lock(lock_key)
+
+def _log_source_status(search_error, notes, fetched, cap, window_capped_from=None):
+    """The batch's data_sources['logs'] entry: why the logs the AI sees may
+    not be the whole window."""
+    if search_error:
+        return {'status': 'unavailable', 'detail': str(search_error)[:500]}
+    if cap and fetched >= cap:
+        return {'status': 'truncated',
+                'detail': f'the log store returned its {cap}-record limit; the newest records were kept '
+                          'and earlier ones in the window are missing'}
+    if notes:
+        return {'status': 'partial', 'detail': '; '.join(notes)[:500]}
+    if window_capped_from is not None:
+        return {'status': 'partial',
+                'detail': f'the window was capped at {MAX_LOG_WINDOW_MINUTES} minutes; logs between '
+                          f'{window_capped_from.isoformat()} and the start of the window were not read'}
+    return {'status': 'ok', 'detail': ''}
+
 
 def _empty_run_reason(counts, search_error, unregistered_services):
     """Why a scheduled run found no logs to analyse: the first filter that
@@ -1934,12 +1995,16 @@ def embed_resolved_issue(self, issue_id):
 # Alert-triggered helpers (Q5-1 + Q5-2)
 # ---------------------------------------------------------------------------
 
-# Radius around the alert's ``received_at`` for the on-demand analysis
-# window. ±3 min = 6 minutes total, tight enough that a 30-second
-# incident isn't diluted by 15 minutes of unrelated logs, wide enough
-# to catch a pre-cursor pattern that fired a few minutes before the
-# threshold breach.
-_ALERT_WINDOW_RADIUS_MINUTES = 3
+# The alert-triggered window (phase 3 review SC-01). An alert is sent
+# after its rule's ``for:`` (often 5-15 min) and Alertmanager's
+# ``group_wait``: the deploy and the first errors come before the alert
+# starts firing, and well before SerOps receives it. The window runs from
+# LOOKBACK before the alert started to just after it was received. An alert
+# that started long ago (a repeat of a long incident, an alert firing before
+# SerOps was set up) is looked at over the last MAX_SPAN only.
+_ALERT_LOOKBACK_MINUTES = 20
+_ALERT_TAIL_MINUTES = 2
+_ALERT_MAX_SPAN_MINUTES = 120
 
 
 def _alert_window(event):
@@ -1951,11 +2016,46 @@ def _alert_window(event):
     """
     from datetime import timedelta as _td
     from django.utils import timezone as _tz
-    anchor = event.received_at or _tz.now()
-    return (
-        (anchor - _td(minutes=_ALERT_WINDOW_RADIUS_MINUTES)).isoformat(),
-        (anchor + _td(minutes=_ALERT_WINDOW_RADIUS_MINUTES)).isoformat(),
-    )
+    received = event.received_at or _tz.now()
+    started = getattr(event, 'starts_at', None)
+    if started is None or started > received:
+        started = received
+    start = started - _td(minutes=_ALERT_LOOKBACK_MINUTES)
+    end = received + _td(minutes=_ALERT_TAIL_MINUTES)
+    if end - start > _td(minutes=_ALERT_MAX_SPAN_MINUTES):
+        start = end - _td(minutes=_ALERT_MAX_SPAN_MINUTES)
+    return start.isoformat(), end.isoformat()
+
+
+def _alert_project_environment(project, name):
+    """The project's environment an alert names (``prod`` finds
+    ``production``, SC-08); production when it names none; else the only one."""
+    from providers.deployment_service import canonical_environment
+    wanted = canonical_environment(name or 'production')
+    envs = list(project.environments.all())
+    for env in envs:
+        if canonical_environment(env.name) == wanted:
+            return env
+    return envs[0] if len(envs) == 1 else None
+
+
+def _analysed_repeat(event):
+    """The batch of an earlier notification of this same firing, if any.
+
+    Alertmanager re-sends a still-firing alert every ``repeat_interval``
+    (4 h by default) with the same fingerprint and ``startsAt``. Analysing
+    it again read the later, often recovered, state as the incident and
+    spent AI budget for nothing.
+    """
+    if not event.external_id or event.starts_at is None:
+        return None
+    from Data.models import AlertEvent
+    earlier = (AlertEvent.objects
+               .filter(organisation_id=event.organisation_id, source=event.source,
+                       external_id=event.external_id, starts_at=event.starts_at,
+                       state='firing', triggered_batch__isnull=False)
+               .exclude(pk=event.pk).order_by('-received_at').first())
+    return earlier.triggered_batch if earlier else None
 
 
 def _project_wiring_score(project) -> int:
@@ -1987,26 +2087,49 @@ def _project_wiring_score(project) -> int:
     return score
 
 
-def _resolve_alert_project(event):
-    """Pick the project for an incoming alert.
+# Alert labels that name the service, in the order tried after the parsed
+# ``service``: the canonical ones, then what Kubernetes rules (kube-state-
+# metrics, cAdvisor) and OTel-derived rules carry. ``job`` is last: it is
+# usually the scrape job (``kubernetes-pods``), only sometimes the service.
+_ALERT_SERVICE_LABELS = (
+    'service', 'service_name', 'app_kubernetes_io_name', 'app', 'container',
+    'deployment', 'k8s_deployment_name', 'statefulset', 'daemonset', 'job',
+)
+
+
+def _alert_service_candidates(event):
+    seen, out = set(), []
+    labels = getattr(event, 'labels', None) or {}
+    for value in [event.service or ''] + [labels.get(k, '') for k in _ALERT_SERVICE_LABELS]:
+        value = str(value or '').strip()
+        if value and value.lower() not in seen:
+            seen.add(value.lower())
+            out.append(value)
+    return out
+
+
+def _resolve_alert_project(event, detail=None):
+    """Pick the project for an incoming alert, or None.
 
     Precedence:
-      1. Match by service name AND environment name — a project with
-         both a matching service and the alert's environment is the
-         confident answer.
-      2. Match by service name alone — when multiple candidates exist,
-         prefer the one with the most integration wiring (audit finding
-         #5, PR-AUDIT5): SCM binding + CI/CD binding + active services.
-         Fall back to lowest id if still tied. Ambiguity is logged.
-      3. Fall back to the first project in the org so the analysis
-         still runs. Also logged as WARNING because it's the weakest
-         match.
+      1. A service named by the alert (its ``service`` label, then the
+         Kubernetes / OTel labels in ``_ALERT_SERVICE_LABELS``) AND the
+         alert's environment.
+      2. That service alone — several candidates are ranked by integration
+         wiring (audit finding #5, PR-AUDIT5), then lowest id, and logged.
+      3. The alert's ``namespace`` label naming a project.
+      4. An organisation with a single project: that project.
+
+    Otherwise None: the alert matched nothing. It used to be analysed
+    against the organisation's first project, so an alert of one team
+    produced a confident analysis of another team's logs (phase 3 review
+    SC-02). ``detail``, a list, receives a one-line reason.
     """
     from Projects.models import Project
 
     org = event.organisation
-    svc = event.service or ''
     env = event.environment or ''
+    note = (lambda text: detail.append(text)) if isinstance(detail, list) else (lambda text: None)
 
     def _pick(candidates, reason):
         """Break a candidate tie by wiring score, then lowest id.
@@ -2036,7 +2159,8 @@ def _resolve_alert_project(event):
         )
         return best
 
-    if svc:
+    candidates_tried = _alert_service_candidates(event)
+    for svc in candidates_tried:
         candidates = list(
             Project.objects.filter(
                 organisation=org,
@@ -2050,23 +2174,34 @@ def _resolve_alert_project(event):
             ]
             picked = _pick(env_matched, f'service={svc} env={env}')
             if picked is not None:
+                note(f'service {svc}, environment {env}')
                 return picked
         picked = _pick(candidates, f'service={svc}')
         if picked is not None:
+            note(f'service {svc}')
             return picked
 
-    # No service on the alert, or no candidate — fall back so the
-    # analysis still runs. Weak match: worth an operator's attention.
-    fallback = Project.objects.filter(organisation=org).order_by('id').first()
-    if fallback is not None:
+    namespace = str((getattr(event, 'labels', None) or {}).get('namespace') or '').strip()
+    if namespace:
+        by_ns = list(Project.objects.filter(organisation=org, name__iexact=namespace))
+        if len(by_ns) == 1:
+            note(f'namespace {namespace} is a project')
+            return by_ns[0]
+
+    projects = list(Project.objects.filter(organisation=org).order_by('id')[:2])
+    if len(projects) == 1:
+        note('the only project in the organisation')
+        return projects[0]
+    if projects:
+        tried = ', '.join(candidates_tried) or 'none'
+        note(f'no service matched (tried: {tried})'[:255])
         logger.warning(
-            'analyze_alert_ondemand: no service-name match for alert=%s '
-            '(service=%r env=%r) in org=%s — falling back to first project '
-            'id=%d. Alert-to-project routing is a best-effort proxy; add a '
-            'binding-based mapping if this fires often.',
-            event.pk, svc, env, org.id, fallback.id,
+            'analyze_alert_ondemand: alert=%s (labels tried: %s, env=%r) matches no service in '
+            'org=%s; not analysed. Name the service in the alert labels (service / service_name) '
+            'or add it to a project.',
+            event.pk, tried, env, org.id,
         )
-    return fallback
+    return None
 
 
 @shared_task(
@@ -2115,21 +2250,39 @@ def analyze_alert_ondemand(self, alert_event_id):
     # ambiguity at WARNING and prefer the project the alert's
     # ``environment`` string matches — if the alert declared an env,
     # a project with a matching ProjectEnvironment is the right home.
-    project = _resolve_alert_project(event)
+    repeat_of = _analysed_repeat(event)
+    if repeat_of is not None:
+        event.triggered_batch = repeat_of
+        event.match_status = AlertEvent.MATCH_REPEAT
+        event.match_detail = f'same firing as batch {repeat_of.batch_id}'[:255]
+        event.processed_at = timezone.now()
+        event.save(update_fields=['triggered_batch', 'match_status', 'match_detail', 'processed_at'])
+        return {'status': 'skipped', 'reason': 'repeat', 'batch_id': repeat_of.batch_id}
+
+    detail = []
+    project = _resolve_alert_project(event, detail)
 
     if project is None:
+        has_projects = Project.objects.filter(organisation_id=event.organisation_id).exists()
         logger.info(
-            'analyze_alert_ondemand: no project in org %s — nothing to analyse',
-            event.organisation_id,
+            'analyze_alert_ondemand: alert %s in org %s — %s',
+            event.pk, event.organisation_id, 'matched no service' if has_projects else 'no project',
         )
         event.processed_at = timezone.now()
-        event.save(update_fields=['processed_at'])
-        return {'status': 'skipped', 'reason': 'no_project'}
+        fields = ['processed_at']
+        if has_projects:
+            event.match_status = AlertEvent.MATCH_UNMATCHED
+            event.match_detail = (detail[0] if detail else 'no service matched')[:255]
+            fields += ['match_status', 'match_detail']
+        event.save(update_fields=fields)
+        return {'status': 'skipped', 'reason': 'unmatched' if has_projects else 'no_project'}
 
-    # Q5-1: alert-triggered analyses should look at a tight window
-    # around the alert's arrival, not the scheduler's 15-min back-look.
-    # ±3 min centred on ``received_at`` gives us 6 minutes of context —
-    # enough to catch pre-cursor patterns without diluting the signal.
+    event.match_status = AlertEvent.MATCH_MATCHED
+    event.match_detail = (detail[0] if detail else '')[:255]
+    event.save(update_fields=['match_status', 'match_detail'])
+
+    # From LOOKBACK before the alert started to just after it arrived
+    # (SC-01): see _alert_window.
     _win_start, _win_end = _alert_window(event)
 
     # Invoke the standard batch pipeline synchronously — we want the
@@ -2145,8 +2298,7 @@ def analyze_alert_ondemand(self, alert_event_id):
             index_name=project.es_index_name,
             project_name=project.name,
             project=project,
-            environment=project.environments.filter(
-                name__iexact=event.environment or 'production').first(),
+            environment=_alert_project_environment(project, event.environment),
             window_start_iso=_win_start,
             window_end_iso=_win_end,
             trigger=AIAnalyzedBatch.TRIGGER_ALERT,

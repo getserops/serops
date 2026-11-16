@@ -109,9 +109,13 @@ class JaegerAdapterTest(TestCase):
                           return_value=_mock_response(404)):
             self.assertIsNone(self.adapter.fetch_trace('abc'))
 
-    def test_network_error_returns_empty(self):
+    def test_network_error_raises_and_single_fetch_returns_none(self):
+        # fetch_traces used to return [], which read as "no trace errors"
+        # (phase 3 review, MT-1).
+        from integrations.base import TraceQueryError
         with patch.object(self.adapter._session, 'get', side_effect=ConnectionError('boom')):
-            self.assertEqual(self.adapter.fetch_traces('svc', datetime.utcnow(), datetime.utcnow()), [])
+            with self.assertRaises(TraceQueryError):
+                self.adapter.fetch_traces('svc', datetime.utcnow(), datetime.utcnow())
             self.assertIsNone(self.adapter.fetch_trace('abc'))
 
     def test_health_check(self):
@@ -188,9 +192,13 @@ class ZipkinAdapterTest(TestCase):
                           return_value=_mock_response(404)):
             self.assertIsNone(self.adapter.fetch_trace('abcd'))
 
-    def test_network_error_returns_empty(self):
+    def test_network_error_raises_and_single_fetch_returns_none(self):
+        # fetch_traces used to return [], which read as "no trace errors"
+        # (phase 3 review, MT-1).
+        from integrations.base import TraceQueryError
         with patch.object(self.adapter._session, 'get', side_effect=ConnectionError('boom')):
-            self.assertEqual(self.adapter.fetch_traces('svc', datetime.utcnow(), datetime.utcnow()), [])
+            with self.assertRaises(TraceQueryError):
+                self.adapter.fetch_traces('svc', datetime.utcnow(), datetime.utcnow())
             self.assertIsNone(self.adapter.fetch_trace('abc'))
 
 
@@ -270,13 +278,15 @@ class DatadogAdapterTest(TestCase):
         self.assertEqual(traces[0].status_code, 'ERROR')
         self.assertEqual(traces[0].error_span_count, 1)
 
-    def test_network_error_returns_empty(self):
+    def test_network_error_raises_and_single_fetch_returns_none(self):
+        from integrations.base import TraceQueryError
         with patch.object(self.adapter._session, 'post', side_effect=ConnectionError('boom')):
-            self.assertEqual(self.adapter.fetch_traces(
-                'svc',
-                datetime(2026, 9, 4, tzinfo=timezone.utc),
-                datetime(2026, 9, 4, 1, tzinfo=timezone.utc),
-            ), [])
+            with self.assertRaises(TraceQueryError):
+                self.adapter.fetch_traces(
+                    'svc',
+                    datetime(2026, 9, 4, tzinfo=timezone.utc),
+                    datetime(2026, 9, 4, 1, tzinfo=timezone.utc),
+                )
             self.assertIsNone(self.adapter.fetch_trace('abc'))
 
     def test_parent_zero_becomes_root(self):

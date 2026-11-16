@@ -141,12 +141,14 @@ class GcpQueryRangeTest(TestCase):
     def test_vm_mode_query_uses_vm_metric_and_filter(self):
         p = self._make_provider('vm')
         with self._install_monitoring_stub():
-            p.query_range('node_cpu_seconds_total', {'instance_id': 'i-1'},
+            p.query_range('node_cpu_seconds_total', {'organisation_name': 'Acme', 'project_name': 'shop'},
                           datetime.utcnow(), datetime.utcnow() + timedelta(minutes=5))
         p._client.list_time_series.assert_called_once()
         req = p._client.list_time_series.call_args.kwargs['request']
         self.assertIn('compute.googleapis.com/instance/cpu/utilization', req['filter'])
-        self.assertIn('metric.labels.instance_id="i-1"', req['filter'])
+        # No Compute Engine metric carries SerOps labels (review CL-2): they
+        # scope through the instances' user labels, after the query.
+        self.assertNotIn('metric.labels.', req['filter'])
 
     def test_k8s_mode_query_uses_gke_metric_and_resource_labels(self):
         p = self._make_provider('kubernetes')

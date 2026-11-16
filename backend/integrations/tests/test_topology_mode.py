@@ -355,7 +355,7 @@ class CloudWatchK8sModeTest(SimpleTestCase):
                      {'Name': 'ClusterName', 'Value': 'c'}, {'Name': 'Namespace', 'Value': 'shop'},
                      {'Name': 'Service', 'Value': 'api'}]}]}]}
         provider.client.get_paginator.return_value.paginate.side_effect = \
-            lambda Namespace, MetricName: pages[MetricName]
+            lambda Namespace, MetricName, **kw: pages[MetricName]
         read = {q['Id']: q for q in self._queries(provider, 'node_memory_MemFree_bytes')}
         self.assertEqual(read['m0']['MetricStat']['Metric']['MetricName'], 'pod_memory_utilization')
         self.assertEqual(read['r0']['Expression'], '100 - m0')

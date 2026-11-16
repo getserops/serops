@@ -53,6 +53,8 @@ repository**, choose the integration and the repository, then **Connect**.
 In the same service details, click **Add Pipeline**, choose the GitHub
 integration and the type (e.g. *Deploy*), and enter the repository as the
 pipeline ID: `owner/repo`. SerOps follows the workflow runs of that repository.
+An organisation-level webhook works too: events for other repositories are
+acknowledged and ignored, never filed under this service.
 
 ---
 

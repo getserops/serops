@@ -34,7 +34,7 @@ import requests
 from Utils.outbound import GuardedSession
 from requests.exceptions import RequestException
 
-from integrations.base import TraceProvider, TraceProviderCapabilities
+from integrations.base import TraceProvider, TraceProviderCapabilities, TraceQueryError, describe_request_error
 from traces.schemas import SpanEntry, TraceEntry
 
 logger = logging.getLogger(__name__)
@@ -127,7 +127,9 @@ class JaegerTraceAdapter(TraceProvider):
             resp.raise_for_status()
         except RequestException as exc:
             logger.warning('Jaeger fetch_traces failed: %s', exc)
-            return []
+            # Raised, not []: "no traces" reads as "no trace errors" (phase 3
+            # review, MT-1).
+            raise TraceQueryError(f'Jaeger refused the trace query: {describe_request_error(exc)}') from exc
 
         payload = resp.json() or {}
         return [self._parse_trace(t) for t in (payload.get('data') or [])]

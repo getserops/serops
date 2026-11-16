@@ -703,6 +703,7 @@ def _build_user_content(context):
     if traces_summary:
         from .trace_context import format_trace_context_for_prompt
         traces_section = format_trace_context_for_prompt(traces_summary)
+    source_status = _source_status(batch_data, traces_summary)
 
     # ─── Capability gating (single point of truth) ────────────────
     # Sections for sources we cannot see are wiped entirely — the AI must
@@ -725,6 +726,9 @@ def _build_user_content(context):
             'traces': bool(traces_section.strip()),
         }
         caps_set = frozenset(enabled_capabilities) | {k for k, v in present.items() if v}
+        # A source the store refused this window is not available, whatever
+        # the org has configured (phase 3 review, MT-1).
+        caps_set = caps_set - {k for k, v in source_status.items() if v.get('status') == 'unavailable'}
         if 'logs' not in caps_set:
             log_section = ''
         if 'metrics' not in caps_set:
@@ -744,6 +748,7 @@ def _build_user_content(context):
         )
     else:
         capability_note = ''
+    capability_note += format_source_status(source_status)
 
     # Fence every section that carries text from the monitored systems or
     # their users. Done here, after the capability gating above, so the
@@ -772,6 +777,39 @@ Available Data Sources:
 {cicd_section}
 {traces_section}{correlation_section}
 {(past_memories + chr(10)) if past_memories else ""}{sentinel_section}{operator_section}{alert_section}"""
+
+
+_SOURCE_STATUS_WORDS = {'unavailable': 'UNAVAILABLE', 'partial': 'PARTIAL', 'truncated': 'TRUNCATED'}
+
+
+def _source_status(batch_data, traces_summary):
+    """Per-source status for this window: the batch's data_sources, plus
+    the external trace fetch (recorded on the trace summary)."""
+    status = {}
+    for key, value in ((batch_data or {}).get('data_sources') or {}).items():
+        if isinstance(value, dict) and value.get('status') in _SOURCE_STATUS_WORDS:
+            status[key] = value
+    if isinstance(traces_summary, dict):
+        if traces_summary.get('unavailable'):
+            status['traces'] = {'status': 'unavailable', 'detail': traces_summary['unavailable']}
+        elif traces_summary.get('partial'):
+            status['traces'] = {'status': 'partial', 'detail': traces_summary['partial']}
+    return status
+
+
+def format_source_status(status) -> str:
+    """One block naming the sources that are missing or incomplete in this
+    window, or '' when every source answered. Absence of evidence from such a
+    source is not evidence that nothing failed (phase 3 review, LG1 / MT-1)."""
+    if not status:
+        return ''
+    lines = ["\nData source status for this window (a source listed here was missing or incomplete; "
+             "do not read the absence of its evidence as a sign that nothing failed):"]
+    for key in sorted(status):
+        entry = status[key]
+        detail = neutralise_fence(str(entry.get('detail') or ''))[:300]
+        lines.append(f"- {key}: {_SOURCE_STATUS_WORDS[entry['status']]}" + (f" ({detail})" if detail else ''))
+    return '\n'.join(lines) + '\n'
 
 
 def get_chat_prompt(message, context, max_context_length=10, past_memories=None):

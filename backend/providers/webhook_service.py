@@ -204,6 +204,15 @@ class WebhookService:
         try:
             provider = binding.get_provider()
             
+            from providers.payload_identity import matches, repository_identifiers
+            if not matches(binding.repository_id, repository_identifiers(payload)):
+                # Signed by this binding's secret, but about another
+                # repository (an organisation or workspace hook): its
+                # commits would have been saved as this repository's.
+                logger.info("SCM webhook for another repository than binding %s: ignored", binding.pk)
+                return {'success': True, 'ignored': True,
+                        'message': "Event is not for this binding's repository: ignored"}
+
             if event_type == 'push':
                 # Parse commits
                 commits = provider.parse_webhook_payload(payload)
@@ -222,6 +231,8 @@ class WebhookService:
                     organisation=binding.project_service.project.organisation,
                 )
                 
+                CodeChangeService.queue_binding_diffs(binding, saved_changes)
+
                 # Update binding sync status
                 binding.last_sync_at = timezone.now()
                 binding.save(update_fields=['last_sync_at'])

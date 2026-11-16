@@ -232,9 +232,12 @@ class TraceContextExternalFallbackTest(TestCase):
             return_value=fake_provider,
         ):
             batch = _fake_batch(self.project, datetime.utcnow())
-            # Should NOT raise, should not return partial data.
+            # Should NOT raise. It used to return None, the same as "no
+            # traces", so the prompt could not tell a dead trace store from
+            # a quiet one (phase 3 review, MT-1).
             summary = build_trace_context(batch)
-        self.assertIsNone(summary)
+        self.assertEqual(summary['span_count'], 0)
+        self.assertEqual(summary['unavailable'], 'RuntimeError')
 
     def test_no_provider_configured_returns_none(self):
         with patch(

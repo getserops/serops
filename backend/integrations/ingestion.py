@@ -528,6 +528,17 @@ def get_scheduled_window_start(project, environment=None, deployment=None):
     """
     from Data.models import AIAnalyzedBatch
     query = _real_org_batches().filter(project=project, trigger=AIAnalyzedBatch.TRIGGER_SCHEDULED)
+    # A batch made while the log store refused the query (from metrics or
+    # traces alone) must not move the window: those logs would never be read
+    # once the store recovered (phase 3 review, LG1). The window is still
+    # capped by the caller (MAX_LOG_WINDOW_MINUTES).
+    # Coalesce, not a bare exclude(): batches written before data_sources
+    # existed have no such key, and NOT (NULL = ...) would drop them too.
+    from django.db.models import TextField, Value
+    from django.db.models.fields.json import KT
+    from django.db.models.functions import Coalesce
+    query = (query.annotate(_log_source=Coalesce(KT('data__data_sources__logs__status'), Value(''), output_field=TextField()))
+             .exclude(_log_source='unavailable'))
     if deployment is not None:
         query = query.filter(deployment=deployment)
     elif environment is not None:

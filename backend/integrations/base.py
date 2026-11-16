@@ -21,6 +21,43 @@ class LogSearchError(RuntimeError):
     "there were no errors"."""
 
 
+class MetricQueryError(RuntimeError):
+    """The metrics store refused or failed a query (connection, auth, 5xx,
+    timeout, ``status: error``). An empty list means "the query worked and
+    matched no series"; this means "we could not look"."""
+
+
+class TraceQueryError(RuntimeError):
+    """The trace store refused or failed a fetch. Same contract as
+    :class:`MetricQueryError`."""
+
+
+def describe_request_error(exc) -> str:
+    """A short, secret-free reason for a failed HTTP call: the status code
+    and what it usually means, or the exception class (ConnectTimeout,
+    ConnectionError ...). Never the exception text, which can carry URLs,
+    headers or another server's answer."""
+    response = getattr(exc, 'response', None)
+    code = getattr(response, 'status_code', None)
+    if code:
+        meaning = {401: 'authentication refused', 403: 'permission refused',
+                   404: 'not found', 429: 'rate limited'}.get(code)
+        if meaning is None and code >= 500:
+            meaning = 'server error'
+        return f'HTTP {code}' + (f' ({meaning})' if meaning else '')
+    return type(exc).__name__
+
+
+def note_partial(provider, text: str) -> None:
+    """Record that the last search or query returned an incomplete answer
+    (shard failures, partial-response warnings, a page that failed). The
+    batch reads ``provider.last_search_notes`` after the call; callers reset
+    it to ``[]`` before."""
+    notes = provider.__dict__.setdefault('last_search_notes', [])
+    if text not in notes:
+        notes.append(text)
+
+
 # --- Capability Flags ---
 
 @dataclass

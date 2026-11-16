@@ -15,7 +15,7 @@ import requests
 from Utils.outbound import GuardedSession
 from requests.exceptions import RequestException
 
-from integrations.base import LogProvider, LogProviderCapabilities
+from integrations.base import LogProvider, LogProviderCapabilities, LogSearchError, describe_request_error
 from integrations.schemas import (
     EMPTY_LOGQL_SELECTOR,
     LogEntry,
@@ -25,7 +25,7 @@ from integrations.schemas import (
     _detect_level,
     _detect_level_from_line,
 )
-from integrations.schemas import level_from_value, level_of
+from integrations.schemas import level_from_value, level_of, _logql_escape
 from integrations.field_aliases import (
     LOG_LEVEL_ALIASES, SERVICE_NAME_ALIASES, first_present, first_present_with_key,
 )
@@ -236,7 +236,9 @@ class LokiLogProvider(LogProvider):
                 logger.warning(
                     "Loki query non-success: %s", data.get("error", "unknown")
                 )
-                return []
+                # Raised, not []: an empty list reads downstream as "no
+                # errors in the window" (phase 3 review, LG1).
+                raise LogSearchError(f'Loki answered status={data.get("status")!r}')
 
             return self._parse_streams(data["data"]["result"], index)
 
@@ -245,7 +247,7 @@ class LokiLogProvider(LogProvider):
             # debug logging — a rejected selector is the most common cause.
             self.last_error = f'Loki query failed ({logql}): {exc}'
             logger.error("Loki search failed: %s", exc)
-            return []
+            raise LogSearchError(f'Loki refused the query: {describe_request_error(exc)}') from exc
 
     # Queries select streams by label: a search needs no index or stream
     # list, so Check my data can sample a project's logs before they carry
@@ -377,8 +379,11 @@ class LokiLogProvider(LogProvider):
         # Build stream selector
         labels = {"app": index}
         labels.update(query.get("stream_labels", {}))
+        for k in labels:
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(k)):
+                raise ValueError(f"invalid Loki label name: {k!r}")
         selector = "{" + ",".join(
-            f'{k}="{v}"' for k, v in labels.items() if v
+            f'{k}="{_logql_escape(v)}"' for k, v in labels.items() if v
         ) + "}"
 
         # Line filters
@@ -386,9 +391,7 @@ class LokiLogProvider(LogProvider):
         match_phrase = query.get("match_phrase", {})
         text = match_phrase.get("message", "")
         if text:
-            # Escape double quotes in search text
-            escaped = text.replace('"', '\\"')
-            filters = f' |= "{escaped}"'
+            filters = f' |= "{_logql_escape(text)}"'
 
         return selector + filters
 

@@ -7,6 +7,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import permission_classes
 from django.http import Http404
+from django.utils import timezone
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .models import Project, ProjectService
@@ -739,14 +740,14 @@ class SCMBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
             provider = binding.get_provider()
 
             # Determine start cursor: use last_sync_at if available, else 7 days
-            since = binding.last_sync_at or (datetime.now() - timedelta(days=7))
+            since = binding.last_sync_at or (timezone.now() - timedelta(days=7))
             limit = 100
 
             commits = provider.get_commits(since=since, limit=limit)
 
             # Save fetched commits
             if commits:
-                CodeChangeService.save_commits_from_webhook(
+                saved = CodeChangeService.save_commits_from_webhook(
                     provider=binding.provider_type,
                     project_id=binding.repository_id,
                     commits=commits,
@@ -754,9 +755,10 @@ class SCMBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
                     organisation=binding.project_service.project.organisation,
                     default_branch=binding.default_branch or 'main',
                 )
+                CodeChangeService.queue_binding_diffs(binding, saved)
 
             # Update sync status
-            binding.last_sync_at = datetime.now()
+            binding.last_sync_at = timezone.now()
             binding.sync_error = ''
             binding.save()
 
@@ -1014,7 +1016,7 @@ class CICDBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
             # --- Jenkins ---
             if provider_type in CICD_PROVIDERS:
                 builds = provider.list_projects(search=binding.pipeline_id)
-                binding.last_sync_at = datetime.now()
+                binding.last_sync_at = timezone.now()
                 binding.sync_error = ''
                 binding.save()
                 return Response({
@@ -1032,8 +1034,8 @@ class CICDBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
                 if not project_id:
                     return Response({'success': False, 'error': 'No project ID configured'}, status=400)
 
-                base_url = binding.integration.get_decrypted_base_url()
-                headers = {'PRIVATE-TOKEN': binding.integration.get_decrypted_token()}
+                base_url = (binding.integration.base_url or 'https://gitlab.com').rstrip('/')
+                headers = {'PRIVATE-TOKEN': binding.integration.get_access_token()}
                 resp = guarded_request('GET', 
                     f'{base_url}/api/v4/projects/{project_id}/pipelines',
                     headers=headers,
@@ -1043,7 +1045,7 @@ class CICDBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
                 resp.raise_for_status()
                 pipelines = resp.json()
 
-                binding.last_sync_at = datetime.now()
+                binding.last_sync_at = timezone.now()
                 binding.sync_error = ''
                 binding.save()
                 return Response({
@@ -1075,10 +1077,11 @@ class CICDBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
                 # The form's https://github.com and a numeric repository id
                 # both need the provider's mapping (api.github.com,
                 # /repositories/<id>).
-                github = GitHubProvider(str(repo), binding.integration.get_decrypted_token(),
-                                        binding.integration.get_decrypted_base_url())
+                token = binding.integration.get_access_token()
+                github = GitHubProvider(str(repo), token,
+                                        binding.integration.base_url or 'https://api.github.com')
                 headers = {
-                    'Authorization': f'Bearer {binding.integration.get_decrypted_token()}',
+                    'Authorization': f'Bearer {token}',
                     'Accept': 'application/vnd.github+json',
                 }
                 resp = guarded_request('GET', 
@@ -1091,7 +1094,7 @@ class CICDBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
                 data = resp.json()
                 runs = data.get('workflow_runs', [])
 
-                binding.last_sync_at = datetime.now()
+                binding.last_sync_at = timezone.now()
                 binding.sync_error = ''
                 binding.save()
                 return Response({

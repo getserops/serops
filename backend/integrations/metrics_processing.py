@@ -15,6 +15,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
 
+from integrations.base import MetricQueryError, note_partial
+
 # NOTE: deliberately NOT django.utils.timezone. This module only ever wanted
 # `timezone.utc`, and Django removed that alias in 5.0 — every reference to it
 # raised AttributeError inside a broad `except`, so the sustained-anomaly
@@ -108,16 +110,33 @@ def fetch_metrics_with_provider(start_time, end_time, project_obj=None, project_
                 })
         return results
 
+    # Which queries the store refused. Each query is caught on its own: one
+    # unmapped metric (Azure VM memory) must not cost the CPU series that
+    # work, and a store that refuses everything must not read as "no
+    # anomalies" (phase 3 review, MT-1 / CL-11). The outcome goes back to the
+    # caller as metrics['_source_status'].
+    failures = []
+    attempts = [0]
+    provider.last_search_notes = []
+
+    def guarded(call, *args):
+        attempts[0] += 1
+        try:
+            return call(*args) or []
+        except MetricQueryError as exc:
+            failures.append(str(exc))
+            return []
+
     try:
         logger.info(f"Fetching metrics via {provider.__class__.__name__} for labels {labels}")
         
-        ts = provider.query_range('node_memory_MemTotal_bytes', labels, start_time, end_time)
+        ts = guarded(provider.query_range, 'node_memory_MemTotal_bytes', labels, start_time, end_time)
         metrics['memory_total'] = _map_timeseries(ts, 'node_memory_MemTotal_bytes')
         
-        ts = provider.query_range('node_memory_MemFree_bytes', labels, start_time, end_time)
+        ts = guarded(provider.query_range, 'node_memory_MemFree_bytes', labels, start_time, end_time)
         metrics['memory_free'] = _map_timeseries(ts, 'node_memory_MemFree_bytes')
         
-        ts = provider.query_range('node_memory_MemAvailable_bytes', labels, start_time, end_time)
+        ts = guarded(provider.query_range, 'node_memory_MemAvailable_bytes', labels, start_time, end_time)
         metrics['memory_available'] = _map_timeseries(ts, 'node_memory_MemAvailable_bytes')
         
         # CPU: use PromQL rate() expression when provider supports it.
@@ -136,7 +155,7 @@ def fetch_metrics_with_provider(start_time, end_time, project_obj=None, project_
             # rate(container_cpu_usage_seconds_total)). That yields cores/sec,
             # so scale by 100 to reach the percent semantics the rest of the
             # pipeline and the prompt assume — "% of one core" per service.
-            ts = provider.query_range('node_cpu_seconds_total', labels, start_time, end_time)
+            ts = guarded(provider.query_range, 'node_cpu_seconds_total', labels, start_time, end_time)
             cpu_points = _map_timeseries(ts, 'cpu_usage_percent')
             for point in cpu_points:
                 try:
@@ -149,16 +168,17 @@ def fetch_metrics_with_provider(start_time, end_time, project_obj=None, project_
             # already a rate. Running it would differentiate twice.
             metrics['cpu_usage_percent'] = cpu_points
         elif hasattr(provider, 'query_range_expr'):
-            label_parts = ','.join(f'{k}="{v}"' for k, v in labels.items() if v)
+            from integrations.promql import promql_matchers
+            label_parts = promql_matchers(labels)
             idle_selector = f'mode="idle",{label_parts}' if label_parts else 'mode="idle"'
             cpu_expr = f'100 - (avg(rate(node_cpu_seconds_total{{{idle_selector}}}[5m])) * 100)'
             logger.info(f"Fetching CPU usage via PromQL: {cpu_expr}")
-            ts = provider.query_range_expr(cpu_expr, start_time, end_time)
+            ts = guarded(provider.query_range_expr, cpu_expr, start_time, end_time)
             metrics['cpu'] = _map_timeseries(ts, 'cpu_usage_percent')
             # Pre-computed percentage — store directly so tasks.py skips calculate_cpu_usage
             metrics['cpu_usage_percent'] = metrics['cpu']
         else:
-            ts = provider.query_range('node_cpu_seconds_total', labels, start_time, end_time)
+            ts = guarded(provider.query_range, 'node_cpu_seconds_total', labels, start_time, end_time)
             metrics['cpu'] = _map_timeseries(ts, 'node_cpu_seconds_total')
             # CloudWatch and Datadog hand back a CPU percentage, not a
             # seconds counter: calculate_cpu_usage would differentiate it.
@@ -175,8 +195,12 @@ def fetch_metrics_with_provider(start_time, end_time, project_obj=None, project_
         # failed exactly that way while every other signal-based scenario
         # passed.
         if getattr(provider, 'topology_mode', 'vm') == 'kubernetes':
+            k8s_failures = []
             metrics['container_lifecycle'] = _fetch_container_lifecycle(
-                provider, labels, start_time, end_time)
+                provider, labels, start_time, end_time, failures=k8s_failures)
+            if k8s_failures:
+                note_partial(provider, f'{len(k8s_failures)} Kubernetes state queries failed '
+                                       '(restarts, rollouts or replica counts may be missing)')
 
             # Peak single-pod utilisation per service.
             #
@@ -191,8 +215,26 @@ def fetch_metrics_with_provider(start_time, end_time, project_obj=None, project_
         metrics = {
             'memory_total': [], 'memory_free': [], 'memory_available': [], 'cpu': []
         }
-        
+        failures.append(f'the metrics fetch failed ({type(e).__name__})')
+        attempts[0] = max(attempts[0], len(failures))
+
+    metrics['_source_status'] = metric_source_status(
+        failures, attempts[0], getattr(provider, 'last_search_notes', None))
     return metrics
+
+
+def metric_source_status(failures, attempts, notes=None):
+    """``{'status': 'ok' | 'unavailable' | 'partial', 'detail': str}`` for
+    the batch's data_sources entry. Unavailable: every query was refused."""
+    notes = [n for n in (notes or []) if n]
+    if failures and len(failures) >= attempts:
+        return {'status': 'unavailable', 'detail': failures[0]}
+    if failures:
+        return {'status': 'partial',
+                'detail': f'{len(failures)} of {attempts} metric queries failed: {failures[0]}'}
+    if notes:
+        return {'status': 'partial', 'detail': '; '.join(notes)}
+    return {'status': 'ok', 'detail': ''}
 
 
 def _coerce_datetime(value):
@@ -250,7 +292,8 @@ def _fetch_peak_pod_metrics(provider, labels, start_time, end_time):
     if not hasattr(provider, 'query_range_expr'):
         return out
 
-    label_str = ','.join(f'{k}="{v}"' for k, v in (labels or {}).items() if v)
+    from integrations.promql import promql_matchers
+    label_str = promql_matchers(labels)
     from integrations.adapters.prometheus import ROOT_CGROUP_MATCHER
     selectors = ','.join(s for s in (label_str, ROOT_CGROUP_MATCHER) if s)
 
@@ -279,13 +322,14 @@ def _fetch_peak_pod_metrics(provider, labels, start_time, end_time):
     return out
 
 
-def _fetch_container_lifecycle(provider, labels, start_time, end_time):
+def _fetch_container_lifecycle(provider, labels, start_time, end_time, failures=None):
     """What Kubernetes did around the batch: restarts and their reason,
     containers that cannot start, rollouts, scale changes, missing replicas.
-    See integrations.kubernetes_state. Never raises."""
+    See integrations.kubernetes_state. Never raises; failed queries are
+    appended to ``failures``."""
     from integrations.kubernetes_state import fetch_kubernetes_state
     try:
-        return fetch_kubernetes_state(provider, labels, start_time, end_time)
+        return fetch_kubernetes_state(provider, labels, start_time, end_time, failures=failures)
     except Exception as exc:                           # noqa: BLE001
         logger.warning('kubernetes state fetch failed: %s', exc)
         return {'terminated': [], 'restarts': {}}

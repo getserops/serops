@@ -14,7 +14,7 @@ from django.utils import timezone
 
 from ai_model.tasks import _deployed_code_changes
 from Organisations.models import Organisations
-from Projects.models import Project
+from Projects.models import Project, ProjectService
 from providers.code_change_service import CodeChangeService
 from providers.deployment_service import DeploymentService
 from providers.models import CodeChange, Deployment, GitlabProject, Pipeline
@@ -30,6 +30,9 @@ class DeployedCodeChangesTests(TestCase):
             access_token='t', organisation=self.org)
         self.pipeline = Pipeline.objects.create(
             organisation=self.org, project=repo, pipeline_id='p1', status='success', branch='main')
+        # The repository belongs to the project through one of its services
+        # (SC-03: deploys are no longer found organisation-wide).
+        ProjectService.objects.create(project=self.project, name='shop', gitlab_project=repo)
 
     def _commit(self, sha, hours_ago):
         return CodeChange.objects.create(

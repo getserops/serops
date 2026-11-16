@@ -164,14 +164,25 @@ class TestElasticsearchLogProvider(SimpleTestCase):
         result = self.provider.search("missing-index", {"query": {"match_all": {}}})
         self.assertEqual(result, [])
 
-    def test_search_bad_request_returns_empty(self):
-        """RequestError (bad query) should return empty list."""
+    def test_search_bad_request_raises(self):
+        """A rejected query (mapping conflict, bad query_string) is a failed
+        search, not "no logs". It used to return [] (phase 3 review, LG1)."""
+        from integrations.base import LogSearchError
         self.mock_client.search.side_effect = es_exceptions.RequestError(
             'parsing_exception', MagicMock(), 'bad_request'
         )
 
-        result = self.provider.search("test-index", {"query": {"bad": "query"}})
-        self.assertEqual(result, [])
+        with self.assertRaises(LogSearchError):
+            self.provider.search("test-index", {"query": {"bad": "query"}})
+
+    def test_shard_failures_are_noted_as_partial(self):
+        self.mock_client.search.return_value = {
+            '_shards': {'total': 5, 'successful': 3, 'failed': 2},
+            'hits': {'hits': []},
+        }
+        self.provider.last_search_notes = []
+        self.provider.search("test-index", {"query": {"match_all": {}}})
+        self.assertTrue(any('2 of 5 shards failed' in n for n in self.provider.last_search_notes))
 
     @patch('integrations.adapters.elasticsearch.Elasticsearch')
     def test_verify_certs_configurable(self, mock_es_class):

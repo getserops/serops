@@ -50,6 +50,11 @@ class JenkinsWebhookHandler(BaseCICDWebhookHandler):
     
     provider_name = 'jenkins'
     
+    def payload_matches_binding(self, payload, binding) -> bool:
+        """The binding's pipeline ID is the job path (``folder/job``)."""
+        from providers.payload_identity import jenkins_job_matches
+        return jenkins_job_matches(binding.pipeline_id, payload)
+
     def validate_request(self, request, binding=None) -> bool:
         """
         Validate Jenkins webhook request.

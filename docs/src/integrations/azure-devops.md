@@ -106,6 +106,11 @@ SerOps auto-generates a webhook secret when you create a CI/CD binding. To get t
 
 ---
 
+Service hook events are matched to the binding's pipeline ID: the pipeline
+or release definition (id or name), the Azure DevOps project, or a
+repository the run built. Events for anything else are acknowledged and
+ignored.
+
 ## Azure DevOps Server (On-Premises)
 
 For Azure DevOps Server (formerly TFS):

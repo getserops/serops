@@ -146,6 +146,12 @@ class BaseCICDWebhookHandler(APIView, ABC):
             )
             return None
 
+    def payload_matches_binding(self, payload, binding) -> bool:
+        """Whether the payload is about the binding's repository or job.
+        Providers whose payload names one override this (see
+        ``providers.payload_identity``)."""
+        return True
+
     def post(self, request, **kwargs):
         """
         Main webhook handler - common for all providers.
@@ -192,6 +198,19 @@ class BaseCICDWebhookHandler(APIView, ABC):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
+            # The signature proves the request is this binding's webhook, not
+            # that the repository or job in the body is the binding's: an
+            # organisation-level hook sends every repository's events.
+            if not self.payload_matches_binding(payload, binding):
+                logger.info(
+                    "[%s] Event for another repository or job than binding %s: ignored",
+                    self.provider_name, binding.pk,
+                )
+                return Response({
+                    'message': f"{self.provider_name} event is not for this binding's repository or job: ignored",
+                    'ignored': True,
+                })
+
             # 3. Normalize to standard format
             try:
                 normalized = self.parse_pipeline_event(payload)

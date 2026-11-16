@@ -43,6 +43,8 @@ Once configured, you can link Jenkins to services via the **Add Service Wizard**
 4. Enter the **Pipeline Job Path**: `folder/job-name`
    - For folders: `my-folder/my-job`
    - For multibranch: `my-folder/my-job/branch-name`
+   - Notifications for any other job are acknowledged and ignored, so one
+     notifier for many jobs cannot file their builds under this service.
 
 ---
 

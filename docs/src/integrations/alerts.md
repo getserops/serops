@@ -27,6 +27,24 @@ Only a firing alert starts an analysis. A resolved one (Alertmanager and
 Grafana send them by default, Datadog's **Recovered**, Sentry's resolved
 issue) is recorded and starts none: the system has already recovered.
 
+**The window.** The analysis looks from 20 minutes before the alert
+*started* (Alertmanager and Grafana `startsAt`, Datadog's trigger time,
+Sentry's event time) to just after SerOps received it, so the deploy and
+the first errors before a rule's `for:` are inside it. An alert that started
+more than two hours earlier is looked at over its last two hours. A repeat
+of a still-firing alert (Alertmanager's `repeat_interval`) is linked to the
+first analysis and starts no new one.
+
+**Which project.** SerOps looks for a service named by the alert's labels,
+in this order: `service`, `service_name`, `app_kubernetes_io_name`, `app`,
+`container`, `deployment`, `k8s_deployment_name`, `statefulset`,
+`daemonset`, `job`; with the alert's `environment` (or `env`) when several
+projects have that service. Then a `namespace` label that is a project's
+name. An organisation with a single project uses it. An alert that matches
+nothing is **not analysed**: it is listed under **Alerts & routing →
+Delivery Channels** with the labels tried, so you can add the label or the
+service.
+
 ## 1. Get a webhook secret
 
 Inbound alerts authenticate with a bearer token. There are two ways to
@@ -121,8 +139,8 @@ route:
   (it starts no analysis).
 
 Then route your alerts to that contact point (*Notification policies*) and
-give the alert rule the labels SerOps routes by: `service` (or `job`) and
-`environment`. Grafana emits the Alertmanager v4 payload, so it lands through
+give the alert rule the labels SerOps routes by: `service` (or one of the
+Kubernetes labels listed [above](#real-time-alerts)) and `environment`. Grafana emits the Alertmanager v4 payload, so it lands through
 the same parser. Tested with Grafana 11.3: a rule on Prometheus fired, SerOps
 emailed on-call the root cause, and the resolution was recorded.
 

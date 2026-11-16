@@ -29,7 +29,7 @@ OpenSearch is an open-source search and analytics engine, fully compatible with 
   "username": "admin",
   "password": "password",
   "extra_config": {
-    "verify_certs": false
+    "verify_certs": true
   }
 }
 ```
@@ -74,7 +74,7 @@ OpenSearch uses HTTP basic authentication. Provide `username` and `password` at 
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `verify_certs` | bool | Whether to verify SSL certificates when connecting. Defaults to `false`. |
+| `verify_certs` | bool | Whether to verify the TLS certificate when connecting. Defaults to `true` (it was `false` up to 1.4.0); set `false` only for a self-signed certificate you trust. |
 | `index_pattern` | string | Indices to search, comma-separated (e.g. `logs-*`). Same rules as [Elasticsearch](elasticsearch.md#where-serops-looks-for-logs) |
 
 

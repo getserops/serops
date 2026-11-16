@@ -280,11 +280,14 @@ class TestSplunkSearchFlow(SimpleTestCase):
         # _index gets stamped so downstream can route
         self.assertEqual(e.labels["_index"], "main")
 
-    def test_start_job_failure_returns_empty(self):
+    def test_start_job_failure_raises(self):
+        # Was: returned [], which the batch read as "no errors" (phase 3 review, LG1).
+        from integrations.base import LogSearchError
         r = MagicMock(status_code=401, text="Unauthorized")
         self.session.post.return_value = r
-        result = self.provider.search(index="main", query=LogQuery())
-        self.assertEqual(result, [])
+        with self.assertRaises(LogSearchError) as raised:
+            self.provider.search(index="main", query=LogQuery())
+        self.assertIn("HTTP 401", str(raised.exception))
         # We must NOT call poll or results if start failed
         self.session.get.assert_not_called()
 
@@ -295,8 +298,10 @@ class TestSplunkSearchFlow(SimpleTestCase):
             "entry": [{"content": {"dispatchState": "FAILED", "messages": []}}]
         }
         self.session.get.return_value = failed_poll
-        result = self.provider.search(index="main", query=LogQuery())
-        self.assertEqual(result, [])
+        from integrations.base import LogSearchError
+        with self.assertRaises(LogSearchError) as raised:
+            self.provider.search(index="main", query=LogQuery())
+        self.assertIn("FAILED", str(raised.exception))
 
     def test_dict_query_uses_raw_spl(self):
         self._mock_start_ok()

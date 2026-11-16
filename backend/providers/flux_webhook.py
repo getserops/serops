@@ -135,9 +135,10 @@ class FluxDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
         # some templates enrich with custom keys.
         explicit = str(metadata.get('serops.io/environment') or '').strip().lower()
         if explicit:
-            mapped = _map_env_alias(explicit)
-            if mapped:
-                return mapped
+            # Kept as named when the alias map does not know it (SC-08): an
+            # explicit environment is not overridden by the namespace.
+            from .deployment_service import canonical_environment
+            return _map_env_alias(explicit) or canonical_environment(explicit)
         ns = str(involved.get('namespace') or '').strip().lower()
         if ns:
             mapped = _map_env_alias(ns)

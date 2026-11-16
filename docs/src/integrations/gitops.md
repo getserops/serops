@@ -132,8 +132,8 @@ metadata:
   OutOfSync / Failed / Progressing events are ignored — keeps the
   Recent Deployments panel honest.
 - `commit_sha` from `app.status.sync.revision`.
-- `environment` — annotation `serops.io/environment` wins;
-  falls back to namespace name if it maps to a known environment
+- `environment` — annotation `serops.io/environment` wins, with any
+  environment name the project uses (`qa`, `uat`); falls back to namespace name if it maps to a known environment
   (`production`, `staging`, `development`, `preview`, `demo` — or
   aliases like `prod`, `stg`, `dev`); otherwise defaults to
   `production`.

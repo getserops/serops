@@ -68,7 +68,7 @@ logger = logging.getLogger(__name__)
 
 # Input-validation constants
 _COMMIT_SHA_RE = re.compile(r'^[a-fA-F0-9]{7,64}$')
-_VALID_ENVS = {'production', 'staging', 'development', 'preview', 'demo'}
+_ENV_NAME_RE = re.compile(r'^[a-z0-9][a-z0-9._-]{0,49}$')
 _NOTES_MAX_LEN = 500
 _ACTOR_MAX_LEN = 60
 _VERSION_MAX_LEN = 100
@@ -118,7 +118,8 @@ class GenericDeploymentWebhookHandler(APIView):
         from .models import Deployment
         org = getattr(getattr(binding.project_service, 'project', None), 'organisation', None)
         latest = (Deployment.objects
-                  .filter(environment=payload['environment'], code_change__organisation=org)
+                  .filter(environment=payload['environment'], code_change__organisation=org,
+                          project_service=binding.project_service)
                   .select_related('code_change').order_by('-deployed_at', '-pk').first())
         if latest is not None and latest.code_change_id == code_change.pk:
             return Response({
@@ -233,18 +234,14 @@ class GenericDeploymentWebhookHandler(APIView):
         environment = str(raw.get('environment', '')).strip().lower()
         if not environment:
             raise _PayloadError('environment is required')
-        if environment not in _VALID_ENVS:
-            # Accept aliases (prod → production, stage → staging, dev → development).
-            aliases = {
-                'prod': 'production', 'prd': 'production',
-                'stage': 'staging', 'stg': 'staging', 'preprod': 'staging',
-                'dev': 'development', 'develop': 'development',
-            }
-            environment = aliases.get(environment)
-            if not environment:
-                raise _PayloadError(
-                    f'environment must be one of {sorted(_VALID_ENVS)} (aliases: prod/dev/stage/...)'
-                )
+        # Any environment name the project uses (qa, uat, preview, eu-prod);
+        # prod / stage / dev spellings become production / staging /
+        # development. Accepting preview and demo here and then refusing them
+        # when recording was a 500 (phase 3 review SC-08).
+        if not _ENV_NAME_RE.match(environment):
+            raise _PayloadError('environment must be 1-50 letters, digits, ".", "_" or "-"')
+        from .deployment_service import canonical_environment
+        environment = canonical_environment(environment)
 
         # Optional fields — parse + clamp
         deployed_at_raw = raw.get('deployed_at')

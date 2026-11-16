@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 from integrations.adapters.azure_logs import _azure_error, _build_credential, _build_logs_client
-from integrations.base import MetricProvider, MetricProviderCapabilities
+from integrations.base import MetricProvider, MetricProviderCapabilities, MetricQueryError, note_partial
 from integrations.schemas import _kql_datetime, _kql_escape
 from integrations.schemas import HostInfo, TimeSeries, TimeSeriesPoint
 
@@ -248,7 +248,8 @@ class AzureMonitorProvider(MetricProvider):
             response = self._client.query_resource(**kwargs)
         except Exception as exc:
             logger.error("Azure Monitor query_resource failed: %s", exc)
-            return []
+            # Raised, not []: an empty list reads as "no series, nothing abnormal" (phase 3 review, CL-11).
+            raise MetricQueryError(f"Azure Monitor refused the metrics query ({type(exc).__name__})") from exc
 
         return self._parse_metrics(response, metric)
 
@@ -284,9 +285,12 @@ Perf
             response = self._logs.query_workspace(workspace_id=self._workspace_id, query=kql, timespan=(start, end))
         except Exception as exc:
             logger.error("Azure Container Insights metrics query failed: %s", exc)
-            return []
+            # Raised, not []: an empty list reads as "no series, nothing abnormal" (phase 3 review, CL-11).
+            raise MetricQueryError(f"Azure Log Analytics refused the metrics query ({type(exc).__name__})") from exc
+        if getattr(response, "partial_error", None) is not None:
+            note_partial(self, "Azure Log Analytics returned a partial result for the metrics query")
         by_service: dict = {}
-        for table in getattr(response, "tables", None) or []:
+        for table in getattr(response, "tables", None) or getattr(response, "partial_data", None) or []:
             for ts, service, value in getattr(table, "rows", []) or []:
                 if service and value is not None:
                     by_service.setdefault(service, []).append(TimeSeriesPoint(timestamp=ts, value=float(value)))
@@ -314,7 +318,8 @@ Perf
                     aggregations=[MetricAggregationType.AVERAGE])
             except Exception as exc:
                 logger.error("Azure Monitor query_resource %s failed: %s", name, exc)
-                return {}
+                # Raised, not []: an empty list reads as "no series, nothing abnormal" (phase 3 review, CL-11).
+                raise MetricQueryError(f"Azure Monitor refused the metrics query ({type(exc).__name__})") from exc
             out: dict = {}
             for metric_result in getattr(response, "metrics", []) or []:
                 for series in getattr(metric_result, "timeseries", []) or []:
@@ -425,14 +430,14 @@ Perf
                     # AVERAGE aggregation is the value we asked for
                     value = getattr(point, "average", None)
                     if value is None:
-                        # Fall back to total / count if avg missing
-                        value = getattr(point, "total", None) or getattr(point, "count", 0.0)
-                    points.append(
-                        TimeSeriesPoint(
-                            timestamp=ts,
-                            value=float(value) if value is not None else 0.0,
-                        )
-                    )
+                        value = getattr(point, "total", None)
+                    if value is None:
+                        # Azure returns a point with no aggregate for every
+                        # grain without data, the trailing one still in
+                        # progress included. It used to read as 0: a steady
+                        # 95 % CPU ended in a drop to 0 % (review CL-8).
+                        continue
+                    points.append(TimeSeriesPoint(timestamp=ts, value=float(value)))
 
                 series_list.append(
                     TimeSeries(

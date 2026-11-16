@@ -32,6 +32,8 @@ from collections import defaultdict
 from datetime import timedelta
 from types import SimpleNamespace
 
+from integrations.base import TraceQueryError
+
 logger = logging.getLogger(__name__)
 
 # Compact caps — RCA prompts are token-budgeted.
@@ -547,6 +549,9 @@ def _from_external(organisation, service_names, start, end):
 
     all_spans = []
     services_seen = set()
+    # Fetches the store refused. "No spans" must not stand for "the trace
+    # store was down" (phase 3 review, MT-1): the summary says which.
+    failures = []
     for svc_name in sorted(service_names):
         try:
             traces = provider.fetch_traces(
@@ -559,6 +564,7 @@ def _from_external(organisation, service_names, start, end):
             logger.warning(
                 'Trace provider fetch failed for service=%s: %s', svc_name, exc,
             )
+            failures.append(str(exc) if isinstance(exc, TraceQueryError) else type(exc).__name__)
             continue
 
         for trace in traces:
@@ -584,6 +590,8 @@ def _from_external(organisation, service_names, start, end):
                     'start_time': start_time,
                 })
 
+    if failures and len(failures) == len(service_names):
+        return {'source': 'external', 'span_count': 0, 'unavailable': failures[0]}
     if not all_spans:
         return None
 
@@ -607,6 +615,8 @@ def _from_external(organisation, service_names, start, end):
         'top_errors': top_errors,
         'services_touched': sorted(services_seen),
         'per_service': _top_services(per_service),
+        **({'partial': f'{len(failures)} of {len(service_names)} services could not be read: {failures[0]}'}
+           if failures else {}),
     }
 
 

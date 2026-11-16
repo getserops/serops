@@ -83,6 +83,12 @@ class AzureDevOpsWebhookHandler(BaseCICDWebhookHandler):
         'ms.vss-pipelines.run-completed-event',
     ]
     
+    def payload_matches_binding(self, payload, binding) -> bool:
+        """The binding's pipeline ID is the pipeline or release definition
+        (id or name), the Azure DevOps project, or a repository it builds."""
+        from providers.payload_identity import azure_pipeline_identifiers, matches
+        return matches(binding.pipeline_id, azure_pipeline_identifiers(payload))
+
     def validate_request(self, request, binding=None) -> bool:
         """
         Validate Azure DevOps webhook request.

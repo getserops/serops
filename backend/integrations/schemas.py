@@ -467,7 +467,7 @@ class LogQuery:
             values = [_re2_escape(v) for v in self.environment_values()] + [""] * self.environment_untagged
             label_matchers.append(f'environment=~"{"|".join(values)}"')
         if self.category:
-            label_matchers.append(f'category="{self.category}"')
+            label_matchers.append(f'category="{_logql_escape(self.category)}"')
         if self.services:
             # Separator is "|" with NO surrounding space. A "| " join makes
             # every alternative after the first carry a leading space, so
@@ -476,7 +476,9 @@ class LogQuery:
             # Verified against a live Loki: the spaced form returned 1 of
             # 2 streams, silently. Multi-service batches fed the AI logs
             # from only the first service.
-            label_matchers.append(f'service_name=~"{"|".join(self.services)}"')
+            # Each name is a literal: a "." or "+" in a service name is not
+            # a regex, and a quote cannot end the matcher.
+            label_matchers.append(f'service_name=~"{"|".join(_re2_escape(s) for s in self.services)}"')
 
         selector = "{" + ", ".join(label_matchers) + "}" if label_matchers else EMPTY_LOGQL_SELECTOR
 
@@ -505,9 +507,9 @@ class LogQuery:
                 alternatives += f'|\\"level\\":[{digits}]0'
             filters.append(f'|~ "(?i)({alternatives})"')
         if self.text_search:
-            filters.append(f'|~ "{self.text_search}"')
+            filters.append(f'|~ "{_re2_escape(self.text_search)}"')
         if self.event_type:
-            filters.append(f'| event_type="{self.event_type}"')
+            filters.append(f'| event_type="{_logql_escape(self.event_type)}"')
 
         return selector + " " + " ".join(filters) if filters else selector
 
@@ -567,7 +569,7 @@ class LogQuery:
             parts.append(_either(SERVICE_NAME_ALIASES, list(self.services)))
 
         if self.text_search:
-            parts.append(self.text_search)
+            parts.append(_dd_value(self.text_search))
         if self.category:
             parts.append(f"@category:{_dd_value(self.category)}")
         return " ".join(parts) if parts else "*"
@@ -720,7 +722,11 @@ class LogQuery:
                 clause = f'{clause} or {profile["service"]} in ({svc_list})'
             lines.append(f'| where {clause}')
 
-        if self.severity and profile["level"] == "SeverityLevel":
+        if profile.get("where"):
+            lines.append(f'| where {profile["where"]}')
+        if profile.get("failures_only"):
+            pass  # every row is an error (see _AZ_TABLES)
+        elif self.severity and profile.get("ordinal"):
             # SeverityLevel in AppTraces: Verbose=0, Information=1,
             # Warning=2, Error=3, Critical=4. Requesting ["ERROR", "WARN"]
             # becomes >= 2 (the min).
@@ -825,6 +831,20 @@ class LogQuery:
                             for w in _SEVERITY_LINE_SYNONYMS.get(str(name).upper(), (str(name).upper(),))
                             if _SEVERITY_ORDINAL.get(w, 0) >= min(requested_ords)})
             text = " OR ".join(f'textPayload:"{_gcp_escape(w)}"' for w in words)
+            # JSON loggers (pino, zap, winston, structlog, logrus) write the
+            # level as jsonPayload.level, which Cloud Logging does not map to
+            # severity: Cloud Run stores such an entry as DEFAULT and GKE as
+            # INFO, so ``severity>=WARNING`` never fetched it and the analysis
+            # saw none of a Node service's errors (review CL-4).
+            spelled = severity_spellings(w for w in words)
+            numbers = numeric_severities(self.severity)
+            json_or = [f'jsonPayload.{f}="{_gcp_escape(s)}"' for f in ("level", "log_level") for s in spelled]
+            # Pino / Bunyan numbers, as equalities: on a string field a ">="
+            # compares as text, so "info">=40 would match.
+            floor = min((int(n) for n in numbers), default=None)
+            json_or += [f'jsonPayload.level={n}' for n in (40, 50, 60) if floor is not None and n >= floor]
+            json_level = (f' OR (severity<=INFO AND jsonPayload:* AND ({" OR ".join(json_or)}))'
+                          if json_or else '')
             if text:
                 # GKE rates every plain-text stderr line ERROR. Such a line
                 # counts only if it names a level, as SerOps reads it after
@@ -838,7 +858,9 @@ class LogQuery:
                 stream_rated = ('resource.type="k8s_container" AND logName:"/logs/stderr" '
                                 f'AND textPayload:* AND NOT ({text})')
                 clauses.append(f'((severity>={_gcp_bareword(severity_name)} AND NOT ({stream_rated}))'
-                               f' OR (severity<=INFO AND textPayload:* AND ({text})))')
+                               f' OR (severity<=INFO AND textPayload:* AND ({text})){json_level})')
+            elif json_level:
+                clauses.append(f'(severity>={_gcp_bareword(severity_name)}{json_level})')
             else:
                 clauses.append(f'severity>={_gcp_bareword(severity_name)}')
 
@@ -1010,8 +1032,9 @@ def _gcp_field(field: str) -> str:
     f = str(field)
     if f in _GCP_RESOURCE_FIELDS:
         return f"resource.labels.{_GCP_RESOURCE_FIELDS[f]}"
-    if f.startswith("resource.") and "." not in f[len("resource."):]:
-        return f"resource.labels.{_gcp_escape(f[len('resource.'):])}"
+    if f.startswith("resource.") and re.fullmatch(r"[A-Za-z0-9_]+", f[len("resource."):]):
+        # Unquoted in the filter path, so only a plain label name.
+        return f"resource.labels.{f[len('resource.'):]}"
     return f'labels."{_gcp_escape(f)}"'
 
 
@@ -1336,9 +1359,48 @@ def _kql_escape(value: str) -> str:
 # names that are real columns; ``level``: the level column; ``service``: the
 # column naming the service.
 _AZ_TABLES = {
+    # ``ordinal``: the level column is AppTraces' 0..4 SeverityLevel.
+    # ``failures_only``: every row the profile's ``where`` keeps is an error,
+    # so no severity filter applies (exceptions, failed calls).
     "AppTraces": {
-        "message": "Message", "fields": "Properties", "level": "SeverityLevel",
+        "message": "Message", "fields": "Properties", "level": "SeverityLevel", "ordinal": True,
         "service": "AppRoleName", "columns": {},
+    },
+    # Application Insights and the Azure Monitor OpenTelemetry exporter send
+    # a log that carries an exception (logger.LogError(ex, ...),
+    # logger.exception(), unhandled exceptions) here, not to AppTraces, and
+    # failed calls to AppRequests / AppDependencies: a .NET API throwing on
+    # every request left AppTraces with "Request starting" lines only
+    # (review CL-6).
+    "AppExceptions": {
+        "message": 'strcat(ProblemId, ": ", OuterMessage)', "fields": "Properties", "level": "SeverityLevel",
+        "ordinal": True, "failures_only": True, "service": "AppRoleName", "columns": {},
+    },
+    "AppRequests": {
+        "message": 'strcat("Request ", Name, " failed: ", ResultCode, " after ", tostring(round(DurationMs)), " ms")',
+        "fields": "Properties", "level": "", "failures_only": True, "where": "Success == false",
+        "service": "AppRoleName", "columns": {},
+    },
+    "AppDependencies": {
+        "message": ('strcat("Call to ", Target, " (", DependencyType, " ", Name, ") failed: ", ResultCode,'
+                    ' " after ", tostring(round(DurationMs)), " ms")'),
+        "fields": "Properties", "level": "", "failures_only": True, "where": "Success == false",
+        "service": "AppRoleName", "columns": {},
+    },
+    # Linux syslog through the Azure Monitor Agent: no Properties column,
+    # SeverityLevel is a word (err, warning, crit). Read as AppTraces, every
+    # query failed on "Properties" (review CL-18).
+    "Syslog": {
+        "message": "SyslogMessage", "fields": "parse_json(SyslogMessage)", "level": "SeverityLevel",
+        "service": "ProcessName",
+        "columns": {"host": "Computer", "hostname": "Computer", "Computer": "Computer",
+                    "ProcessName": "ProcessName", "Facility": "Facility"},
+    },
+    # Container Insights' legacy schema (before ContainerLogV2).
+    "ContainerLog": {
+        "message": "LogEntry", "fields": "parse_json(LogEntry)", "level": "", "service": "Name",
+        "columns": {"ContainerName": "Name", "Computer": "Computer", "Image": "Image",
+                    "LogEntrySource": "LogEntrySource"},
     },
     # Container Insights (AKS). Pod labels are not collected by default.
     "ContainerLogV2": {
@@ -1352,6 +1414,12 @@ _AZ_TABLES = {
         },
     },
 }
+
+
+# The tables get_indices looks for. Syslog and the legacy ContainerLog are
+# read only when chosen as ``default_table``: they hold host and container
+# noise that most workspaces send without meaning it for SerOps.
+_AZ_DISCOVERED = ("AppTraces", "AppExceptions", "AppRequests", "AppDependencies", "ContainerLogV2")
 
 
 def _az_profile(table: str) -> dict:

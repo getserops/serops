@@ -17,11 +17,11 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 
-from integrations.base import LogProvider, LogProviderCapabilities, LogSearchError
+from integrations.base import LogProvider, LogProviderCapabilities, LogSearchError, note_partial
 from integrations.schemas import (
     LogEntry,
     LogQuery,
-    _AZ_TABLES,
+    _AZ_DISCOVERED,
     _detect_level,
     _detect_level_from_line,
     level_of,
@@ -185,6 +185,11 @@ class AzureLogAnalyticsProvider(LogProvider):
             logger.error("Azure Log Analytics query_workspace failed: %s", exc)
             raise LogSearchError(_azure_error(exc)) from exc
 
+        if getattr(response, "partial_error", None) is not None:
+            # LogsQueryPartialResult: some rows, and the query stopped (row or
+            # size limit, a workspace timing out). Say so rather than present
+            # the rows as the whole window.
+            note_partial(self, "Azure Log Analytics returned a partial result; some log records are missing")
         return self._parse_response(response, table, size)
 
     def stream_location(self, stream) -> str:
@@ -201,7 +206,7 @@ class AzureLogAnalyticsProvider(LogProvider):
         """
         # `project` is intentionally ignored — the integration record
         # already scopes to a single workspace.
-        known = list(dict.fromkeys([self._default_table, *_AZ_TABLES]))
+        known = list(dict.fromkeys([self._default_table, *_AZ_DISCOVERED]))
         query = ("union isfuzzy=true withsource=SerOpsTable " + ", ".join(known) +
                  "\n| where TimeGenerated > ago(1d)\n| distinct SerOpsTable")
         try:
@@ -247,6 +252,9 @@ class AzureLogAnalyticsProvider(LogProvider):
                 fields = dict(zip(columns, row))
                 if table_name == "ContainerLogV2":
                     entries.append(_container_log_entry(fields, table_name))
+                    continue
+                if table_name in _OTHER_TABLES:
+                    entries.append(_OTHER_TABLES[table_name](fields, table_name))
                     continue
                 # Standard AppTraces columns; fall back gracefully for
                 # other tables.
@@ -392,3 +400,100 @@ def _container_log_entry(fields: dict, table_name: str) -> LogEntry:
         raw_id=_record_id(fields.get("ContainerId"), ts, message),
         labels={"_index": table_name, **meta, **doc},
     )
+
+
+def _props(fields: dict) -> dict:
+    import json
+    properties = fields.get("Properties") or {}
+    if isinstance(properties, str):
+        try:
+            properties = json.loads(properties)
+        except (TypeError, ValueError):
+            properties = {}
+    return properties if isinstance(properties, dict) else {}
+
+
+def _ts(fields: dict) -> datetime:
+    ts = fields.get("TimeGenerated")
+    return ts if isinstance(ts, datetime) else datetime.min
+
+
+def _app_entry(fields: dict, table_name: str, message: str, level: str) -> LogEntry:
+    """A record of an Application Insights table other than AppTraces."""
+    properties = _props(fields)
+    ts = _ts(fields)
+    skip = ("TimeGenerated", "Properties", "Details")
+    return LogEntry(
+        timestamp=ts,
+        message=message,
+        level=level,
+        service=str(properties.get("service_name") or fields.get("AppRoleName") or ""),
+        host=str(fields.get("AppRoleInstance") or fields.get("Computer") or ""),
+        trace_id=str(fields.get("OperationId") or ""),
+        raw_id=str(fields.get("ItemId") or fields.get("Id") or "") or _record_id(table_name, ts, message),
+        labels={"_index": table_name, **{k: v for k, v in fields.items() if k not in skip},
+                **{f"properties.{k}": v for k, v in properties.items()},
+                **{k: v for k, v in properties.items() if k not in fields}},
+    )
+
+
+def _exception_entry(fields: dict, table_name: str) -> LogEntry:
+    """AppExceptions: an exception is an error unless its severity says
+    Critical. The message is what an engineer reads first: type, message
+    and the innermost cause when it differs."""
+    outer = str(fields.get("OuterMessage") or fields.get("InnermostMessage") or "")
+    kind = str(fields.get("OuterType") or fields.get("ProblemId") or fields.get("Type") or "Exception")
+    message = f"{kind}: {outer}" if outer else kind
+    inner = str(fields.get("InnermostMessage") or "")
+    if inner and inner != outer:
+        itype = str(fields.get("InnermostType") or "")
+        message += f" (innermost {itype}: {inner})" if itype else f" (innermost: {inner})"
+    level = "CRITICAL" if str(fields.get("SeverityLevel")) == "4" else "ERROR"
+    return _app_entry(fields, table_name, message, level)
+
+
+def _request_entry(fields: dict, table_name: str) -> LogEntry:
+    duration = fields.get("DurationMs")
+    took = f" after {round(float(duration))} ms" if isinstance(duration, (int, float)) else ""
+    message = f"Request {fields.get('Name') or ''} failed: {fields.get('ResultCode') or ''}{took}".strip()
+    return _app_entry(fields, table_name, message, "ERROR")
+
+
+def _dependency_entry(fields: dict, table_name: str) -> LogEntry:
+    duration = fields.get("DurationMs")
+    took = f" after {round(float(duration))} ms" if isinstance(duration, (int, float)) else ""
+    message = (f"Call to {fields.get('Target') or fields.get('Name') or ''} "
+               f"({fields.get('DependencyType') or ''} {fields.get('Name') or ''}) failed: "
+               f"{fields.get('ResultCode') or ''}{took}")
+    return _app_entry(fields, table_name, message, "ERROR")
+
+
+def _syslog_entry(fields: dict, table_name: str) -> LogEntry:
+    ts = _ts(fields)
+    message = str(fields.get("SyslogMessage") or "")
+    level = _detect_level(str(fields.get("SeverityLevel") or "info"))
+    return LogEntry(
+        timestamp=ts, message=message, level=level,
+        service=str(fields.get("ProcessName") or ""), host=str(fields.get("Computer") or fields.get("HostName") or ""),
+        trace_id="", raw_id=_record_id(fields.get("Computer"), ts, message),
+        labels={"_index": table_name, **{k: v for k, v in fields.items() if k != "TimeGenerated"}},
+    )
+
+
+def _legacy_container_entry(fields: dict, table_name: str) -> LogEntry:
+    """ContainerLog (before ContainerLogV2): LogEntry is the line."""
+    entry = _container_log_entry({**fields, "LogMessage": fields.get("LogEntry"),
+                                  "ContainerName": fields.get("Name"), "ContainerId": fields.get("ContainerID")},
+                                 table_name)
+    if fields.get("LogEntrySource") == "stderr" and entry.level == "INFO":
+        entry.level = _detect_level_from_line(entry.message, default="INFO")
+    return entry
+
+
+_OTHER_TABLES = {
+    "AppExceptions": _exception_entry,
+    "AppRequests": _request_entry,
+    "AppDependencies": _dependency_entry,
+    "Syslog": _syslog_entry,
+    "ContainerLog": _legacy_container_entry,
+}

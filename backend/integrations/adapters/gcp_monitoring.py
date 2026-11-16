@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from integrations.adapters.gcp_logging import _health_reason, _load_credentials
-from integrations.base import MetricProvider, MetricProviderCapabilities
+from integrations.base import MetricProvider, MetricProviderCapabilities, MetricQueryError, note_partial
 from integrations.schemas import HostInfo, TimeSeries, TimeSeriesPoint
 
 logger = logging.getLogger(__name__)
@@ -121,6 +121,29 @@ class GcpCloudMonitoringProvider(MetricProvider):
     _K8S_GROUP_BY = "metadata.system_labels.top_level_controller_name"
     _ALIGNMENT_SECONDS = 60
 
+    # VM mode (Compute Engine). ``instance/cpu/utilization`` is a 0..1 gauge,
+    # not a seconds counter: it is scaled to a percentage here and
+    # ``cpu_is_percent`` tells the pipeline not to differentiate it.
+    # ``balloon/ram_used`` is USED memory, so available = ram_size - ram_used
+    # (it was read as available, which reported free memory as usage). VMs
+    # without the balloon metrics (non-E2 families) fall back to the Ops
+    # Agent's ``memory/percent_used`` (state=used), on a 100 base.
+    _VM_CPU = "compute.googleapis.com/instance/cpu/utilization"
+    _VM_RAM_SIZE = "compute.googleapis.com/instance/memory/balloon/ram_size"
+    _VM_RAM_USED = "compute.googleapis.com/instance/memory/balloon/ram_used"
+    _VM_AGENT_MEMORY = "agent.googleapis.com/memory/percent_used"
+    # SerOps scope labels as GCE instance labels (metadata.user_labels).
+    # Compute Engine system metrics carry no such metric label, so as
+    # ``metric.labels.*`` filters they matched nothing and VM mode never
+    # returned a series. They narrow the result only when the instances
+    # carry them, like CloudWatch dimensions.
+    _VM_SCOPE_LABELS = ("project_name", "environment", "service_name")
+
+    @property
+    def cpu_is_percent(self) -> bool:
+        """VM-mode CPU is already a percentage (see _VM_CPU)."""
+        return self._topology_mode != "kubernetes"
+
     def __init__(self, config: Optional[dict] = None):
         super().__init__(config)
         project_id = self._config.get("project_id")
@@ -177,6 +200,10 @@ class GcpCloudMonitoringProvider(MetricProvider):
 
         if self._topology_mode == "kubernetes" and metric in self._K8S_SPECS:
             return self._query_k8s(metric, labels, start, end)
+        if self._topology_mode != "kubernetes" and metric in (
+                "node_cpu_seconds_total", "node_memory_MemTotal_bytes",
+                "node_memory_MemAvailable_bytes", "node_memory_MemFree_bytes"):
+            return self._query_vm(metric, labels, start, end)
 
         # Pick metric name + label routing per topology.
         active_map = (
@@ -203,16 +230,22 @@ class GcpCloudMonitoringProvider(MetricProvider):
             )
         except Exception as exc:
             logger.error("GCP Cloud Monitoring query_range failed: %s", exc)
-            return []
+            # Raised, not []: an empty list reads as "no series, nothing abnormal" (phase 3 review, CL-11).
+            raise MetricQueryError(f"Google Cloud Monitoring refused the query ({type(exc).__name__})") from exc
 
         series_list: List[TimeSeries] = []
         try:
             for series in iterator:
                 series_list.append(self._to_timeseries(series, metric))
         except Exception as exc:
+            # list_time_series is lazy: auth and quota errors arrive here.
             logger.warning(
                 "GCP Cloud Monitoring iteration ended early: %s", exc
             )
+            if not series_list:
+                raise MetricQueryError(
+                    f"Google Cloud Monitoring refused the query ({type(exc).__name__})") from exc
+            note_partial(self, "Google Cloud Monitoring stopped answering part-way; some series are missing")
         return series_list
 
     def _query_k8s(self, metric: str, labels: dict, start: datetime, end: datetime) -> List[TimeSeries]:
@@ -263,7 +296,94 @@ class GcpCloudMonitoringProvider(MetricProvider):
             return series_list
         except Exception as exc:
             logger.warning("GCP Cloud Monitoring %s (%s) failed: %s", metric, gcp_type, exc)
-            return []
+            # Raised, not []: an empty list reads as "no series, nothing abnormal" (phase 3 review, CL-11).
+            raise MetricQueryError(f"Google Cloud Monitoring refused the query ({type(exc).__name__})") from exc
+
+    def _vm_request(self, gcp_type: str, start: datetime, end: datetime, extra: str = "") -> dict:
+        from google.cloud import monitoring_v3
+        return {
+            "name": self._project_name,
+            "filter": f'metric.type="{gcp_type}"' + extra,
+            "interval": monitoring_v3.TimeInterval({
+                "start_time": {"seconds": int(start.timestamp())},
+                "end_time": {"seconds": int(end.timestamp())},
+            }),
+            # Aligned so ram_size and ram_used share timestamps (the pipeline
+            # joins total and available on series and time).
+            "aggregation": monitoring_v3.Aggregation({
+                "alignment_period": {"seconds": self._ALIGNMENT_SECONDS},
+                "per_series_aligner": monitoring_v3.Aggregation.Aligner.ALIGN_MEAN,
+            }),
+            "view": monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL,
+        }
+
+    def _vm_series(self, gcp_type: str, labels: dict, start: datetime, end: datetime,
+                   extra: str = "") -> list:
+        """Raw GCP series of one VM metric, narrowed to the instances that
+        carry the SerOps scope labels (when any instance carries them)."""
+        try:
+            series = list(self._client.list_time_series(
+                request=self._vm_request(gcp_type, start, end, extra)))
+        except Exception as exc:
+            logger.warning("GCP Cloud Monitoring %s failed: %s", gcp_type, exc)
+            # Raised, not []: an empty list reads as "no series, nothing
+            # abnormal" (phase 3 review, CL-11).
+            raise MetricQueryError(f"Google Cloud Monitoring refused the query ({type(exc).__name__})") from exc
+        for key in self._VM_SCOPE_LABELS:
+            value = str((labels or {}).get(key) or "").lower()
+            if not value:
+                continue
+            tagged = [s for s in series if key in self._user_labels(s)]
+            if tagged:
+                series = [s for s in tagged if str(self._user_labels(s)[key]).lower() == value]
+        return series
+
+    @staticmethod
+    def _user_labels(gcp_series) -> dict:
+        return dict(getattr(getattr(gcp_series, "metadata", None), "user_labels", {}) or {})
+
+    @staticmethod
+    def _instance_key(gcp_series) -> str:
+        res = dict(getattr(gcp_series.resource, "labels", {}) or {})
+        return str(res.get("instance_id") or res.get("instance_name") or "")
+
+    def _query_vm(self, metric: str, labels: dict, start: datetime, end: datetime) -> List[TimeSeries]:
+        """One series per Compute Engine instance, in the units the pipeline
+        expects: CPU in percent, memory total and available in bytes (or on a
+        100 base from the Ops Agent)."""
+        def to_ts(series, canonical, value_of=None):
+            ts = self._to_timeseries(series, canonical)
+            ts.labels["instance"] = self._instance_key(series)
+            if value_of is not None:
+                for point in ts.points:
+                    point.value = value_of(point.value)
+            return ts
+
+        if metric == "node_cpu_seconds_total":
+            return [to_ts(s, metric, lambda v: round(v * 100.0, 2))
+                    for s in self._vm_series(self._VM_CPU, labels, start, end)]
+
+        sizes = self._vm_series(self._VM_RAM_SIZE, labels, start, end)
+        if sizes:
+            if metric == "node_memory_MemTotal_bytes":
+                return [to_ts(s, metric) for s in sizes]
+            used = {self._instance_key(s): {p.timestamp: p.value for p in to_ts(s, metric).points}
+                    for s in self._vm_series(self._VM_RAM_USED, labels, start, end)}
+            result = []
+            for s in sizes:
+                ts = to_ts(s, metric)
+                used_at = used.get(self._instance_key(s), {})
+                ts.points = [TimeSeriesPoint(timestamp=p.timestamp, value=max(p.value - used_at[p.timestamp], 0.0))
+                             for p in ts.points if p.timestamp in used_at]
+                if ts.points:
+                    result.append(ts)
+            return result
+
+        # No balloon metrics: the Ops Agent's percentage, on a 100 base.
+        agent = self._vm_series(self._VM_AGENT_MEMORY, labels, start, end, ' AND metric.labels.state="used"')
+        if metric == "node_memory_MemTotal_bytes":
+            return [to_ts(s, metric, lambda v: 100.0) for s in agent]
+        return [to_ts(s, metric, lambda v: round(max(100.0 - v, 0.0), 2)) for s in agent]
 
     def discover_hosts(
         self,
@@ -370,6 +490,10 @@ class GcpCloudMonitoringProvider(MetricProvider):
         'container_name', 'project_id',
     })
 
+    _VM_NOT_METRIC_LABELS = frozenset({
+        'organisation_name', 'project_name', 'environment', 'service_name',
+    })
+
     # Canonical SerOps label → GCP resource label (for k8s mode).
     _K8S_LABEL_ALIASES = {
         'service_name': 'container_name',   # our canonical service tag
@@ -400,6 +524,10 @@ class GcpCloudMonitoringProvider(MetricProvider):
             k = str(raw_key)
             v_str = str(v)
             escaped_v = _gcp_escape(v_str)
+            if topology_mode != 'kubernetes' and k in cls._VM_NOT_METRIC_LABELS:
+                # No Compute Engine metric carries these: as metric labels
+                # they matched nothing (see _vm_series for VM scoping).
+                continue
             if topology_mode == 'kubernetes':
                 # Alias then check if it lands on the resource.
                 mapped = cls._K8S_LABEL_ALIASES.get(k, k)

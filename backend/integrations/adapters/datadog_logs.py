@@ -49,6 +49,43 @@ def datadog_site(config: dict) -> str:
 _DATADOG_SITE = re.compile(r"(?:[a-z0-9-]+\.)*(?:datadoghq\.com|datadoghq\.eu|ddog-gov\.com)")
 
 
+RETRY_STATUSES = (429, 500, 502, 503, 504)
+MAX_ATTEMPTS = 3
+MAX_WAIT_SECONDS = 10.0
+
+
+def _retry_wait(resp, attempt: int) -> float:
+    """Seconds to wait before retrying ``resp``. Datadog sends
+    ``X-RateLimit-Reset`` (seconds until the window resets) on a 429; a
+    proxy may send ``Retry-After``. Capped: a batch must not sleep for the
+    rest of an hourly quota."""
+    for header in ("X-RateLimit-Reset", "Retry-After"):
+        try:
+            value = float(resp.headers.get(header, ""))
+        except (TypeError, ValueError):
+            continue
+        return max(0.0, min(value, MAX_WAIT_SECONDS))
+    return min(2.0 ** attempt, MAX_WAIT_SECONDS)
+
+
+def dd_request(session, method: str, url: str, sleep=None, **kwargs):
+    """One Datadog API call, retried on 429 and 5xx (review CL-15).
+
+    Returns the last response, so callers keep their own handling of a
+    refusal; a connection error still raises."""
+    import time
+    sleep = sleep or time.sleep
+    resp = None
+    for attempt in range(MAX_ATTEMPTS):
+        resp = getattr(session, method)(url, **kwargs)
+        if resp.status_code not in RETRY_STATUSES or attempt == MAX_ATTEMPTS - 1:
+            return resp
+        wait = _retry_wait(resp, attempt)
+        logger.warning("Datadog answered %s, retrying in %.1fs", resp.status_code, wait)
+        sleep(wait)
+    return resp
+
+
 def _dd_time(dt: datetime) -> str:
     """A time for the Datadog search API: ISO 8601 in UTC with a Z.
 
@@ -88,6 +125,7 @@ class DatadogLogProvider(LogProvider):
         # and never follows a redirect to another host (security review
         # 2026-11, finding 3).
         self._session = GuardedSession()
+        self.last_truncated = False
         # DD auth headers
         self._session.headers.update({
             "DD-API-KEY": self._config.get("api_key", ""),
@@ -176,39 +214,54 @@ class DatadogLogProvider(LogProvider):
         else:
             dd_query = self._build_query(index, query)
 
+        # Every page of the window, oldest first (review CL-5): one request
+        # of the newest 1000 dropped the start of an incident, the errors
+        # that name its cause. At the cap the earliest records are kept and
+        # ``last_truncated`` says more were there.
         body = {
             "filter": {
                 "query": dd_query,
                 "from": _dd_time(time_range[0]) if time_range else "now-1h",
                 "to": _dd_time(time_range[1]) if time_range else "now",
             },
-            "sort": "-timestamp",
+            "sort": "timestamp",
             "page": {
                 "limit": min(size, 1000),  # DD max per page
             },
         }
-
-        try:
-            resp = self._session.post(
-                f"{self.base_url}/api/v2/logs/events/search",
-                json=body,
-                timeout=self.timeout_seconds,
-            )
-        except RequestException as exc:
-            logger.error("Datadog Logs search failed: %s", exc)
-            raise LogSearchError(f"Datadog search failed: {exc}") from exc
-        if not resp.ok:
-            # Refused queries used to come back as "no logs": a scheduled run
-            # then said there were no errors, and Check my data that the logs
-            # were missing, while Datadog was answering 400 to every query.
+        self.last_truncated = False
+        events: list = []
+        while True:
             try:
-                detail = "; ".join(map(str, resp.json().get("errors", []))) or resp.text[:200]
-            except ValueError:
-                detail = resp.text[:200]
-            logger.error("Datadog Logs search refused (%s): %s", resp.status_code, detail)
-            raise LogSearchError(f"Datadog refused the query ({resp.status_code}): {detail}")
-        events = resp.json().get("data", [])
-        return [self._event_to_log_entry(e) for e in events]
+                resp = dd_request(self._session, "post", f"{self.base_url}/api/v2/logs/events/search",
+                                  json=body, timeout=self.timeout_seconds)
+            except RequestException as exc:
+                logger.error("Datadog Logs search failed: %s", exc)
+                raise LogSearchError(f"Datadog search failed: {exc}") from exc
+            if not resp.ok:
+                # Refused queries used to come back as "no logs": a scheduled run
+                # then said there were no errors, and Check my data that the logs
+                # were missing, while Datadog was answering 400 to every query.
+                try:
+                    detail = "; ".join(map(str, resp.json().get("errors", []))) or resp.text[:200]
+                except ValueError:
+                    detail = resp.text[:200]
+                logger.error("Datadog Logs search refused (%s): %s", resp.status_code, detail)
+                raise LogSearchError(f"Datadog refused the query ({resp.status_code}): {detail}")
+            payload = resp.json()
+            events += payload.get("data", [])
+            cursor = ((payload.get("meta") or {}).get("page") or {}).get("after")
+            if not isinstance(cursor, str) or not cursor:
+                break
+            if len(events) >= size:
+                self.last_truncated = True
+                logger.warning("Datadog Logs: more than %d records in the window; the earliest %d are kept",
+                               size, size)
+                break
+            body["page"] = {"limit": min(size - len(events), 1000), "cursor": cursor}
+        events = events[:size]
+        # Newest first, as before, for the callers.
+        return [self._event_to_log_entry(e) for e in reversed(events)]
 
     def get_indices(self, project) -> List[str]:
         """Get available Datadog log indexes.

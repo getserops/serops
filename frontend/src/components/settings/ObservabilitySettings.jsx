@@ -56,6 +56,7 @@ const PROVIDERS = {
             { name: "password", label: "Password", type: "password" },
             { name: "extra_config.index_pattern", label: "Index pattern", placeholder: "logs-*, filebeat-*",
               help: "Where your logs are stored. Leave empty to use SerOps' own indices, or else logs-*, filebeat-* and logstash-*." },
+            { name: "extra_config.verify_certs", label: "Verify TLS certificate", type: "checkbox", defaultChecked: true },
         ],
     },
     opensearch: {
@@ -67,6 +68,7 @@ const PROVIDERS = {
             { name: "password", label: "Password", type: "password" },
             { name: "extra_config.index_pattern", label: "Index pattern", placeholder: "logs-*, filebeat-*",
               help: "Where your logs are stored. Leave empty to use SerOps' own indices, or else logs-*, filebeat-* and logstash-*." },
+            { name: "extra_config.verify_certs", label: "Verify TLS certificate", type: "checkbox", defaultChecked: true },
         ],
     },
     loki: {

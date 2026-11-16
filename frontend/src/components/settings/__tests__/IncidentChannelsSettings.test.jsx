@@ -25,6 +25,7 @@ vi.mock('../../../services/settings.service', () => ({
 }));
 
 import IncidentChannelsSettings from '../IncidentChannelsSettings';
+import { SettingsService } from '../../../services/settings.service';
 
 describe('IncidentChannelsSettings', () => {
   beforeEach(() => create.mockReset().mockResolvedValue({}));
@@ -42,6 +43,29 @@ describe('IncidentChannelsSettings', () => {
       kind: 'email',
       extra_config: { to: ['sre@acme.test', 'oncall@acme.test'] },
     });
+  });
+
+  it('lists alerts that matched no service and were not analysed', async () => {
+    SettingsService.getAlertIngestSecret.mockResolvedValue({
+      unmatched_alerts: {
+        count: 2, days: 7,
+        latest: [{ alertname: 'KubePodCrashLooping', source: 'alertmanager', service: '',
+                   environment: 'production', received_at: '2026-11-16T10:00:00Z',
+                   detail: 'no service matched (tried: kube-state-metrics)' }],
+      },
+    });
+    render(<IncidentChannelsSettings />);
+    const notice = await screen.findByTestId('unmatched-alerts');
+    expect(notice.textContent).toContain('2 alerts in the last 7 days matched no service');
+    expect(notice.textContent).toContain('KubePodCrashLooping');
+    expect(notice.textContent).toContain('tried: kube-state-metrics');
+  });
+
+  it('shows no notice when every alert matched', async () => {
+    SettingsService.getAlertIngestSecret.mockResolvedValue({ unmatched_alerts: { count: 0, days: 7, latest: [] } });
+    render(<IncidentChannelsSettings />);
+    await screen.findByRole('button', { name: /incidentChannels.new/ });
+    expect(screen.queryByTestId('unmatched-alerts')).toBeNull();
   });
 
   it('Slack does not show the recipients field', async () => {

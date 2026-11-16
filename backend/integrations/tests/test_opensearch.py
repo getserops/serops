@@ -84,10 +84,18 @@ class TestOpenSearchLogProvider(SimpleTestCase):
         range_filter = next(f for f in must if "range" in f)
         self.assertIn("@timestamp", range_filter["range"])
 
-    def test_search_error_returns_empty(self):
+    def test_search_error_raises(self):
+        # Was: returned [], which read as "no errors" (phase 3 review, LG1).
+        from integrations.base import LogSearchError
         self.mock_client.search.side_effect = Exception("timeout")
-        results = self.provider.search(index="myapp", query={})
-        self.assertEqual(results, [])
+        with self.assertRaises(LogSearchError):
+            self.provider.search(index="myapp", query={})
+
+    def test_missing_index_is_empty_not_an_error(self):
+        class NotFoundError(Exception):
+            pass
+        self.mock_client.search.side_effect = NotFoundError("no such index")
+        self.assertEqual(self.provider.search(index="myapp", query={}), [])
 
     def test_get_indices(self):
         self.mock_client.cat.indices.return_value = [

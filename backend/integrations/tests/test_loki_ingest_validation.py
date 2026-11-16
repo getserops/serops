@@ -279,9 +279,11 @@ class SearchErrorSurfacingTest(SimpleTestCase):
         from requests.exceptions import RequestException
         mock_get.side_effect = RequestException('400 Client Error: Bad Request')
 
-        self.assertEqual(
-            self.provider.search('x', {'logql': '{a="b"}'}), [],
-        )
+        # Raised, not []: "no logs" read as good news (phase 3 review, LG1).
+        from integrations.base import LogSearchError
+        with self.assertRaises(LogSearchError) as raised:
+            self.provider.search('x', {'logql': '{a="b"}'})
+        self.assertIn('Loki refused the query', str(raised.exception))
         self.assertIsNotNone(self.provider.last_error)
         self.assertIn('{a="b"}', self.provider.last_error)
 
@@ -297,7 +299,9 @@ class SearchErrorSurfacingTest(SimpleTestCase):
     def test_last_error_cleared_between_searches(self, mock_get):
         from requests.exceptions import RequestException
         mock_get.side_effect = RequestException('boom')
-        self.provider.search('x', {'logql': '{a="b"}'})
+        from integrations.base import LogSearchError
+        with self.assertRaises(LogSearchError):
+            self.provider.search('x', {'logql': '{a="b"}'})
         self.assertIsNotNone(self.provider.last_error)
 
         mock_get.side_effect = None

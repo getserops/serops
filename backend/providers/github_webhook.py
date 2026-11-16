@@ -55,6 +55,11 @@ class GitHubActionsWebhookHandler(BaseCICDWebhookHandler):
     provider_name = 'github_actions'
     integration_provider_type = 'github'
     
+    def payload_matches_binding(self, payload, binding) -> bool:
+        """The binding's pipeline ID is the repository (``owner/repo``)."""
+        from providers.payload_identity import matches, repository_identifiers
+        return matches(binding.pipeline_id, repository_identifiers(payload))
+
     def validate_request(self, request, binding=None) -> bool:
         """
         Validate GitHub webhook request.

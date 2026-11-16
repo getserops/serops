@@ -44,6 +44,8 @@ at the bottom.
 | "Unknown" batch status | Database | Run `docker exec serops-backend python manage.py migrate` to ensure migrations are current. |
 | Missing logs after filtering | Service registration | Ensure the `service_name` field in your logs matches the registered `ProjectService` names exactly. See [Configure Data Collection Agents](how-to/configure-data-collection.md). |
 | Wrong environment assignment | Branch patterns | Check that branch patterns in project environment settings match your actual branch names. |
+| Project page says "the log store refused the query" | Log provider | The search failed (expired token, store down, rejected query): the reason is on the project's Data tab. The next run reads the same window again once the store answers. |
+| Analysis says a source was UNAVAILABLE, PARTIAL or TRUNCATED | Data sources | SerOps tells the AI which sources did not answer, answered in part, or hit the record limit in that window, so missing evidence is not read as "nothing failed". The batch's `data_sources` field has the reason for each. |
 | Batch appears but never analyzes | Sentinel filter | Check **Settings > Sentinel** — under `ACTIVE` or `QUIET` mode, low-signal batches are skipped by design. Switch to `EAGER` to force analysis on every batch. |
 
 ## Observability Providers

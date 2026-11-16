@@ -32,6 +32,7 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from typing import List, Optional, Tuple
 from urllib.parse import urljoin
 
@@ -40,7 +41,7 @@ import requests
 from Utils.outbound import GuardedSession
 from requests.exceptions import RequestException
 
-from integrations.base import LogProvider, LogProviderCapabilities
+from integrations.base import LogProvider, LogProviderCapabilities, LogSearchError, describe_request_error
 from integrations.schemas import (
     LogEntry,
     LogQuery,
@@ -183,16 +184,20 @@ class SplunkLogProvider(LogProvider):
             end_dt = datetime.utcnow()
             start_dt = end_dt - timedelta(hours=1)
 
+        # Every failure raises: an empty list reads downstream as "no errors
+        # in the window" (phase 3 review, LG1). The helpers below log and
+        # return None/False/raise; the reason is kept on self._failure.
+        self._failure = ''
         try:
             sid = self._start_job(spl, start_dt, end_dt)
             if not sid:
-                return []
+                raise LogSearchError(f'Splunk refused the search job: {self._failure or "no search id"}')
             if not self._wait_for_job(sid):
-                return []
+                raise LogSearchError(f'The Splunk search job did not complete: {self._failure or "unknown state"}')
             return self._fetch_results(sid, max_count=size, index=target_index)
         except RequestException as exc:
             logger.error("Splunk search failed: %s", exc)
-            return []
+            raise LogSearchError(f'Splunk search failed: {describe_request_error(exc)}') from exc
 
     def get_indices(self, project) -> List[str]:
         """The configured index (``extra_config.index``, default 'main'), if
@@ -249,11 +254,13 @@ class SplunkLogProvider(LogProvider):
                 "Splunk start_job failed status=%s body=%s",
                 resp.status_code, resp.text[:200],
             )
+            self._failure = describe_request_error(SimpleNamespace(response=resp))
             return None
         try:
             return resp.json().get("sid")
         except ValueError:
             logger.error("Splunk start_job returned non-JSON: %s", resp.text[:200])
+            self._failure = 'the answer was not JSON'
             return None
 
     def _wait_for_job(self, sid: str) -> bool:
@@ -268,15 +275,18 @@ class SplunkLogProvider(LogProvider):
                 )
                 if resp.status_code == 404:
                     logger.warning("Splunk job %s vanished before completion", sid)
+                    self._failure = 'the job vanished before completion'
                     return False
                 if resp.status_code >= 400:
                     logger.error(
                         "Splunk job poll failed sid=%s status=%s",
                         sid, resp.status_code,
                     )
+                    self._failure = describe_request_error(SimpleNamespace(response=resp))
                     return False
                 entries = resp.json().get("entry", [])
                 if not entries:
+                    self._failure = 'the job status was empty'
                     return False
                 content = entries[0].get("content", {})
                 state = content.get("dispatchState", "")
@@ -287,14 +297,28 @@ class SplunkLogProvider(LogProvider):
                         "Splunk job %s ended in state=%s messages=%s",
                         sid, state, content.get("messages", []),
                     )
+                    self._failure = f'the job ended in state {state}'
                     return False
             except RequestException as exc:
                 logger.error("Splunk job poll error sid=%s: %s", sid, exc)
+                self._failure = describe_request_error(exc)
                 return False
             time.sleep(self.POLL_INTERVAL_SECONDS)
 
         logger.warning("Splunk job %s did not complete within poll budget", sid)
+        self._failure = 'it did not finish within the poll budget'
+        self._cancel_job(sid)
         return False
+
+    def _cancel_job(self, sid: str) -> None:
+        """Best effort: a job SerOps gave up on keeps counting against the
+        user's concurrent-search quota until Splunk's own TTL."""
+        try:
+            self._session.post(f"{self._job_endpoint()}/{sid}/control",
+                               data={"action": "cancel", "output_mode": "json"},
+                               timeout=self.timeout_seconds)
+        except RequestException as exc:
+            logger.debug("Splunk cancel of job %s failed: %s", sid, exc)
 
     def _fetch_results(self, sid: str, max_count: int, index: str) -> List[LogEntry]:
         """Fetch completed job results and normalise to LogEntry."""
@@ -319,7 +343,10 @@ class SplunkLogProvider(LogProvider):
             data = resp.json()
         except (RequestException, ValueError) as exc:
             logger.error("Splunk fetch_results failed sid=%s: %s", sid, exc)
-            return []
+            raise LogSearchError(
+                'Splunk could not return the search results: '
+                + (describe_request_error(exc) if isinstance(exc, RequestException) else 'the answer was not JSON')
+            ) from exc
 
         entries: List[LogEntry] = []
         for row in data.get("results", []):

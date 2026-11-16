@@ -13,7 +13,8 @@ import requests
 from Utils.outbound import GuardedSession
 from requests.exceptions import RequestException
 
-from integrations.base import MetricProvider, MetricProviderCapabilities
+from integrations.base import MetricProvider, MetricProviderCapabilities, MetricQueryError, describe_request_error, note_partial
+from integrations.promql import promql_matchers
 from integrations.schemas import TimeSeries, TimeSeriesPoint, HostInfo
 
 logger = logging.getLogger(__name__)
@@ -199,7 +200,7 @@ class PrometheusMetricProvider(MetricProvider):
         if self._topology_mode == "kubernetes":
             template = K8S_METRIC_EXPR_TEMPLATES.get(metric)
             if template:
-                label_str = ",".join(f'{k}="{v}"' for k, v in labels.items() if v)
+                label_str = promql_matchers(labels)
                 # Built as a list so an empty label_str cannot produce a
                 # leading comma ("{,id=~...}" is a parse error).
                 selectors = [s for s in (label_str, ROOT_CGROUP_MATCHER) if s]
@@ -217,27 +218,7 @@ class PrometheusMetricProvider(MetricProvider):
             "end": end.isoformat(),
             "step": self._auto_step(start, end),
         }
-        try:
-            resp = self._session.get(
-                f"{self.base_url}/api/v1/query_range",
-                params=params,
-                timeout=self.timeout_seconds,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
-            if data.get("status") != "success":
-                logger.warning(
-                    "Prometheus query_range non-success: %s",
-                    data.get("error", "unknown"),
-                )
-                return []
-
-            return self._parse_matrix(data["data"]["result"], metric)
-
-        except RequestException as exc:
-            logger.error("Prometheus query_range failed: %s", exc)
-            return []
+        return self._parse_matrix(self._range_result(params, "query_range"), metric)
 
     def query_range_expr(
         self,
@@ -257,6 +238,17 @@ class PrometheusMetricProvider(MetricProvider):
             "end": end.isoformat(),
             "step": self._auto_step(start, end),
         }
+        return self._parse_matrix(self._range_result(params, "query_range_expr"), expr)
+
+    def _range_result(self, params: dict, what: str) -> list:
+        """The ``result`` list of a range query, or MetricQueryError.
+
+        Connection errors, 401/403, 5xx, timeouts and ``status: error`` all
+        used to return [], which the batch read as "no series, nothing
+        abnormal" (phase 3 review, MT-1). Partial-response warnings (Thanos,
+        Mimir, Prometheus with a failed remote read) are recorded with
+        note_partial so the batch can say the answer is incomplete.
+        """
         try:
             resp = self._session.get(
                 f"{self.base_url}/api/v1/query_range",
@@ -265,19 +257,22 @@ class PrometheusMetricProvider(MetricProvider):
             )
             resp.raise_for_status()
             data = resp.json()
-
-            if data.get("status") != "success":
-                logger.warning(
-                    "Prometheus query_range_expr non-success: %s",
-                    data.get("error", "unknown"),
-                )
-                return []
-
-            return self._parse_matrix(data["data"]["result"], expr)
-
         except RequestException as exc:
-            logger.error("Prometheus query_range_expr failed: %s", exc)
-            return []
+            logger.error("Prometheus %s failed: %s", what, exc)
+            raise MetricQueryError(
+                f"{self.__class__.__name__.replace('MetricProvider', '')} refused the query: "
+                f"{describe_request_error(exc)}") from exc
+        except ValueError as exc:
+            raise MetricQueryError("The metrics store answered with something that is not JSON") from exc
+
+        if data.get("status") != "success":
+            logger.warning("Prometheus %s non-success: %s", what, data.get("error", "unknown"))
+            raise MetricQueryError(
+                f"The metrics store rejected the query ({data.get('errorType') or 'error'})")
+        warnings = data.get("warnings") or []
+        if warnings:
+            note_partial(self, f"the metrics store returned a partial answer ({len(warnings)} warning(s))")
+        return (data.get("data") or {}).get("result") or []
 
     def discover_hosts(
         self,
@@ -345,9 +340,7 @@ class PrometheusMetricProvider(MetricProvider):
         """
         if not labels:
             return metric
-        parts = ",".join(
-            f'{k}="{v}"' for k, v in labels.items() if v
-        )
+        parts = promql_matchers(labels)
         return f"{metric}{{{parts}}}" if parts else metric
 
     @staticmethod

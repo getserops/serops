@@ -1911,6 +1911,27 @@ class AlertEvent(models.Model):
         related_name='triggering_alerts',
     )
 
+    # When the alert started, from the payload (Alertmanager/Grafana
+    # ``startsAt``, Datadog ``date``, Sentry event time). The analysis window
+    # is anchored on it: an alert is sent after its rule's ``for:`` and
+    # Alertmanager's ``group_wait``, so the deploy and the first errors come
+    # well before ``received_at`` (phase 3 review SC-01).
+    starts_at = models.DateTimeField(null=True, blank=True)
+    # The alert's own labels / tags (redacted), so routing can try the
+    # Kubernetes and OTel names a rule carries, not one label (SC-02).
+    labels = models.JSONField(default=dict, blank=True)
+
+    MATCH_MATCHED = 'matched'
+    MATCH_UNMATCHED = 'unmatched'
+    MATCH_REPEAT = 'repeat'
+    MATCH_CHOICES = [
+        (MATCH_MATCHED, 'Matched to a project'),
+        (MATCH_UNMATCHED, 'Matched no service: not analysed'),
+        (MATCH_REPEAT, 'Repeat of an alert already analysed'),
+    ]
+    match_status = models.CharField(max_length=16, choices=MATCH_CHOICES, blank=True, default='')
+    match_detail = models.CharField(max_length=255, blank=True, default='')
+
     received_at = models.DateTimeField(auto_now_add=True, db_index=True)
     processed_at = models.DateTimeField(null=True, blank=True)
 

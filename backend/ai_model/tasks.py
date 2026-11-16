@@ -531,6 +531,45 @@ def _notify_investigation_requester(investigation, batch, issue_count):
         logger.warning(f"Could not notify the requester of investigation {investigation.pk}: {e}")
 
 
+def _project_repositories(project):
+    """(repository ids, legacy GitLab project pks) of the project's services."""
+    from Projects.models import ProjectService
+    repo_ids, gitlab_pks = set(), set()
+    for svc in ProjectService.objects.filter(project=project):
+        try:
+            binding = svc.scm_binding
+        except Exception:
+            binding = None
+        if binding is not None and binding.repository_id:
+            repo_ids.add(str(binding.repository_id))
+        if svc.gitlab_project_id:
+            gitlab_pks.add(svc.gitlab_project_id)
+    return repo_ids, gitlab_pks
+
+
+def _project_deployments(project, environment):
+    """Deployments of THIS project's services to ``environment``, any provider.
+
+    Phase 3 review SC-03: they were selected through ``Pipeline.project``,
+    the legacy GitLab FK, joined back to the organisation's projects: every
+    GitLab deploy of every project in the organisation, and no GitHub,
+    Jenkins, Argo CD or Flux deploy at all. Now: a deploy recorded for one
+    of the project's services (its CI/CD binding), or of a commit in one of
+    the project's repositories.
+    """
+    from django.db.models import Q
+    from providers.deployment_service import canonical_environment
+    from providers.models import Deployment
+
+    repo_ids, gitlab_pks = _project_repositories(project)
+    scope = Q(project_service__project=project)
+    if repo_ids:
+        scope |= Q(code_change__organisation=project.organisation, code_change__project_id__in=repo_ids)
+    if gitlab_pks:
+        scope |= Q(code_change__organisation=project.organisation, code_change__gitlab_project_id__in=gitlab_pks)
+    return Deployment.objects.filter(scope, environment=canonical_environment(environment)).distinct()
+
+
 def _deployed_code_changes(project, environment, window_deployments, until):
     """AI summaries of the commits that went live with ``window_deployments``.
 
@@ -548,28 +587,35 @@ def _deployed_code_changes(project, environment, window_deployments, until):
     """
     from datetime import timedelta
     from django.db.models import Min
+    from providers.deployment_service import canonical_environment
     from providers.models import CodeChange, Deployment
 
     first_deployed_at = {}
     for deploy in window_deployments:
-        # Find what came before THIS deployment to define ITS commit range
-        prev_to_deploy = Deployment.objects.filter(
-            pipeline__project__organisation__projects=project,
-            environment=environment,
+        head = deploy.code_change
+        # What this same repository last shipped before THIS deployment
+        # defines ITS commit range (SC-03: the previous deploy used to be
+        # any project's, and the range every repository's).
+        prev_to_deploy = _project_deployments(project, environment).filter(
             status='success',
-            deployed_at__lt=deploy.deployed_at
+            deployed_at__lt=deploy.deployed_at,
+            code_change__project_id=head.project_id,
         ).select_related('code_change').order_by('-deployed_at').first()
 
         # If this is the first deployment ever, look back 7 days
-        start_hash_time = prev_to_deploy.code_change.timestamp if prev_to_deploy else (deploy.code_change.timestamp - timedelta(days=7))
+        start_hash_time = prev_to_deploy.code_change.timestamp if prev_to_deploy else (head.timestamp - timedelta(days=7))
 
-        # Commits OLDER than this deploy's head commit provided they are
-        # NEWER than the previous deploy's
-        deploy_commits = CodeChange.objects.filter(
+        # Commits of the same repository OLDER than this deploy's head
+        # commit provided they are NEWER than the previous deploy's. The
+        # head itself always shipped: a cherry-pick keeps its old author
+        # date, which left the range empty or inverted.
+        deploy_commits = set(CodeChange.objects.filter(
             organisation=project.organisation,
+            project_id=head.project_id,
             timestamp__gt=start_hash_time,
-            timestamp__lte=deploy.code_change.timestamp
-        ).values_list('commit_sha', flat=True)
+            timestamp__lte=head.timestamp
+        ).values_list('commit_sha', flat=True))
+        deploy_commits.add(head.commit_sha)
 
         for sha in deploy_commits:
             seen = first_deployed_at.get(sha)
@@ -579,14 +625,16 @@ def _deployed_code_changes(project, environment, window_deployments, until):
     if not first_deployed_at:
         return []
 
+    repos = {d.code_change.project_id for d in window_deployments}
     commits = list(CodeChange.objects.filter(
         organisation=project.organisation,
+        project_id__in=repos,
         commit_sha__in=list(first_deployed_at),
     ).order_by('-timestamp')[:50])  # Limit to 50 most recent relevant commits
 
     for row in Deployment.objects.filter(
         code_change__in=commits,
-        environment=environment,
+        environment=canonical_environment(environment),
         status='success',
         deployed_at__lte=until,
     ).values('code_change__commit_sha').annotate(first=Min('deployed_at')):
@@ -831,6 +879,9 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
             'batch_id': batch.batch_id,
             'timestamp': batch.timestamp.isoformat(),
             'environment': batch.environment or 'production',
+            # Which sources were unavailable, partial or truncated in this
+            # window (Data.tasks; phase 3 review, LG1 / MT-1).
+            'data_sources': (batch.data or {}).get('data_sources') or {},
         }
         
         # Prepare log list and truncate if too many to avoid quota/token limits
@@ -982,18 +1033,14 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                 
                 # 2. Find deployments relevant to this window
                 # (a) Deployments occurring WITHIN the window (e.g. deployed in the last hour)
-                window_deployments = list(Deployment.objects.filter(
-                    pipeline__project__organisation__projects=project,
-                    environment=environment,
+                window_deployments = list(_project_deployments(project, environment).filter(
                     status='success',
                     deployed_at__gt=interval_start,
                     deployed_at__lte=batch.timestamp
                 ).select_related('code_change', 'pipeline'))
                 
                 # (b) Deployment active AT THE START of the window (the baseline code running at t=0)
-                base_deploy = Deployment.objects.filter(
-                    pipeline__project__organisation__projects=project,
-                    environment=environment,
+                base_deploy = _project_deployments(project, environment).filter(
                     status='success',
                     deployed_at__lte=interval_start
                 ).select_related('code_change', 'pipeline').order_by('-deployed_at').first()
@@ -1877,17 +1924,13 @@ def reanalyze_batch_with_model(self, batch_id, model_name, mode='compare'):
                     interval_start = prev_batch.timestamp
                 
                 # 2. Find deployments
-                window_deployments = list(Deployment.objects.filter(
-                    pipeline__project__organisation__projects=project,
-                    environment=environment,
+                window_deployments = list(_project_deployments(project, environment).filter(
                     status='success',
                     deployed_at__gt=interval_start,
                     deployed_at__lte=batch.timestamp
                 ).select_related('code_change', 'pipeline'))
                 
-                base_deploy = Deployment.objects.filter(
-                    pipeline__project__organisation__projects=project,
-                    environment=environment,
+                base_deploy = _project_deployments(project, environment).filter(
                     status='success',
                     deployed_at__lte=interval_start
                 ).select_related('code_change', 'pipeline').order_by('-deployed_at').first()
@@ -1954,6 +1997,9 @@ def reanalyze_batch_with_model(self, batch_id, model_name, mode='compare'):
             'batch_id': batch.batch_id,
             'timestamp': batch.timestamp.isoformat(),
             'environment': batch.environment or 'production',
+            # Which sources were unavailable, partial or truncated in this
+            # window (Data.tasks; phase 3 review, LG1 / MT-1).
+            'data_sources': (batch.data or {}).get('data_sources') or {},
         }
         
         # Generate prompt

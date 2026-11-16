@@ -49,7 +49,7 @@ Notes:
 - **`password`** is the client secret (encrypted at rest with Fernet). Rotate it in Azure AD → App registrations → Certificates & secrets, then update this field.
 - **`tenant_id`** and **`client_id`** identify the service principal.
 - **`workspace_id`** is required for logs. **`default_resource_uri`** is required for metrics — callers can override per-query by supplying `resource_uri` in the labels dict.
-- **`default_table`** (optional, defaults to `AppTraces`) picks the KQL table for `LogQuery`-driven searches. Use `Perf` for VM performance, `Syslog` for Linux syslog, `ContainerLog` for AKS, or a custom table.
+- **`default_table`** (optional, defaults to `AppTraces`) is a log table to read as well as the ones SerOps finds by itself, and the one read when the workspace has none of them. SerOps always looks for `AppTraces`, `AppExceptions`, failed `AppRequests` and failed `AppDependencies` (Application Insights and the Azure Monitor OpenTelemetry exporter) and `ContainerLogV2` (Container Insights on AKS), and reads every one that received records in the last day. Set `Syslog` (Linux syslog through the Azure Monitor Agent) or `ContainerLog` (the Container Insights schema before ContainerLogV2) here to read those too. Other tables are read with the AppTraces columns (`Message`, `SeverityLevel`, `Properties`), so a custom table needs those columns.
 
 !!! warning "Service-principal-only auth"
     SerOps deliberately does **not** support `DefaultAzureCredential`, `ManagedIdentityCredential`, or CLI-cached tokens. A multi-tenant SerOps process must never inherit host-level credentials, which is exactly what those auth flows do.

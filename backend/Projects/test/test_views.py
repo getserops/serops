@@ -707,3 +707,58 @@ class TestSCMWebhookReceiverView(ProjectViewTestBase):
         url = reverse('scm-webhook', kwargs={'binding_id': 99999})
         response = self.client.post(url, {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class TestCICDBindingSyncSCMProviders(ProjectViewTestBase):
+    """Sync of a GitHub Actions / GitLab CI binding (found on the phase 3
+    client test, 2026-11-16): the view called integration methods that do not
+    exist, so every sync of these two answered 500."""
+
+    def _binding(self, provider_type, pipeline_id, base_url=None):
+        from Projects.models import CICDBinding
+        integ = ProviderIntegration.objects.create(
+            name=f'Org {provider_type}', provider_type=provider_type,
+            category='devops', organisation=self.org, base_url=base_url,
+        )
+        integ.set_credentials({'access_token': 'fake-ci-token'})
+        integ.save()
+        svc = ProjectService.objects.create(project=self.project, name=f'svc-{provider_type}')
+        return CICDBinding.objects.create(
+            project_service=svc, integration=integ, binding_type='deploy',
+            pipeline_id=pipeline_id,
+        )
+
+    def _response(self, payload):
+        from unittest import mock
+        resp = mock.Mock(status_code=200)
+        resp.json.return_value = payload
+        resp.raise_for_status.return_value = None
+        return resp
+
+    def test_github_actions_sync_lists_runs(self):
+        from unittest import mock
+        binding = self._binding('github', 'acme/shop')
+        self._auth(self.admin)
+        runs = {'workflow_runs': [{'id': 7, 'name': 'deploy shop', 'status': 'completed',
+                                   'conclusion': 'success', 'head_branch': 'main'}]}
+        with mock.patch('Utils.outbound.guarded_request', return_value=self._response(runs)) as req:
+            r = self.client.post(f'/api/projects/cicd-bindings/{binding.pk}/sync/', {}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.json()['runs_found'], 1)
+        url = req.call_args.args[1]
+        self.assertEqual(url, 'https://api.github.com/repos/acme/shop/actions/runs')
+        self.assertEqual(req.call_args.kwargs['headers']['Authorization'], 'Bearer fake-ci-token')
+        binding.refresh_from_db()
+        self.assertIsNotNone(binding.last_sync_at.tzinfo)
+
+    def test_gitlab_ci_sync_lists_pipelines(self):
+        from unittest import mock
+        binding = self._binding('gitlab', '42', base_url='https://gitlab.example.com/')
+        self._auth(self.admin)
+        with mock.patch('Utils.outbound.guarded_request',
+                        return_value=self._response([{'id': 1, 'status': 'success', 'sha': 'abcdef123'}])) as req:
+            r = self.client.post(f'/api/projects/cicd-bindings/{binding.pk}/sync/', {}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.json()['pipelines_found'], 1)
+        self.assertEqual(req.call_args.args[1], 'https://gitlab.example.com/api/v4/projects/42/pipelines')
+        self.assertEqual(req.call_args.kwargs['headers']['PRIVATE-TOKEN'], 'fake-ci-token')

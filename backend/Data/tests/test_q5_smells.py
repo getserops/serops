@@ -41,9 +41,8 @@ from Users.models import User
 
 
 class AlertWindowTest(TestCase):
-    """The alert helper computes a ±3 min window around received_at,
-    both boundaries serialised as ISO-8601 strings so Celery can carry
-    them across the broker."""
+    """The alert helper's window, both boundaries serialised as ISO-8601
+    strings so Celery can carry them across the broker."""
 
     def setUp(self):
         self.org = Organisations.objects.create(name='AlertWinOrg')
@@ -62,8 +61,10 @@ class AlertWindowTest(TestCase):
             e.refresh_from_db()
         return e
 
-    def test_window_is_iso_strings_and_six_minutes_wide(self):
-        from Data.tasks import _alert_window
+    def test_window_is_iso_strings_around_receipt_without_a_start(self):
+        """No start time in the payload: from the lookback before receipt to
+        just after it (SC-01 replaced the old ±3 min window)."""
+        from Data.tasks import _alert_window, _ALERT_LOOKBACK_MINUTES, _ALERT_TAIL_MINUTES
         anchor = timezone.now().replace(microsecond=0)
         event = self._event(received_at=anchor)
         start_iso, end_iso = _alert_window(event)
@@ -73,21 +74,19 @@ class AlertWindowTest(TestCase):
         from datetime import datetime
         start = datetime.fromisoformat(start_iso)
         end = datetime.fromisoformat(end_iso)
-        self.assertEqual(end - start, timedelta(minutes=6))
-        # Anchor sits at the midpoint.
-        self.assertEqual((anchor - start), timedelta(minutes=3))
+        self.assertEqual(anchor - start, timedelta(minutes=_ALERT_LOOKBACK_MINUTES))
+        self.assertEqual(end - anchor, timedelta(minutes=_ALERT_TAIL_MINUTES))
 
     def test_missing_received_at_falls_back_to_now(self):
         """Defensive path: a corrupt AlertEvent with no received_at
         still produces a valid window instead of crashing."""
-        from Data.tasks import _alert_window
+        from Data.tasks import _alert_window, _ALERT_LOOKBACK_MINUTES, _ALERT_TAIL_MINUTES
         event = self._event()
         event.received_at = None   # in-memory only; DB row is unchanged.
         start_iso, end_iso = _alert_window(event)
-        # Both parseable and 6 min apart.
         from datetime import datetime
         span = datetime.fromisoformat(end_iso) - datetime.fromisoformat(start_iso)
-        self.assertEqual(span, timedelta(minutes=6))
+        self.assertEqual(span, timedelta(minutes=_ALERT_LOOKBACK_MINUTES + _ALERT_TAIL_MINUTES))
 
 
 class AlertProjectResolutionTest(TestCase):
@@ -141,14 +140,16 @@ class AlertProjectResolutionTest(TestCase):
             '\n'.join(r.getMessage() for r in cm.records),
         )
 
-    def test_no_service_match_falls_back_with_warning(self):
-        """A weak fallback is still worth surfacing at WARNING."""
+    def test_no_service_match_is_not_guessed(self):
+        """SC-02: no fallback to the first project; the reason is logged."""
         from Data.tasks import _resolve_alert_project
         event = self._event(service='no-such-service')
+        detail = []
         with self.assertLogs('Data.tasks', level='WARNING') as cm:
-            resolved = _resolve_alert_project(event)
-        self.assertIsNotNone(resolved)
-        self.assertTrue(any('falling back' in r.getMessage() for r in cm.records))
+            resolved = _resolve_alert_project(event, detail)
+        self.assertIsNone(resolved)
+        self.assertTrue(any('matches no service' in r.getMessage() for r in cm.records))
+        self.assertIn('no-such-service', detail[0])
 
     def test_empty_org_returns_none(self):
         """Nothing to route to — no crash, no warning about a route that

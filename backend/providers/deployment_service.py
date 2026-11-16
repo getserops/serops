@@ -18,6 +18,29 @@ from .models import CodeChange, Deployment, Pipeline
 logger = logging.getLogger(__name__)
 
 
+# Spellings of the three usual environments. Any other name (qa, uat,
+# preview, demo, eu-prod-2) is kept as the project names it, lower-cased.
+_ENV_ALIASES = {
+    'production': ('production', 'prod', 'prd', 'live'),
+    'staging': ('staging', 'stage', 'stg', 'preprod', 'pre-prod', 'pre-production'),
+    'development': ('development', 'dev', 'develop'),
+}
+_ENV_CANONICAL = {alias: name for name, aliases in _ENV_ALIASES.items() for alias in aliases}
+
+
+def canonical_environment(name) -> str:
+    """One spelling per environment, for writing and for querying deployments.
+
+    Phase 3 review SC-08: deployments were refused unless the environment was
+    exactly development, staging or production, so a project whose
+    environments are ``prod`` / ``qa`` recorded no deploys (a 500 on the
+    Argo CD and Flux webhooks), and a batch for ``prod`` found none of the
+    ``production`` deploys. Both sides now go through this.
+    """
+    key = str(name or '').strip().lower()
+    return _ENV_CANONICAL.get(key, key)
+
+
 class DeploymentService:
     """Service layer for deployment operations"""
     
@@ -65,13 +88,10 @@ class DeploymentService:
         if not deployed_at:
             deployed_at = timezone.now()
         
-        # Validate environment
-        valid_envs = ['development', 'staging', 'production']
-        if environment not in valid_envs:
-            raise ValueError(
-                f"Invalid environment: {environment}. "
-                f"Must be one of {valid_envs}"
-            )
+        # Any environment the project names (SC-08); one spelling per name.
+        environment = canonical_environment(environment)
+        if not environment:
+            raise ValueError("A deployment needs an environment")
         
         # Create or get existing deployment
         deployment, created = Deployment.objects.get_or_create(
@@ -141,7 +161,7 @@ class DeploymentService:
             >>> batch.data['code_changes'] = [c.get_summary_for_ai() for c in changes]
         """
         query = Deployment.objects.filter(
-            environment=environment,
+            environment=canonical_environment(environment),
             deployed_at__gte=start_time,
             deployed_at__lte=end_time
         )
@@ -169,16 +189,26 @@ class DeploymentService:
         code_changes = []
         seen_shas = set()
         
+        by_sha = {}
         for deployment in query:
             sha = deployment.code_change.commit_sha
-            if sha not in seen_shas:
+            change = by_sha.get(sha)
+            if change is None:
                 # Ordered by deployed_at, so the first row is when this
                 # commit reached the environment in the window. Kept on
                 # the instance for the correlator (review v1.2.13: it
                 # timed incidents against the commit, not the deploy).
-                deployment.code_change.deployed_at_in_env = deployment.deployed_at
-                code_changes.append(deployment.code_change)
+                change = deployment.code_change
+                change.deployed_at_in_env = deployment.deployed_at
+                change.deploy_status_in_env = deployment.status
+                by_sha[sha] = change
+                code_changes.append(change)
                 seen_shas.add(sha)
+            elif change.deploy_status_in_env != 'success' and deployment.status == 'success':
+                # A failed pipeline then a successful one: it did go live,
+                # at the successful one (SC-05).
+                change.deployed_at_in_env = deployment.deployed_at
+                change.deploy_status_in_env = 'success'
         
         logger.info(
             f"Found {len(code_changes)} unique code changes deployed to "

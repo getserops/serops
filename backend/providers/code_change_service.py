@@ -17,6 +17,10 @@ from .scm_providers import get_provider, SCMProviderError
 
 logger = logging.getLogger(__name__)
 
+# Diffs fetched per push or sync: the most recent ones. The prompt shows at
+# most a few commits' hunks, and each fetch is one SCM API call.
+MAX_DIFFS_PER_PUSH = 20
+
 
 class CodeChangeService:
     """
@@ -158,6 +162,47 @@ class CodeChangeService:
         return saved
     
     @staticmethod
+    def apply_diff(code_change: CodeChange, diff_summary) -> bool:
+        """Store a fetched diff on the commit. False when there was none.
+
+        The providers answer a failed fetch with an empty diff. Storing it
+        erased the file list the push had given, so the RCA lost even the
+        file names (phase 3 review SC-04): an empty diff now leaves the
+        commit as it was, to be fetched again later.
+        """
+        files = (diff_summary or {}).get('files') or []
+        if not files:
+            logger.info(f"No diff returned for {code_change.commit_sha[:8]}; keeping what the push gave")
+            return False
+        code_change.diff_summary = diff_summary
+        code_change.additions = diff_summary.get('total_additions', 0)
+        code_change.deletions = diff_summary.get('total_deletions', 0)
+        code_change.files_changed = len(files)
+        code_change.diff_fetched = True
+        code_change.save()
+        logger.info(f"Updated diff for commit {code_change.commit_sha[:8]}: "
+                    f"+{code_change.additions}/-{code_change.deletions}")
+        return True
+
+    @staticmethod
+    def queue_binding_diffs(binding, changes) -> None:
+        """Fetch the diffs of commits that came through an SCM binding.
+
+        SC-04: only GitLab pushes through the CI/CD webhook had their diffs
+        fetched; GitHub, Bitbucket and Azure commits, and every commit from
+        the SCM webhook or a manual sync, reached the RCA with file names at
+        best. Uses the binding's own provider (token, base URL).
+        """
+        ids = [c.pk for c in changes or [] if getattr(c, 'pk', None) and not c.diff_fetched]
+        if not ids:
+            return
+        try:
+            from .tasks import fetch_binding_commit_diffs
+            fetch_binding_commit_diffs.delay(binding.pk, ids[-MAX_DIFFS_PER_PUSH:])
+        except Exception as e:
+            logger.warning(f"Could not queue diff fetch for binding {getattr(binding, 'pk', None)}: {e}")
+
+    @staticmethod
     def fetch_and_update_diff(code_change: CodeChange, access_token: str) -> bool:
         """
         Fetch full diff from SCM and update the CodeChange record.
@@ -188,18 +233,7 @@ class CodeChangeService:
             
             # Fetch diff
             diff_summary = provider.get_commit_diff(code_change.commit_sha)
-            
-            # Update record
-            code_change.diff_summary = diff_summary
-            code_change.additions = diff_summary.get('total_additions', 0)
-            code_change.deletions = diff_summary.get('total_deletions', 0)
-            code_change.files_changed = len(diff_summary.get('files', []))
-            code_change.diff_fetched = True
-            code_change.save()
-            
-            logger.info(f"Updated diff for commit {code_change.commit_sha[:8]}: "
-                       f"+{code_change.additions}/-{code_change.deletions}")
-            return True
+            return CodeChangeService.apply_diff(code_change, diff_summary)
             
         except SCMProviderError as e:
             logger.warning(f"Failed to fetch diff for {code_change.commit_sha[:8]}: {str(e)}")
@@ -300,6 +334,7 @@ class CodeChangeService:
             change.get_summary_for_ai(
                 deployed_at=getattr(change, 'deployed_at_in_env', None),
                 environment=environment,
+                deploy_status=getattr(change, 'deploy_status_in_env', None),
             )
             for change in changes
         ]

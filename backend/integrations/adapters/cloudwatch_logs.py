@@ -23,6 +23,12 @@ logger = logging.getLogger(__name__)
 LAMBDA_GROUP_PREFIX = "/aws/lambda/"
 # EKS Container Insights (Fluent Bit) names the group after the cluster.
 CONTAINER_INSIGHTS_PREFIX = "/aws/containerinsights/"
+# Logs Insights accepts at most 50 log groups a query (AWS quota).
+INSIGHTS_MAX_GROUPS = 50
+# A search over more groups runs several queries; past this many, set
+# log_groups on the integration instead.
+MAX_QUERIES_PER_SEARCH = 10
+MAX_DESCRIBE_PAGES = 20
 _DENIED = {"AccessDenied", "AccessDeniedException", "UnauthorizedOperation"}
 _BAD_KEY = {"UnrecognizedClientException", "InvalidClientTokenId", "InvalidSignatureException",
             "SignatureDoesNotMatch", "IncompleteSignature"}
@@ -204,9 +210,22 @@ class CloudWatchLogProvider(LogProvider):
         log_groups = [g.strip() for g in (index or "").split(",") if g.strip() and g.strip() != "*"]
         if not log_groups:
             log_groups = self._all_groups()
-        log_groups = log_groups[:50]
         if not log_groups:
             return []
+        # Insights takes at most 50 groups a query: more run as several
+        # queries, merged. The list used to be cut to its first 50 without a
+        # word (review CL-13).
+        chunks = [log_groups[i:i + INSIGHTS_MAX_GROUPS] for i in range(0, len(log_groups), INSIGHTS_MAX_GROUPS)]
+        if len(chunks) > MAX_QUERIES_PER_SEARCH:
+            logger.warning("CloudWatch Logs: %d log groups, only the first %d are searched; set log_groups "
+                           "on the integration", len(log_groups), MAX_QUERIES_PER_SEARCH * INSIGHTS_MAX_GROUPS)
+            chunks = chunks[:MAX_QUERIES_PER_SEARCH]
+        if len(chunks) > 1:
+            merged: List[LogEntry] = []
+            for chunk in chunks:
+                merged += self.search(",".join(chunk), query, time_range, size)
+            merged.sort(key=lambda e: e.timestamp, reverse=True)
+            return merged[:query.max_results if isinstance(query, LogQuery) else size]
         log_group = log_groups[0]
 
         # Translate LogQuery → Insights query if needed
@@ -245,10 +264,22 @@ class CloudWatchLogProvider(LogProvider):
         if self.default_log_group:
             return [self.default_log_group]
         try:
-            result = self.client.describe_log_groups(limit=50)
+            return self._describe(limit=50)
         except Exception as exc:
             raise LogSearchError(_aws_error(exc, "logs:DescribeLogGroups")) from exc
-        return [g["logGroupName"] for g in result.get("logGroups", [])]
+
+    def _describe(self, **kwargs) -> List[str]:
+        """Every log group a describe_log_groups call matches, following
+        nextToken (it stopped at the first 50, review CL-13)."""
+        names: List[str] = []
+        token = None
+        for _ in range(MAX_DESCRIBE_PAGES):
+            result = self.client.describe_log_groups(**kwargs, **({"nextToken": token} if token else {}))
+            names += [g["logGroupName"] for g in result.get("logGroups", [])]
+            token = result.get("nextToken")
+            if not token:
+                break
+        return names
 
     def get_indices(self, project) -> List[str]:
         """Log groups to search for a project.
@@ -270,15 +301,14 @@ class CloudWatchLogProvider(LogProvider):
         for kwargs in ({"logGroupNamePrefix": f"/aws/{name}"}, {"logGroupNamePattern": name},
                        {"logGroupNamePrefix": CONTAINER_INSIGHTS_PREFIX}):
             try:
-                result = self.client.describe_log_groups(limit=50, **kwargs)
+                names = self._describe(limit=50, **kwargs)
             except Exception as exc:
                 logger.warning("CloudWatch describe_log_groups %s failed: %s", kwargs, exc)
                 continue
-            found += [g["logGroupName"] for g in result.get("logGroups", [])
-                      if g["logGroupName"] not in found
-                      and (not g["logGroupName"].startswith(CONTAINER_INSIGHTS_PREFIX)
-                           or g["logGroupName"].endswith("/application"))]
-        return found[:50]
+            found += [n for n in names
+                      if n not in found
+                      and (not n.startswith(CONTAINER_INSIGHTS_PREFIX) or n.endswith("/application"))]
+        return found
 
     # ------------------------------------------------------------------
     # Internal helpers

@@ -160,7 +160,7 @@ class TestCloudWatchMetricProvider(SimpleTestCase):
         mock_client_factory.return_value = self.mock_client
         self.listed = {}
         self.mock_client.get_paginator.return_value.paginate.side_effect = (
-            lambda Namespace, MetricName: [self.listed.get(MetricName, {"Metrics": []})])
+            lambda Namespace, MetricName, **kw: [self.listed.get(MetricName, {"Metrics": []})])
         self.provider = CloudWatchMetricProvider(config={
             "aws_region": "us-east-1",
             "username": "key-id",

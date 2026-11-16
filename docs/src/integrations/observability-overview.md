@@ -38,7 +38,7 @@ SerOps supports a wide range of providers, allowing you to mix and match per org
 | Provider | Type | Auth Method | Query Language | Max Query Window | Features |
 |----------|------|-------------|----------------|---------------|----------|
 | **[Elasticsearch](elasticsearch.md)** | Logs | Basic / API Key | ES DSL | 30 days | Full-text, regex, aggregations, indexing |
-| **[OpenSearch](opensearch.md)** | Logs | HTTP Auth | ES DSL | 30 days | Full-text, regex, aggregations, indexing, `verify_certs` default `false` |
+| **[OpenSearch](opensearch.md)** | Logs | HTTP Auth | ES DSL | 30 days | Full-text, regex, aggregations, indexing, `verify_certs` default `true` |
 | **[Grafana Loki](loki.md)** | Logs | Basic / Bearer / Tenant ID | LogQL | 30 days | Full-text, regex, live tail, multi-tenant |
 | **[Splunk](splunk.md)** | Logs | Auth Token (bearer) | SPL | 30 days | Full-text, regex, aggregations, index scoping |
 | **[Google Cloud](gcp.md)** | Logs + Metrics | Service account JSON | GCP filter | 30 days | Full-text, substring, live tail, high cardinality |

@@ -1,4 +1,5 @@
 from celery import shared_task
+from .deployment_service import canonical_environment
 import requests
 
 from Utils.outbound import check_url
@@ -303,6 +304,38 @@ def fetch_commit_diff(self, code_change_id: int):
         raise  # Will trigger retry
 
 
+@shared_task(bind=True, max_retries=2, default_retry_delay=60)
+def fetch_binding_commit_diffs(self, binding_id: int, code_change_ids):
+    """Fetch diffs for commits of one SCM binding, with its provider (SC-04)."""
+    from Projects.models import SCMBinding
+    from .code_change_service import CodeChangeService
+    from .models import CodeChange
+    from .scm_providers import SCMProviderError
+
+    log = __import__('logging').getLogger(__name__)
+    binding = SCMBinding.objects.select_related('project_service__project').filter(pk=binding_id).first()
+    if binding is None:
+        return {"status": "failed", "reason": "binding_not_found"}
+    org = binding.project_service.project.organisation
+    try:
+        provider = binding.get_provider()
+    except Exception as e:
+        log.warning(f"Diff fetch: no provider for SCM binding {binding_id}: {e}")
+        return {"status": "failed", "reason": "no_provider"}
+    fetched = 0
+    # Only this binding's repository, in this binding's organisation.
+    for change in CodeChange.objects.filter(pk__in=list(code_change_ids or []), organisation=org,
+                                            project_id=str(binding.repository_id), diff_fetched=False):
+        try:
+            if CodeChangeService.apply_diff(change, provider.get_commit_diff(change.commit_sha)):
+                fetched += 1
+        except SCMProviderError as e:
+            log.warning(f"Diff fetch failed for {change.commit_sha[:8]}: {e}")
+        except Exception as e:
+            log.error(f"Error fetching diff for {change.commit_sha[:8]}: {e}")
+    return {"status": "success", "fetched": fetched}
+
+
 @shared_task(
     bind=True,
     max_retries=3,
@@ -488,7 +521,7 @@ def sync_stuck_pipelines():
                         # Create deployment
                         deployment, created = Deployment.objects.get_or_create(
                             code_change=cc,
-                            environment=environment,
+                            environment=canonical_environment(environment),
                             defaults={
                                 "status": actual_status,
                                 "pipeline": pipeline,
@@ -677,7 +710,7 @@ def sync_recent_deployments(hours: int = 2):
                     # Ensure Deployment record exists
                     deployment, dep_created = Deployment.objects.get_or_create(
                         code_change=code_change,
-                        environment=environment,
+                        environment=canonical_environment(environment),
                         defaults={
                             'pipeline': pipeline,
                             'status': status,
@@ -792,7 +825,7 @@ def sync_recent_deployments(hours: int = 2):
                             # Ensure Deployment record
                             deployment, dep_created = Deployment.objects.get_or_create(
                                 code_change=code_change,
-                                environment=environment,
+                                environment=canonical_environment(environment),
                                 defaults={
                                     'pipeline': pipeline,
                                     'status': p_status,

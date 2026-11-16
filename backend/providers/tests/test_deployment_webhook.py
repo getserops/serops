@@ -194,9 +194,19 @@ class PayloadValidationTest(DeploymentWebhookTestBase):
         response = self.client.post(self.url, payload, format='json')
         self.assertEqual(response.status_code, 400)
 
-    def test_unknown_environment_400(self):
+    def test_a_project_named_environment_is_recorded_as_named(self):
+        """SC-08: qa / preview / uat are environments projects use; they
+        were refused (or, for preview and demo, a 500)."""
+        for env in ('qa', 'preview', 'demo', 'eu-prod-2'):
+            response = self.client.post(
+                self.url, self._payload(environment=env.upper()), format='json',
+            )
+            self.assertEqual(response.status_code, 200, (env, response.content))
+            self.assertTrue(Deployment.objects.filter(environment=env).exists(), env)
+
+    def test_an_environment_with_odd_characters_400(self):
         response = self.client.post(
-            self.url, self._payload(environment='unknown-planet'), format='json',
+            self.url, self._payload(environment='prod; drop table'), format='json',
         )
         self.assertEqual(response.status_code, 400)
 

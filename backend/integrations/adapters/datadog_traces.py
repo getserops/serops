@@ -37,7 +37,8 @@ import requests
 from Utils.outbound import GuardedSession
 from requests.exceptions import RequestException
 
-from integrations.base import TraceProvider, TraceProviderCapabilities
+from integrations.base import TraceProvider, TraceProviderCapabilities, TraceQueryError, describe_request_error
+from integrations.adapters.datadog_logs import dd_request
 from traces.schemas import SpanEntry, TraceEntry
 
 logger = logging.getLogger(__name__)
@@ -110,7 +111,8 @@ class DatadogTraceAdapter(TraceProvider):
     def fetch_traces(self, service_name, since, until, limit=50):
         # Datadog query: `service:<name>`. Filter to root spans so we
         # get one row per trace, not one per span.
-        query = f'service:{service_name} -_dd.origin:appsec'
+        from integrations.schemas import _dd_value
+        query = f'service:{_dd_value(service_name)} -_dd.origin:appsec'
         body = {
             'data': {
                 # Datadog refuses a search without it (400 "expected one of
@@ -128,17 +130,14 @@ class DatadogTraceAdapter(TraceProvider):
             }
         }
         try:
-            resp = self._session.post(
-                f'{self.base_url}/api/v2/spans/events/search',
-                json=body,
-                timeout=self.timeout_seconds,
-            )
+            resp = dd_request(self._session, 'post', f'{self.base_url}/api/v2/spans/events/search',
+                              json=body, timeout=self.timeout_seconds)
             resp.raise_for_status()
         except RequestException as exc:
             logger.warning('Datadog fetch_traces failed: %s%s', exc,
                            ' (the application key needs the apm_read scope)'
                            if getattr(exc.response, 'status_code', None) in (401, 403) else '')
-            return []
+            raise TraceQueryError(f'Datadog refused the span search: {describe_request_error(exc)}') from exc
 
         payload = resp.json() or {}
         # Group spans by trace_id → TraceEntry.
@@ -165,11 +164,8 @@ class DatadogTraceAdapter(TraceProvider):
             }
         }
         try:
-            resp = self._session.post(
-                f'{self.base_url}/api/v2/spans/events/search',
-                json=body,
-                timeout=self.timeout_seconds,
-            )
+            resp = dd_request(self._session, 'post', f'{self.base_url}/api/v2/spans/events/search',
+                              json=body, timeout=self.timeout_seconds)
             resp.raise_for_status()
         except RequestException as exc:
             logger.warning('Datadog fetch_trace(%s) failed: %s', trace_id, exc)

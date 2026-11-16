@@ -11,7 +11,7 @@ from typing import List, Tuple, Optional, Dict, Any
 from django.conf import settings
 from elasticsearch import Elasticsearch, helpers, exceptions as es_exceptions
 
-from ..base import LogProvider, LogProviderCapabilities
+from ..base import LogProvider, LogProviderCapabilities, LogSearchError, note_partial
 from ..schemas import LogEntry, LogStream, LogQuery
 
 logger = logging.getLogger(__name__)
@@ -58,6 +58,7 @@ class ElasticsearchLogProvider(LogProvider):
         # (security review 2026-11, finding 3). The client does not follow
         # redirects.
         from Utils.outbound import check_url
+        from integrations.adapters.guarded_transport import guarded_es_node_class
         check_url(host if '://' in str(host) else f'http://{host}')
              
         connection_params = {
@@ -65,7 +66,10 @@ class ElasticsearchLogProvider(LogProvider):
             "request_timeout": self.timeout_seconds,
             "retry_on_timeout": True,
             "max_retries": self.max_retries,
-            "verify_certs": self._config.get('verify_certs', True)
+            "verify_certs": self._config.get('verify_certs', True),
+            # The outbound policy is checked before every request, not only
+            # here: the adapter is cached and DNS can change after.
+            "node_class": guarded_es_node_class(),
         }
 
         # Auth
@@ -194,6 +198,7 @@ class ElasticsearchLogProvider(LogProvider):
                 allow_no_indices=True,
             )
 
+            _note_es_partial(self, response)
             hits = response.get('hits', {}).get('hits', [])
             return [LogEntry.from_es_hit(hit) for hit in hits]
 
@@ -210,8 +215,11 @@ class ElasticsearchLogProvider(LogProvider):
             logger.debug(f"Elasticsearch index not found: {target_index}")
             return []
         except es_exceptions.RequestError as e:
+            # A rejected query (mapping conflict on the sort field, bad
+            # query_string) is a failure, not "no logs" (phase 3 review, LG1).
             logger.warning(f"Elasticsearch bad request for {target_index}: {e}")
-            return []
+            raise LogSearchError(
+                f'Elasticsearch rejected the query (HTTP 400): {getattr(e, "message", "") or "bad request"}') from e
         except Exception as e:
             logger.error(f"Elasticsearch search failed: {e}", exc_info=True)
             raise
@@ -284,3 +292,18 @@ def discover_log_indices(client, project, configured: List[str]) -> List[str]:
         except Exception as exc:
             logger.debug("Index pattern %s not usable: %s", pattern, exc)
     return defaults
+
+
+def _note_es_partial(provider, response):
+    """Shard failures and timed-out searches return 200 with fewer hits.
+    Elasticsearch and OpenSearch share the response shape."""
+    try:
+        shards = response.get('_shards') or {}
+        failed = int(shards.get('failed') or 0)
+        if failed:
+            note_partial(provider, f'{failed} of {shards.get("total", "?")} shards failed; '
+                                   'some log records may be missing')
+        if response.get('timed_out'):
+            note_partial(provider, 'the search timed out on the store; some log records may be missing')
+    except (AttributeError, TypeError, ValueError):
+        pass

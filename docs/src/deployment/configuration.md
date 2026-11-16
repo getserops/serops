@@ -130,6 +130,7 @@ DB_PASSWORD=s3cur3-pa$$word
 |----------|----------|---------|-------------|
 | `BATCH_SCHEDULER_TICK_RATE` | No | `1` | How often (in minutes) Celery Beat checks whether any organisation is due for a new batch. Keep at `1` unless you need to reduce scheduler overhead. |
 | `BATCH_GENERATION_INTERVAL` | No | `15` | Default batch interval in minutes for organisations that have not set their own. |
+| `SEROPS_MAX_LOG_WINDOW_MINUTES` | No | `360` | The longest window a scheduled run reads logs over. A run continues from where the last saved batch ended (a run whose log store refused the query does not count), so after quiet hours or an outage it would otherwise re-read hours of logs. When the cap applies, the batch says so. |
 
 !!! info "Batch Generation Interval"
     Each organisation can override the interval in **Settings > Data Management > Batch Generation Interval**; `BATCH_GENERATION_INTERVAL` only applies where it has not.

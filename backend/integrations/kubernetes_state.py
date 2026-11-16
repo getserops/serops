@@ -45,6 +45,8 @@ import logging
 import re
 from datetime import timedelta, timezone
 
+from integrations.promql import promql_matchers
+
 logger = logging.getLogger(__name__)
 
 # How far before the window a rollout or scale change is still reported: a
@@ -99,7 +101,7 @@ def workload_name(pod, container=''):
     return f'{workload}/{container}'
 
 
-def fetch_kubernetes_state(provider, labels, start_time, end_time):
+def fetch_kubernetes_state(provider, labels, start_time, end_time, failures=None):
     out = {'terminated': [], 'restarts': {}, 'waiting': [], 'changes': [], 'unavailable': [], 'stuck': [], 'throttled': []}
     if not hasattr(provider, 'query_range_expr'):
         return out
@@ -109,6 +111,10 @@ def fetch_kubernetes_state(provider, labels, start_time, end_time):
             return provider.query_range_expr(expr, start, end_time) or []
         except Exception as exc:                       # noqa: BLE001
             logger.warning('kube-state-metrics query failed (%s): %s', expr[:80], exc)
+            # Reported by the caller: "no restarts" must not stand for "the
+            # restart query failed" (phase 3 review, MT-1).
+            if failures is not None:
+                failures.append(str(exc))
             return []
 
     namespaces = _project_namespaces(query, labels)
@@ -134,7 +140,7 @@ def fetch_kubernetes_state(provider, labels, start_time, end_time):
 
 
 def _project_namespaces(query, labels):
-    selector = ','.join(f'{k}="{_promql_escape(v)}"' for k, v in (labels or {}).items() if v)
+    selector = promql_matchers(labels)
     found = set()
     if selector:
         for ts in query(f'count by (namespace) (container_memory_working_set_bytes{{{selector}}})'):
@@ -147,10 +153,6 @@ def _project_namespaces(query, labels):
     return sorted(n for n in found if _DNS_LABEL.fullmatch(n))
 
 
-def _promql_escape(value):
-    """A PromQL string literal's content: a quote or backslash in a
-    project or environment name no longer ends the label matcher."""
-    return str(value).replace('\\', '\\\\').replace('"', '\\"').replace('\n', ' ')
 
 
 def _tags(ts):
@@ -381,7 +383,7 @@ def _throttled(query, labels, out):
     # No container!="" filter: under the Docker runtime cAdvisor reports these
     # per pod only, without a container label. Where both pod and container
     # series exist, each is counted in both sums and the ratio is unchanged.
-    selector = ','.join(f'{k}="{_promql_escape(v)}"' for k, v in (labels or {}).items() if v)
+    selector = promql_matchers(labels)
     expr = (f'100 * sum by (service_name) (rate(container_cpu_cfs_throttled_periods_total{{{selector}}}[5m])) '
             f'/ sum by (service_name) (rate(container_cpu_cfs_periods_total{{{selector}}}[5m]))')
     for ts in query(expr):

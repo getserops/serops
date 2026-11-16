@@ -67,6 +67,12 @@ class BitbucketWebhookHandler(BaseCICDWebhookHandler):
         'repo:commit_status_updated',
     ]
     
+    def payload_matches_binding(self, payload, binding) -> bool:
+        """The binding's pipeline ID is the repository (``workspace/repo``
+        or its UUID); a workspace hook sends every repository's events."""
+        from providers.payload_identity import matches, repository_identifiers
+        return matches(binding.pipeline_id, repository_identifiers(payload))
+
     def validate_request(self, request, binding=None) -> bool:
         """
         Validate the Bitbucket webhook request.

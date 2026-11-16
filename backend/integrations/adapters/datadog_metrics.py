@@ -14,7 +14,8 @@ import requests
 from Utils.outbound import GuardedSession
 from requests.exceptions import RequestException
 
-from integrations.base import MetricProvider, MetricProviderCapabilities
+from integrations.base import MetricProvider, MetricProviderCapabilities, MetricQueryError, describe_request_error
+from integrations.adapters.datadog_logs import dd_request
 from integrations.schemas import TimeSeries, TimeSeriesPoint, HostInfo
 
 logger = logging.getLogger(__name__)
@@ -148,11 +149,8 @@ class DatadogMetricProvider(MetricProvider):
         }
 
         try:
-            resp = self._session.get(
-                f"{self.base_url}/api/v1/query",
-                params=params,
-                timeout=self.timeout_seconds,
-            )
+            resp = dd_request(self._session, "get", f"{self.base_url}/api/v1/query",
+                              params=params, timeout=self.timeout_seconds)
             resp.raise_for_status()
             data = resp.json()
             series = self._parse_series(data, metric)
@@ -165,7 +163,8 @@ class DatadogMetricProvider(MetricProvider):
 
         except RequestException as exc:
             logger.error("Datadog query_range failed: %s", exc)
-            return []
+            # Raised, not []: an empty list reads as "no series, nothing abnormal" (phase 3 review, CL-11).
+            raise MetricQueryError(f"Datadog refused the metrics query: {describe_request_error(exc)}") from exc
 
     def discover_hosts(
         self,
@@ -179,7 +178,7 @@ class DatadogMetricProvider(MetricProvider):
         """
         params = {"count": 1000}
         if environment:
-            params["filter"] = f"env:{environment}"
+            params["filter"] = f"env:{_dd_tag_value(environment)}"
 
         try:
             resp = self._session.get(
@@ -272,13 +271,17 @@ class DatadogMetricProvider(MetricProvider):
                         k, v = part.split(":", 1)
                         labels[k] = v
 
+            # An interval with no data is [ts, null]. It used to become 0:
+            # in Kubernetes mode available = limit - usage was then 0 against
+            # a real limit, a 100 % memory spike on a healthy service
+            # (review CL-9). A gap is not a value: it is left out.
             points = [
                 TimeSeriesPoint(
                     timestamp=datetime.fromtimestamp(point[0] / 1000, tz=timezone.utc),
-                    value=float(point[1]) if point[1] is not None else 0.0,
+                    value=float(point[1]),
                 )
                 for point in series.get("pointlist", [])
-                if len(point) >= 2
+                if len(point) >= 2 and point[1] is not None
             ]
 
             series_list.append(

@@ -81,6 +81,10 @@ SerOps auto-generates a webhook secret when you create a CI/CD binding. To regis
 
 ---
 
+Events are matched to the binding's repository (`workspace/repo` or its
+UUID): a workspace-level webhook's events for other repositories are
+acknowledged and ignored.
+
 ## Workspace Configuration
 
 For Bitbucket Cloud, you may need to specify the workspace:

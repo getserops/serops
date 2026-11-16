@@ -53,7 +53,7 @@ from datetime import datetime
 
 from django.utils import timezone
 
-from .deployment_webhook import GenericDeploymentWebhookHandler, _PayloadError, _VALID_ENVS
+from .deployment_webhook import GenericDeploymentWebhookHandler, _PayloadError
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +158,10 @@ class ArgoCDDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
         # Explicit annotation wins.
         explicit = str(annotations.get('serops.io/environment') or '').strip().lower()
         if explicit:
-            return _map_env_alias(explicit)
+            # An environment the alias map does not know (qa, uat) is kept
+            # as named, not None: None made the deploy a 500 (SC-08).
+            from .deployment_service import canonical_environment
+            return _map_env_alias(explicit) or canonical_environment(explicit)
         # Namespace fallback — many teams name namespaces after envs.
         ns = str(metadata.get('namespace') or '').strip().lower()
         if ns:
@@ -181,13 +184,16 @@ class ArgoCDDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
             return None
 
 
+# Namespace names read as an environment when nothing explicit is set.
+_NAMESPACE_ENVS = {'production', 'staging', 'development', 'preview', 'demo'}
+
+
 def _map_env_alias(name: str):
-    """Return canonical env name for the input, or None if unrecognised."""
-    if name in _VALID_ENVS:
-        return name
-    aliases = {
-        'prod': 'production', 'prd': 'production', 'live': 'production',
-        'stage': 'staging', 'stg': 'staging', 'preprod': 'staging',
-        'dev': 'development', 'develop': 'development',
-    }
-    return aliases.get(name)
+    """Return canonical env name for the input, or None if unrecognised.
+
+    Used for namespaces (a namespace named ``payments`` is not an
+    environment), so only the usual names and their spellings count.
+    """
+    from .deployment_service import canonical_environment
+    canonical = canonical_environment(name)
+    return canonical if canonical in _NAMESPACE_ENVS else None

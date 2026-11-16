@@ -129,6 +129,43 @@ const AlertIngestSecretButton = () => {
     );
 };
 
+/**
+ * Alerts that matched no service were not analysed (they used to be
+ * analysed against the organisation's first project, a confident answer
+ * about the wrong team). Listed here so an admin can fix the alert's
+ * labels or the service names.
+ */
+const UnmatchedAlertsNotice = () => {
+    const [unmatched, setUnmatched] = React.useState(null);
+
+    React.useEffect(() => {
+        let alive = true;
+        SettingsService.getAlertIngestSecret()
+            .then((s) => { if (alive) setUnmatched(s?.unmatched_alerts || null); })
+            .catch(() => { /* silent: the secret button reports errors */ });
+        return () => { alive = false; };
+    }, []);
+
+    if (!unmatched?.count) return null;
+    return (
+        <Alert variant="warning" data-testid="unmatched-alerts">
+            <strong>
+                {unmatched.count} alert{unmatched.count === 1 ? '' : 's'} in the last {unmatched.days} days
+                matched no service and {unmatched.count === 1 ? 'was' : 'were'} not analysed.
+            </strong>{' '}
+            Put the service name in the alert&apos;s <code>service</code> or <code>service_name</code> label,
+            or add the service to a project.
+            <ul className="mb-0 mt-2 small">
+                {(unmatched.latest || []).map((a) => (
+                    <li key={`${a.source}-${a.received_at}-${a.alertname}`}>
+                        {a.alertname} ({a.source}, {new Date(a.received_at).toLocaleString()}): {a.detail}
+                    </li>
+                ))}
+            </ul>
+        </Alert>
+    );
+};
+
 // PR-N phase 2 (2026-09-26): 'email' joins the delivery-target set so
 // the settings surface matches the Grafana / Alertmanager pattern
 // (one uniform table of destinations).
@@ -293,6 +330,8 @@ const IncidentChannelsSettings = () => {
                     </div>
                 }
             />
+
+            <UnmatchedAlertsNotice />
 
             {error && <Alert variant="danger">{error}</Alert>}
 

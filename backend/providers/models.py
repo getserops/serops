@@ -258,7 +258,7 @@ class CodeChange(models.Model):
         short_sha = self.commit_sha[:8] if self.commit_sha else 'N/A'
         return f"[{short_sha}] {self.commit_message[:50]}"
     
-    def get_summary_for_ai(self, deployed_at=None, environment=None) -> dict:
+    def get_summary_for_ai(self, deployed_at=None, environment=None, deploy_status=None) -> dict:
         """Return a compact summary suitable for AI analysis.
 
         ``deployed_at`` / ``environment``: when this commit first reached
@@ -303,7 +303,14 @@ class CodeChange(models.Model):
                 for f in self.diff_summary.get('files', [])
             ][:10],
         }
-        if deployed_at is not None:
+        if deployed_at is not None and deploy_status not in (None, '', 'success'):
+            # A pipeline that failed or was cancelled shipped nothing: it is
+            # CI context, never "deployed to production at T", which made the
+            # RCA blame a commit that never went live (phase 3 review SC-05).
+            summary['pipeline_status'] = deploy_status
+            summary['pipeline_at'] = deployed_at.isoformat()
+            summary['pipeline_environment'] = environment
+        elif deployed_at is not None:
             summary['deployed_at'] = deployed_at.isoformat()
             summary['deployed_to'] = environment
         return summary

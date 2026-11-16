@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from integrations.adapters.cloudwatch_logs import _aws_error, _get_boto3_client
-from integrations.base import MetricProvider, MetricProviderCapabilities
+from integrations.base import MetricProvider, MetricProviderCapabilities, MetricQueryError
 from integrations.schemas import TimeSeries, TimeSeriesPoint, HostInfo
 
 logger = logging.getLogger(__name__)
@@ -112,6 +112,14 @@ SCOPE_DIMENSIONS = {
 # after the project, or after the environment, as for kube-state-metrics.
 NAMESPACE_SCOPE = ("project_name", "environment")
 MAX_SERIES = 100
+# Usable series kept from ListMetrics (after the host and ``where`` filters).
+MAX_LISTED = 10000
+
+
+def _ends_recently(end) -> bool:
+    from datetime import timezone as _tz
+    end_utc = end if getattr(end, "tzinfo", None) else end.replace(tzinfo=_tz.utc)
+    return (datetime.now(_tz.utc) - end_utc).total_seconds() < 2.5 * 3600
 
 
 class CloudWatchMetricProvider(MetricProvider):
@@ -201,11 +209,14 @@ class CloudWatchMetricProvider(MetricProvider):
         else:
             period = 3600
 
+        # A window ending in the last 3 hours lists only recently active
+        # series; a re-analysis of an older incident still sees dead pods.
+        recent = _ends_recently(end)
         try:
-            series = self._series(mapping, labels)
+            series = self._series(mapping, labels, recent)
             if not series and mapping.get("fallback"):
                 mapping = mapping["fallback"]
-                series = self._series(mapping, labels)
+                series = self._series(mapping, labels, recent)
             if not series:
                 return []
             response = self.client.get_metric_data(
@@ -216,7 +227,8 @@ class CloudWatchMetricProvider(MetricProvider):
             )
         except Exception as exc:
             logger.error("CloudWatch query_range failed: %s", exc)
-            return []
+            # Raised, not []: an empty list reads as "no series, nothing abnormal" (phase 3 review, CL-11).
+            raise MetricQueryError(f"CloudWatch refused the metrics query ({type(exc).__name__})") from exc
 
         # A host can have several candidate series (one per cluster, see
         # _series): keep the one with the most points in the window.
@@ -260,10 +272,10 @@ class CloudWatchMetricProvider(MetricProvider):
         labels = {"organisation_name": org, "project_name": project, "environment": environment}
         mapping = (K8S_METRIC_MAP if self._topology_mode == "kubernetes" else METRIC_MAP)["node_cpu_seconds_total"]
         try:
-            series = self._series(mapping, labels)
+            series = self._series(mapping, labels, recent=True)
             if not series and mapping.get("fallback"):
                 mapping = mapping["fallback"]
-                series = self._series(mapping, labels)
+                series = self._series(mapping, labels, recent=True)
         except Exception as exc:
             logger.error("CloudWatch discover_hosts failed: %s", exc)
             return []
@@ -317,7 +329,33 @@ class CloudWatchMetricProvider(MetricProvider):
                             "Period": period, "ReturnData": True})
         return queries
 
-    def _series(self, mapping: dict, labels: dict) -> List[dict]:
+    def _list(self, mapping: dict, recent: bool, cluster: str) -> List[dict]:
+        """ListMetrics for one metric, every page, keeping only usable series
+        as they come. The listing used to stop at 1000 dimension sets BEFORE
+        the project's namespace and cluster were applied, and ListMetrics
+        returns two weeks of history (every dead pod): an account with a few
+        clusters passed 1000 before the project appeared and got no CPU or
+        memory (review CL-12). ``recent`` asks only for series with data in
+        the last 3 hours; ``cluster`` (Container Insights) lists only that
+        cluster's series."""
+        host = mapping["host"]
+        kwargs = {"Namespace": mapping["namespace"], "MetricName": mapping["metric"]}
+        if recent:
+            kwargs["RecentlyActive"] = "PT3H"
+        if cluster:
+            kwargs["Dimensions"] = [{"Name": "ClusterName", "Value": cluster}]
+        found = []
+        for page in self.client.get_paginator("list_metrics").paginate(**kwargs):
+            dims = [{d["Name"]: d["Value"] for d in m.get("Dimensions", [])} for m in page.get("Metrics", [])]
+            found += [d for d in dims if d.get(host)
+                      and all(d.get(k) == v for k, v in mapping.get("where", {}).items())]
+            if len(found) >= MAX_LISTED:
+                logger.warning("CloudWatch %s/%s: more than %d series listed, the rest are not read",
+                               mapping["namespace"], mapping["metric"], MAX_LISTED)
+                break
+        return found
+
+    def _series(self, mapping: dict, labels: dict, recent: bool = False) -> List[dict]:
         """The series of a metric to read, as dimension dicts, one per host.
 
         GetMetricData returns a metric only when the dimensions match
@@ -325,17 +363,10 @@ class CloudWatchMetricProvider(MetricProvider):
         them only when the series carry a matching dimension (see
         SCOPE_DIMENSIONS).
         """
-        found = []
-        pages = self.client.get_paginator("list_metrics").paginate(
-            Namespace=mapping["namespace"], MetricName=mapping["metric"])
-        for page in pages:
-            found += [{d["Name"]: d["Value"] for d in m.get("Dimensions", [])}
-                      for m in page.get("Metrics", [])]
-            if len(found) >= 1000:
-                break
         host = mapping["host"]
-        found = [d for d in found if d.get(host)
-                 and all(d.get(k) == v for k, v in mapping.get("where", {}).items())]
+        found = self._list(mapping, recent, self._cluster if mapping["namespace"] == "ContainerInsights" else "")
+        if not found and self._cluster and mapping["namespace"] == "ContainerInsights":
+            found = self._list(mapping, recent, "")
         for label, names in SCOPE_DIMENSIONS.items():
             value = str((labels or {}).get(label) or "").lower()
             for name in names:

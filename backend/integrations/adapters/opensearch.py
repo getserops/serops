@@ -11,11 +11,21 @@ from typing import List, Tuple, Optional
 
 from django.conf import settings
 
-from integrations.base import LogProvider, LogProviderCapabilities
-from integrations.adapters.elasticsearch import discover_log_indices, parse_index_patterns
+from integrations.base import LogProvider, LogProviderCapabilities, LogSearchError
+from integrations.adapters.elasticsearch import _note_es_partial, discover_log_indices, parse_index_patterns
 from integrations.schemas import LogEntry, LogStream, LogQuery
 
 logger = logging.getLogger(__name__)
+
+
+def _verify_certs(config: dict) -> bool:
+    """TLS verification is on unless the integration turns it off
+    (``verify_certs: false``; "false"/"0"/"no" from the API count too).
+    It used to default to off, so a man in the middle saw the password."""
+    value = config.get("verify_certs", True)
+    if isinstance(value, str):
+        return value.strip().lower() not in ("false", "0", "no", "off")
+    return bool(value)
 
 
 def _get_opensearch_client(config: dict):
@@ -28,6 +38,9 @@ def _get_opensearch_client(config: dict):
     # (security review 2026-11, finding 3). The client does not follow
     # redirects.
     from Utils.outbound import check_url
+    from integrations.adapters.guarded_transport import (
+        guarded_es_node_class, guarded_opensearch_connection_class,
+    )
     host = str(config.get("host", "https://localhost:9200"))
     check_url(host if '://' in host else f'http://{host}')
     try:
@@ -37,7 +50,10 @@ def _get_opensearch_client(config: dict):
             "timeout": config.get("timeout_seconds", 30),
             "max_retries": config.get("max_retries", 3),
             "retry_on_timeout": True,
-            "verify_certs": config.get("verify_certs", False),
+            "verify_certs": _verify_certs(config),
+            # The outbound policy before every request: the adapter is
+            # cached and DNS can change after this first check.
+            "connection_class": guarded_opensearch_connection_class(),
         }
         username = config.get("username")
         password = config.get("password")
@@ -55,7 +71,8 @@ def _get_opensearch_client(config: dict):
             "request_timeout": config.get("timeout_seconds", 30),
             "max_retries": config.get("max_retries", 3),
             "retry_on_timeout": True,
-            "verify_certs": config.get("verify_certs", False),
+            "verify_certs": _verify_certs(config),
+            "node_class": guarded_es_node_class(),
         }
         username = config.get("username")
         password = config.get("password")
@@ -188,11 +205,21 @@ class OpenSearchLogProvider(LogProvider):
                 ignore_unavailable=True,
                 allow_no_indices=True,
             )
-            hits = response.get("hits", {}).get("hits", [])
-            return [LogEntry.from_es_hit(hit) for hit in hits]
         except Exception as exc:
+            # A missing index or pattern is "no logs"; every other failure
+            # (connection, auth, a rejected query) must not read as a quiet
+            # window (phase 3 review, LG1).
+            if type(exc).__name__ == 'NotFoundError':
+                logger.debug("OpenSearch index not found: %s", target_index)
+                return []
             logger.error("OpenSearch search failed: %s", exc, exc_info=True)
-            return []
+            status = getattr(exc, 'status_code', None)
+            raise LogSearchError(
+                f'OpenSearch refused the query ({f"HTTP {status}" if isinstance(status, int) else type(exc).__name__})'
+            ) from exc
+        _note_es_partial(self, response)
+        hits = response.get("hits", {}).get("hits", [])
+        return [LogEntry.from_es_hit(hit) for hit in hits]
 
     def get_indices(self, project) -> List[str]:
         """Indices to search for a project (same rules as Elasticsearch)."""

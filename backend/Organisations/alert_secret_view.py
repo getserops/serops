@@ -51,7 +51,28 @@ class AlertSecretView(APIView):
             'webhook_url_template': (
                 f'/api/webhooks/alerts/<alertmanager|grafana|datadog>/{org.id}/'
             ),
+            'unmatched_alerts': _unmatched_alerts(org),
         })
+
+
+def _unmatched_alerts(org, days=7, limit=5):
+    """Alerts of the last ``days`` that matched no service and were not
+    analysed (phase 3 review SC-02), so an admin can fix the alert labels or
+    the service names instead of reading a log line."""
+    from datetime import timedelta
+    from Data.models import AlertEvent
+    qs = AlertEvent.objects.filter(organisation=org, match_status=AlertEvent.MATCH_UNMATCHED,
+                                   received_at__gte=timezone.now() - timedelta(days=days))
+    return {
+        'count': qs.count(),
+        'days': days,
+        'latest': [
+            {'alertname': e.alertname, 'source': e.source, 'service': e.service,
+             'environment': e.environment, 'received_at': e.received_at.isoformat(),
+             'detail': e.match_detail}
+            for e in qs.order_by('-received_at')[:limit]
+        ],
+    }
 
 
 class AlertSecretRotateView(APIView):
