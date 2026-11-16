@@ -102,6 +102,30 @@ def clean_log_message(log_line):
     # If no pattern matches, return the original line (it might already be clean)
     return log_line
 
+
+def _run_finished_at(run):
+    """When a CI run finished, from the provider's own payload.
+
+    A deploy recorded at the time SerOps polled (up to one polling interval
+    late) made the AI rule out the commit at fault as "deployed after the
+    errors began" (phase 3 client test C1, incident I8, 2026-11-16).
+    Falls back to now only when the payload carries no usable time."""
+    from dateutil import parser as _dp
+    from django.utils import timezone as _tz
+    import datetime as _dt
+    for key in ('finished_at', 'updated_at', 'completed_at', 'created_at'):
+        value = (run or {}).get(key)
+        if not value:
+            continue
+        try:
+            when = value if hasattr(value, 'tzinfo') else _dp.parse(str(value))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if _tz.is_naive(when):
+            when = _tz.make_aware(when, _dt.timezone.utc)
+        return when
+    return _tz.now()
+
 @shared_task
 def fetch_failed_job_logs_for_project(project_id):
     project = GitlabProject.objects.filter(pk=project_id).first()
@@ -525,7 +549,7 @@ def sync_stuck_pipelines():
                             defaults={
                                 "status": actual_status,
                                 "pipeline": pipeline,
-                                "deployed_at": timezone.now()
+                                "deployed_at": _run_finished_at(data)
                             }
                         )
                         if created:
@@ -715,7 +739,7 @@ def sync_recent_deployments(hours: int = 2):
                             'pipeline': pipeline,
                             'status': status,
                             'deployed_by': 'GitLabSync',
-                            'deployed_at': timezone.now()
+                            'deployed_at': _run_finished_at(p_data)
                         }
                     )
                     
@@ -830,7 +854,7 @@ def sync_recent_deployments(hours: int = 2):
                                     'pipeline': pipeline,
                                     'status': p_status,
                                     'deployed_by': f'{binding.provider_type}Sync',
-                                    'deployed_at': timezone.now(),
+                                    'deployed_at': _run_finished_at(p_data),
                                 }
                             )
                             if dep_created:

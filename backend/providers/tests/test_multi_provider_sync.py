@@ -161,3 +161,46 @@ class TestMultiProviderSync(SimpleTestCase):
 
         self.assertEqual(result['pipelines_synced'], 0)
         mock_binding.save.assert_not_called()
+
+    def test_deployment_time_is_the_run_finish_not_the_poll(self):
+        """A polled run is recorded as deployed when it finished, not when
+        SerOps polled it (phase 3 C1 I8: the AI ruled out the commit at fault
+        because its deploy was stamped a poll interval late)."""
+        import datetime as dt
+        mock_provider = MagicMock()
+        mock_provider.list_recent_pipelines.return_value = [
+            {'id': '101', 'status': 'success', 'ref': 'main', 'sha': 'def456',
+             'updated_at': '2026-11-16T09:10:40Z'},
+        ]
+        mock_binding = MagicMock()
+        mock_binding.provider_type = 'github'
+        mock_binding.pipeline_id = 'owner/repo'
+        mock_binding.get_provider.return_value = mock_provider
+        mock_binding.project_service.project.organisation = None
+
+        result, mocks = self._run_sync([mock_binding])
+
+        defaults = mocks['Deployment'].objects.get_or_create.call_args.kwargs['defaults']
+        self.assertEqual(defaults['deployed_at'],
+                         dt.datetime(2026, 11, 16, 9, 10, 40, tzinfo=dt.timezone.utc))
+
+
+class TestRunFinishedAt(SimpleTestCase):
+
+    def test_prefers_finished_then_updated(self):
+        import datetime as dt
+        from providers.tasks import _run_finished_at
+        self.assertEqual(_run_finished_at({'finished_at': '2026-11-16T09:00:00Z', 'updated_at': '2026-11-16T09:05:00Z'}),
+                         dt.datetime(2026, 11, 16, 9, 0, tzinfo=dt.timezone.utc))
+        self.assertEqual(_run_finished_at({'updated_at': '2026-11-16T09:05:00+01:00'}),
+                         dt.datetime(2026, 11, 16, 8, 5, tzinfo=dt.timezone.utc))
+
+    def test_naive_time_is_utc_and_missing_time_falls_back_to_now(self):
+        import datetime as dt
+        from django.utils import timezone
+        from providers.tasks import _run_finished_at
+        self.assertEqual(_run_finished_at({'updated_at': '2026-11-16 09:05:00'}),
+                         dt.datetime(2026, 11, 16, 9, 5, tzinfo=dt.timezone.utc))
+        before = timezone.now()
+        self.assertGreaterEqual(_run_finished_at({'updated_at': 'not a date'}), before)
+        self.assertGreaterEqual(_run_finished_at({}), before)
