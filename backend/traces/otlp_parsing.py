@@ -17,7 +17,9 @@ receiver, dataclass for the adapter — see ``parse_span_to_dict`` vs
 from datetime import datetime, timezone
 from typing import Optional
 
-from integrations.field_aliases import SERVICE_NAME_ALIASES, first_present
+from integrations.field_aliases import (
+    ENVIRONMENT_ALIASES, PROJECT_NAME_ALIASES, SERVICE_NAME_ALIASES, first_present,
+)
 
 
 def parse_attributes(attrs_list):
@@ -180,6 +182,12 @@ def parse_span_dict(span_dict, resource_attrs, resource_service_name) -> Optiona
 
     status_code, status_message = parse_status(span_dict.get('status') or {})
     events = parse_events(span_dict.get('events') or [])
+    # The span's environment and project, when the sender says them
+    # (deployment.environment[.name] / project_name resource attributes):
+    # without them every environment and every project with a service of
+    # the same name shared one trace summary (phase 3 review MT-2).
+    environment = str(first_present(merged_attrs, ENVIRONMENT_ALIASES, default='') or '').strip().lower()[:64]
+    project_name = str(first_present(merged_attrs, PROJECT_NAME_ALIASES, default='') or '').strip()[:255]
 
     return {
         'trace_id': trace_id,
@@ -195,6 +203,8 @@ def parse_span_dict(span_dict, resource_attrs, resource_service_name) -> Optiona
         'status_message': status_message,
         'attributes': merged_attrs,
         'events': events,
+        'environment': environment,
+        'project_name': project_name,
     }
 
 

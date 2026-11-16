@@ -127,7 +127,7 @@ def snapshot_trace_context(batch):
         return None
 
 
-def count_spans_in_window(project, start, end):
+def count_spans_in_window(project, start, end, environment=None):
     """Cheap span count for a project's window — no batch row required.
 
     Batch creation gates on "is there anything to analyse?", and that gate
@@ -151,26 +151,19 @@ def count_spans_in_window(project, start, end):
     if project is None or start is None or end is None:
         return 0
     try:
-        from traces.models import Span, Trace
+        from traces.models import Span
     except ImportError:
         return 0
     try:
         organisation = getattr(project, 'organisation', None)
         if organisation is None:
             return 0
-        trace_qs = Trace.objects.filter(
-            organisation=organisation,
-            start_time__gte=start,
-            start_time__lte=end,
-        )
-        service_names = _service_names(project)
-        if service_names:
-            from django.db.models import Exists, OuterRef, Q
-            trace_qs = trace_qs.filter(Q(root_service_name__in=service_names) | Exists(
-                Span.objects.filter(trace=OuterRef('pk'), service_name__in=service_names)))
-        # Primary keys, not OTEL trace ids: a trace id is unique only within
-        # an organisation (security review 2026-11, finding 1).
-        trace_pks = list(trace_qs.values_list('pk', flat=True)[:500])
+        # Same selection as the batch's trace summary: the project's services,
+        # in this environment and project (phase 3 review MT-2). Primary keys,
+        # not OTEL trace ids: a trace id is unique only within an organisation
+        # (security review 2026-11, finding 1).
+        trace_pks = _project_trace_pks(organisation, _service_names(project), start, end,
+                                       _span_scope(project, environment))
         if not trace_pks:
             return 0
         return Span.objects.filter(trace__in=trace_pks).count()
@@ -223,7 +216,7 @@ def _read_snapshot(batch):
     return snapshot
 
 
-def native_trace_summary(project, data, window_end):
+def native_trace_summary(project, data, window_end, environment=None):
     """Redacted trace summary from the native OTLP store, before a batch exists.
 
     Sentinel decides whether a window is worth an analysis BEFORE the batch
@@ -242,7 +235,8 @@ def native_trace_summary(project, data, window_end):
     if project is None or window_end is None:
         return None
     try:
-        window = _window(SimpleNamespace(timestamp=window_end, project=project, data=data))
+        window = _window(SimpleNamespace(timestamp=window_end, project=project, data=data,
+                                         environment=environment))
         if window is None:
             return None
         summary = _from_native(*window)
@@ -305,8 +299,10 @@ def _window(batch):
     except (TypeError, ValueError):
         pass
 
-    service_names = _service_names(getattr(batch, 'project', None))
-    return organisation, service_names, window_start, window_end
+    project = getattr(batch, 'project', None)
+    service_names = _service_names(project)
+    return organisation, service_names, window_start, window_end, _span_scope(
+        project, getattr(batch, 'environment', None))
 
 
 # ---------------------------------------------------------------------------
@@ -338,14 +334,51 @@ def _service_names(project):
         return set()
 
 
-def _from_native(organisation, service_names, start, end):
+
+def _span_scope(project, environment_name):
+    """The environment spellings and project a batch's spans must carry.
+
+    Spans that say an environment or a project are read only by the batch
+    of that environment and project; spans that say neither (senders
+    without deployment.environment / project_name) stay visible to every
+    batch, as before. Without this, a staging load test filled the
+    production batch's trace summary, and two projects with an ``api``
+    service shared their spans (phase 3 review MT-2).
+    """
+    from integrations.field_aliases import environment_values
+    extra = []
+    if project is not None and environment_name:
+        try:
+            env = project.environments.filter(name=environment_name).first()
+            label = getattr(env, 'log_label_value', '') if env else ''
+            if label:
+                extra.append(label)
+        except Exception:                                      # noqa: BLE001
+            pass
+    envs = [v.lower() for v in environment_values(environment_name, extra)] if environment_name else []
+    return {'environments': envs, 'project': getattr(project, 'name', '') or ''}
+
+
+def _scope_q(scope, prefix=''):
+    """Q for spans inside ``scope`` (see _span_scope); everything when None."""
+    from django.db.models import Q
+    q = Q()
+    if not scope:
+        return q
+    if scope.get('environments'):
+        q &= Q(**{f'{prefix}environment__in': scope['environments']}) | Q(**{f'{prefix}environment': ''})
+    if scope.get('project'):
+        q &= Q(**{f'{prefix}project_name': scope['project']}) | Q(**{f'{prefix}project_name': ''})
+    return q
+
+def _from_native(organisation, service_names, start, end, scope=None):
     """Pull top-slow + top-error spans from our own Trace/Span store."""
     try:
         from traces.models import Span
     except ImportError:
         return None
 
-    trace_pks = _project_trace_pks(organisation, service_names, start, end)
+    trace_pks = _project_trace_pks(organisation, service_names, start, end, scope)
     if not trace_pks:
         return None
 
@@ -385,7 +418,7 @@ def _from_native(organisation, service_names, start, end):
 
     # The window before, same length, as the baseline each service's timings
     # are compared to: "p95 3004ms" means little without "it was 5ms".
-    baseline_pks = _project_trace_pks(organisation, service_names, start - (end - start), start)
+    baseline_pks = _project_trace_pks(organisation, service_names, start - (end - start), start, scope)
     per_service = _service_timings(_span_rows(Span.objects.filter(trace__in=trace_pks)))
     baseline = _service_timings(_span_rows(Span.objects.filter(trace__in=baseline_pks))) if baseline_pks else {}
     for name, row in per_service.items():
@@ -398,7 +431,7 @@ def _from_native(organisation, service_names, start, end):
     # alike. Without the change in volume, "every service slowed down at
     # once" read as a code problem (Online Boutique on AKS, scenario R9: a
     # 5x load-generator surge blamed on recommendationservice's client code).
-    traffic = _traffic(organisation, list(per_service), start, end)
+    traffic = _traffic(organisation, list(per_service), start, end, scope)
     for name, row in per_service.items():
         if name in traffic['per_service']:
             row['traffic'] = traffic['per_service'][name]
@@ -416,7 +449,7 @@ def _from_native(organisation, service_names, start, end):
     }
 
 
-def _traffic(organisation, service_names, start, end):
+def _traffic(organisation, service_names, start, end, scope=None):
     """Spans per service in the window and in the window before, uncapped.
 
     ``{'spans': N, 'before': M, 'per_service': {name: {'spans': n, 'before': m}}}``.
@@ -429,8 +462,8 @@ def _traffic(organisation, service_names, start, end):
         return result
     length = end - start
     for key, (lo, hi) in (('spans', (start, end)), ('before', (start - length, start))):
-        rows = (Span.objects.filter(trace__organisation=organisation, service_name__in=service_names,
-                                    start_time__gte=lo, start_time__lt=hi)
+        rows = (Span.objects.filter(_scope_q(scope), trace__organisation=organisation,
+                                    service_name__in=service_names, start_time__gte=lo, start_time__lt=hi)
                 .values('service_name').annotate(n=Count('id')))
         for row in rows:
             entry = result['per_service'].setdefault(row['service_name'], {'spans': 0, 'before': 0})
@@ -449,7 +482,7 @@ def _volume_change(now, before):
     return f' (x{ratio:.1f})'
 
 
-def _project_trace_pks(organisation, service_names, start, end):
+def _project_trace_pks(organisation, service_names, start, end, scope=None):
     """Primary keys of the organisation's traces in the window.
 
     Primary keys rather than OTEL trace ids: a trace id is unique only within
@@ -462,13 +495,21 @@ def _project_trace_pks(organisation, service_names, start, end):
         start_time__gte=start,
         start_time__lte=end,
     )
-    if service_names:
-        # Traces the project's services take part in, not only those they
-        # start: a backend called by another project's frontend never roots
-        # a trace, and its analyses had no trace context (journey suite).
-        from django.db.models import Exists, OuterRef, Q
-        trace_qs = trace_qs.filter(Q(root_service_name__in=service_names) | Exists(
-            Span.objects.filter(trace=OuterRef('pk'), service_name__in=service_names)))
+    if not service_names:
+        # A project with no services owns no spans; it used to get every
+        # trace in the organisation (phase 3 review MT-2).
+        return []
+    # Traces the project's services take part in, not only those they
+    # start: a backend called by another project's frontend never roots
+    # a trace, and its analyses had no trace context (journey suite).
+    # With a scope, a trace counts only through a span of the project's
+    # services in the batch's environment and project.
+    from django.db.models import Exists, OuterRef, Q
+    in_scope = Exists(Span.objects.filter(_scope_q(scope), trace=OuterRef('pk'), service_name__in=service_names))
+    if scope and (scope.get('environments') or scope.get('project')):
+        trace_qs = trace_qs.filter(in_scope)
+    else:
+        trace_qs = trace_qs.filter(Q(root_service_name__in=service_names) | in_scope)
     return list(trace_qs.values_list('pk', flat=True)[:500])
 
 
@@ -540,7 +581,7 @@ def _top_services(per_service):
     return [{'service_name': name, **row} for name, row in top]
 
 
-def _from_external(organisation, service_names, start, end):
+def _from_external(organisation, service_names, start, end, scope=None):
     """Pull traces from a configured Jaeger/Zipkin/DD APM adapter."""
     from integrations.registry import IntegrationRegistry
     provider = IntegrationRegistry.get_trace_provider_for_org(organisation)

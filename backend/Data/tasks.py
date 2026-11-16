@@ -624,14 +624,22 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         search_error = None
         log_notes = []
         log_query = None
+        provider = None
+        index_pattern = None
         try:
             # Item #17 / Q1.4: prefer the cluster-scoped integration
             # when the project is assigned to a cluster. Falls through
             # to unscoped (backwards-compat for single-cluster installs).
             _org = project.organisation if project else None
             _cluster = getattr(project, 'cluster', None) if project else None
+            if deployment is not None and getattr(deployment, 'cluster_id', None):
+                _cluster = deployment.cluster
+            # The deployment picks the integration scoped to its environment,
+            # region or namespace (phase 3 review LG2): without it every
+            # deployment read from the same store, the staging batch from
+            # the production one.
             provider = IntegrationRegistry.get_log_provider_for_org(
-                _org, cluster=_cluster,
+                _org, cluster=_cluster, deployment=deployment,
             )
             
             # Build provider-agnostic query using LogQuery DTO.
@@ -880,7 +888,11 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                     return
                 DataRunStatus.record(project, environment, outcome, counts=run_counts)
                 return
-            reason, detail = _empty_run_reason(run_counts, search_error, unregistered_services)
+            untagged = (not search_error and not run_counts.get('fetched') and provider is not None
+                        and _logs_arrive_untagged(provider, index_pattern, batch_start_time,
+                                                  batch_end_time, project))
+            reason, detail = _empty_run_reason(run_counts, search_error, unregistered_services,
+                                               logs_untagged=untagged)
             if search_error:
                 outcome = DataRunStatus.OUTCOME_ERROR
             DataRunStatus.record(project, environment, outcome, reason, detail, run_counts)
@@ -1018,7 +1030,8 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         trace_span_count = 0
         if not filtered_hits and metrics_count == 0:
             from ai_model.trace_context import count_spans_in_window
-            trace_span_count = count_spans_in_window(project, batch_start_time, batch_end_time)
+            trace_span_count = count_spans_in_window(project, batch_start_time, batch_end_time,
+                                                     environment=environment.name if environment else None)
 
         # An investigation goes on to count code changes and CI/CD runs too:
         # "analyze this deploy" may have nothing else to show.
@@ -1257,7 +1270,8 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         # batch's trace snapshot below, so nothing is queried twice.
         if project_instance is not None:
             from ai_model.trace_context import native_trace_summary
-            trace_summary = native_trace_summary(project_instance, cleaned_data, current_time)
+            trace_summary = native_trace_summary(project_instance, cleaned_data, current_time,
+                                                 environment=environment.name if environment else None)
             if trace_summary:
                 cleaned_data['traces'] = trace_summary
 
@@ -1469,11 +1483,70 @@ def _log_source_status(search_error, notes, fetched, cap, window_capped_from=Non
     return {'status': 'ok', 'detail': ''}
 
 
-def _empty_run_reason(counts, search_error, unregistered_services):
+def _logs_arrive_untagged(provider, index_pattern, start, end, project):
+    """True when the log store has records in the window but none carry this
+    project's tag: the run is then "not tagged", never "good news".
+
+    Two bounded reads (one record each), only on an empty scheduled run:
+    any record of the project at any level (tagged, so a quiet window is
+    good news), else any record at all. C1 found a fresh install told
+    "That is good news" for a project whose logs simply lacked
+    project_name (phase 3, 2026-11-16). A read that fails says nothing
+    either way: the run keeps its own reason."""
+    if project is None:
+        return False
+    try:
+        tagged = provider.search(index_pattern, LogQuery(
+            time_range=(start, end), max_results=1, project=project.name,
+            project_rules=project.log_rules_clean() or None))
+        if tagged:
+            return False
+        return bool(provider.search(index_pattern, LogQuery(time_range=(start, end), max_results=1)))
+    except Exception as e:  # noqa: BLE001 - a probe never changes the run's outcome
+        logger.info('Untagged-logs probe for %s failed: %s', project, e)
+        return False
+
+
+
+def deployment_log_locations(project, dep, org_provider, org_indices, cache=None):
+    """Log locations for one deployment, on the store that deployment reads
+    (phase 3 review LG2). The organisation's default store keeps the
+    locations the scheduler found on it; a deployment whose integration is
+    scoped to its environment, region or namespace gets its own discovery
+    there. Returns None when that store has no location for the project."""
+    cache = {} if cache is None else cache
+    key = (getattr(project, 'organisation_id', None), dep.id)
+    if key not in cache:
+        try:
+            cache[key] = IntegrationRegistry.get_log_provider_for_org(
+                getattr(project, 'organisation', None), cluster=getattr(dep, 'cluster', None), deployment=dep)
+        except Exception as exc:
+            logger.error("Failed to get log provider for deployment %s: %s", dep.id, exc)
+            cache[key] = org_provider
+    dep_provider = cache[key]
+    if dep_provider is org_provider:
+        return org_indices
+    found = project_log_locations(project, dep_provider)
+    if not found and getattr(dep_provider, 'NEEDS_LOG_LOCATION', True):
+        from .models import DataRunStatus
+        logger.warning(f"No log location on the store of deployment '{dep.name}' for project '{project.name}'")
+        DataRunStatus.record(project, dep.environment, DataRunStatus.OUTCOME_SKIPPED, 'no_log_location',
+                             'No index, log group or stream with logs for this project was found on the '
+                             'log integration of this deployment. Set where your logs are, or run '
+                             '"Check my data".')
+        return None
+    return ",".join(found + system_indices(dep_provider))
+
+
+def _empty_run_reason(counts, search_error, unregistered_services, logs_untagged=False):
     """Why a scheduled run found no logs to analyse: the first filter that
     left nothing, in words for the project page."""
     if search_error:
         return 'search_failed', f'The log store refused the query: {search_error}'
+    if not counts.get('fetched') and logs_untagged:
+        return 'logs_not_tagged', ('Logs are arriving in the log store, but none in the window carry this '
+                                   'project\'s tag (project_name or a project rule), so nothing could be '
+                                   'analysed. Run "Check my data" to see the values your logs carry.')
     if not counts.get('fetched'):
         return 'no_matching_logs', ('The log store returned no error or warning logs for this project '
                                     'and environment in the window. That is good news if nothing failed; '
@@ -1594,6 +1667,8 @@ def create_batches_for_all_projects(self):
     # a different cluster failed the whole search.
     _system_indices_cache = {}
 
+    _deployment_provider_cache = {}
+
     def _system_indices_for(project, provider):
         org_id = getattr(project, 'organisation_id', None)
         if org_id not in _system_indices_cache:
@@ -1703,12 +1778,19 @@ def create_batches_for_all_projects(self):
                 for dep in active_deployments:
                     env_id = dep.environment_id  # nullable — env=None deployments are OK
                     env_label = dep.environment.name if dep.environment_id else 'default'
+                    # A deployment scoped to its own store (env, region,
+                    # namespace) has its log locations discovered on that
+                    # store, not on the organisation's default one (LG2).
+                    dep_indices = deployment_log_locations(project, dep, log_provider, combined_indices,
+                                                           _deployment_provider_cache)
+                    if dep_indices is None:
+                        continue
                     logger.info(
                         f"Queuing batch task for project '{project.name}' / "
                         f"deployment '{dep.name}' (env={env_label})"
                     )
                     task = create_log_batch_with_project_name.si(
-                        index_name=combined_indices,
+                        index_name=dep_indices,
                         project_name=project_name,
                         project=project.id,
                         environment=env_id,           # legacy compat — still passed

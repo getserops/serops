@@ -138,8 +138,14 @@ const ServiceDetailsModal = ({
     // CI/CD provider types (must match SettingsIntegrations capability definitions)
     const CICD_PROVIDERS = ['gitlab', 'github', 'azure_devops', 'jenkins', 'bitbucket', ...GITOPS_PROVIDERS];
     const cicdIntegrations = integrations.filter(i => CICD_PROVIDERS.includes(i.provider_type) && i.is_active);
-    const newBindingIsGitOps = GITOPS_PROVIDERS.includes(
-        integrations.find((i) => String(i.id) === String(newBinding.integration_id))?.provider_type);
+    const newBindingProvider = integrations.find((i) => String(i.id) === String(newBinding.integration_id))?.provider_type;
+    const newBindingIsGitOps = GITOPS_PROVIDERS.includes(newBindingProvider);
+    // GitHub Actions and GitLab CI pipelines are the repository / project,
+    // not a job (phase 3 C1: a workflow file went there and every sync failed).
+    const newBindingPlaceholder = newBindingIsGitOps ? 'e.g., payments'
+        : newBindingProvider === 'github' ? 'owner/repo'
+        : newBindingProvider === 'gitlab' ? 'group/project or project ID'
+        : 'e.g., job/my-job';
 
     const handleAddCICDBinding = async () => {
         if (!newBinding.integration_id || !newBinding.pipeline_id) return;
@@ -432,7 +438,7 @@ const ServiceDetailsModal = ({
                                                         id="cicd-binding-pipeline"
                                                         size="sm"
                                                         type="text"
-                                                        placeholder={newBindingIsGitOps ? 'e.g., payments' : 'e.g., job/my-job'}
+                                                        placeholder={newBindingPlaceholder}
                                                         value={newBinding.pipeline_id}
                                                         onChange={(e) => setNewBinding({ ...newBinding, pipeline_id: e.target.value })}
                                                     />

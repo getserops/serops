@@ -658,7 +658,8 @@ class RootCgroupMatcherTest(SimpleTestCase):
 
     def test_labels_and_matcher_both_present(self):
         expr = self._expr_for({'environment': 'production', 'project_name': 'shop'})
-        self.assertIn('environment="production"', expr)
+        # Every spelling of the environment since the phase 3 review (MT-5).
+        self.assertIn('environment=~"production|prod|prd"', expr)
         self.assertIn('project_name="shop"', expr)
         self.assertIn('id=~"/kubepods.*"', expr)
 

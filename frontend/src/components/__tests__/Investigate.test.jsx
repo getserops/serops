@@ -96,6 +96,21 @@ describe('Investigate page', () => {
     expect(await screen.findAllByText('investigate.status.queued')).not.toHaveLength(0);
   });
 
+  it('says latency is not observable when a finished run had no spans', async () => {
+    // Phase 3 C1: a 3 s slowdown with no traces produced "no issues" and no word.
+    const run = (traces) => ({
+      id: 2, status: 'done', issue_count: 0, batch_id: 'api-batch-2', project: { id: 7, name: 'api' },
+      environment: { id: 3, name: 'production' }, services: [], window_start: '2026-10-14T11:30:00Z',
+      window_end: '2026-10-14T12:00:00Z', counts: { logs: 3, metrics: 40, traces, code_changes: 1, cicd: 0 },
+    });
+    svc.create.mockResolvedValue(run(0));
+    svc.get.mockResolvedValue(run(0));
+    renderAt();
+    await waitFor(() => expect(screen.getByDisplayValue('api')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /investigate.run/ }));
+    expect(await screen.findByText('investigate.result.latencyNotObservable')).toBeInTheDocument();
+  });
+
   it('shows the API reason when it refuses', async () => {
     svc.create.mockRejectedValue({ response: { status: 429, data: { error: 'too_many_running', message: '2 investigations are already running.' } } });
     renderAt();

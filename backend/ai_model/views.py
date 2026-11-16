@@ -53,6 +53,67 @@ def format_log_for_analysis(log_entry):
     """Format a log entry for analysis."""
     return f"[{log_entry['timestamp']}] {log_entry['level']}: {log_entry['message']} | Metadata: {json.dumps(log_entry['metadata'])}"
 
+
+CHAT_CODE_CHANGES_BUDGET = 6000  # characters of the code-changes section in a chat prompt
+CHAT_COMMIT_LOOKBACK_HOURS = 24
+
+
+def _chat_log_service(source):
+    """The service a stored log line came from, for the chat context.
+
+    Batches store logs as ``to_legacy_dict()`` hits: ``_source['service']``
+    always, ``service_name`` only when the store labelled it. The chat read
+    only ``service_name``, so Elasticsearch, Datadog and most other logs
+    showed as ``[unknown]`` (phase 3 Track 4, 2026-11-16).
+    """
+    from integrations.field_aliases import SERVICE_NAME_ALIASES, first_present
+    value = first_present(source or {}, SERVICE_NAME_ALIASES, default='')
+    if isinstance(value, dict):
+        value = value.get('name', '')
+    return str(value) if value else 'unknown'
+
+
+def _chat_code_changes(batch, log_lines):
+    """The code-changes section for a chat about ``batch``: the commits the
+    analysis saw, with the same diff selection as the RCA prompt.
+
+    The chat used to read the five newest CodeChange rows linked through
+    the legacy GitLab project only: never the batch's own commits, never a
+    GitHub, Bitbucket, Azure or modern GitLab repository, and not the
+    incident window, so a GitHub project's chat always said "No recent code
+    changes" (phase 3 Track 4, 2026-11-16). When the batch holds no commits,
+    the project's repositories' commits in the day before the batch are used.
+    """
+    from .diff_selection import build_code_changes_section
+    staged = batch.data.get('code_changes') if isinstance(batch.data, dict) else None
+    if staged:
+        section = build_code_changes_section(staged, log_lines, total_budget=CHAT_CODE_CHANGES_BUDGET)
+        if section.strip():
+            return section
+    if not batch.project:
+        return "Project context missing, cannot look up code changes."
+    from datetime import timedelta
+    from django.db.models import Q
+    from providers.models import CodeChange
+    from .tasks import _project_repositories
+    repo_ids, gitlab_pks = _project_repositories(batch.project)
+    if not repo_ids and not gitlab_pks:
+        return "No repository is connected to this project's services."
+    scope = Q()
+    if repo_ids:
+        scope |= Q(project_id__in=repo_ids)
+    if gitlab_pks:
+        scope |= Q(gitlab_project_id__in=gitlab_pks)
+    end = batch.timestamp
+    changes = CodeChange.objects.filter(
+        scope, organisation=batch.project.organisation,
+        timestamp__gte=end - timedelta(hours=CHAT_COMMIT_LOOKBACK_HOURS), timestamp__lte=end,
+    ).order_by('-timestamp')[:10]
+    section = build_code_changes_section([c.get_summary_for_ai() for c in changes], log_lines,
+                                         total_budget=CHAT_CODE_CHANGES_BUDGET)
+    return section if section.strip() else (
+        f"No commits in the project's repositories in the {CHAT_COMMIT_LOOKBACK_HOURS} h before this analysis.")
+
 def process_ai_request(prompt, ai_model, organisation=None, usage_type='chat_message'):
     """Process request with selected AI model.
 
@@ -315,7 +376,7 @@ def generate_text(request):
                                     source = log_entry.get('_source', {})
                                     msg = source.get('message', '')
                                     ts = source.get('timestamp', source.get('@timestamp', ''))
-                                    service = source.get('service_name', 'unknown')
+                                    service = _chat_log_service(source)
                                     occ = source.get('occurrence_count', 1)
                                     dedup = source.get('deduplicated', False)
                                     
@@ -356,31 +417,8 @@ def generate_text(request):
                         # C. CODE CHANGES
                         if 'CODE_CHANGES' in data_sources_needed:
                             logger.info("Agent fetching CODE_CHANGES...")
-                            # Import here to avoid circular dependencies if any
-                            from providers.models import CodeChange
-                            # Find code changes linked to this project/batch timeframe
-                            # This is a heuristic lookup based on project or time
-                            if batch.project:
-                                # The batch project's own repositories. The old
-                                # filter (the repository's organisation has this
-                                # project) matched every commit of the
-                                # organisation, restricted projects' included
-                                # (review 2026-11-05).
-                                changes = CodeChange.objects.filter(
-                                    organisation=batch.project.organisation,
-                                    gitlab_project__project_services__project=batch.project,
-                                ).distinct().order_by('-timestamp')[:5]
-                                
-                                result = ""
-                                for c in changes:
-                                    result += f"- [{c.commit_sha[:8]}] {c.commit_message} (Files: {c.files_changed})\n"
-                                
-                                if result:
-                                    injected_data['code_changes'] = result
-                                else:
-                                    injected_data['code_changes'] = "No recent code changes found linked to this project."
-                            else:
-                                injected_data['code_changes'] = "Project context missing, cannot look up code changes."
+                            injected_data['code_changes'] = _chat_code_changes(
+                                batch, injected_data.get('logs', '').splitlines())
 
                         # D. CICD OUTPUT
                         if 'CICD_OUTPUT' in data_sources_needed:

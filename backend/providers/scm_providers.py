@@ -1297,6 +1297,55 @@ class BitbucketProvider(BaseProvider):
             logger.exception(f"Failed to list Bitbucket repos: {e}")
             raise SCMProviderError(f"Failed to list repositories: {str(e)}")
     
+    def list_recent_pipelines(self, hours: int = 2) -> List[Dict[str, Any]]:
+        """
+        List recent completed Bitbucket Pipelines runs (newest first).
+
+        Nothing polled Bitbucket, so a repository whose webhook was missing
+        or refused had no deployments at all (phase 3 review SC-07).
+
+        Returns:
+            List of dicts with keys: id, status, ref, sha, updated_at
+        """
+        from datetime import timedelta
+        url = f"{self.base_url}/repositories/{self.project_id}/pipelines/"
+        params = {'pagelen': 20, 'sort': '-created_on'}
+        try:
+            response = self._make_request("GET", url, headers=self._get_headers(), params=params)
+            if response.status_code != 200:
+                logger.warning(f"Bitbucket pipelines API error: {response.status_code}")
+                return []
+            runs = response.json().get('values', [])
+        except Exception as e:
+            logger.warning(f"Bitbucket pipelines API failed: {e}")
+            return []
+
+        cutoff = datetime.now(tz=__import__('datetime').timezone.utc) - timedelta(hours=hours)
+        status_map = {'SUCCESSFUL': 'success', 'FAILED': 'failed', 'ERROR': 'failed',
+                      'STOPPED': 'canceled', 'EXPIRED': 'canceled'}
+        results = []
+        for run in runs:
+            state = run.get('state') or {}
+            if state.get('name') != 'COMPLETED':
+                continue
+            finished = run.get('completed_on') or run.get('created_on') or ''
+            if finished:
+                try:
+                    if date_parser.parse(finished) < cutoff:
+                        continue
+                except Exception:
+                    pass
+            target = run.get('target') or {}
+            result_name = (state.get('result') or {}).get('name', '')
+            results.append({
+                'id': str(run.get('build_number') or run.get('uuid', '')),
+                'status': status_map.get(result_name, result_name.lower()),
+                'ref': target.get('ref_name', ''),
+                'sha': (target.get('commit') or {}).get('hash', ''),
+                'updated_at': finished,
+            })
+        return results
+
     def create_webhook(self, webhook_url: str, secret: str, events: List[str] = None) -> Dict[str, Any]:
         """
         Create a webhook in the Bitbucket repository.
@@ -1320,6 +1369,10 @@ class BitbucketProvider(BaseProvider):
             "active": True,
             "events": events,
         }
+        # Bitbucket signs deliveries (X-Hub-Signature, HMAC-SHA256) only when
+        # the webhook has a secret; without one SerOps refuses them (SC-07).
+        if secret:
+            payload["secret"] = secret
         
         try:
             response = self._make_request(

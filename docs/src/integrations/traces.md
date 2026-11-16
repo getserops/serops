@@ -128,9 +128,16 @@ resource attributes, in this order:
 - `service` (Datadog USM)
 - `app` (Kubernetes label convention)
 
-Environment is auto-detected from `deployment.environment`,
-`env`, or `environment`. If none are present, spans fall back to
-`unknown`.
+Environment is read from `deployment.environment.name` (current
+semantic conventions), `deployment.environment`, `env` or
+`environment`, and the project from `project_name` (or `project`).
+An analysis of one environment reads only that environment's spans
+(`prod` counts as `production`) and the spans that name no
+environment; likewise for the project, so two projects that both have
+an `api` service no longer share spans. Set
+`deployment.environment.name` on every service (for example
+`OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=production`) so
+staging traffic stays out of production analyses.
 
 ## Rate Limits
 

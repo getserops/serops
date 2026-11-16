@@ -1556,6 +1556,7 @@
     "result": {
       "issues_one": "{{count}} problème trouvé",
       "issues_other": "{{count}} problèmes trouvés",
+      "latencyNotObservable": "Aucune trace dans cette fenêtre : la latence n’est pas observable, un ralentissement qui ne journalise aucune erreur n’apparaîtrait pas ici.",
       "noIssues": "Aucun problème trouvé sur cette période.",
       "open": "Ouvrir l'analyse",
       "noData": "Rien n'a été enregistré sur cette période pour ce périmètre. Élargissez la période ou vérifiez les intégrations.",
@@ -1689,6 +1690,7 @@
       "no_services": "Le projet ne liste aucun service, donc aucun log n’est analysé. Ajoutez un service.",
       "no_log_provider": "Aucune intégration de logs active. Connectez-en une dans Paramètres → Observabilité.",
       "no_log_location": "Aucun index, groupe de logs ou flux contenant des logs de ce projet n’a été trouvé. Indiquez où sont vos logs dans l’intégration de logs, ou lancez Vérifier mes données.",
+      "logs_not_tagged": "Des logs arrivent dans le stockage, mais aucun dans la fenêtre ne porte l’étiquette de ce projet (project_name ou une règle de projet) : rien n’a pu être analysé. Lancez Vérifier mes données pour voir les valeurs que portent vos logs.",
       "no_matching_logs": "Le stockage de logs n’a renvoyé aucune erreur ni aucun avertissement pour ce projet et cet environnement. Bonne nouvelle si rien n’a échoué ; si vos services ont bien journalisé des erreurs, lancez Vérifier mes données.",
       "already_analysed": "Tous les logs trouvés faisaient déjà partie d’une analyse précédente.",
       "outside_window": "Les logs trouvés ont des horodatages hors de la fenêtre d’analyse.",

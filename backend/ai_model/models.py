@@ -79,6 +79,7 @@ class AITokenUsage(models.Model):
         ('chat_message', 'Chat Message'),
         ('manual_analysis', 'Manual Analysis'),
         ('batch_reanalysis', 'Batch Re-analysis'),
+        ('postmortem', 'Post-mortem Draft'),
     ]
 
     organisation = models.ForeignKey(

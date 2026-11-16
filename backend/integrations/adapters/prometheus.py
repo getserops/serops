@@ -5,7 +5,7 @@ Implements the MetricProvider ABC using the Prometheus HTTP API.
 Implements the MetricProvider ABC using standard PromQL over HTTP.
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 import requests
@@ -178,6 +178,29 @@ class PrometheusMetricProvider(MetricProvider):
         except RequestException as exc:
             logger.error("Prometheus health check failed: %s", exc)
             return False
+
+    def topology_hint(self):
+        """A hint when the integration is in VM mode on a Kubernetes store.
+
+        VM mode queries node_* series. On a cluster that only has cAdvisor
+        container_* series it reads 0 metrics without a word: the health
+        check said OK and every investigation had no metrics (phase 3
+        client test C1, 2026-11-16). None when the mode fits, or when the
+        store cannot be asked (the health check reports that itself)."""
+        if self._topology_mode != "vm":
+            return None
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(minutes=10)
+        try:
+            nodes = self.query_range_expr("count(node_cpu_seconds_total)", start, end)
+            containers = self.query_range_expr("count(container_cpu_usage_seconds_total)", start, end)
+        except Exception as exc:  # noqa: BLE001 - a hint never fails the health check
+            logger.info("Prometheus topology hint skipped: %s", exc)
+            return None
+        if containers and not nodes:
+            return ("This store has Kubernetes container metrics (cAdvisor) and no node metrics: "
+                    "set Topology Mode to Kubernetes, or SerOps reads no metrics from it.")
+        return None
 
     def query_range(
         self,

@@ -1556,6 +1556,7 @@
     "result": {
       "issues_one": "{{count}} issue found",
       "issues_other": "{{count}} issues found",
+      "latencyNotObservable": "No traces in this window, so latency is not observable: a slowdown that logs no error would not show here.",
       "noIssues": "No issues found in this window.",
       "open": "Open analysis",
       "noData": "Nothing was recorded in this window for this scope. Widen the window or check the integrations.",
@@ -1689,6 +1690,7 @@
       "no_services": "The project lists no services, so no logs are analysed. Add a service.",
       "no_log_provider": "No active log integration. Connect one in Settings → Observability.",
       "no_log_location": "No index, log group or stream with logs for this project was found. Set where your logs are in the log integration, or run Check my data.",
+      "logs_not_tagged": "Logs are arriving in the log store, but none in the window carry this project's tag (project_name or a project rule), so nothing could be analysed. Run Check my data to see the values your logs carry.",
       "no_matching_logs": "The log store returned no error or warning logs for this project and environment. That is good news if nothing failed; if your services did log errors, run Check my data.",
       "already_analysed": "Every log found was already part of an earlier analysis.",
       "outside_window": "The logs found carry timestamps outside the analysis window.",

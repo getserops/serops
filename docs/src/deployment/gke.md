@@ -1,16 +1,19 @@
 ---
 seo_title: "Install SerOps on Google Kubernetes Engine (GKE)"
-description: "Install SerOps 1.3.0 on GKE with the Helm chart: TLS from cert-manager, NetworkPolicies enforced by Dataplane V2, Google Cloud Logging and Monitoring with a three-permission role, and the exact commands we ran."
+description: "Install SerOps on GKE with the Helm chart: TLS from cert-manager, NetworkPolicies enforced by Dataplane V2, Google Cloud Logging and Monitoring with a three-permission role, and the exact commands we ran."
 ---
 # Install on GKE
 
-!!! success "Tested on 2026-11-12"
+!!! success "Tested on 2026-11-12 and 2026-11-16"
     SerOps 1.3.0 on GKE 1.36.4 (Standard, zonal `europe-west1-b`, 2 ×
     `e2-standard-2`), Dataplane V2: a fresh install in 76 seconds, TLS from
     Let's Encrypt through cert-manager, NetworkPolicies enforced, Google Cloud
     Logging and Monitoring for logs and metrics with a three-permission custom
-    role, and an incident found by an investigation. Every command below is
-    one we ran.
+    role, and an incident found by an investigation.
+    On 2026-11-16, SerOps 1.4.0 was installed the same way on a client's
+    existing GKE 1.36 cluster (2 × `e2-standard-4`) running its own Prometheus
+    and Loki: chart verified, install in 82 seconds, TLS ready. Every command
+    below is one we ran.
 
 The repository ships the scripts we used: `deploy/cloud/gke/cluster.sh`
 (cluster, ingress, cert-manager, a test Postgres and Redis, the reader role,
@@ -42,7 +45,22 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --version 4.15.
 helm upgrade --install cert-manager jetstack/cert-manager --version v1.21.3 \
   -n cert-manager --create-namespace --set crds.enabled=true
 kubectl apply -f deploy/cloud/common/cluster-issuer.yaml
+
+# The database and the broker (the script's test Postgres and Redis; use
+# Cloud SQL and Memorystore in production and skip these three commands).
+kubectl create namespace serops
+kubectl -n serops create secret generic serops-data \
+  --from-literal=postgres-password="$(openssl rand -hex 24)" \
+  --from-literal=redis-password="$(openssl rand -hex 24)"
+kubectl -n serops apply -f deploy/cloud/common/data-services.yaml
 ```
+
+`cluster.sh up` also does all of this on a cluster that already exists:
+`CLUSTER=<your cluster> PROJECT=<project> deploy/cloud/gke/cluster.sh up`
+skips the creation and installs the rest (checked on a client's existing
+cluster, 2026-11-16). The `serops-data` passwords then go into the
+`database-url` and `broker-url` secrets of step 3, with the hosts
+`postgres:5432` and `redis:6379`.
 
 * **NetworkPolicy needs Dataplane V2** (or Calico on older clusters). With
   it, the chart's policies are enforced: checked, a pod in another namespace
@@ -58,13 +76,13 @@ kubectl apply -f deploy/cloud/common/cluster-issuer.yaml
 As on AKS: [secrets and values](aks.md#3-secrets-and-values), then
 
 ```bash
-helm install serops oci://ghcr.io/getserops/charts/serops --version 1.3.0 \
+helm install serops oci://ghcr.io/getserops/charts/serops --version 1.4.0 \
   -n serops -f gke-values.yaml --wait --timeout 15m
 kubectl -n serops get certificate serops-tls      # READY True after ~30 s
 ```
 
-Install `--version 1.4.0` (the fix for plain-text errors on stdout, found
-on this test, is in every release since 1.3.1; see [Known issues](#known-issues)).
+Use 1.3.1 or later: the fix for plain-text errors on stdout, found on the
+1.3.0 test, is in every release since (see [Known issues](#known-issues)).
 
 Open `https://HOST`, register the first account (registration then closes),
 and only then restrict the load balancer if you want to (`cluster.sh lock`).

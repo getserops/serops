@@ -1042,6 +1042,11 @@ class CICDBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
                     params={'per_page': 20, 'order_by': 'updated_at', 'sort': 'desc'},
                     timeout=15,
                 )
+                refused = _ci_sync_refusal(resp, f'GitLab project {project_id}')
+                if refused:
+                    binding.sync_error = refused
+                    binding.save(update_fields=['sync_error'])
+                    return Response({'success': False, 'error': refused}, status=status.HTTP_400_BAD_REQUEST)
                 resp.raise_for_status()
                 pipelines = resp.json()
 
@@ -1090,6 +1095,11 @@ class CICDBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
                     params={'per_page': 20},
                     timeout=15,
                 )
+                refused = _ci_sync_refusal(resp, f'GitHub repository {repo} (owner/repo)')
+                if refused:
+                    binding.sync_error = refused
+                    binding.save(update_fields=['sync_error'])
+                    return Response({'success': False, 'error': refused}, status=status.HTTP_400_BAD_REQUEST)
                 resp.raise_for_status()
                 data = resp.json()
                 runs = data.get('workflow_runs', [])
@@ -1485,3 +1495,16 @@ class ProjectDataFixView(APIView):
             return Response(apply_fix(project, request.data, request=request))
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+def _ci_sync_refusal(resp, what):
+    """The words for a provider that answered but refused a CI sync.
+
+    A wrong repository used to come back as "the CI/CD provider could not
+    be reached" (phase 3 C1: the GitHub Actions binding had the workflow
+    file where the repository belongs)."""
+    code = getattr(resp, 'status_code', 200)
+    if code == 404:
+        return f'Sync failed: {what} was not found, or the token cannot see it.'
+    if code in (401, 403):
+        return f'Sync failed: the token was refused for {what} (HTTP {code}).'
+    return None

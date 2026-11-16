@@ -160,13 +160,114 @@ scrape_configs:
 **Verify with the ingest validator**:
 
 ```bash
+# Docker Compose
 docker compose exec backend python manage.py check_ingest --integration <ID>
+# Kubernetes (Helm chart)
+kubectl -n serops exec deploy/serops-backend -- python manage.py check_ingest --integration <ID>
 ```
 
 The report shows whether Loki streams have `service_name` / `project_name` /
 `environment` as labels. Note that `log_level` is reported from SerOps'
 line parsing, not from a Loki label, so it reads as present even though the
 config above never sets it.
+
+### Promtail Helm chart
+
+With the `grafana/promtail` chart, keep its scrape config (it already sets
+`__path__` and an `app`-based `service_name` on Loki 3) and add the SerOps
+labels through `config.snippets.extraRelabelConfigs`. This is the values file
+a client used on GKE on 2026-11-16 (Online Boutique in namespace `shop`):
+
+```yaml
+# promtail-values.yaml: helm upgrade promtail grafana/promtail -n monitoring -f promtail-values.yaml
+config:
+  clients:
+    - url: http://loki.monitoring:3100/loki/api/v1/push
+  snippets:
+    extraRelabelConfigs:
+      - target_label: organisation_name
+        replacement: <YOUR-ORG>
+      - source_labels: [__meta_kubernetes_namespace]
+        regex: shop                      # the namespace your services run in
+        target_label: project_name
+        replacement: <YOUR-PROJECT>
+      - source_labels: [__meta_kubernetes_namespace]
+        regex: shop
+        target_label: environment
+        replacement: production
+```
+
+Check my data showed every log tagged a minute after the upgrade.
+
+### Grafana Alloy
+
+Promtail is deprecated; Alloy does the same with `discovery.relabel`. The
+rules below are the SerOps part of a client's Alloy configuration (a
+DaemonSet tailing `/var/log/pods`, Loki 3), checked on GKE on 2026-11-16:
+Check my data found the project on every sampled log.
+
+```hcl
+discovery.kubernetes "pods" {
+  role = "pod"
+}
+
+discovery.relabel "pod_logs" {
+  targets = discovery.kubernetes.pods.targets
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+    regex         = "(.+)"
+    target_label  = "service_name"
+  }
+  rule {
+    target_label = "organisation_name"
+    replacement  = "<YOUR-ORG>"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    regex         = "ledger"            // the namespace your services run in
+    target_label  = "project_name"
+    replacement   = "<YOUR-PROJECT>"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    regex         = "ledger"
+    target_label  = "environment"
+    replacement   = "production"
+  }
+  // Required, as for Promtail: which file each pod writes.
+  rule {
+    source_labels = ["__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
+    separator     = "/"
+    target_label  = "__path__"
+    replacement   = "/var/log/pods/*$1/*.log"
+  }
+}
+
+local.file_match "pod_logs" {
+  path_targets = discovery.relabel.pod_logs.output
+}
+
+loki.source.file "pod_logs" {
+  targets    = local.file_match.pod_logs.targets
+  forward_to = [loki.process.pod_logs.receiver]
+}
+
+loki.process "pod_logs" {
+  stage.cri {}
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki.monitoring:3100/loki/api/v1/push"
+  }
+}
+```
+
+The `app.kubernetes.io/name` rule suits charts that set that label (the
+OpenTelemetry Demo does). For pods labelled only `app`, use
+`__meta_kubernetes_pod_label_app` instead, or both in the order the Promtail
+section above explains.
 
 ### More than one project
 

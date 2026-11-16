@@ -11,6 +11,7 @@ vi.mock('../../../services/integration.service', () => ({
   IntegrationService: { getAll: vi.fn().mockResolvedValue([
     { id: 3, name: 'Acme Jenkins', provider_type: 'jenkins', is_active: true },
     { id: 4, name: 'Argo CD prod', provider_type: 'argocd', is_active: true },
+    { id: 5, name: 'Acme GitHub', provider_type: 'github', is_active: true },
   ]) },
 }));
 
@@ -46,5 +47,14 @@ describe('ServiceDetailsModal — webhook secret', () => {
     expect(await screen.findByDisplayValue('whsec-456')).toBeInTheDocument();
     expect(screen.getByText(/\/api\/providers\/webhook\/argocd\/13\/$/)).toBeInTheDocument();
     expect(screen.queryByText(/\/api\/providers\/webhook\/flux\//)).not.toBeInTheDocument();
+  });
+
+  it('a GitHub Actions pipeline asks for owner/repo, not a job', async () => {
+    render(<ServiceDetailsModal show service={{ id: 7, name: 'payments', cicd_bindings: [] }} onHide={() => {}} />);
+    userEvent.click(screen.getByRole('button', { name: /Add Pipeline/ }));
+    const integration = await screen.findByRole('combobox', { name: 'Integration' });
+    await waitFor(() => expect(integration.querySelectorAll('option').length).toBeGreaterThan(3));
+    userEvent.selectOptions(integration, '5');
+    expect(screen.getByRole('textbox', { name: 'Pipeline ID' })).toHaveAttribute('placeholder', 'owner/repo');
   });
 });

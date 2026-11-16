@@ -60,7 +60,10 @@ canonical names if you're starting from scratch.
 Verify what actually landed:
 
 ```bash
+# Docker Compose
 docker compose exec backend python manage.py check_ingest --integration <ID>
+# Kubernetes (Helm chart)
+kubectl -n serops exec deploy/serops-backend -- python manage.py check_ingest --integration <ID>
 ```
 
 See [Configure Data Collection](../how-to/configure-data-collection.md)

@@ -415,6 +415,8 @@ class OTLPTracesReceiver(APIView):
                 status_message=parsed['status_message'],
                 attributes=parsed['attributes'],
                 events=parsed['events'],
+                environment=parsed.get('environment', ''),
+                project_name=parsed.get('project_name', ''),
             ))
 
         # ignore_conflicts so a resent batch (OTLP retry) doesn't 500.

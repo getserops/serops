@@ -297,6 +297,46 @@ class ScheduledRunRecordsWhyTest(PipelineMixin, TestCase):
         self.assertEqual((run.outcome, run.reason), ('empty', 'no_matching_logs'))
         self.assertIn('Check my data', run.detail)
 
+    def _run_with_search(self, search):
+        from Data import tasks
+        provider = MagicMock()
+        provider.get_indices.return_value = ['logs-*']
+        provider.search.side_effect = search
+        with patch.object(tasks, 'METRICS_ENABLED', False), \
+             patch.object(tasks.IntegrationRegistry, 'get_log_provider_for_org', return_value=provider), \
+             patch.object(tasks.IntegrationRegistry, 'get_metric_provider_for_org', return_value=None):
+            tasks.create_log_batch_with_project_name(project_name='api', project=self.project.id,
+                                                     environment=self.env.id, interval_minutes=15)
+        return DataRunStatus.objects.get(project=self.project, environment=self.env)
+
+    def test_logs_arrive_but_none_carry_the_project_tag(self):
+        # Phase 3 C1: a fresh install whose shipper had not been relabelled
+        # was told "That is good news" every five minutes.
+        def search(index, query, **kw):
+            if query.project or query.category:
+                return []
+            return [entry(service='frontend')]
+        run = self._run_with_search(search)
+        self.assertEqual((run.outcome, run.reason), ('empty', 'logs_not_tagged'))
+        self.assertNotIn('good news', run.detail)
+        self.assertIn('Check my data', run.detail)
+
+    def test_tagged_but_quiet_is_still_good_news(self):
+        def search(index, query, **kw):
+            if query.severity or query.category:
+                return []
+            return [entry(level='INFO', message='GET / 200')]  # the project's own INFO lines
+        run = self._run_with_search(search)
+        self.assertEqual(run.reason, 'no_matching_logs')
+
+    def test_a_failing_probe_keeps_the_runs_own_reason(self):
+        def search(index, query, **kw):
+            if query.severity or query.category:
+                return []
+            raise RuntimeError('probe refused')
+        run = self._run_with_search(search)
+        self.assertEqual((run.outcome, run.reason), ('empty', 'no_matching_logs'))
+
     def test_only_unlisted_services(self):
         run = self.run_scheduled([entry('db down', service='cart'), entry('cache miss storm', service='cart'),
                                   entry(service='orders')])

@@ -480,11 +480,16 @@ def _build_user_content(context):
         # CPU metrics
         cpu = metrics_summary.get('cpu', {})
         cpu_stats = cpu.get('usage_percent', {})
+        core_percent = cpu.get('unit') == 'core_percent'
+        cpu_pct = '% of one core' if core_percent else '%'
         if cpu_stats.get('avg') is not None:
-            metrics_section += f"CPU: {cpu_stats.get('avg')}% avg, "
-            metrics_section += f"peak {cpu_stats.get('max')}%, "
-            metrics_section += f"current {cpu_stats.get('current')}%, "
+            metrics_section += f"CPU: {cpu_stats.get('avg')}{cpu_pct} avg, "
+            metrics_section += f"peak {cpu_stats.get('max')}{cpu_pct}, "
+            metrics_section += f"current {cpu_stats.get('current')}{cpu_pct}, "
             metrics_section += f"trend: {cpu_stats.get('trend', 'UNKNOWN')}\n"
+            if core_percent:
+                metrics_section += ("  (Kubernetes: cores used by all replicas x100, not a share of any limit; "
+                                    "100% = one full core. Saturation shows as CPU throttling above.)\n")
         
         # CPU anomalies
         cpu_anomalies = cpu.get('anomalies', [])
@@ -518,8 +523,9 @@ def _build_user_content(context):
                     # Kubernetes, the containers the relabeling missed. Naming
                     # it "default" would read as a service that does not exist.
                     name = 'unlabelled containers' if svc == 'default' else svc
-                    metrics_section += (f"  {name}: {s.get('avg')}% avg, peak "
-                                       f"{s.get('max')}%, current {s.get('current')}%, "
+                    unit = cpu_pct if label == 'CPU' else '%'
+                    metrics_section += (f"  {name}: {s.get('avg')}{unit} avg, peak "
+                                       f"{s.get('max')}{unit}, current {s.get('current')}{unit}, "
                                        f"trend: {s.get('trend', 'UNKNOWN')}\n")
 
         # Peak single-pod utilisation.
@@ -749,6 +755,7 @@ def _build_user_content(context):
     else:
         capability_note = ''
     capability_note += format_source_status(source_status)
+    capability_note += latency_visibility_note(traces_section, metrics_section)
 
     # Fence every section that carries text from the monitored systems or
     # their users. Done here, after the capability gating above, so the
@@ -810,6 +817,23 @@ def format_source_status(status) -> str:
         detail = neutralise_fence(str(entry.get('detail') or ''))[:300]
         lines.append(f"- {key}: {_SOURCE_STATUS_WORDS[entry['status']]}" + (f" ({detail})" if detail else ''))
     return '\n'.join(lines) + '\n'
+
+
+_LATENCY_METRIC_WORDS = ('latency', 'duration', 'p95', 'p99', 'response time', 'request_seconds')
+
+
+def latency_visibility_note(traces_section, metrics_section) -> str:
+    """One line when nothing in this window can show latency: no spans and
+    no latency metric. A slowdown that logs no error is then invisible, and
+    the AI must not read "no issue" as "nothing is slow" (phase 3 client
+    test C1, incidents I4 and I10, 2026-11-16). '' otherwise."""
+    if (traces_section or '').strip():
+        return ''
+    text = (metrics_section or '').lower()
+    if any(word in text for word in _LATENCY_METRIC_WORDS):
+        return ''
+    return ("Latency: NOT OBSERVABLE in this window (no traces and no latency metric): a slowdown that "
+            "logs no error cannot be seen here, so do not state that response times are normal.\n")
 
 
 def get_chat_prompt(message, context, max_context_length=10, past_memories=None):

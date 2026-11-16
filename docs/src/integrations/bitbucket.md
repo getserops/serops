@@ -61,23 +61,33 @@ Configuration is managed in **Integrations**.
 
 ### Automatic Setup
 
-SerOps auto-generates a webhook secret when you create a CI/CD binding. To register the webhook with Bitbucket automatically:
+SerOps auto-generates a webhook secret when you create a CI/CD binding and
+sets it on the Bitbucket webhook it creates, so Bitbucket signs every
+delivery. SerOps 1.4.0 and earlier created the webhook without a secret, so
+every delivery was refused; run **Setup Webhook** again on an existing
+binding to replace it. To register the webhook with Bitbucket automatically:
 
 1. Navigate to the service's CI/CD binding
 2. Click **Setup Webhook** (or call `POST /api/projects/cicd-bindings/{id}/setup-webhook/`)
 
 ### Manual Setup
 
-1. In SerOps, find the CI/CD binding for your service and copy the **Webhook URL**
+1. In SerOps, find the CI/CD binding for your service and run **Setup Webhook**
+   (`POST /api/projects/cicd-bindings/{id}/setup-webhook/`): it returns the
+   **Webhook URL** and the binding's **webhook secret**
    - URL format: `https://your-serops.com/api/webhooks/bitbucket/{binding_id}/`
 2. In Bitbucket: **Repository Settings → Webhooks**
 3. Add webhook:
    - **Title**: SerOps Integration
    - **URL**: The binding-specific URL from step 1
+   - **Secret**: the webhook secret from step 1. Bitbucket then signs each
+     delivery (`X-Hub-Signature: sha256=…`, HMAC-SHA256 of the body), and
+     SerOps refuses any delivery that is unsigned or signed with another
+     secret
    - **Triggers**:
      - ✅ Repository: Push
      - ✅ Pull Request: Created, Updated, Merged
-     - ✅ Build status: Created, Updated (for Pipelines)
+     - ✅ Build status: Created, Updated (for Pipelines; "Updated" carries the final result)
 
 ---
 

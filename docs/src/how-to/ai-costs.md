@@ -49,7 +49,7 @@ Every successful AI call writes one `AITokenUsage` row with:
 | `tokens_output` | Completion tokens |
 | `tokens_total` | Sum |
 | `cost_usd` | Estimated cost using public per-1M token list prices |
-| `usage_type` | `batch_analysis` / `chat_message` / `manual_analysis` / `batch_reanalysis` |
+| `usage_type` | `batch_analysis` / `chat_message` / `manual_analysis` / `batch_reanalysis` / `postmortem` (post-mortem drafts, recorded since November 2026) |
 | `timestamp` | When the call happened |
 
 Costs are estimates derived from **per-provider prices stored on the `AIModelProvider` DB rows** (`price_input_per_million` + `price_output_per_million`, seeded in migration `0012_ai_provider_pricing`). Update via the `AIModelProvider` admin or a data migration when provider list prices change — no code deploy required. Unknown models fall back to a mid-tier estimate so usage is never reported as free.

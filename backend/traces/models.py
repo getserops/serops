@@ -143,6 +143,12 @@ class Span(models.Model):
     attributes = models.JSONField(default=dict, blank=True)
     # OTEL events (list of {time, name, attributes}) — usually exceptions + logs.
     events = models.JSONField(default=list, blank=True)
+    # deployment.environment[.name] and project_name resource attributes,
+    # lower-cased / as sent; empty when the sender does not say them. A
+    # batch reads the spans of its own environment and project, plus the
+    # unlabelled ones (phase 3 review MT-2).
+    environment = models.CharField(max_length=64, blank=True, default='')
+    project_name = models.CharField(max_length=255, blank=True, default='')
 
     class Meta:
         db_table = 'traces_span'
@@ -152,6 +158,7 @@ class Span(models.Model):
         indexes = [
             models.Index(fields=['trace', 'start_time'], name='span_trace_start_idx'),
             models.Index(fields=['service_name', '-start_time'], name='span_svc_start_idx'),
+            models.Index(fields=['service_name', 'environment', '-start_time'], name='span_svc_env_start_idx'),
         ]
         ordering = ['start_time']
 

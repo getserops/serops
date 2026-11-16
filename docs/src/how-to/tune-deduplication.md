@@ -24,6 +24,18 @@ Without deduplication, each batch would create a new issue, leading to hundreds 
 
 ---
 
+### An incident that changes as it evolves
+
+An incident rarely keeps one type: a memory leak becomes crashing pods, then a
+rollback and recovery. Each step has its own fingerprint, so on its own it would
+open a new issue. When a step matches no fingerprint, an issue that is still open
+on the same project, environment and component, and was seen in the last two
+hours, takes it instead: its type, severity and text follow the incident, and the
+issue keeps the type each analysis saw in its history. Two findings from the same
+analysis are never merged into one issue, so two causes on one component at the
+same time stay two issues. The horizon is `SEROPS_ISSUE_CONTINUITY_HOURS`
+([configuration](../deployment/configuration.md)); `0` turns this off.
+
 ## Configuration Settings
 
 Navigate to **Settings > Data Management** to configure deduplication for your organisation.

@@ -30,5 +30,16 @@ def promql_matchers(labels) -> str:
             continue
         if not _LABEL_NAME.fullmatch(str(key)):
             raise ValueError(f'invalid PromQL label name: {key!r}')
+        if key == 'environment':
+            # Every spelling of the environment, as the log queries do:
+            # series labelled ``prod`` (a namespace relabelled as the
+            # docs suggest) answer a ``production`` batch (phase 3 review
+            # MT-5). Anchored by PromQL, regex characters escaped.
+            from integrations.field_aliases import environment_values
+            spellings = environment_values(str(value))
+            if len(spellings) > 1:
+                alternatives = '|'.join(re.escape(v) for v in spellings)
+                parts.append(f'{key}=~"{promql_escape(alternatives)}"')
+                continue
         parts.append(f'{key}="{promql_escape(value)}"')
     return ','.join(parts)

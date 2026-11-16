@@ -24,6 +24,9 @@ from integrations.base import MetricQueryError, note_partial
 
 logger = logging.getLogger(__name__)
 
+# Kubernetes CPU: percent of one core, summed over a service's replicas.
+CPU_UNIT_CORE_PERCENT = 'core_percent'
+
 
 def fetch_metrics_with_provider(start_time, end_time, project_obj=None, project_name_str=None, environment_str=None):
     """
@@ -167,6 +170,12 @@ def fetch_metrics_with_provider(start_time, end_time, project_obj=None, project_
             # which is right: that helper differentiates a counter, and this is
             # already a rate. Running it would differentiate twice.
             metrics['cpu_usage_percent'] = cpu_points
+            # Not a share of anything: cores used by all the service's
+            # replicas, x100. 6 replicas at 0.25 cores read "150 %" and the
+            # 80 % detector flagged a healthy service (phase 3 review MT-3).
+            # The summary and the prompt label it, and saturation comes from
+            # the throttling signal instead.
+            metrics['cpu_unit'] = CPU_UNIT_CORE_PERCENT
         elif hasattr(provider, 'query_range_expr'):
             from integrations.promql import promql_matchers
             label_parts = promql_matchers(labels)
@@ -748,11 +757,19 @@ def preprocess_metrics_for_ai(raw_metrics: dict, time_window_minutes: int = 5) -
             "usage_percent": safe_stats(memory_usage),
             "anomalies": detect_anomalies(memory_usage, 75.0, "memory_high_usage")
         },
-        "cpu": {
-            "usage_percent": safe_stats(cpu_usage),
-            "anomalies": detect_anomalies(cpu_usage, 80.0, "cpu_high_usage")
-        }
+        "cpu": _cpu_summary(cpu_usage, raw_metrics.get('cpu_unit'), safe_stats, detect_anomalies),
     }
+
+
+def _cpu_summary(cpu_usage, unit, safe_stats, detect_anomalies):
+    """CPU block of the metrics summary. A real percentage (node CPU, a
+    provider's utilisation) is checked against 80 %; Kubernetes core-percent
+    is not a share of a limit, so it gets no threshold anomaly and says its
+    unit (phase 3 review MT-3)."""
+    if unit == CPU_UNIT_CORE_PERCENT:
+        return {"usage_percent": safe_stats(cpu_usage), "anomalies": [], "unit": unit}
+    return {"usage_percent": safe_stats(cpu_usage),
+            "anomalies": detect_anomalies(cpu_usage, 80.0, "cpu_high_usage")}
 
 
 def clean_json(obj):

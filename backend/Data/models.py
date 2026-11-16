@@ -1090,7 +1090,7 @@ class Issue(models.Model):
             seen_at__gte=this.seen_at - self.CRITICAL_REPAGE_AFTER,
         ).exclude(pk=this.pk).exists()
 
-    def record_occurrence(self, batch, severity=None):
+    def record_occurrence(self, batch, severity=None, issue_type=None):
         """Record that ``batch`` reported this issue, and make it the latest.
 
         Every sighting is appended to ``IssueOccurrence`` so a batch's history
@@ -1107,7 +1107,8 @@ class Issue(models.Model):
 
         IssueOccurrence.objects.get_or_create(
             issue=self, batch=batch,
-            defaults={'severity': severity or self.severity},
+            defaults={'severity': severity or self.severity,
+                      'issue_type': issue_type or self.issue_type},
         )
 
         if self.batch_id != batch.id:
@@ -1248,6 +1249,67 @@ class Issue(models.Model):
         names.discard(component or '')
         return sorted(names, key=str.lower)[:50]
 
+    @staticmethod
+    def continuity_hours():
+        """How long an open issue keeps absorbing an evolving incident on its
+        component (``SEROPS_ISSUE_CONTINUITY_HOURS``, 0 turns it off)."""
+        import os
+        try:
+            return max(0.0, float(os.getenv('SEROPS_ISSUE_CONTINUITY_HOURS', '2')))
+        except ValueError:
+            return 2.0
+
+    @classmethod
+    def _continuing_issue(cls, project, environment, component, batch):
+        from django.utils import timezone
+        from datetime import timedelta
+        wanted = cls.normalize_component(component)
+        if not wanted:
+            return None
+        since = timezone.now() - timedelta(hours=cls.continuity_hours())
+        candidates = (cls.objects.filter(project=project, environment=environment or '',
+                                         status__in=['OPEN', 'MUTED'], last_seen_at__gte=since)
+                      .order_by('-last_seen_at'))
+        if batch is not None:
+            candidates = candidates.exclude(occurrences__batch=batch)
+        for issue in candidates.select_for_update()[:20]:
+            if cls.normalize_component(issue.component) == wanted:
+                return issue
+        return None
+
+    @classmethod
+    def _absorb_continuation(cls, issue, issue_data, batch, fingerprint, issue_type, severity,
+                             error_class, error_target):
+        """Fold the next step of an evolving incident into its open issue:
+        type, severity and text follow the incident's current state, the
+        occurrence keeps the type this batch saw."""
+        from django.utils import timezone
+        from django.db.models import F
+        update_fields = {
+            'occurrence_count': F('occurrence_count') + 1,
+            'last_seen_at': timezone.now(),
+            'issue_type': issue_type,
+            'error_class': error_class,
+            'error_target': error_target,
+            **cls._latest_text(issue_data),
+        }
+        if severity and severity != 'UNKNOWN':
+            update_fields['severity'] = severity
+        # Take the new fingerprint so the next sighting of this type matches
+        # directly, unless another open issue already holds it.
+        if fingerprint and not cls.objects.filter(
+                project=issue.project, fingerprint=fingerprint,
+                status__in=['OPEN', 'MUTED']).exclude(pk=issue.pk).exists():
+            update_fields['fingerprint'] = fingerprint
+        cls.objects.filter(pk=issue.pk).update(**update_fields)
+        issue.refresh_from_db()
+        issue.record_occurrence(batch, severity, issue_type=issue_type)
+        # A later step (recovery, a rollback) rarely names the commit again:
+        # only a step that names one replaces the culprit found earlier.
+        if issue_data.get('caused_by_commits'):
+            issue.apply_caused_by_commits(issue_data)
+        return issue, False
+
     @classmethod
     def _find_or_create_with_retry(cls, *, issue_data, batch, project, environment,
                                     fingerprint, issue_type, scope, component, severity,
@@ -1324,8 +1386,22 @@ class Issue(models.Model):
                             **cls._latest_text(issue_data),
                         )
                         infra_match.refresh_from_db()
-                        infra_match.record_occurrence(batch, severity)
+                        infra_match.record_occurrence(batch, severity, issue_type=issue_type)
                         return infra_match, False
+
+                # Tier 3: the same incident, evolving. The fingerprint keys on
+                # the issue type, so an incident that moves from a memory leak
+                # to OOM kills to recovery opened a new issue at every step
+                # (held-out v3 w36-w40, every model). An open issue on the same
+                # project, environment and component, seen in the last
+                # ISSUE_CONTINUITY_HOURS, absorbs the new finding. Never one
+                # this batch already reported: two causes at once on one
+                # component stay two issues.
+                if not existing and project and component and cls.continuity_hours() > 0:
+                    continued = cls._continuing_issue(project, environment, component, batch)
+                    if continued:
+                        return cls._absorb_continuation(continued, issue_data, batch, fingerprint,
+                                                        issue_type, severity, error_class, error_target)
 
                 if existing:
                     update_fields = {
@@ -1347,7 +1423,7 @@ class Issue(models.Model):
                     update_fields.update(cls._latest_text(issue_data))
                     cls.objects.filter(pk=existing.pk).update(**update_fields)
                     existing.refresh_from_db()
-                    existing.record_occurrence(batch, severity)
+                    existing.record_occurrence(batch, severity, issue_type=issue_type)
                     return existing, False
 
                 # Derive organisation for new issue
@@ -1380,7 +1456,7 @@ class Issue(models.Model):
                 # Record the sighting for the batch that created it, so a
                 # brand-new issue is attributable to its batch on exactly the
                 # same basis as a recurrence.
-                issue.record_occurrence(batch, severity)
+                issue.record_occurrence(batch, severity, issue_type=issue_type)
                 issue.apply_caused_by_commits(issue_data)
                 return issue, True
 
@@ -1447,6 +1523,9 @@ class IssueOccurrence(models.Model):
     # a later sighting; keeping the per-sighting value means a historical batch
     # still shows what it actually said at the time.
     severity = models.CharField(max_length=20, blank=True, null=True)
+    # The issue type this batch saw, so an incident that changed type while it
+    # evolved (leak -> OOM -> recovering) keeps its history on one issue.
+    issue_type = models.CharField(max_length=30, blank=True, null=True)
 
     class Meta:
         # One row per (issue, batch): a batch reporting the same issue twice in

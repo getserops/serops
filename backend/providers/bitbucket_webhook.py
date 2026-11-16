@@ -8,6 +8,7 @@ Webhook Events Supported:
 - repo:commit_status_updated: Pipeline status changes
 """
 
+import hashlib
 import hmac
 import logging
 from datetime import datetime
@@ -77,8 +78,12 @@ class BitbucketWebhookHandler(BaseCICDWebhookHandler):
         """
         Validate the Bitbucket webhook request.
 
-        Checks event type is supported AND validates X-Webhook-Secret
-        header against binding.webhook_secret using constant-time comparison.
+        Bitbucket Cloud signs a delivery when the webhook has a secret:
+        ``X-Hub-Signature: sha256=<HMAC-SHA256 of the body>``. SerOps used
+        to expect an ``X-Webhook-Secret`` header Bitbucket never sends, so
+        every delivery was refused (phase 3 review SC-07). The plain header
+        is still accepted from a relay that adds it, compared in constant
+        time.
         """
         event_key = request.headers.get('X-Event-Key', '')
         if event_key not in self.SUPPORTED_EVENTS:
@@ -89,13 +94,20 @@ class BitbucketWebhookHandler(BaseCICDWebhookHandler):
             logger.warning("[bitbucket] No binding or webhook_secret — rejecting")
             return False
 
+        signature = request.headers.get('X-Hub-Signature', '') or request.headers.get('X-Hub-Signature-256', '')
+        if signature:
+            if not signature.startswith('sha256='):
+                logger.warning("[bitbucket] X-Hub-Signature is not sha256")
+                return False
+            expected = hmac.new(binding.webhook_secret.encode('utf-8'), request.body, hashlib.sha256).hexdigest()
+            return hmac.compare_digest(signature, f'sha256={expected}')
+
         provided_secret = request.headers.get('X-Webhook-Secret', '')
         if not provided_secret:
-            logger.warning("[bitbucket] Missing X-Webhook-Secret header")
+            logger.warning("[bitbucket] Missing X-Hub-Signature header (is a secret set on the Bitbucket webhook?)")
             return False
-
         return hmac.compare_digest(provided_secret, binding.webhook_secret)
-    
+
     def parse_pipeline_event(self, payload: dict) -> dict:
         """
         Parse Bitbucket pipeline event payload.
@@ -143,10 +155,13 @@ class BitbucketWebhookHandler(BaseCICDWebhookHandler):
             'status': normalized_status,
             'branch': branch,
             'commit_shas': [commit_hash] if commit_hash else [],
-            'project_name': repo_full_name,
+            # project_id / metadata are the keys the shared handler stores
+            # (they were project_name / provider_metadata, so the pipeline's
+            # external project and its metadata were dropped; SC-07).
+            'project_id': repo_full_name,
             'environment': environment,
             'finished_at': finished_at,
-            'provider_metadata': {
+            'metadata': {
                 'key': pipeline_key,
                 'name': pipeline_name,
                 'type': commit_status.get('type'),

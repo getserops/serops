@@ -35,7 +35,10 @@ Without these fields, SerOps cannot:
 
     ```bash
     # CLI (from the backend container):
+    # Docker Compose
     docker compose exec backend python manage.py check_ingest --integration <ID>
+    # Kubernetes (Helm chart)
+    kubectl -n serops exec deploy/serops-backend -- python manage.py check_ingest --integration <ID>
 
     # or via HTTP:
     GET /api/integrations/observability/<ID>/ingest-health/?minutes=60&limit=100

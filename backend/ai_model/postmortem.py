@@ -243,13 +243,23 @@ def _ai_generate(prompt: str, batch) -> str:
         return ''
 
     try:
-        response, provider_used, error, _tin, _tout = generate_for_organisation(
+        response, provider_used, error, tokens_in, tokens_out = generate_for_organisation(
             prompt=prompt,
             organisation=organisation,
             system_prefix=_SYSTEM_PROMPT,
         )
     except NoAIProviderConfigured:
         return ''
+
+    # The draft's tokens used to be dropped here, so post-mortem spend never
+    # reached AI Usage or the monthly budget cap (phase 3 Track 4, 2026-11-16).
+    if provider_used and (tokens_in or tokens_out):
+        from ai_model.usage_tracking import AITokenUsageService
+        AITokenUsageService.log_usage(
+            organisation=organisation, batch=batch,
+            tokens_input=tokens_in or 0, tokens_output=tokens_out or 0,
+            model_name=provider_used, usage_type='postmortem',
+        )
 
     if error or not response:
         return ''

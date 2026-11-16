@@ -167,12 +167,19 @@ class ObservabilityIntegrationViewSet(viewsets.ModelViewSet):
                         org_id=integration.organisation_id,
                     )
                     healthy = provider.health_check()
-                    results.append({
+                    result = {
                         'provider': type(provider).__name__,
                         'provider_type': 'metric',
                         'healthy': healthy,
                         'message': 'OK' if healthy else (getattr(provider, 'last_error', None) or 'Health check failed'),
-                    })
+                    }
+                    # Healthy but configured for the wrong topology reads no
+                    # metrics at all (phase 3 C1): say so next to the OK.
+                    hint = provider.topology_hint() if healthy and hasattr(provider, 'topology_hint') else None
+                    if hint:
+                        result['warning'] = hint
+                        result['message'] = f'OK, but: {hint}'
+                    results.append(result)
                 elif cap == 'traces' and integration.trace_adapter_class:
                     # A trace source (Datadog APM, Jaeger, Zipkin, Tempo) was
                     # never tested: a traces-only integration got no result.

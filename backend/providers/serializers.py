@@ -76,6 +76,30 @@ class ProviderIntegrationSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(str(e))
         return value
 
+    def to_internal_value(self, data):
+        """Accept the token as ``credentials: {access_token: ...}`` too.
+
+        The token field is ``access_token``; a ``credentials`` object (what
+        the model stores, and what API clients reach for) used to be dropped
+        without a word, so the integration was saved with no token and every
+        call failed "Authentication failed" (phase 3 client test C1). A
+        ``credentials`` object without a usable token is refused."""
+        creds = data.get('credentials') if hasattr(data, 'get') else None
+        if creds is not None:
+            token = None
+            if isinstance(creds, dict):
+                token = next((creds.get(k) for k in ('access_token', 'token', 'api_token', 'api_key')
+                              if isinstance(creds.get(k), str) and creds.get(k).strip()), None)
+            if not token:
+                raise serializers.ValidationError(
+                    {'credentials': 'Send the token as access_token (or credentials.access_token).'})
+            if data.get('access_token') and data.get('access_token') != token:
+                raise serializers.ValidationError(
+                    {'credentials': 'access_token and credentials.access_token differ; send one.'})
+            data = {k: v for k, v in data.items() if k != 'credentials'}
+            data['access_token'] = token
+        return super().to_internal_value(data)
+
     def get_token_masked(self, obj) -> str:
         """Return masked version of token for display (no decryption needed)."""
         return obj.token_hint or ''

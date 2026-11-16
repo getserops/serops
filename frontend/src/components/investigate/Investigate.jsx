@@ -94,6 +94,9 @@ function RunProgress({ run, t }) {
             )}
           </div>
         )}
+        {run.status === "done" && Object.keys(counts).length > 0 && !counts.traces && (
+          <p className="investigate-note">{t("investigate.result.latencyNotObservable")}</p>
+        )}
         {run.status === "no_data" && <p className="investigate-note">{t("investigate.result.noData")}</p>}
         {run.status === "failed" && (
           <p className="investigate-note is-error">

@@ -762,3 +762,17 @@ class TestCICDBindingSyncSCMProviders(ProjectViewTestBase):
         self.assertEqual(r.json()['pipelines_found'], 1)
         self.assertEqual(req.call_args.args[1], 'https://gitlab.example.com/api/v4/projects/42/pipelines')
         self.assertEqual(req.call_args.kwargs['headers']['PRIVATE-TOKEN'], 'fake-ci-token')
+
+    def test_github_actions_repository_not_found_says_so(self):
+        # Phase 3 C1: the workflow file was entered where the repository
+        # belongs; the answer was "could not be reached".
+        from unittest import mock
+        binding = self._binding('github', 'deploy-shop.yml')
+        self._auth(self.admin)
+        resp = mock.Mock(status_code=404)
+        resp.raise_for_status.side_effect = AssertionError('not reached')
+        with mock.patch('Utils.outbound.guarded_request', return_value=resp):
+            r = self.client.post(f'/api/projects/cicd-bindings/{binding.pk}/sync/', {}, format='json')
+        self.assertEqual(r.status_code, 400, r.content)
+        self.assertIn('not found', r.json()['error'])
+        self.assertIn('owner/repo', r.json()['error'])

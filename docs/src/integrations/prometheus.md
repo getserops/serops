@@ -48,6 +48,14 @@ Prometheus supports multiple authentication methods depending on your deployment
 
 ## Kubernetes setup
 
+!!! warning "First: set Topology Mode to Kubernetes"
+    A new Prometheus integration starts in VM mode, which reads node
+    metrics (`node_*`). On a cluster that only has container metrics it
+    reads nothing, while the health check says OK. Set **Topology Mode →
+    Kubernetes** on the integration (or `PATCH` `topology_mode:
+    kubernetes`) before anything else; since this release the health check
+    also says so when it sees container metrics and no node metrics.
+
 Set the integration's `topology_mode` to `kubernetes` (Integrations → your Prometheus integration → Topology Mode, or `PATCH` the API) to switch SerOps from node-level PromQL to container-level metrics aggregated by service:
 
 | Query | VM mode | Kubernetes mode |
@@ -158,11 +166,21 @@ scrape_configs:
 ```
 
 This maps the **container name** to `service_name`, which is correct when
-your container name matches your service name — the usual case. If they
-differ, or you run sidecars you want folded into the parent service, join
+your container name matches your service name. Check it first: many charts
+use a generic container name. Online Boutique names nearly every container
+`server`, so this rule makes ten services one (found on a client install,
+2026-11-16). Then take the workload name from the pod name instead (the rule
+below, which also works for Deployments with a `container` label), or join
 against `kube_pod_labels` from
 [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics)
-with a recording rule instead, and have it emit `service_name`.
+with a recording rule and have it emit `service_name`.
+
+```yaml
+      # Deployment pods are <name>-<replicaset hash>-<suffix>
+      - source_labels: [pod]
+        regex: (.+)-[a-z0-9]{6,10}-[a-z0-9]{5}
+        target_label: service_name
+```
 
 #### Docker runtime
 
@@ -189,17 +207,27 @@ see the warning below:
 kubelet:
   serviceMonitor:
     cAdvisorMetricRelabelings:
-      - sourceLabels: [container]
-        regex: (.+)
+      # The workload (Deployment) name, from the pod name. Use
+      # sourceLabels: [container] only when every container is named
+      # after its service (see the note in "Raw Prometheus config").
+      - sourceLabels: [pod]
+        regex: (.+)-[a-z0-9]{6,10}-[a-z0-9]{5}
         targetLabel: service_name
       - sourceLabels: [namespace]
-        regex: (.+)
+        regex: shop                     # the namespace your services run in
         targetLabel: environment
+        replacement: production
       - targetLabel: organisation_name
         replacement: <YOUR-ORG>
-      - targetLabel: project_name
+      - sourceLabels: [namespace]
+        regex: shop
+        targetLabel: project_name
         replacement: <YOUR-PROJECT>
 ```
+
+These are the values a client applied with
+`helm upgrade kps prometheus-community/kube-prometheus-stack --reuse-values -f kps-relabel.yaml`
+on GKE (2026-11-16); every service then had its own CPU and memory series.
 
 !!! danger "camelCase here, snake_case in raw Prometheus config"
     These values become a `ServiceMonitor` custom resource, and the
@@ -235,7 +263,10 @@ kubelet:
 **Verify with the ingest validator**:
 
 ```bash
+# Docker Compose
 docker compose exec backend python manage.py check_ingest --integration <ID>
+# Kubernetes (Helm chart)
+kubectl -n serops exec deploy/serops-backend -- python manage.py check_ingest --integration <ID>
 ```
 
 The report shows what tags SerOps sees in your host discovery — flags any missing `service_name` / `organisation_name` / `project_name`.

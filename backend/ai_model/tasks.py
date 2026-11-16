@@ -30,6 +30,34 @@ def _prompt_log_line(log):
     return f"[{log.get('timestamp', '')}] [{log.get('level', '')}] [{log.get('component', '')}]{where} {log.get('message', '')}"
 
 
+def _logs_for_batch_environment(logs, batch):
+    """Drop logs that belong to another environment than the batch's.
+
+    The scheduled collection already isolates environments, but a batch built
+    another way (an upload, a re-analysis of an old batch, the RCA benchmark)
+    reached the prompt with every log it carried, and the prompt line has no
+    environment: a production window whose only errors came from staging pods
+    blamed the staging commit (held-out v3 w19, every model). Same rule as
+    collection: a log with no environment tag is kept.
+
+    Returns (kept, dropped_count)."""
+    if not batch.environment or not logs:
+        return logs, 0
+    from integrations.ingestion import is_log_matching_environment
+    extra = ()
+    if batch.project_id:
+        try:
+            from Projects.models import ProjectEnvironment
+            env = ProjectEnvironment.objects.filter(project_id=batch.project_id,
+                                                    name__iexact=batch.environment).first()
+            extra = tuple(env.log_labels()) if env else ()
+        except Exception:  # never block an analysis on the lookup
+            extra = ()
+    kept = [log for log in logs
+            if not isinstance(log, dict) or is_log_matching_environment(log, batch.environment, extra)]
+    return kept, len(logs) - len(kept)
+
+
 def _hosts_note(hosts):
     """Where a repeated log came from, e.g. ``on node-c`` or ``on 3 hosts: a (5), b (2), c (1)``."""
     named = {h: n for h, n in hosts.items() if h and h != 'unknown'}
@@ -681,6 +709,11 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
             logger.error(f"Logs is not a list in analyze_batch for {batch_id}, type: {type(logs)}")
             # Try to convert non-list to list, or use empty list
             logs = [] if logs is None else [logs]
+
+        logs, other_env = _logs_for_batch_environment(logs, batch)
+        if other_env:
+            logger.info(f"Batch {batch_id}: left out {other_env} log(s) from another environment "
+                        f"than '{batch.environment}'")
         
         # Verify metrics is a dictionary
         metrics = batch.data.get('metrics', {})
@@ -1897,7 +1930,7 @@ def reanalyze_batch_with_model(self, batch_id, model_name, mode='compare'):
         logger.info(f"Starting re-analysis for batch {batch_id} with model {model_name}")
         
         # Get logs from batch
-        logs = batch.data.get('logs', [])
+        logs, _other_env = _logs_for_batch_environment(batch.data.get('logs', []) or [], batch)
         metrics_summary = batch.data.get('metrics_summary', {})
         # === DEPLOYMENT-AWARE COMMIT RETRIEVAL (Adaptive Window) ===
         try:

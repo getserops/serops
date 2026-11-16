@@ -103,7 +103,7 @@ class WebhookService:
             'push_events': True,
         },
         'github_actions': ['workflow_run'],
-        'bitbucket_pipelines': ['repo:commit_status_created'],
+        'bitbucket_pipelines': ['repo:commit_status_created', 'repo:commit_status_updated'],
     }
 
     @staticmethod
@@ -181,6 +181,11 @@ class WebhookService:
                 # Jenkins / Azure DevOps (and Argo CD / Flux on the same binding)
                 # are configured by hand, so the person needs the secret. It was
                 # only ever returned by the create call, which the UI did not show.
+                result['webhook_secret'] = binding.webhook_secret
+            elif provider_type.startswith('bitbucket'):
+                # A Bitbucket hook added by hand (or recreated) needs the same
+                # secret, or Bitbucket sends no signature and SerOps refuses
+                # every delivery (phase 3 review SC-07).
                 result['webhook_secret'] = binding.webhook_secret
             return result
 

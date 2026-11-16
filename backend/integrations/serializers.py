@@ -158,6 +158,11 @@ class ObservabilityIntegrationSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         provider = attrs.get('provider', getattr(self.instance, 'provider', None))
+        # A new integration sent without capabilities gets every capability
+        # its provider has. It used to be saved with none, so the health
+        # check checked nothing and no batch read from it (phase 3 C1).
+        if self.instance is None and 'capabilities' not in attrs and provider:
+            attrs['capabilities'] = _available_capabilities(provider)
         capabilities = attrs.get(
             'capabilities', getattr(self.instance, 'capabilities', [])
         )
