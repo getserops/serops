@@ -42,6 +42,7 @@ SERVICE_NAME_ALIASES = [
     'kubernetes.container_name',  # Fluent Bit kubernetes filter
     'kubernetes.container.name',  # Filebeat / Elastic Agent (ECS)
     'resource.attributes.service.name',  # OTel Collector elasticsearch exporter (otel mode)
+    'svc',                      # short in-house names (phase 3 client C3: an ELK estate)
 ]
 
 ENVIRONMENT_ALIASES = [
@@ -61,6 +62,9 @@ LOG_LEVEL_ALIASES = [
     'severity',                 # syslog, OpenTelemetry
     'severity_text',            # OpenTelemetry log record
     'status',                   # Datadog log-severity field
+    'lvl',                      # short in-house names, logfmt (phase 3 client C3)
+    'loglevel',
+    'levelname',                # Python logging JSON formatters
 ]
 
 # Organisation + project — SerOps-native concepts. Less variation

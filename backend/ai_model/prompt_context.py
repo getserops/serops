@@ -56,6 +56,9 @@ class DataSourceContext:
     correlations: dict[str, Any] | None = None
     traces_summary: dict[str, Any] | None = None
     cicd_summary: dict[str, Any] | None = None
+    # INFO lines that say a job, deploy, restart or failover happened
+    # (Data/change_events.py): context only.
+    change_events: list[dict[str, Any]] | None = None
 
     # ----- optional narrative context -----
     project_context: dict[str, Any] | None = None

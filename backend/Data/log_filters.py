@@ -3,6 +3,7 @@ The filters a scheduled analysis applies to fetched logs, shared with the
 project's "Check my data" so both say the same thing about the same logs.
 """
 import logging
+import re
 
 from integrations.schemas import _detect_level_from_line, level_of
 
@@ -21,6 +22,14 @@ IMPORTANT_MESSAGE_WORDS = (
 )
 
 
+# An exception class name followed by its message (``ValueError: Port out of
+# range``, ``java.lang.IllegalStateException: ...``, ``TypeError: x is
+# undefined``). Such a line is an error whatever level the shipper gave it:
+# client C3's shipper tagged a crash-looping Python service's tracebacks
+# INFO, and the crash loop looked exactly like a healthy window.
+_EXCEPTION_LINE_RE = re.compile(r'\b[A-Z][A-Za-z0-9_]*(?:Error|Exception)\b:')
+
+
 def is_important_log(log):
     """A warning, an error, or a line that reads like one."""
     if hasattr(log, 'message'):
@@ -36,6 +45,8 @@ def is_important_log(log):
     # A level written in the line itself ("... ERROR ...", "level=warn")
     if _detect_level_from_line(message) in ('ERROR', 'WARN'):
         return True
+    if _EXCEPTION_LINE_RE.search(message):
+        return True
     msg_upper = message.upper()
     if any(word in msg_upper for word in IMPORTANT_MESSAGE_WORDS):
         return True
@@ -46,10 +57,18 @@ def is_important_log(log):
 
 
 def log_service(log):
-    """The service a log came from, lowercased ('' when it names none)."""
+    """The service a log came from, lowercased ('' when it names none).
+
+    A stored hit carries the service under whichever name its store used
+    (``service`` from ``to_legacy_dict()``, ``service.name`` from OTel,
+    ``app`` or Kubernetes labels from Fluent Bit). Reading only
+    ``service_name`` dropped those logs from scheduled analyses as
+    "unregistered service" (phase 3 review, logs L-48).
+    """
     if hasattr(log, 'service'):
         return (log.service or '').lower()
-    return str(log.get('_source', {}).get('service_name', '')).lower()
+    from integrations.field_aliases import SERVICE_NAME_ALIASES, first_present
+    return str(first_present(log.get('_source', {}) or {}, SERVICE_NAME_ALIASES, default='')).lower()
 
 
 def registered_service_names(project):

@@ -76,29 +76,65 @@ class ProviderIntegrationSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(str(e))
         return value
 
+    # Credential fields that are not the secret: who the token belongs to
+    # (Jenkins and Bitbucket authenticate as username + token) and the Azure
+    # DevOps organization. Stored encrypted with the token.
+    _CREDENTIAL_EXTRAS = ('username', 'email', 'organization', 'workspace')
+    _TOKEN_KEYS = ('access_token', 'token', 'api_token', 'api_key', 'app_password')
+
     def to_internal_value(self, data):
         """Accept the token as ``credentials: {access_token: ...}`` too.
 
         The token field is ``access_token``; a ``credentials`` object (what
         the model stores, and what API clients reach for) used to be dropped
         without a word, so the integration was saved with no token and every
-        call failed "Authentication failed" (phase 3 client test C1). A
-        ``credentials`` object without a usable token is refused."""
+        call failed "Authentication failed" (phase 3 client test C1).
+
+        The rest of ``credentials`` (username, organization) is kept with the
+        token: the settings page sends the Jenkins and Bitbucket username
+        there, and dropping it meant those integrations could never
+        authenticate (phase 3 client test C3)."""
         creds = data.get('credentials') if hasattr(data, 'get') else None
+        self._credential_extras = {}
         if creds is not None:
-            token = None
-            if isinstance(creds, dict):
-                token = next((creds.get(k) for k in ('access_token', 'token', 'api_token', 'api_key')
-                              if isinstance(creds.get(k), str) and creds.get(k).strip()), None)
-            if not token:
+            if not isinstance(creds, dict):
+                raise serializers.ValidationError({'credentials': 'Must be an object.'})
+            token = next((creds.get(k) for k in self._TOKEN_KEYS
+                          if isinstance(creds.get(k), str) and creds.get(k).strip()), None)
+            extras = {k: str(creds[k]).strip()[:255] for k in self._CREDENTIAL_EXTRAS
+                      if isinstance(creds.get(k), (str, int)) and str(creds[k]).strip()}
+            if not token and not extras and not data.get('access_token'):
                 raise serializers.ValidationError(
                     {'credentials': 'Send the token as access_token (or credentials.access_token).'})
-            if data.get('access_token') and data.get('access_token') != token:
+            if token and data.get('access_token') and data.get('access_token') != token:
                 raise serializers.ValidationError(
                     {'credentials': 'access_token and credentials.access_token differ; send one.'})
             data = {k: v for k, v in data.items() if k != 'credentials'}
-            data['access_token'] = token
+            if token:
+                data['access_token'] = token
+            self._credential_extras = extras
         return super().to_internal_value(data)
+
+    def _store_credentials(self, instance, access_token):
+        """Save the token and the non-secret credential fields together,
+        keeping whichever of the two this request did not change."""
+        extras = getattr(self, '_credential_extras', {}) or {}
+        if not access_token and not extras:
+            return False
+        current = {}
+        if instance.credentials:
+            try:
+                current = instance.get_credentials() or {}
+            except Exception:
+                current = {}
+        merged = {k: v for k, v in current.items() if k != '_encrypted'}
+        merged.update(extras)
+        if access_token:
+            for k in self._TOKEN_KEYS:
+                merged.pop(k, None)
+            merged['access_token'] = access_token
+        instance.set_credentials(merged)
+        return True
 
     def get_token_masked(self, obj) -> str:
         """Return masked version of token for display (no decryption needed)."""
@@ -122,8 +158,7 @@ class ProviderIntegrationSerializer(serializers.ModelSerializer):
         instance = super().create(validated_data)
         
         # Set credentials securely
-        if access_token:
-            instance.set_credentials({'access_token': access_token})
+        if self._store_credentials(instance, access_token):
             instance.save(update_fields=['credentials', 'token_hint'])
         
         return instance
@@ -134,9 +169,9 @@ class ProviderIntegrationSerializer(serializers.ModelSerializer):
         
         instance = super().update(instance, validated_data)
         
-        # Update credentials if new token provided
-        if access_token:
-            instance.set_credentials({'access_token': access_token})
+        # Update credentials if a new token or username was provided; the
+        # other half is kept.
+        if self._store_credentials(instance, access_token):
             instance.verification_status = 'pending'  # Require re-verification
             instance.save(update_fields=['credentials', 'token_hint', 'verification_status'])
         

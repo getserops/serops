@@ -196,6 +196,15 @@ the pod name of a Deployment instead (`name-<hash>-<suffix>`):
         replacement: $1
 ```
 
+**Which series SerOps sums.** In Kubernetes mode SerOps reads only
+container-level series (`container` set, not `POD`) under `/kubepods`. For a
+service that has none, which is the Docker-runtime case above, it reads the
+pod-level series instead (`container=""` with a `pod`). The QoS and root
+cgroups (`/kubepods`, `/kubepods/burstable`) carry no pod and are never
+summed, so fixed `organisation_name` / `project_name` labels on every sample
+are safe: they no longer add node-wide figures to a service or to
+"unlabelled containers".
+
 ### With kube-prometheus-stack
 
 The chart manages the kubelet/cAdvisor scrape job for you, so set the same

@@ -44,7 +44,7 @@ from datetime import datetime
 
 from django.utils import timezone
 
-from .argocd_webhook import _map_env_alias
+from .argocd_webhook import _env_from_name, _map_env_alias
 from .deployment_webhook import GenericDeploymentWebhookHandler, _PayloadError
 
 logger = logging.getLogger(__name__)
@@ -87,7 +87,7 @@ class FluxDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
             )
 
         involved = raw.get('involvedObject') or {}
-        environment = self._resolve_environment(involved, metadata)
+        environment, env_source = self._resolve_environment(involved, metadata)
 
         deployed_at = self._parse_iso(raw.get('timestamp')) or timezone.now()
 
@@ -101,6 +101,8 @@ class FluxDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
         notes_parts = [f'flux-{kind.lower()}={name}'] if kind and name else []
         if revision and revision != commit_sha:
             notes_parts.append(f'revision={revision[:80]}')
+        if env_source == 'default':
+            notes_parts.append('environment=assumed-production')
         notes = ' '.join(notes_parts)[:500]
 
         return {
@@ -129,7 +131,10 @@ class FluxDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
         return m.group(1) if m else ''
 
     @staticmethod
-    def _resolve_environment(involved: dict, metadata: dict) -> str:
+    def _resolve_environment(involved: dict, metadata: dict):
+        """``(environment, source)``. ``involvedObject.namespace`` is usually
+        ``flux-system``, so the Kustomization or HelmRelease name is read
+        before it (SC-09)."""
         # Flux notification-controller doesn't currently forward labels
         # by default; metadata is the payload's own key/value map, which
         # some templates enrich with custom keys.
@@ -138,13 +143,14 @@ class FluxDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
             # Kept as named when the alias map does not know it (SC-08): an
             # explicit environment is not overridden by the namespace.
             from .deployment_service import canonical_environment
-            return _map_env_alias(explicit) or canonical_environment(explicit)
-        ns = str(involved.get('namespace') or '').strip().lower()
-        if ns:
-            mapped = _map_env_alias(ns)
-            if mapped:
-                return mapped
-        return 'production'
+            return _map_env_alias(explicit) or canonical_environment(explicit), 'annotation'
+        for source, value in (
+            ('name', _env_from_name(involved.get('name'))),
+            ('namespace', _map_env_alias(str(involved.get('namespace') or '').strip().lower())),
+        ):
+            if value:
+                return value, source
+        return 'production', 'default'
 
     @staticmethod
     def _parse_iso(value):

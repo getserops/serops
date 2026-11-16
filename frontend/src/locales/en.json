@@ -1704,6 +1704,7 @@
       "no_logs": "The log store has no logs at all in the last {{minutes}} minutes in the places this project reads from. Check that your shipper is running and sending to this store.",
       "project_not_tagged": "Logs are arriving, but none carry project_name = “{{project}}”. Add that field (or label, or tag) to your logs in the shipper; the values your logs carry today are listed below.",
       "environment_not_tagged": "Logs for this project are arriving, but none carry the environment “{{environment}}” or one of its spellings. Use a value your logs carry, or tag the logs with this environment.",
+      "errors_unreadable": "Logs reach SerOps and are tagged correctly, but the error query found nothing while {{count}} of the sampled lines read like errors or warnings. Level fields SerOps does not read: {{fields}}. Name the level field log_level, level or severity (or relabel it in the shipper) so errors are analysed.",
       "no_errors": "Logs reach SerOps and are tagged correctly. There were no errors or warnings in the last {{minutes}} minutes, so there was nothing to analyse. That is good news.",
       "no_services": "Errors and warnings are arriving, but the project lists no services yet. List the services below to analyse them.",
       "unregistered_services": "Errors and warnings are arriving, but only from services this project does not list. List them to analyse them.",

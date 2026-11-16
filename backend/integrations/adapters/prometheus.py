@@ -52,6 +52,35 @@ logger = logging.getLogger(__name__)
 # `/kubepods.*` matches both while excluding the `/docker/...` duplicate.
 ROOT_CGROUP_MATCHER = 'id=~"/kubepods.*"'
 
+# One cgroup level per workload (phase 3 review MT-4).
+#
+# `/kubepods.*` also matches the QoS and pod cgroups above the containers
+# (`/kubepods`, `/kubepods/burstable`, `.../pod<uid>`). Relabel rules that set
+# organisation_name / project_name with a fixed replacement put the project's
+# labels on those too, so they were summed in: node-wide CPU and allocatable
+# memory showed as "unlabelled containers" (CPU above 100 % on client C2), and
+# under the pod-name recipe a service's pod-level series was added to its
+# container-level ones.
+#
+# Container series are read first. Pod-level series (`container=""` with a
+# pod) are used only for services that have no container series at all, which
+# is the Docker-runtime case (cri-dockerd reports per pod only). `or` keeps the
+# left side's series and adds right-side series whose labels differ, so after
+# `sum by (service_name)` each service comes from one level. QoS and root
+# cgroups carry no pod label and drop out of both sides.
+CONTAINER_LEVEL_MATCHER = 'container!="",container!="POD"'
+POD_LEVEL_MATCHER = 'container="",pod!=""'
+
+
+def k8s_container_expr(template, label_str):
+    """``template`` (with a ``{labels}`` slot) over container-level series,
+    falling back per service to pod-level series."""
+    base = [s for s in (label_str, ROOT_CGROUP_MATCHER) if s]
+    containers = template.format(labels=",".join(base + [CONTAINER_LEVEL_MATCHER]))
+    pods = template.format(labels=",".join(base + [POD_LEVEL_MATCHER]))
+    return f"({containers}) or ({pods})"
+
+
 # Peak utilisation of the WORST SINGLE POD in a service.
 #
 # Everything in K8S_METRIC_EXPR_TEMPLATES aggregates `sum by (service_name)`,
@@ -223,11 +252,9 @@ class PrometheusMetricProvider(MetricProvider):
         if self._topology_mode == "kubernetes":
             template = K8S_METRIC_EXPR_TEMPLATES.get(metric)
             if template:
-                label_str = promql_matchers(labels)
-                # Built as a list so an empty label_str cannot produce a
-                # leading comma ("{,id=~...}" is a parse error).
-                selectors = [s for s in (label_str, ROOT_CGROUP_MATCHER) if s]
-                expr = template.format(labels=",".join(selectors))
+                # k8s_container_expr builds the selectors as a list so an empty
+                # label_str cannot produce a leading comma ("{,id=~...}").
+                expr = k8s_container_expr(template, promql_matchers(labels))
                 return self.query_range_expr(expr, start, end)
             logger.debug(
                 "Prometheus K8s mode: no template for metric %s — falling back "

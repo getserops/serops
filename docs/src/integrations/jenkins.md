@@ -69,9 +69,11 @@ For failed builds, SerOps fetches the console output:
 
 For real-time updates, configure Jenkins to notify SerOps:
 
-### Generic Webhook Trigger Plugin
+### HTTP Request plugin
 
-1. Install **Generic Webhook Trigger Plugin** in Jenkins
+1. Install the **HTTP Request** plugin in Jenkins (it provides the `httpRequest`
+   step used below; the Generic Webhook Trigger plugin receives webhooks and is
+   not needed)
 2. In SerOps, find the CI/CD binding for your service and copy the **Webhook URL** and **Token**
    - URL format: `https://your-serops.com/api/webhooks/jenkins/{binding_id}/`
    - Token is auto-generated on binding creation
@@ -103,8 +105,9 @@ pipeline {
                 requestBody: """{
                     "job_name": "${env.JOB_NAME}",
                     "build_number": "${env.BUILD_NUMBER}",
-                    "status": "${currentBuild.result}",
+                    "status": "${currentBuild.currentResult}",
                     "branch": "${env.GIT_BRANCH ?: ''}",
+                    "commit": "${env.GIT_COMMIT ?: ''}",
                     "environment": "production"
                 }"""
             )
@@ -112,6 +115,16 @@ pipeline {
     }
 }
 ```
+
+Send `commit`: a successful build is recorded as a **deploy** only when it
+names the commit it deployed, and that commit is in a repository bound to the
+service. Without it the build is kept as a build, the analysis sees no rollout,
+and the webhook answers with a `warning` saying so. `currentBuild.result` is
+empty in `post { always }` after a successful declarative build;
+`currentBuild.currentResult` is always set.
+
+A job that deploys several SerOps services calls the webhook once per service,
+each with that service's binding URL and token.
 
 Set `environment` to where this job deploys (`production`, `staging`, ...).
 Without it SerOps guesses from the job and branch names (see

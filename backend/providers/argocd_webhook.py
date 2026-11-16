@@ -49,6 +49,7 @@ resolution + rate-limit + logging — the only override is
 """
 
 import logging
+import re
 from datetime import datetime
 
 from django.utils import timezone
@@ -106,14 +107,25 @@ class ArgoCDDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
         # (Helm charts) fall through to the parent's validation and
         # 400 cleanly.
         # The revision the operation deployed, else the app's current one.
-        op_revision = ((op_state.get('syncResult') or {}).get('revision')
-                       or ((op_state.get('operation') or {}).get('sync') or {}).get('revision'))
-        commit_sha = str(op_revision or sync.get('revision') or '').strip()
+        # A multi-source Application (a Helm chart plus a values repo, common
+        # since Argo CD 2.6) has ``revisions`` lists instead: the Git entry
+        # is the commit, the chart version is not (C2 found every such
+        # deploy answered 400).
+        sync_result = op_state.get('syncResult') or {}
+        op_sync = (op_state.get('operation') or {}).get('sync') or {}
+        op_revision = (sync_result.get('revision') or op_sync.get('revision')
+                       or sync.get('revision'))
+        if not op_revision:
+            op_revision = (_git_revision(sync_result.get('revisions'))
+                           or _git_revision(op_sync.get('revisions'))
+                           or _git_revision(sync.get('revisions')))
+        commit_sha = str(op_revision or '').strip()
         if not commit_sha:
             raise _PayloadError('sync.revision is empty; nothing to record')
 
-        # 3. Environment — annotation > namespace > default.
-        environment = self._resolve_environment(metadata)
+        # 3. Environment: annotation > destination namespace > app name >
+        # the Application's own namespace > production (flagged in notes).
+        environment, env_source = self._resolve_environment(metadata, spec)
 
         # 4. Timestamp — finishedAt if present, else now.
         deployed_at = self._parse_iso(op_state.get('finishedAt')) or timezone.now()
@@ -129,6 +141,8 @@ class ArgoCDDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
         notes_parts = [f'argocd-app={app_name}']
         if target_rev and target_rev != commit_sha:
             notes_parts.append(f'target={target_rev}')
+        if env_source == 'default':
+            notes_parts.append('environment=assumed-production')
         notes = ' '.join(notes_parts)[:500]
 
         # Hand the canonicalised dict back through the parent's shape
@@ -153,7 +167,11 @@ class ArgoCDDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
             raise _PayloadError('Body must be valid JSON')
 
     @staticmethod
-    def _resolve_environment(metadata: dict) -> str:
+    def _resolve_environment(metadata: dict, spec: dict = None):
+        """``(environment, source)``. ``metadata.namespace`` is where the
+        Application resource lives (usually ``argocd``), not where it deploys,
+        so the destination namespace and the app name are read first (SC-09:
+        every staging deploy was recorded as production)."""
         annotations = metadata.get('annotations') or {}
         # Explicit annotation wins.
         explicit = str(annotations.get('serops.io/environment') or '').strip().lower()
@@ -161,14 +179,17 @@ class ArgoCDDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
             # An environment the alias map does not know (qa, uat) is kept
             # as named, not None: None made the deploy a 500 (SC-08).
             from .deployment_service import canonical_environment
-            return _map_env_alias(explicit) or canonical_environment(explicit)
-        # Namespace fallback — many teams name namespaces after envs.
-        ns = str(metadata.get('namespace') or '').strip().lower()
-        if ns:
-            mapped = _map_env_alias(ns)
-            if mapped:
-                return mapped
-        return 'production'
+            return _map_env_alias(explicit) or canonical_environment(explicit), 'annotation'
+        destination = (spec or {}).get('destination') or {}
+        for source, value in (
+            ('destination', _map_env_alias(str(destination.get('namespace') or '').strip().lower())),
+            ('name', _env_from_name(metadata.get('name'))),
+            ('destination', _env_from_name(destination.get('namespace'))),
+            ('namespace', _map_env_alias(str(metadata.get('namespace') or '').strip().lower())),
+        ):
+            if value:
+                return value, source
+        return 'production', 'default'
 
     @staticmethod
     def _parse_iso(value):
@@ -186,6 +207,32 @@ class ArgoCDDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
 
 # Namespace names read as an environment when nothing explicit is set.
 _NAMESPACE_ENVS = {'production', 'staging', 'development', 'preview', 'demo'}
+
+
+_GIT_SHA_RE = re.compile(r'^[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?$')
+
+
+def _git_revision(revisions):
+    """The Git commit in a multi-source ``revisions`` list (a full SHA-1 or
+    SHA-256), skipping chart versions; None when there is none."""
+    if not isinstance(revisions, list):
+        return None
+    for rev in revisions:
+        rev = str(rev or '').strip()
+        if _GIT_SHA_RE.match(rev):
+            return rev
+    return None
+
+
+def _env_from_name(name):
+    """The environment a resource name spells as its first or last part
+    (``payments-staging``, ``prod.checkout``, ``staging_api``), or None."""
+    parts = [p for p in re.split(r'[-_.]', str(name or '').strip().lower()) if p]
+    for part in dict.fromkeys(parts[-1:] + parts[:1]):
+        mapped = _map_env_alias(part)
+        if mapped:
+            return mapped
+    return None
 
 
 def _map_env_alias(name: str):

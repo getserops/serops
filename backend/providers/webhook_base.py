@@ -258,13 +258,25 @@ class BaseCICDWebhookHandler(APIView, ABC):
                         pass
                 self._store_cicd_logs(normalized)
             
-            return Response({
+            body = {
                 'message': f'{self.provider_name} webhook processed',
                 'pipeline_id': normalized.get('pipeline_id'),
                 'status': normalized.get('status'),
                 'environment': normalized.get('environment'),
                 'deployments_created': deployments_created,
-            })
+            }
+            # A successful run that recorded no deploy says why, so the
+            # sender can fix its payload (client C3: the documented Jenkins
+            # step sent no commit, and the RCA saw builds but no deploys).
+            if normalized.get('status') == 'success' and not deployments_created:
+                if not normalized.get('commit_shas'):
+                    body['warning'] = ('No commit in the payload: recorded as a build, not a deploy. '
+                                       'Send the deployed commit SHA (for Jenkins: "commit": '
+                                       '"${env.GIT_COMMIT}") to record the deploy.')
+                else:
+                    body['warning'] = ('The commit is not known to SerOps yet (no repository bound to '
+                                       'this service has it): recorded as a build, not a deploy.')
+            return Response(body)
             
         except Exception as e:
             logger.exception(f"[{self.provider_name}] Webhook processing error: {e}")

@@ -340,6 +340,14 @@ def generate_text(request):
                             logger.error(f"Error in intent classification: {e}")
                             data_sources_needed = []
 
+                # Every turn about a batch keeps its logs, whatever the
+                # question asks for: a "which commit?" turn that saw only the
+                # code changes re-asserted log facts from its earlier answers
+                # that it could no longer check (phase 3 Track 4: C02a, C09a,
+                # C10a). The log excerpt is capped at 50 lines.
+                if batch_id and 'LOGS' not in (data_sources_needed or []):
+                    data_sources_needed = list(data_sources_needed or []) + ['LOGS']
+
                 # Step 2: Dynamic Data Fetching (The Tool)
                 if data_sources_needed and batch_id:
                     try:
@@ -401,6 +409,13 @@ def generate_text(request):
                                         if count >= max_logs: break
                                     if count >= max_logs: break
                             
+                            # The change and job events the analysis saw
+                            # (INFO: a reindex, a restart), within their cap.
+                            from .prompts import _change_events_text
+                            events_text = _change_events_text(batch.data.get('change_events'))
+                            if events_text:
+                                log_snippet += ("\nChange and job events (INFO, context only):\n"
+                                                + events_text + "\n")
                             if log_snippet:
                                 injected_data['logs'] = log_snippet
 

@@ -20,6 +20,7 @@ guessing, and fixes that are one click away: list a service seen in the
 logs, or accept the environment value the logs carry.
 """
 import logging
+import re
 from collections import Counter
 from datetime import timedelta
 
@@ -28,6 +29,7 @@ from django.utils import timezone
 from integrations.field_aliases import (
     ENVIRONMENT_ALIASES,
     ENVIRONMENT_VALUE_ALIASES,
+    LOG_LEVEL_ALIASES,
     PROJECT_NAME_ALIASES,
     environment_values,
     first_present,
@@ -238,6 +240,16 @@ def check_project_data(project, environment=None, minutes=DEFAULT_MINUTES):
     errors = [e for e in errors if is_important_log(e)]
     report['stages'][-1].update(count=len(errors))
     if not errors:
+        # Before calling it good news: lines that read like errors, or a
+        # level field under a name SerOps does not know, mean the errors are
+        # there but the level query cannot see them (client C3: 1,138 errors
+        # under ``lvl``/``log`` while this said "good news").
+        sample = in_env or scoped
+        unreadable = [e for e in sample if is_important_log(e)]
+        unknown = _unknown_level_fields(sample)
+        if unreadable or unknown:
+            return stop('errors_unreadable', count=len(unreadable),
+                        fields=', '.join(unknown) or 'none found')
         return stop('no_errors', minutes=minutes)
 
     analysed = [e for e in errors if log_service(e) in registered
@@ -266,6 +278,11 @@ _MESSAGES = {
     'environment_not_tagged': ('Logs for this project are arriving, but none carry the environment '
                                '"{environment}" or one of its spellings. Use a value your logs carry, '
                                'or tag the logs with this environment.'),
+    'errors_unreadable': ('Logs reach SerOps and are tagged correctly, but the error query found '
+                          'nothing while {count} of the sampled lines read like errors or warnings. '
+                          'Level fields SerOps does not read: {fields}. Name the level field '
+                          'log_level, level or severity (or relabel it in the shipper) so errors '
+                          'are analysed.'),
     'no_errors': ('Logs reach SerOps and are tagged correctly. There were no errors or warnings in the '
                   'last {minutes} minutes, so there was nothing to analyse. That is good news.'),
     'no_services': ('Errors and warnings are arriving, but the project lists no services yet. List '
@@ -274,6 +291,21 @@ _MESSAGES = {
                               'does not list. List them to analyse them.'),
     'ok': 'Everything is in place: {count} errors and warnings would be analysed now.',
 }
+
+
+_LEVELISH = re.compile(r'(?i)^[\w.@-]*(lvl|level|severity|sev)[\w.@-]*$')
+
+
+def _unknown_level_fields(entries):
+    """Field names in the sampled logs that look like a level but are not
+    one SerOps reads (``sev``, ``logLevel``, ``app.lvl``)."""
+    known = {a.lower() for a in LOG_LEVEL_ALIASES} | {'severity_number', 'level', 'severity'}
+    names = set()
+    for e in entries:
+        for key in (getattr(e, 'labels', None) or {}):
+            if _LEVELISH.match(str(key)) and str(key).lower() not in known:
+                names.add(str(key))
+    return sorted(names)[:5]
 
 
 def _diagnosis(code, **extra):

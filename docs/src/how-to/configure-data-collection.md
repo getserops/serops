@@ -122,11 +122,13 @@ If your existing infrastructure already tags data with a common convention, SerO
 
 | Canonical | Accepted alternatives (in precedence order) |
 |-----------|---------------------------------------------|
-| `service_name` | `service` (Datadog USM), `service.name` (OpenTelemetry, Elastic Common Schema), `app` (Kubernetes), `app.kubernetes.io/name` (Kubernetes standard), `kubernetes.labels.app`, `kubernetes.container_name` (Fluent Bit), `kubernetes.container.name` (Filebeat) |
+| `service_name` | `service` (Datadog USM), `service.name` (OpenTelemetry, Elastic Common Schema), `app` (Kubernetes), `app.kubernetes.io/name` (Kubernetes standard), `kubernetes.labels.app`, `kubernetes.container_name` (Fluent Bit), `kubernetes.container.name` (Filebeat), `svc` |
 | `environment` | `env` (Datadog USM), `deployment.environment` / `deployment.environment.name` (OpenTelemetry), `service.environment` (Elastic Common Schema) |
-| `log_level` | `level`, `log.level` (Elastic Common Schema), `severity`, `severity_text` (OpenTelemetry), `status` (Datadog log-severity field) |
+| `log_level` | `level`, `log.level` (Elastic Common Schema), `severity`, `severity_text` (OpenTelemetry), `status` (Datadog log-severity field), `lvl`, `loglevel`, `levelname` (Python logging) |
 | `project_name` | `project` |
 | `organisation_name` | `organization_name` (US spelling), `org_name` |
+
+The message itself is read from `message`, `msg`, `body`, `log` (Fluent Bit's tail input), `body.text` or `@message`. A level field under any other name is not read: SerOps then finds errors only through their wording, and **Check my data** says so and names the field (“Level fields SerOps does not read”) instead of reporting no errors.
 
 Dotted names match whether the record stores them flat (`"service.name": "x"`) or nested (`"service": {"name": "x"}`). Alias-aware query builders emit `bool.should` (Elasticsearch), `OR` (Datadog), `or` (CloudWatch Insights) and `IN` (Splunk) clauses so any tagged record matches. **Grafana Loki is the exception** — its stream selectors AND across labels and can't easily OR the same value against different label names. Loki users must tag with the canonical `service_name` / `project_name` / `environment` names.
 
@@ -155,6 +157,19 @@ SerOps normalises severity levels. Any case is accepted (`ERROR`, `error`, `Erro
 the line itself (`2026-10-27 ERROR ...`, `[warn] ...`, `level=error`), and
 fetches lines whose text holds an error word (`exception`, `failed`,
 `timeout` ...) even when they carry no level.
+
+**Which logs the analysis reads.** Errors and warnings are analysed. Debug
+lines are never read. Info lines are read only when they mark a change or a
+job: something started, finished, restarted, was deployed, migrated,
+reindexed, vacuumed, backed up, failed over, scaled, or had a flag or its
+configuration reloaded. A nightly reindex that slows the database down logs
+itself at INFO, and without these lines the analysis can see the slow
+database but not the job behind it. Up to 20 such lines per analysis (about
+2 KB, repeats counted once) are shown to the AI as context. They can explain
+an error, but never raise an issue on their own. They are read only for a
+window that is analysed, with the same project, environment and time window
+as the errors, and if the store refuses that query the analysis runs
+without them.
 
 ### Environment Names
 

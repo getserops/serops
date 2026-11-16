@@ -297,6 +297,7 @@ def _build_user_content(context):
     log_section = (
         f"Logs to Analyze:\n-------------\n{chr(10).join(logs) if logs else 'No logs provided'}\n"
     )
+    change_events_text = _change_events_text(context.change_events)
 
     # Build correlation section from correlation engine output
     correlation_section = ""
@@ -477,6 +478,15 @@ def _build_user_content(context):
                 if a.get('correlation_window'):
                     metrics_section += f"      Correlation window: {a['correlation_window'].get('start')} to {a['correlation_window'].get('end')}\n"
         
+        # Steady near the limit: a sizing fact, not a fault (client C2).
+        steady = mem.get('steady_near_limit') or []
+        if steady:
+            metrics_section += (
+                "  Memory steady near the limit (flat over the window, no restarts; "
+                "context, not a cause on its own): "
+                + ", ".join(f"{'unlabelled containers' if e.get('service') == 'default' else e.get('service')} "
+                            f"{e.get('level_percent')}%" for e in steady[:6]) + "\n")
+
         # CPU metrics
         cpu = metrics_summary.get('cpu', {})
         cpu_stats = cpu.get('usage_percent', {})
@@ -737,6 +747,7 @@ def _build_user_content(context):
         caps_set = caps_set - {k for k, v in source_status.items() if v.get('status') == 'unavailable'}
         if 'logs' not in caps_set:
             log_section = ''
+            change_events_text = ''
         if 'metrics' not in caps_set:
             metrics_section = ''
         if 'code' not in caps_set:
@@ -763,6 +774,16 @@ def _build_user_content(context):
     # sections carry their own <<<…>>> quotes and explanation.
     project_context_section = fence_data(project_context_section, 'project context')
     log_section = fence_data(log_section, 'logs')
+    change_section = ''
+    if change_events_text:
+        # The instruction stays outside the fence: inside it, it would be data.
+        change_section = (
+            "\nChange and job events (INFO, context only):\n-------------\n"
+            "Lines that say a job, deploy, restart, migration or failover started, ended or "
+            "changed in this window. They are context, not errors: name one as a cause only when "
+            "its timing and the errors, metrics or traces support it, and never report an issue "
+            "from these lines alone.\n"
+            + fence_data(change_events_text, 'change and job events'))
     metrics_section = fence_data(metrics_section, 'metrics')
     code_changes_section = fence_data(code_changes_section, 'code changes')
     cicd_section = fence_data(cicd_section, 'ci/cd')
@@ -778,12 +799,29 @@ Environment: {batch_data.get('environment', 'unknown')}
 {project_context_section}{capability_note}
 Available Data Sources:
 -------------
-{log_section}
+{log_section}{change_section}
 {metrics_section}
 {code_changes_section}
 {cicd_section}
 {traces_section}{correlation_section}
 {(past_memories + chr(10)) if past_memories else ""}{sentinel_section}{operator_section}{alert_section}"""
+
+
+def _change_events_text(events) -> str:
+    """The stored change and job events as prompt lines, within the block's cap."""
+    if not events:
+        return ''
+    from Data.change_events import MAX_CHARS, MAX_LINES, format_change_event
+    lines, size = [], 0
+    for event in events[:MAX_LINES]:
+        if not isinstance(event, dict):
+            continue
+        line = format_change_event(event)
+        if size + len(line) + 1 > MAX_CHARS:
+            break
+        lines.append(line)
+        size += len(line) + 1
+    return '\n'.join(lines)
 
 
 _SOURCE_STATUS_WORDS = {'unavailable': 'UNAVAILABLE', 'partial': 'PARTIAL', 'truncated': 'TRUNCATED'}

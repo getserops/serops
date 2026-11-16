@@ -303,13 +303,12 @@ def _fetch_peak_pod_metrics(provider, labels, start_time, end_time):
 
     from integrations.promql import promql_matchers
     label_str = promql_matchers(labels)
-    from integrations.adapters.prometheus import ROOT_CGROUP_MATCHER
-    selectors = ','.join(s for s in (label_str, ROOT_CGROUP_MATCHER) if s)
+    from integrations.adapters.prometheus import k8s_container_expr
 
     for key, template in K8S_PEAK_POD_EXPR_TEMPLATES.items():
         try:
             series = provider.query_range_expr(
-                template.format(labels=selectors), start_time, end_time)
+                k8s_container_expr(template, label_str), start_time, end_time)
         except Exception as exc:                            # noqa: BLE001
             logger.warning('peak-pod query %s failed: %s', key, exc)
             out[key] = []
@@ -731,17 +730,21 @@ def preprocess_metrics_for_ai(raw_metrics: dict, time_window_minutes: int = 5) -
     # service.
     peak_memory = raw_metrics.get('peak_pod_memory_percent') or []
     peak_cpu = raw_metrics.get('peak_pod_cpu_cores') or []
-    peak_pod = {
-        "memory_percent": _per_service(peak_memory),
-        "cpu_cores": _per_service(peak_cpu),
-        "memory_anomalies": detect_anomalies(
-            peak_memory, 75.0, "peak_pod_memory_high_usage"),
-    }
-    
     # Pass container lifecycle through untouched — it is already small and
     # categorical, and summarising it would lose the reason string that makes
     # it useful.
     lifecycle = raw_metrics.get('container_lifecycle') or {}
+
+    memory_anomalies, steady_memory = _split_steady_memory(
+        detect_anomalies(memory_usage, 75.0, "memory_high_usage"), memory_usage, lifecycle)
+    peak_anomalies, steady_peak = _split_steady_memory(
+        detect_anomalies(peak_memory, 75.0, "peak_pod_memory_high_usage"), peak_memory, lifecycle)
+
+    peak_pod = {
+        "memory_percent": _per_service(peak_memory),
+        "cpu_cores": _per_service(peak_cpu),
+        "memory_anomalies": peak_anomalies,
+    }
 
     return {
         "container_lifecycle": lifecycle,
@@ -755,10 +758,68 @@ def preprocess_metrics_for_ai(raw_metrics: dict, time_window_minutes: int = 5) -
         "memory": {
             "total_gb": total_memory_gb,
             "usage_percent": safe_stats(memory_usage),
-            "anomalies": detect_anomalies(memory_usage, 75.0, "memory_high_usage")
+            "anomalies": memory_anomalies,
+            # Near the limit, flat, no restarts: context, not an incident.
+            "steady_near_limit": _merge_steady(steady_memory, steady_peak),
         },
         "cpu": _cpu_summary(cpu_usage, raw_metrics.get('cpu_unit'), safe_stats, detect_anomalies),
     }
+
+
+# A memory level that sits still is a sizing fact, not an incident. Client C2
+# (phase 3, 2026-11-16): pods held 80-90 % of their limits all day, every
+# batch flagged them as sustained high memory, and that noise outranked the
+# real fault (and once went CRITICAL on a healthy rollout). A series counts as
+# steady when it moved no more than STEADY_MEMORY_RANGE points over the window,
+# stayed under STEADY_MEMORY_CEILING (above it a replica is an OOMKill
+# candidate whatever its trend), and its service did not restart. Only used
+# when Kubernetes lifecycle data is present, so "no restart" is a fact.
+STEADY_MEMORY_RANGE = 3.0
+STEADY_MEMORY_CEILING = 95.0
+
+
+def _service_restarted(service, lifecycle):
+    names = set((lifecycle.get('restarts') or {}).keys())
+    names.update(t.get('container', '') for t in lifecycle.get('terminated') or [])
+    if not service:
+        return bool(names)
+    svc = str(service).lower()
+    return any(n and (n.lower() == svc or svc in n.lower() or n.lower() in svc) for n in names)
+
+
+def _split_steady_memory(anomalies, values, lifecycle):
+    """``(anomalies, steady)``: sustained memory anomalies on a flat series
+    with no restart move to ``steady``; growth, peaks near the limit, OOM
+    kills and restarts stay anomalies."""
+    if not anomalies or not isinstance(lifecycle, dict) or 'restarts' not in lifecycle:
+        return anomalies, []
+    by_series = {}
+    for v in values or []:
+        if isinstance(v.get('value'), (int, float)):
+            by_series.setdefault(v.get('series_key', 'default'), []).append(v['value'])
+    kept, steady = [], []
+    for a in anomalies:
+        key = a.get('service') or 'default'
+        nums = by_series.get(key) or []
+        flat = (a.get('sustained') and nums and max(nums) - min(nums) <= STEADY_MEMORY_RANGE
+                and max(nums) < STEADY_MEMORY_CEILING)
+        if flat and not _service_restarted(a.get('service'), lifecycle):
+            steady.append({'service': a.get('service') or 'default',
+                           'level_percent': round(sum(nums) / len(nums), 1),
+                           'min': round(min(nums), 1), 'max': round(max(nums), 1)})
+        else:
+            kept.append(a)
+    return kept, steady
+
+
+def _merge_steady(*lists):
+    """One entry per service, the highest level wins."""
+    out = {}
+    for entry in (e for lst in lists for e in lst):
+        cur = out.get(entry['service'])
+        if cur is None or entry['level_percent'] > cur['level_percent']:
+            out[entry['service']] = entry
+    return sorted(out.values(), key=lambda e: e['level_percent'], reverse=True)[:10]
 
 
 def _cpu_summary(cpu_usage, unit, safe_stats, detect_anomalies):

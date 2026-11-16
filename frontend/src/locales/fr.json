@@ -1704,6 +1704,7 @@
       "no_logs": "Le stockage de logs ne contient aucun log sur les {{minutes}} dernières minutes aux emplacements lus par ce projet. Vérifiez que votre agent tourne et envoie vers ce stockage.",
       "project_not_tagged": "Des logs arrivent, mais aucun ne porte project_name = « {{project}} ». Ajoutez ce champ (ou label, ou tag) à vos logs dans l’agent ; les valeurs que portent vos logs aujourd’hui sont listées ci-dessous.",
       "environment_not_tagged": "Des logs de ce projet arrivent, mais aucun ne porte l’environnement « {{environment}} » ni une de ses variantes. Utilisez une valeur que portent vos logs, ou étiquetez les logs avec cet environnement.",
+      "errors_unreadable": "Les logs arrivent et sont bien étiquetés, mais la recherche d’erreurs n’a rien trouvé alors que {{count}} des lignes échantillonnées ressemblent à des erreurs ou des avertissements. Champs de niveau que SerOps ne lit pas : {{fields}}. Nommez le champ de niveau log_level, level ou severity (ou renommez-le dans l’agent d’envoi) pour que les erreurs soient analysées.",
       "no_errors": "Les logs arrivent et sont bien étiquetés. Aucune erreur ni aucun avertissement sur les {{minutes}} dernières minutes, donc rien à analyser. Bonne nouvelle.",
       "no_services": "Des erreurs et avertissements arrivent, mais le projet ne liste encore aucun service. Listez les services ci-dessous pour les analyser.",
       "unregistered_services": "Des erreurs et avertissements arrivent, mais seulement de services que ce projet ne liste pas. Listez-les pour les analyser.",

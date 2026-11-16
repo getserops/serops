@@ -1281,6 +1281,7 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
             past_memories=past_memories_text,
             traces_summary=traces_summary,
             enabled_capabilities=enabled_capabilities,
+            change_events=batch.data.get('change_events') if isinstance(batch.data, dict) else None,
         )
         system_prompt, analysis_prompt = get_batch_analysis_prompt_parts(context)
 
@@ -2071,6 +2072,7 @@ def reanalyze_batch_with_model(self, batch_id, model_name, mode='compare'):
             past_memories=past_memories_text,
             traces_summary=traces_summary,
             enabled_capabilities=enabled_capabilities,
+            change_events=batch.data.get('change_events') if isinstance(batch.data, dict) else None,
         )
         system_prompt, analysis_prompt = get_batch_analysis_prompt_parts(context)
 

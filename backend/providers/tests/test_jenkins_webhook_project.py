@@ -80,3 +80,27 @@ class JenkinsBuildOwnershipTest(TestCase):
         p.save()
         now = timezone.now()
         self.assertEqual(_cicd_from_database(self.project, 'production', now - timedelta(minutes=15), now), [])
+
+
+class JenkinsDeployWarningTest(TestCase):
+    """Client C3: the documented step sent no commit, so every deploy was a
+    build only and the RCA saw no rollout. The response now says why."""
+
+    setUp = JenkinsBuildOwnershipTest.setUp
+    post_build = JenkinsBuildOwnershipTest.post_build
+
+    def test_success_without_commit_explains_it_is_a_build_only(self):
+        r = self.post_build(8, status='SUCCESS')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['deployments_created'], 0)
+        self.assertIn('No commit in the payload', r.json()['warning'])
+
+    def test_unknown_commit_is_named(self):
+        r = APIClient().post(f'/api/webhooks/jenkins/{self.binding.id}/', {
+            'job_name': 'payments-deploy', 'build_number': '9', 'status': 'SUCCESS',
+            'commit': 'a' * 40, 'environment': 'production',
+        }, format='json', HTTP_X_JENKINS_TOKEN='whsec')
+        self.assertIn('not known to SerOps', r.json()['warning'])
+
+    def test_failure_has_no_deploy_warning(self):
+        self.assertNotIn('warning', self.post_build(10).json())

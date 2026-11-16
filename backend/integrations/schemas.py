@@ -233,8 +233,15 @@ class LogQuery:
     environment_untagged: bool = False
     event_type: Optional[str] = None    # "cicd_job_failure"
     text_search: Optional[str] = None   # free-text search in message
+    # Any of these words in the message, case-insensitive (change and job
+    # events, Data/change_events.py). Plain words only; others are dropped.
+    message_any: Optional[list] = None
     category: Optional[str] = None      # "cicd" filter on serops_meta
     max_results: int = 5000
+
+    def message_words(self) -> list:
+        """``message_any`` reduced to plain words, safe in every query language."""
+        return [w for w in (self.message_any or []) if isinstance(w, str) and re.fullmatch(r"[A-Za-z0-9_ -]{1,40}", w)]
 
     def project_matches(self) -> list:
         """The project clause as alternatives: [(fields, value), ...], any one matching."""
@@ -341,8 +348,11 @@ class LogQuery:
                 level_fields += [alias, f"{alias}.keyword"]
             filter_clauses.append({"bool": {"should": [
                 {"query_string": {"query": " OR ".join(values), "fields": level_fields, "lenient": True}},
+                # Every field a message can live in (``log`` from Fluent Bit's
+                # tail input, ``msg``, ``body``): matching ``message`` only
+                # found nothing in an estate that ships ``log`` (client C3).
                 {"query_string": {"query": " OR ".join(SEVERITY_MESSAGE_WORDS),
-                                  "fields": ["message"], "lenient": True}},
+                                  "fields": list(MESSAGE_FIELDS), "lenient": True}},
             ], "minimum_should_match": 1}})
 
         # E9-1 fix: use `.keyword` sub-field for exact-match filters on
@@ -422,6 +432,10 @@ class LogQuery:
             must.append({
                 "match": {"message": self.text_search}
             })
+        if self.message_words():
+            filter_clauses.append({"query_string": {
+                "query": " OR ".join(_es_quote(w) for w in self.message_words()),
+                "fields": list(MESSAGE_FIELDS), "lenient": True}})
 
         query = {"bool": {}}
         if must:
@@ -508,6 +522,8 @@ class LogQuery:
             filters.append(f'|~ "(?i)({alternatives})"')
         if self.text_search:
             filters.append(f'|~ "{_re2_escape(self.text_search)}"')
+        if self.message_words():
+            filters.append(f'|~ "(?i)({"|".join(_re2_escape(w) for w in self.message_words())})"')
         if self.event_type:
             filters.append(f'| event_type="{_logql_escape(self.event_type)}"')
 
@@ -570,6 +586,8 @@ class LogQuery:
 
         if self.text_search:
             parts.append(_dd_value(self.text_search))
+        if self.message_words():
+            parts.append("(" + " OR ".join(_dd_value(w) for w in self.message_words()) + ")")
         if self.category:
             parts.append(f"@category:{_dd_value(self.category)}")
         return " ".join(parts) if parts else "*"
@@ -628,6 +646,8 @@ class LogQuery:
             filters.append(_in(SERVICE_NAME_ALIASES, list(self.services)))
         if self.text_search:
             filters.append(f"@message like {_cw_string(self.text_search)}")
+        if self.message_words():
+            filters.append(f"@message like /(?i)({'|'.join(self.message_words())})/")
 
         where = " and ".join(filters)
         query = "fields @timestamp, @message, @logStream, @log"
@@ -761,6 +781,9 @@ class LogQuery:
 
         if self.text_search:
             lines.append(f'| where {profile["message"]} contains "{_kql_escape(self.text_search)}"')
+        if self.message_words():
+            words = ", ".join(f'"{_kql_escape(w)}"' for w in self.message_words())
+            lines.append(f'| where {profile["message"]} has_any ({words})')
 
         # `top N by TimeGenerated desc` gives us newest-first bounded
         # results — matches how Detail.jsx expects to render.
@@ -906,6 +929,10 @@ class LogQuery:
         # requests that mention …".
         if self.text_search:
             clauses.append(f'jsonPayload.message:"{_gcp_escape(self.text_search)}"')
+        if self.message_words():
+            terms = [f'{field}:"{_gcp_escape(w)}"' for w in self.message_words()
+                     for field in ("jsonPayload.message", "textPayload")]
+            clauses.append("(" + " OR ".join(terms) + ")")
 
         # Time range inline — GCP has no separate param for this.
         if self.time_range:
@@ -983,6 +1010,8 @@ class LogQuery:
         if self.text_search:
             # Free-text term goes as a bare quoted phrase.
             parts.append(f'"{_spl_escape(self.text_search)}"')
+        if self.message_words():
+            parts.append("(" + " OR ".join(f'"{_spl_escape(w)}"' for w in self.message_words()) + ")")
 
         # `head N` caps result count — Splunk default is 100 which is
         # far too small for our batch aggregation use case.

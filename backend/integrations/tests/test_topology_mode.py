@@ -654,7 +654,7 @@ class RootCgroupMatcherTest(SimpleTestCase):
         error Prometheus rejects outright."""
         expr = self._expr_for({})
         self.assertNotIn('{,', expr)
-        self.assertIn('{id=~"/kubepods.*"}', expr)
+        self.assertIn('{id=~"/kubepods.*",container!=""', expr)
 
     def test_labels_and_matcher_both_present(self):
         expr = self._expr_for({'environment': 'production', 'project_name': 'shop'})
@@ -678,6 +678,95 @@ class RootCgroupMatcherTest(SimpleTestCase):
         self.assertTrue(anchored.match('/kubepods/burstable/podabc/container1'))
         self.assertTrue(anchored.match('/kubepods.slice/kubepods-burstable.slice/x'))
         self.assertFalse(anchored.match('/docker/deadbeef/kubepods/burstable/podabc/c1'))
+
+
+class OneCgroupLevelTest(SimpleTestCase):
+    """Phase 3 review MT-4 and client C2: QoS and pod cgroups carry the
+    project's labels too, so they were summed into services and into
+    "unlabelled containers" (CPU above 100 %)."""
+
+    # cAdvisor series on one containerd node, after the documented pod-name
+    # relabel rule (service_name from the pod name, fixed project labels).
+    SERIES = [
+        # root and QoS cgroups: no pod, no container
+        {'id': '/kubepods', 'value': 3.5},
+        {'id': '/kubepods/burstable', 'value': 2.0},
+        # pod-level cgroups: pod set, container empty
+        {'id': '/kubepods/burstable/poda', 'pod': 'cart-7d9f8c6b5-abcde', 'service_name': 'cart', 'value': 0.30},
+        {'id': '/kubepods/burstable/podb', 'pod': 'ads-6c8f9d7b4-fghij', 'service_name': 'ads', 'value': 0.20},
+        # container-level
+        {'id': '/kubepods/burstable/poda/c1', 'pod': 'cart-7d9f8c6b5-abcde', 'container': 'server',
+         'service_name': 'cart', 'value': 0.29},
+        {'id': '/kubepods/burstable/poda/p', 'pod': 'cart-7d9f8c6b5-abcde', 'container': 'POD',
+         'service_name': 'cart', 'value': 0.01},
+        {'id': '/kubepods/burstable/podb/c2', 'pod': 'ads-6c8f9d7b4-fghij', 'container': 'server',
+         'service_name': 'ads', 'value': 0.19},
+    ]
+
+    @staticmethod
+    def _matches(series, selector):
+        import re
+        for m in re.finditer(r'(\w+)(=~|!=|=)"([^"]*)"', selector):
+            key, op, want = m.groups()
+            have = series.get(key, '')
+            if op == '=' and have != want:
+                return False
+            if op == '!=' and have == want:
+                return False
+            if op == '=~' and not re.fullmatch(want, have):
+                return False
+        return True
+
+    def _sum_by_service(self, selector):
+        out = {}
+        for sr in self.SERIES:
+            if self._matches(sr, selector):
+                key = sr.get('service_name', '')
+                out[key] = round(out.get(key, 0) + sr['value'], 4)
+        return out
+
+    def _evaluate(self, expr):
+        """``(sum A) or (sum B)`` as Prometheus evaluates it."""
+        import re
+        left, right = re.findall(r'\{([^}]*)\}', expr)
+        result = self._sum_by_service(left)
+        for key, value in self._sum_by_service(right).items():
+            result.setdefault(key, value)
+        return result
+
+    def _expr(self):
+        from integrations.adapters.prometheus import K8S_METRIC_EXPR_TEMPLATES, k8s_container_expr
+        return k8s_container_expr(K8S_METRIC_EXPR_TEMPLATES['node_cpu_seconds_total'], '')
+
+    def test_containers_only_no_qos_no_pause_no_pod_level(self):
+        self.assertEqual(self._evaluate(self._expr()), {'cart': 0.29, 'ads': 0.19})
+
+    def test_docker_runtime_falls_back_to_pod_level(self):
+        """cri-dockerd: per-pod series only, no container label."""
+        self.SERIES = [sr for sr in OneCgroupLevelTest.SERIES if not sr.get('container')]
+        self.assertEqual(self._evaluate(self._expr()), {'cart': 0.30, 'ads': 0.20})
+
+    def test_no_unlabelled_bucket_from_hierarchy(self):
+        self.assertNotIn('', self._evaluate(self._expr()))
+
+    def test_peak_pod_queries_use_the_same_levels(self):
+        from datetime import datetime, timezone
+        from integrations.metrics_processing import _fetch_peak_pod_metrics
+
+        class P:
+            calls = []
+
+            def query_range_expr(self, expr, start, end):
+                self.calls.append(expr)
+                return []
+        p = P()
+        _fetch_peak_pod_metrics(p, {'project_name': 'shop'},
+                                datetime(2026, 1, 1, tzinfo=timezone.utc),
+                                datetime(2026, 1, 1, 1, tzinfo=timezone.utc))
+        self.assertTrue(p.calls)
+        for expr in p.calls:
+            self.assertIn('container!="",container!="POD"', expr)
+            self.assertIn(') or (', expr)
 
 
 class CloudWatchSeveralClustersTest(SimpleTestCase):

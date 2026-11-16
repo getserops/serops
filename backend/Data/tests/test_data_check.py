@@ -195,6 +195,19 @@ class CheckMyDataTest(TestCase):
         self.assertIn('good news', report['diagnosis']['message'])
         self.assertEqual({v['value'] for v in report['seen']['level']}, {'INFO', 'DEBUG'})
 
+    def test_errors_the_level_query_cannot_see_are_not_good_news(self):
+        """Client C3: errors under an unread level field; the check said good news."""
+        report = self.check(FakeStore([
+            entry(level='INFO', message='java.lang.NullPointerException at Dispatch.route'),
+            entry(level='INFO', message='ok')]))
+        self.assertEqual(report['diagnosis']['code'], 'errors_unreadable')
+        self.assertNotIn('good news', report['diagnosis']['message'])
+
+    def test_an_unknown_level_field_is_named(self):
+        report = self.check(FakeStore([entry(level='INFO', message='ok', sev='E')]))
+        self.assertEqual(report['diagnosis']['code'], 'errors_unreadable')
+        self.assertIn('sev', report['diagnosis']['message'])
+
     def test_unlisted_services_can_be_listed_in_one_click(self):
         report = self.check(FakeStore([entry(service='cart'), entry(service='Orders')]))
         self.assertEqual(report['diagnosis']['code'], 'unregistered_services')

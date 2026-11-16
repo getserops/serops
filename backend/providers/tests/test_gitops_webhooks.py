@@ -139,6 +139,60 @@ class ArgoCDWebhookTest(GitopsWebhookBase):
         response = self.client.post(self._url(), payload, format='json')
         self.assertEqual(response.json()['environment'], 'production')
 
+    def test_env_from_destination_namespace_not_argocd_namespace(self):
+        """SC-09: the Application lives in ``argocd``; it deploys to ``staging``."""
+        payload = self._payload()
+        payload['app']['metadata'] = {'name': 'payments', 'namespace': 'argocd'}
+        payload['app']['spec']['destination'] = {'namespace': 'staging', 'server': 'https://kubernetes.default.svc'}
+        response = self.client.post(self._url(), payload, format='json')
+        self.assertEqual(response.json()['environment'], 'staging')
+        self.assertNotIn('assumed-production', Deployment.objects.get().notes)
+
+    def test_env_from_app_name_suffix(self):
+        payload = self._payload()
+        payload['app']['metadata'] = {'name': 'payments-staging', 'namespace': 'argocd'}
+        payload['app']['spec']['destination'] = {'namespace': 'payments'}
+        response = self.client.post(self._url(), payload, format='json')
+        self.assertEqual(response.json()['environment'], 'staging')
+
+    def test_env_from_destination_namespace_prefix(self):
+        payload = self._payload()
+        payload['app']['metadata'] = {'name': 'payments', 'namespace': 'argocd'}
+        payload['app']['spec']['destination'] = {'namespace': 'dev-payments'}
+        response = self.client.post(self._url(), payload, format='json')
+        self.assertEqual(response.json()['environment'], 'development')
+
+    def test_destination_wins_over_app_namespace(self):
+        payload = self._payload()
+        payload['app']['metadata'] = {'name': 'checkout', 'namespace': 'production'}
+        payload['app']['spec']['destination'] = {'namespace': 'staging'}
+        response = self.client.post(self._url(), payload, format='json')
+        self.assertEqual(response.json()['environment'], 'staging')
+
+    def test_unresolved_environment_is_flagged(self):
+        payload = self._payload()
+        payload['app']['metadata'] = {'name': 'payments', 'namespace': 'argocd'}
+        payload['app']['spec']['destination'] = {'namespace': 'payments'}
+        response = self.client.post(self._url(), payload, format='json')
+        self.assertEqual(response.json()['environment'], 'production')
+        self.assertIn('environment=assumed-production', Deployment.objects.get().notes)
+
+    def test_multi_source_application_records_the_git_revision(self):
+        """C2: Helm chart + values repo; the revision is in ``revisions[]``."""
+        sha = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678'
+        payload = self._payload()
+        payload['app']['status']['sync'] = {'status': 'Synced', 'revisions': ['1.4.0', sha]}
+        payload['app']['status']['operationState']['syncResult'] = {'revisions': ['1.4.0', sha]}
+        response = self.client.post(self._url(), payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['commit_sha'], sha)
+
+    def test_multi_source_with_only_chart_versions_is_rejected(self):
+        payload = self._payload()
+        payload['app']['status']['sync'] = {'status': 'Synced', 'revisions': ['1.4.0', '2.0.1']}
+        response = self.client.post(self._url(), payload, format='json')
+        self.assertEqual(response.status_code, 400)
+
     def test_no_operation_state_still_records(self):
         """Some ArgoCD event templates omit operationState (health-only
         transitions). If sync is Synced and no phase is set, accept it."""
@@ -249,6 +303,28 @@ class FluxWebhookTest(GitopsWebhookBase):
             format='json',
         )
         self.assertEqual(response.json()['environment'], 'staging')
+
+    def test_env_from_kustomization_name_in_flux_system(self):
+        """SC-09: involvedObject.namespace is ``flux-system``, not an environment."""
+        response = self.client.post(
+            self._url(),
+            self._payload(involvedObject={
+                'kind': 'Kustomization', 'name': 'apps-staging', 'namespace': 'flux-system',
+            }),
+            format='json',
+        )
+        self.assertEqual(response.json()['environment'], 'staging')
+
+    def test_flux_unresolved_environment_is_flagged(self):
+        response = self.client.post(
+            self._url(),
+            self._payload(involvedObject={
+                'kind': 'Kustomization', 'name': 'apps', 'namespace': 'flux-system',
+            }),
+            format='json',
+        )
+        self.assertEqual(response.json()['environment'], 'production')
+        self.assertIn('environment=assumed-production', Deployment.objects.get().notes)
 
     def test_env_alias_dev_maps_to_development(self):
         response = self.client.post(

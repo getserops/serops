@@ -83,6 +83,7 @@ def _gather_context(batch, user=None) -> dict:
         'top_issues': [],
         'code_changes': [],
         'similar_past': [],
+        'change_events': [],
     }
 
     try:
@@ -113,6 +114,14 @@ def _gather_context(batch, user=None) -> dict:
             }
             for c in code_changes[:5]
         ]
+    except Exception:
+        pass
+
+    # The change and job events the analysis saw (INFO lines: a reindex,
+    # a restart, a failover), so the timeline can use them.
+    try:
+        events = (batch.data or {}).get('change_events') or []
+        ctx['change_events'] = [e for e in events if isinstance(e, dict)][:20]
     except Exception:
         pass
 
@@ -153,8 +162,11 @@ Return a Markdown document with these sections:
    backfill (detection time, first responder, mitigation steps).
 5. `## Root cause` — from the AI analysis. Add
    `[FILL IN: verification]` after each hypothesis.
-6. `## Contributing factors` — enumerate; add [FILL IN: ...] for
-   organisational / process factors.
+6. `## Contributing factors` — only factors the data shows, stated as
+   facts. A factor that is only likely (a missing test, review gap,
+   unclear ownership, whether users were affected) is written as a
+   question inside the marker, e.g. `[FILL IN: was there a test for
+   expiry under a non-UTC TZ?]`, never as a finding.
 7. `## What went well` — bullets, prompted with placeholders.
 8. `## What to improve` — bullets, drawn from recommendations + [FILL IN].
 9. `## Action items` — table `Action | Owner | Due | Priority`
@@ -165,6 +177,9 @@ Return a Markdown document with these sections:
 
 Rules:
 - Use only the data provided. Do NOT invent stack traces / SHAs / user counts.
+- Every sentence outside a `[FILL IN: ...]` marker must be supported by the
+  data. Inferences about process, tests, ownership or impact go inside a
+  marker as a question.
 - Wrap every SRE decision in `[FILL IN: ...]` markers.
 - Keep it under 800 words — SREs need a starting point, not a novel.
 - Output only the Markdown. No preamble, no code fences around the whole doc.
@@ -208,6 +223,12 @@ def _build_prompt(context: dict) -> str:
             parts.append(
                 f"- {c['sha']} — {c['author']} — {c['message']}"
             )
+
+    if context.get('change_events'):
+        from ai_model.prompts import _change_events_text
+        parts.append("")
+        parts.append("## Change and job events in the window (INFO, context only):")
+        parts.append(_change_events_text(context['change_events']))
 
     if context['similar_past']:
         parts.append("")

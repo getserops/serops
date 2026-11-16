@@ -103,7 +103,58 @@ Then in each `Application` resource:
 metadata:
   annotations:
     notifications.argoproj.io/subscribe.on-sync-succeeded.serops: ""
-    serops.io/environment: production   # optional, wins over namespace
+    serops.io/environment: production   # optional, wins over everything else
+```
+
+**Several services, one Argo CD**
+
+Each SerOps service has its own binding, and each binding its own URL and
+secret. Give each one its own notification service, template and trigger,
+and subscribe each Application to its own trigger only:
+
+```yaml
+data:
+  service.webhook.serops-cart: |
+    url: https://your-serops-host/api/providers/webhook/argocd/42/
+    headers:
+      - name: Authorization
+        value: Bearer $serops-cart-secret
+      - name: Content-Type
+        value: application/json
+  template.serops-cart: |
+    webhook:
+      serops-cart:
+        method: POST
+        body: |
+          {"app": {{ toJson .app }}, "context": {{ toJson .context }}}
+  trigger.on-sync-serops-cart: |
+    - when: app.status.operationState != nil and app.status.operationState.phase in ['Succeeded']
+      oncePer: app.status.sync.revision
+      send: [serops-cart]
+```
+
+```yaml
+# Application "cart"
+metadata:
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-serops-cart.serops-cart: ""
+```
+
+Do not list several webhooks in one template: on a phase 3 test cluster
+(Argo CD 2.13) that posted one service's deploy to another service's binding.
+The part of the annotation key after `notifications.argoproj.io/` is limited
+to 63 characters, so keep trigger and service names short.
+
+**Multi-source Applications** (a Helm chart plus a values repository)
+
+Argo CD puts the revisions in `status.sync.revisions` and leaves
+`status.sync.revision` empty. SerOps reads the Git commit from the list (the
+chart version is skipped). The trigger must not use `oncePer:
+app.status.sync.revision`, which is always empty here: Argo CD would notify
+once and then log "already sent" for every later sync. Use instead:
+
+```yaml
+      oncePer: app.status.operationState.syncResult.revisions
 ```
 
 !!! tip "The `!= nil` guard is not optional noise"
@@ -131,12 +182,19 @@ metadata:
   `app.status.operationState.phase == "Succeeded"` (or phase absent).
   OutOfSync / Failed / Progressing events are ignored — keeps the
   Recent Deployments panel honest.
-- `commit_sha` from `app.status.sync.revision`.
+- `commit_sha` from the revision the operation deployed
+  (`operationState.syncResult.revision`), else `app.status.sync.revision`;
+  for a multi-source Application, the Git commit in the `revisions` list.
 - `environment` — annotation `serops.io/environment` wins, with any
-  environment name the project uses (`qa`, `uat`); falls back to namespace name if it maps to a known environment
-  (`production`, `staging`, `development`, `preview`, `demo` — or
-  aliases like `prod`, `stg`, `dev`); otherwise defaults to
-  `production`.
+  environment name the project uses (`qa`, `uat`). Without it, SerOps reads,
+  in order: the destination namespace (`spec.destination.namespace`), an
+  environment spelled as the first or last part of the Application name
+  (`payments-staging`) or of the destination namespace (`dev-payments`), then
+  the namespace the Application itself lives in. Only known environments
+  count (`production`, `staging`, `development`, `preview`, `demo`, or
+  aliases like `prod`, `stg`, `dev`). When none matches, the deploy is
+  recorded as `production` with `environment=assumed-production` in its
+  notes; set the annotation to remove the guess.
 - `actor` — `operationState.operation.initiatedBy.username`, or
   `"argocd"` if absent.
 - `notes` — `argocd-app=<name>` + optional target revision.
@@ -202,8 +260,11 @@ spec:
   `ProgressingWithReconciliation`. Errors + drift are ignored.
 - `commit_sha` extracted from `metadata.revision`. Supports both
   legacy `<ref>@sha1:<sha>` and newer `<ref>@sha256:<sha>` formats.
-- `environment` — `metadata["serops.io/environment"]` wins, then
-  `involvedObject.namespace`, then `production`.
+- `environment` — `metadata["serops.io/environment"]` wins, then an
+  environment spelled as the first or last part of the Kustomization or
+  HelmRelease name (`apps-staging`), then `involvedObject.namespace` (usually
+  `flux-system`, which is not an environment), then `production` with
+  `environment=assumed-production` in the deploy notes.
 - `actor` — `reportingController` (e.g., `kustomize-controller`).
 - `notes` — `flux-kustomization=<name>` or `flux-helmrelease=<name>`.
 

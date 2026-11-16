@@ -31,7 +31,7 @@ from integrations.field_aliases import (
     SERVICE_NAME_ALIASES,
     first_present,
 )
-from integrations.schemas import LogQuery
+from integrations.schemas import MESSAGE_FIELDS, LogQuery
 
 
 class AliasListsTest(SimpleTestCase):
@@ -179,7 +179,7 @@ class LogQueryEsDslAliasesTest(SimpleTestCase):
             self.assertIn(spelling, qs['query'].split(' OR '))
         self.assertTrue(qs['lenient'])  # a numeric level field must not fail the search
         # unstructured logs: no level field, reached through the message
-        self.assertEqual(words['query_string']['fields'], ['message'])
+        self.assertEqual(words['query_string']['fields'], list(MESSAGE_FIELDS))
         self.assertIn('exception', words['query_string']['query'])
 
     def test_minimum_should_match_is_1(self):

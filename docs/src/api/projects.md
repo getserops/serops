@@ -145,12 +145,20 @@ POST /api/projects/scm-bindings/
 
 ```json
 {
-  "service": 1,
-  "provider_type": "github",
-  "repository": "owner/repo",
-  "access_token": "glpat-..."
+  "project_service": 1,
+  "integration": 3,
+  "repository_id": "123456",
+  "repository_name": "owner/repo",
+  "repository_url": "https://github.com/owner/repo",
+  "default_branch": "main"
 }
 ```
+
+`project_service` is the service's id, `integration` the id of a source-control
+integration from Settings → Integrations (it holds the token; a binding has
+none of its own), and `repository_id` the provider's id for the repository
+(GitHub and GitLab: the numeric id; Bitbucket and Azure DevOps: as the
+integration's repository list returns it).
 
 ### Auto-Link Suggestions
 

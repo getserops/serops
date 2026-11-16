@@ -1324,6 +1324,18 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             )
             sentinel_result = None
 
+        # Change and job events (INFO lines that say something started,
+        # stopped or changed): context for the analysis, read only for a
+        # batch that is going to be analysed, never counted as data and
+        # never able to fail the batch (Data/change_events.py).
+        if provider is not None and log_query is not None and not search_error:
+            from .change_events import fetch_change_events
+            change_events = fetch_change_events(
+                provider, index_pattern, log_query, environment=batch_environment,
+                env_labels=environment.log_labels() if environment else ())
+            if change_events:
+                cleaned_data['change_events'] = change_events
+
         # Batch 49 — bypass model-level ``editable=False`` on environment
         # by writing via ``_meta.get_field`` at the create call. Django
         # ORM honours editable=False for FORMS/serializers, not for

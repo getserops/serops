@@ -95,6 +95,25 @@ class ChatCodeChangesTest(_ChatBase):
         self.assertNotIn('c0ffee0', prompt)
 
 
+class ChatKeepsLogsEveryTurnTest(_ChatBase):
+    """Track 4 C02a/C09a/C10a: a "which commit?" turn saw only the code
+    changes and repeated log facts it could no longer check."""
+
+    def test_code_question_still_gets_the_batch_logs(self):
+        batch = self._batch({'logs': [{'_source': {
+            'message': 'SocketTimeoutException: Read timed out (FraudClient.score)',
+            'service': 'checkout-api'}}]})
+        prompt = self._ask(batch, 'Was a deploy at fault? If so, which commit?')
+        self.assertIn('SocketTimeoutException', prompt)
+
+
+class PostmortemPromptTest(TestCase):
+    def test_likely_factors_are_questions_not_findings(self):
+        from ai_model.postmortem import _SYSTEM_PROMPT
+        self.assertIn('never as a finding', _SYSTEM_PROMPT)
+        self.assertIn('Every sentence outside a `[FILL IN: ...]` marker must be supported', _SYSTEM_PROMPT)
+
+
 class PostmortemUsageTest(TestCase):
     def test_draft_tokens_reach_ai_usage(self):
         from ai_model.models import AITokenUsage
