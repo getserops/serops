@@ -675,6 +675,19 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             
             logs = log_entries
             log_notes = list(getattr(provider, 'last_search_notes', None) or [])
+            # A read cut at its cap (newest first) can leave out a quiet
+            # service entirely when a loud one floods the window: read the
+            # missing registered services on their own (Data/log_share.py).
+            if project is not None:
+                try:
+                    from Projects.models import ProjectService
+                    from .log_share import top_up_quiet_services
+                    names = [n for n in ProjectService.objects.filter(project=project)
+                             .values_list('name', flat=True) if n]
+                    logs = list(logs) + top_up_quiet_services(
+                        provider, index_pattern, log_query, list(logs), names, log_service)
+                except Exception as e:
+                    logger.warning(f"Log top-up skipped for project {project_name}: {e}")
             
         except Exception as e:
             logger.error(f"Error searching logs for project {project_name}: {e}")

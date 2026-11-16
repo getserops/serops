@@ -133,6 +133,9 @@ def _cap_stuck_rollout_severity(parsed_result, batch_data):
     return capped
 
 
+_REVIEW_ISSUE_TYPES = ('CODE_QUALITY', 'POTENTIAL_BUG', 'SECURITY_RISK', 'DEPRECATED_USAGE')
+
+
 def _populate_issue_correlations(issue, correlations_data, metrics_summary):
     """
     Populate engine-driven correlation fields on an Issue from real correlation data.
@@ -151,6 +154,14 @@ def _populate_issue_correlations(issue, correlations_data, metrics_summary):
 
     issue_type_upper = (issue.issue_type or '').upper()
     component_lower = (issue.component or '').lower()
+    # A code-review note says where questionable code is, not what broke:
+    # the engine's file-to-error and deploy-to-metric heuristics must not
+    # attach a commit to it as a correlation. The AI names the commit in the
+    # note's text. (Held-out v2 v29: a note on a healthy deploy was counted
+    # as blaming the deployed commit, because the component matched the
+    # changed file's path.)
+    review_note = ((issue.scope or '').upper() == 'CODE'
+                   and issue_type_upper in _REVIEW_ISSUE_TYPES)
 
     # --- Metric anomaly matching ---
     # Match MEMORY_HIGH/MEMORY_LEAK → memory anomalies
@@ -185,7 +196,7 @@ def _populate_issue_correlations(issue, correlations_data, metrics_summary):
         if component_lower and any(component_lower in f.lower() for f in matching_files):
             matched_file_corrs.append(corr)
 
-    if matched_file_corrs:
+    if matched_file_corrs and not review_note:
         best_fe = matched_file_corrs[0]  # Already sorted by score
         if not issue.has_commit_correlation:
             issue.has_commit_correlation = True
@@ -202,7 +213,7 @@ def _populate_issue_correlations(issue, correlations_data, metrics_summary):
     # --- Deployment-to-metric correlation matching ---
     deploy_corrs = corrs.get('deployment_to_metric_spike', [])
     matched_deploy = [c for c in deploy_corrs if c.get('metric_type') == metric_type] if metric_type else []
-    if matched_deploy:
+    if matched_deploy and not review_note:
         best_dep = matched_deploy[0]
         sha = best_dep.get('commit_sha', '')
         if sha and not issue.has_commit_correlation:
@@ -989,6 +1000,14 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
             log_strings.append(f"... [System: Log Aggregation Active. Processed {len(analysis_data['logs'])} raw logs into {logs_unique_patterns} unique patterns.] ...")
 
             slots_used = 1 # Header
+
+            # Every service with errors or warnings keeps a few of the 99
+            # slots before the loudest takes the rest (Data/log_share.py;
+            # client C3 K12: one service's 3,700 errors left the other
+            # service's warnings out of the prompt).
+            from Data.log_share import fair_share
+            unique_signatures = fair_share(
+                unique_signatures, key=lambda g: (g['sample_log'].get('component') or '').lower(), cap=99)
 
             for group in unique_signatures:
                 if slots_used >= 100:
@@ -2010,7 +2029,10 @@ def reanalyze_batch_with_model(self, batch_id, model_name, mode='compare'):
         
         # Format logs for analysis
         log_strings = []
-        for log in logs[:100]:  # Limit to 100 logs
+        from Data.log_filters import log_service
+        from Data.log_share import fair_share
+        # 100 logs, a few for every service (Data/log_share.py)
+        for log in fair_share(logs, key=log_service, cap=100):
             source = log.get('_source', {})
             timestamp = source.get('@timestamp', '')
             level = (source.get('log_level') or source.get('level') or '').upper() or 'UNKNOWN'

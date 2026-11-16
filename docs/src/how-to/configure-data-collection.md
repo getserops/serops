@@ -171,6 +171,13 @@ window that is analysed, with the same project, environment and time window
 as the errors, and if the store refuses that query the analysis runs
 without them.
 
+**Every failing service is heard.** The AI sees about 100 log patterns per
+analysis. When one service floods the window, every other service with
+errors or warnings still keeps a few of those slots, and if the read from
+the store came back full, SerOps reads each registered service that is
+missing from it on its own (up to 8 services, 200 records each), so a quiet
+service's warnings are not pushed out by a loud one.
+
 ### Environment Names
 
 Use standard names or their aliases. SerOps queries every spelling of the
