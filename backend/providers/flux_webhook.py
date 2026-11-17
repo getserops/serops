@@ -158,7 +158,9 @@ class FluxDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
     def _extract_sha(revision: str) -> str:
         if not revision:
             return ''
-        m = _REVISION_RE.search(revision)
+        # A real revision is under 200 characters; the cap keeps the regex
+        # linear on a hostile body (CodeQL py/polynomial-redos).
+        m = _REVISION_RE.search(revision[:512])
         return m.group(1) if m else ''
 
     @staticmethod

@@ -91,7 +91,7 @@ export const ProjectService = {
       );
       return response.data;
     } catch (error) {
-      console.error(`Error fetching project ${projectId}:`, error);
+      console.error("Error fetching project %s:", projectId, error);
       throw error;
     }
   },
@@ -166,7 +166,7 @@ export const ProjectService = {
         created_at: service.created_at || new Date().toISOString(),
       }));
     } catch (error) {
-      console.error(`Error fetching services for project ${projectId}:`, error);
+      console.error("Error fetching services for project %s:", projectId, error);
       throw error;
     }
   },
@@ -556,7 +556,7 @@ export const ProjectService = {
       };
     } catch (error) {
       console.error(
-        `Error adding GitLab project as service to project ${projectId}:`,
+        "Error adding GitLab project as service to project %s:", projectId,
         error
       );
 
@@ -707,7 +707,7 @@ export const ProjectService = {
       return response.data;
     } catch (error) {
       console.error(
-        `Erreur lors de l'ajout du service personnalisé au projet ${projectId} :`,
+        "Erreur lors de l'ajout du service personnalisé au projet %s :", projectId,
         error
       );
       if (error.response?.data) {
@@ -764,7 +764,7 @@ export const ProjectService = {
       return response.data;
     } catch (error) {
       console.error(
-        `Error adding infrastructure service to project ${projectId}:`,
+        "Error adding infrastructure service to project %s:", projectId,
         error
       );
       if (error.response?.data) {

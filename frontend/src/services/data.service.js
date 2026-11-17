@@ -297,7 +297,7 @@ const getBatchTimeline = async (batchId, maxEvents = 200) => {
     );
     return response.data;   // { batch_id, event_count, events: [...] }
   } catch (error) {
-    console.error(`Error fetching batch timeline ${batchId}:`, error);
+    console.error("Error fetching batch timeline %s:", batchId, error);
     return { batch_id: batchId, event_count: 0, events: [] };
   }
 };
@@ -306,7 +306,7 @@ const getBatchDetails = async (batchId) => {
   try {
     return await fetchBatch(batchId);
   } catch (error) {
-    console.error(`Erreur lors de la récupération du batch ${batchId}:`, error);
+    console.error("Erreur lors de la récupération du batch %s:", batchId, error);
     return null;
   }
 };
@@ -417,7 +417,7 @@ const getIssuesByBatch = async (batchId, params = {}) => {
       summary: response.data.summary,
     };
   } catch (error) {
-    console.error(`Error fetching issues for batch ${batchId}:`, error);
+    console.error("Error fetching issues for batch %s:", batchId, error);
     throw error;
   }
 };

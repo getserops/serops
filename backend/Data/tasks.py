@@ -783,7 +783,6 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
 
         # === SERVICE-LEVEL FILTERING (STRICT MODE) ===
         # Only include logs from registered services
-        logger.info(f"DEBUG: project object = {project}, project_name = {project_name}")
         if project:
             registered = registered_service_names(project)
             logger.info(f"DEBUG: Registered services = {registered}")
