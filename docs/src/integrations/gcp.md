@@ -178,7 +178,9 @@ Google's audit logs are left out: they record API calls, not your
 applications, and are most of a GKE project's volume.
 
 **Metrics.** One series per workload (the pod's Deployment, or other
-top-level controller), in the project's namespaces:
+top-level controller), in the project's namespaces: the namespaces named
+after the project or its environments, and the namespaces of its
+`namespace = …` rules.
 
 | Pipeline asks for | GKE metric |
 |---|---|

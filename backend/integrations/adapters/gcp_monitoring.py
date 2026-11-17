@@ -144,6 +144,9 @@ class GcpCloudMonitoringProvider(MetricProvider):
         """VM-mode CPU is already a percentage (see _VM_CPU)."""
         return self._topology_mode != "kubernetes"
 
+    # Set per fetch from the project's namespace rules (metrics_processing).
+    project_namespaces = ()
+
     def __init__(self, config: Optional[dict] = None):
         super().__init__(config)
         project_id = self._config.get("project_id")
@@ -259,7 +262,11 @@ class GcpCloudMonitoringProvider(MetricProvider):
         from integrations.schemas import _gcp_escape
         gcp_type, aligner, reducer, value_of = self._K8S_SPECS[metric]
         clauses = [f'metric.type="{gcp_type}"']
-        namespaces = sorted({str((labels or {}).get(k) or "").lower() for k in ("project_name", "environment")} - {""})
+        # The project's namespace rules (namespace = hub) as well: the client's
+        # namespace is often named after neither (client C5: 0 metrics while
+        # the same rule found the logs).
+        namespaces = sorted(({str((labels or {}).get(k) or "").lower() for k in ("project_name", "environment")}
+                             | set(self.project_namespaces)) - {""})
         if namespaces:
             clauses.append("resource.labels.namespace_name = one_of("
                            + ", ".join(f'"{_gcp_escape(n)}"' for n in namespaces) + ")")

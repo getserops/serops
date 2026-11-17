@@ -165,6 +165,35 @@ class GkeMetricsTest(SimpleTestCase):
     when = datetime(2026, 11, 5, 16, 28, 30, tzinfo=timezone.utc)
     labels = {'organisation_name': 'GKE Test', 'project_name': 'boutique', 'environment': 'production'}
 
+    def test_namespace_rule_of_the_project_is_queried_too(self):
+        """Client C5: namespace `hub`, project `hybrid`; the rule namespace = hub
+        found the logs and the metrics read 0."""
+        p = self.provider([self.series('orders', 0.01, self.when)])
+        p.project_namespaces = ['hub']
+        with self.stub():
+            p.query_range('node_cpu_seconds_total', self.labels, self.when - timedelta(hours=1), self.when)
+        req = p._client.list_time_series.call_args.kwargs['request']
+        self.assertIn('resource.labels.namespace_name = one_of("boutique", "hub", "production")', req['filter'])
+
+    def test_the_metrics_fetch_hands_over_the_namespace_rules(self):
+        from integrations.metrics_processing import fetch_metrics_with_provider
+
+        class Provider:
+            project_namespaces = []
+            topology_mode = 'vm'
+
+            def query_range(self, *a, **k):
+                return []
+        provider = Provider()
+        project = SimpleNamespace(
+            organisation=SimpleNamespace(name='Hybrid'), cluster=None,
+            log_rules_clean=lambda: [('namespace', 'Hub'), ('service.namespace', 'shop'),
+                                     ('k8s.namespace.name', 'edge')])
+        with patch('integrations.registry.IntegrationRegistry.get_metric_provider_for_org', return_value=provider):
+            fetch_metrics_with_provider(self.when - timedelta(hours=1), self.when, project_obj=project,
+                                        project_name_str='hybrid', environment_str='production')
+        self.assertEqual(provider.project_namespaces, ['hub', 'edge'])
+
     def test_cpu_is_a_rate_per_workload_in_the_projects_namespaces(self):
         p = self.provider([self.series('cartservice', 0.0044, self.when)])
         with self.stub():

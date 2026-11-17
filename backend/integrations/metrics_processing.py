@@ -67,6 +67,19 @@ def fetch_metrics_with_provider(start_time, end_time, project_obj=None, project_
             'memory_available': [], 'cpu': [],
         }
 
+    # Namespace rules of the project (namespace = hub), for stores that scope
+    # by namespace rather than by labels (Google Cloud Monitoring on GKE).
+    # Best-effort: never a reason for the metrics fetch to fail.
+    if isinstance(getattr(provider, 'project_namespaces', None), (list, tuple)) \
+            and hasattr(project_obj, 'log_rules_clean'):
+        try:
+            from integrations.schemas import _GCP_RESOURCE_FIELDS
+            rules = project_obj.log_rules_clean()
+            provider.project_namespaces = [str(v).lower() for f, v in (rules if isinstance(rules, list) else [])
+                                           if _GCP_RESOURCE_FIELDS.get(f) == 'namespace_name']
+        except Exception as exc:                            # noqa: BLE001
+            logger.warning('namespace rules not applied to the metric provider: %s', exc)
+
     if project_name_str:
         labels['project_name'] = project_name_str
     if environment_str:

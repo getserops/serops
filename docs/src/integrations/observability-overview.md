@@ -95,6 +95,9 @@ If the top-ranked integration returns an adapter error (5xx, timeout, auth failu
 
 The Observability settings panel shows every registered integration as a row with tier badge + scope pills so operators can see the full chain at a glance.
 
+!!! warning "One log store per analysis"
+    An analysis reads logs from one integration: the best match for its cluster and scope. A fallback is only read when that one errors, not merged with it. If one project's services log to two stores (Kubernetes services in Cloud Logging and an AWS Lambda in CloudWatch, for example), the analysis sees only the services in the matching store. Until a project can read several stores, ship the other services' logs to the same store, or give them their own project.
+
 ---
 
 ## Configuration Reference
