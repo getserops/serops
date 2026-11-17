@@ -89,13 +89,14 @@ license adds governance for running SerOps as an organisation, under a commercia
 It only adds to Community: nothing is ever moved out of it
 ([open source promise](https://serops.ai/docs/open-source-promise/)).
 
-The Enterprise license is priced per organisation by employees, in three bands, never per
+The Enterprise license is priced per organisation by employees, never per
 seat, and nothing is counted or limited in the product:
 
 | Band | Employees | Price per year |
 |---|---|---|
-| Business | up to 500 | €7,500, introductory |
-| Enterprise | up to 5,000 | from €30,000 |
+| Business | up to 500 | €7,500 (€625 a month, billed yearly), introductory |
+| Business | 501 to 2,000 | €15,000 (€1,250 a month, billed yearly), introductory |
+| Enterprise | over 2,000, or a negotiated contract | from €30,000 |
 | Strategic | above 5,000, or a regulated sector | from €60,000 |
 
 In every Enterprise license today, with a commercial license and a support contract:

@@ -76,7 +76,7 @@ and tested per integration: [Compatibility](compatibility.md).
 | GitHub and GitHub Actions | Run against github.com (2026-11-02) with a fine-grained read-only token: connect a repository, commits, Actions runs and deployments through Sync and polling. Webhooks not yet tested live. The fixes from that run are on `main`, not yet in a release. |
 | Datadog, AWS CloudWatch | Run against a live account (Datadog EU, AWS `eu-central-1`, October 2026): logs, host metrics, ECS and Lambda log groups. On Kubernetes, the full journey from the UI (add the integration, Check my data, investigate a bad deploy) with the Datadog Agent Helm chart and with AWS's Container Insights quickstart, on a single-node local cluster. |
 | Azure Monitor | Run against a live account (November 2026): AKS Container Insights logs and metrics, Application Insights logs from an OpenTelemetry collector. VM metrics not yet. |
-| Google Cloud | Logs and metrics checked against a live GKE cluster (November 2026); four faults that kept SerOps from reading any of it were fixed. Incident analyses on GKE not yet run end to end. |
+| Google Cloud | Logs and metrics checked against a live GKE cluster (November 2026); four faults that kept SerOps from reading any of it were fixed. Incidents found end to end on GKE with Cloud Logging and Monitoring: the 12 November validation (two nodes), then the "Hybrid" client estate of the November benchmark (GKE and Cloud Run, 17 November). The other four client estates ran on GKE with their own log and metric stores. |
 
 If you run SerOps on one of the unvalidated setups, an
 [issue](https://github.com/getserops/serops/issues) saying what worked and
