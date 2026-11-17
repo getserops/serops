@@ -54,7 +54,7 @@ from datetime import datetime
 
 from django.utils import timezone
 
-from .deployment_webhook import GenericDeploymentWebhookHandler, _PayloadError
+from .deployment_webhook import GenericDeploymentWebhookHandler, _IgnoredEvent, _PayloadError
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,7 @@ _ARGO_SYNC_OK = 'Synced'
 
 # Sync operation phases — only Succeeded counts as a deployment.
 _ARGO_PHASE_OK = 'Succeeded'
+_ARGO_PHASE_FAILED = {'Failed', 'Error'}
 
 
 class ArgoCDDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
@@ -96,10 +97,17 @@ class ArgoCDDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
         # with oncePer Argo CD never sends that revision again, so the deploy
         # was lost (found by the journey suite). The status only decides
         # when there is no operation state.
-        if phase and phase != _ARGO_PHASE_OK:
-            raise _PayloadError(f'Ignored: operation phase is "{phase}" (not Succeeded)')
-        if not phase and sync_status and sync_status != _ARGO_SYNC_OK:
-            raise _PayloadError(f'Ignored: sync status is "{sync_status}" (not Synced)')
+        # A sync that failed is a deploy attempted and rejected: recorded as
+        # failed so the analysis knows the change did not land. Anything
+        # else that is not a deploy is answered 200 "ignored": Argo CD logs
+        # a non-2xx answer as a failed notification and retries it.
+        deploy_status = 'success'
+        if phase in _ARGO_PHASE_FAILED:
+            deploy_status = 'failed'
+        elif phase and phase != _ARGO_PHASE_OK:
+            raise _IgnoredEvent(f'Ignored: operation phase is "{phase}" (not Succeeded)')
+        elif not phase and sync_status and sync_status != _ARGO_SYNC_OK:
+            raise _IgnoredEvent(f'Ignored: sync status is "{sync_status}" (not Synced)')
 
         # 2. Extract commit SHA — ArgoCD's revision is the git sha for
         # git-tracked apps, or a chart version for Helm apps. We only
@@ -143,6 +151,8 @@ class ArgoCDDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
             notes_parts.append(f'target={target_rev}')
         if env_source == 'default':
             notes_parts.append('environment=assumed-production')
+        if deploy_status == 'failed':
+            notes_parts.append(f'failed ({phase}): ' + ' '.join(str(op_state.get('message') or '').split())[:300])
         notes = ' '.join(notes_parts)[:500]
 
         # Hand the canonicalised dict back through the parent's shape
@@ -154,6 +164,7 @@ class ArgoCDDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
             'deployed_at': deployed_at,
             'actor': actor,
             'notes': notes,
+            'status': deploy_status,
         }
 
     # ------------------------------------------------------------------

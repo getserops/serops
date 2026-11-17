@@ -178,10 +178,14 @@ once and then log "already sent" for every later sync. Use instead:
 
 **What SerOps records**
 
-- Only when `app.status.sync.status == "Synced"` AND
-  `app.status.operationState.phase == "Succeeded"` (or phase absent).
-  OutOfSync / Failed / Progressing events are ignored — keeps the
-  Recent Deployments panel honest.
+- A deploy when `app.status.operationState.phase == "Succeeded"`, or,
+  without an operation state, when `app.status.sync.status == "Synced"`.
+- A failed deploy when the phase is `Failed` or `Error`, with the
+  operation's message in the deploy notes, so the analysis knows the change
+  did not land.
+- Anything else (a `Running` operation, an `OutOfSync` app with no
+  operation) is answered `200` "ignored": Argo CD retries a notification
+  answered with an error.
 - `commit_sha` from the revision the operation deployed
   (`operationState.syncResult.revision`), else `app.status.sync.revision`;
   for a multi-source Application, the Git commit in the `revisions` list.
@@ -211,55 +215,71 @@ X-Signature: sha256=<hex>    # Flux generic-hmac; X-SerOps-Signature also accept
 
 **Configure notification-controller**
 
-Create a `Secret` holding the binding's webhook secret, then a
-`generic-hmac` `Provider` + `Alert`. Flux signs each event with that
-secret and sends it as `X-Signature: sha256=<hex>`, which SerOps accepts
-in place of `X-SerOps-Signature`. Unsigned events are refused.
+Each SerOps service has its own binding, with its own URL and secret. Give
+each one its own `Secret`, `generic-hmac` `Provider` and `Alert`, and point
+the `Alert` only at the Kustomization or HelmRelease that deploys that
+service. Flux signs each event with the secret and sends it as
+`X-Signature: sha256=<hex>`, which SerOps accepts in place of
+`X-SerOps-Signature`. Unsigned events are refused.
 
 ```yaml
+# One set per binding: here the "payments" service, binding 42.
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: serops-webhook
+  name: serops-payments
   namespace: flux-system
 stringData:
-  token: <the binding's webhook secret>
+  token: <binding 42's webhook secret>
 ---
 apiVersion: notification.toolkit.fluxcd.io/v1beta3
 kind: Provider
 metadata:
-  name: serops
+  name: serops-payments
   namespace: flux-system
 spec:
   type: generic-hmac
   address: https://your-serops-host/api/providers/webhook/flux/42/
   secretRef:
-    name: serops-webhook
+    name: serops-payments
 ---
 apiVersion: notification.toolkit.fluxcd.io/v1beta3
 kind: Alert
 metadata:
-  name: serops-deploys
+  name: serops-payments
   namespace: flux-system
 spec:
   providerRef:
-    name: serops
-  eventSeverity: info
+    name: serops-payments
+  eventSeverity: info        # info includes error events
   eventSources:
     - kind: Kustomization
-      name: '*'
-    - kind: HelmRelease
-      name: '*'
+      name: payments         # the object that deploys this service only
 ```
+
+A `name: '*'` source sends every Kustomization's events to one binding, so
+one service's binding would receive every other service's deploys.
 
 **What SerOps records**
 
-- Only when `severity == "info"` AND `reason` is one of
-  `ReconciliationSucceeded`, `HealthCheckPassed`,
-  `ProgressingWithReconciliation`. Errors + drift are ignored.
-- `commit_sha` extracted from `metadata.revision`. Supports both
-  legacy `<ref>@sha1:<sha>` and newer `<ref>@sha256:<sha>` formats.
+- **A deploy** only when the event shows the apply changed something:
+  kustomize-controller's change set (lines such as
+  `Deployment/payments/api configured`, `Namespace/payments created`), or a
+  helm-controller `InstallSucceeded`, `UpgradeSucceeded` or
+  `RollbackSucceeded`. In a monorepo every Kustomization reports the new
+  revision on any commit; only the one whose objects changed is a deploy.
+- **A failed deploy** for an error event (for example
+  `dry-run failed (Invalid)`): the analysis sees the change as attempted and
+  not landed, with the controller's message in the deploy notes.
+- **Nothing, answered `200` "ignored"**: a reconcile that changed nothing
+  (`Reconciliation finished …, next run in …`), progress and dependency
+  notices (`Progressing`, `DependencyNotReady`), health checks, and events
+  whose revision names no Git commit. Flux logs any non-2xx answer as a
+  failed notification, so these are not answered as errors.
+- `commit_sha` extracted from `metadata.revision` (`<ref>@sha1:<sha>` or
+  `<ref>@sha256:<sha>`); for a HelmRelease whose revision is a chart version,
+  from `metadata.originRevision` (Flux 2.2+) when the chart comes from Git.
 - `environment` — `metadata["serops.io/environment"]` wins, then an
   environment spelled as the first or last part of the Kustomization or
   HelmRelease name (`apps-staging`), then `involvedObject.namespace` (usually

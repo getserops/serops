@@ -104,8 +104,15 @@ class GenericDeploymentWebhookHandler(APIView):
         # 3. Parse + validate payload
         try:
             payload = self._parse_payload(request)
+        except _IgnoredEvent as e:
+            # A well-formed event that is not a deploy (a reconcile that
+            # changed nothing, a progress notice). 200, not 400: Flux and
+            # Argo CD log every non-2xx answer as a failed notification and
+            # retry it (client C4: an error line on every reconcile).
+            return Response({'ignored': True, 'message': str(e)})
         except _PayloadError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        deploy_status = payload.get('status') or 'success'
 
         # 4. Get-or-create CodeChange for the commit
         code_change, created = self._get_or_create_code_change(payload, binding)
@@ -121,7 +128,8 @@ class GenericDeploymentWebhookHandler(APIView):
                   .filter(environment=payload['environment'], code_change__organisation=org,
                           project_service=binding.project_service)
                   .select_related('code_change').order_by('-deployed_at', '-pk').first())
-        if latest is not None and latest.code_change_id == code_change.pk:
+        if latest is not None and latest.code_change_id == code_change.pk \
+                and (latest.status or 'success') == deploy_status:
             return Response({
                 'message': 'deployment already recorded',
                 'deployment_id': latest.id,
@@ -138,7 +146,7 @@ class GenericDeploymentWebhookHandler(APIView):
                 environment=payload['environment'],
                 deployed_at=payload['deployed_at'],
                 pipeline=None,
-                status='success',
+                status=deploy_status,
                 deployed_by=payload['actor'],
                 notes=payload['notes'],
                 project_service=binding.project_service,
@@ -160,8 +168,9 @@ class GenericDeploymentWebhookHandler(APIView):
         )
 
         return Response({
-            'message': 'deployment recorded',
+            'message': 'deployment recorded' if deploy_status == 'success' else 'failed deployment recorded',
             'deployment_id': deployment.id,
+            'status': deploy_status,
             'commit_sha': code_change.commit_sha,
             'environment': deployment.environment,
             'code_change_created': created,
@@ -340,3 +349,7 @@ class GenericDeploymentWebhookHandler(APIView):
 
 class _PayloadError(ValueError):
     """Raised for malformed deployment webhook payloads."""
+
+
+class _IgnoredEvent(Exception):
+    """A valid controller event that records nothing (answered 200)."""

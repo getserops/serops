@@ -82,11 +82,25 @@ class ArgoCDWebhookTest(GitopsWebhookBase):
         # Notes surface the argocd app name so the AI prompt has context.
         self.assertIn('argocd-app=checkout', dep.notes)
 
-    def test_failed_operation_is_ignored(self):
+    def test_failed_operation_is_recorded_as_a_failed_deployment(self):
+        """A rejected sync is a change that did not land; the analysis must
+        see it (client C4 P6, Argo CD equivalent)."""
         payload = self._payload()
         payload['app']['status']['operationState']['phase'] = 'Failed'
+        payload['app']['status']['operationState']['message'] = 'one or more objects failed to apply'
         response = self.client.post(self._url(), payload, format='json')
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'failed')
+        dep = Deployment.objects.get()
+        self.assertEqual(dep.status, 'failed')
+        self.assertIn('failed (Failed): one or more objects failed to apply', dep.notes)
+
+    def test_running_operation_is_ignored_with_200(self):
+        payload = self._payload()
+        payload['app']['status']['operationState']['phase'] = 'Running'
+        response = self.client.post(self._url(), payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['ignored'])
         self.assertEqual(Deployment.objects.count(), 0)
 
     def test_out_of_sync_without_an_operation_is_ignored(self):
@@ -94,8 +108,19 @@ class ArgoCDWebhookTest(GitopsWebhookBase):
         payload['app']['status']['sync']['status'] = 'OutOfSync'
         del payload['app']['status']['operationState']
         response = self.client.post(self._url(), payload, format='json')
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['ignored'])
         self.assertEqual(Deployment.objects.count(), 0)
+
+    def test_failed_then_succeeded_sync_of_one_revision_records_both(self):
+        payload = self._payload()
+        payload['app']['status']['operationState']['phase'] = 'Failed'
+        self.client.post(self._url(), payload, format='json')
+        payload = self._payload()
+        payload['app']['status']['operationState']['finishedAt'] = '2026-10-25T14:35:00Z'
+        response = self.client.post(self._url(), payload, format='json')
+        self.assertEqual(response.json()['status'], 'success')
+        self.assertEqual(sorted(Deployment.objects.values_list('status', flat=True)), ['failed', 'success'])
 
     def test_succeeded_sync_counts_even_if_already_out_of_sync(self):
         """Argo CD 2.13 renders the notification after the sync; the app can
@@ -227,8 +252,8 @@ class FluxWebhookTest(GitopsWebhookBase):
                 'namespace': 'production',
             },
             'severity': 'info',
-            'reason': 'ReconciliationSucceeded',
-            'message': 'Reconciliation finished in 2.1s',
+            'reason': 'Progressing',
+            'message': 'Deployment/production/checkout configured\nService/production/checkout unchanged',
             'metadata': {'revision': 'main@sha1:abc123def456789'},
             'timestamp': '2026-10-25T14:25:00Z',
             'reportingController': 'kustomize-controller',
@@ -261,28 +286,98 @@ class FluxWebhookTest(GitopsWebhookBase):
         self.client.post(self._url(), self._payload(timestamp='2026-10-25T14:40:00Z'), format='json')
         self.assertEqual(Deployment.objects.count(), 3)
 
-    def test_error_severity_ignored(self):
-        response = self.client.post(
-            self._url(), self._payload(severity='error'), format='json',
-        )
-        self.assertEqual(response.status_code, 400)
+    def test_failed_apply_is_recorded_as_a_failed_deployment(self):
+        """Client C4 P6: "dry-run failed (Invalid)" was answered 400 and
+        recorded nowhere; the analysis never knew the change was rejected."""
+        response = self.client.post(self._url(), self._payload(
+            severity='error', reason='ReconciliationFailed',
+            message='Deployment/production/checkout dry-run failed (Invalid): spec.template.spec.containers[0]'
+                    '.resources.requests: Invalid value: "30m": must be less than or equal to cpu limit',
+        ), format='json')
+        self.assertEqual(response.status_code, 200)
+        dep = Deployment.objects.get()
+        self.assertEqual(dep.status, 'failed')
+        self.assertIn('failed (ReconciliationFailed): Deployment/production/checkout dry-run failed', dep.notes)
+
+    def test_repeated_failed_apply_records_one_failure(self):
+        for _ in range(3):
+            self.client.post(self._url(), self._payload(severity='error', reason='ReconciliationFailed',
+                                                         message='dry-run failed'), format='json')
+        self.assertEqual(Deployment.objects.count(), 1)
+
+    def test_failed_then_fixed_apply_of_one_revision_records_both(self):
+        self.client.post(self._url(), self._payload(severity='error', reason='ReconciliationFailed',
+                                                     message='dry-run failed'), format='json')
+        r = self.client.post(self._url(), self._payload(timestamp='2026-10-25T14:30:00Z'), format='json')
+        self.assertEqual(r.json()['status'], 'success')
+        self.assertEqual(Deployment.objects.count(), 2)
+
+    def test_unchanged_reconcile_is_ignored_with_200(self):
+        """Client C4 P3: every Kustomization of a monorepo reports the new
+        revision on any commit; only the one whose apply changed objects
+        deployed anything."""
+        response = self.client.post(self._url(), self._payload(
+            reason='ReconciliationSucceeded',
+            message='Reconciliation finished in 2.1s, next run in 10m0s',
+            metadata={'revision': 'main@sha1:fff999eee888777'},
+        ), format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['ignored'])
         self.assertEqual(Deployment.objects.count(), 0)
 
-    def test_non_success_reason_ignored(self):
-        response = self.client.post(
-            self._url(),
-            self._payload(reason='ReconciliationFailed'),
-            format='json',
-        )
-        self.assertEqual(response.status_code, 400)
+    def test_monorepo_commit_records_only_the_changed_kustomization(self):
+        unchanged = self._payload(reason='ReconciliationSucceeded',
+                                  message='Reconciliation finished in 1.2s, next run in 10m0s')
+        changed = self._payload()   # "Deployment/production/checkout configured"
+        self.client.post(self._url(), unchanged, format='json')
+        self.client.post(self._url(), changed, format='json')
+        self.client.post(self._url(), unchanged, format='json')
+        self.assertEqual(Deployment.objects.count(), 1)
 
-    def test_revision_without_sha_400(self):
+    def test_cluster_scoped_and_created_objects_count_as_changes(self):
+        response = self.client.post(self._url(), self._payload(
+            message='Namespace/payments created\nClusterRole/payments-reader configured'), format='json')
+        self.assertEqual(response.json().get('status'), 'success')
+
+    def test_info_notices_are_ignored_with_200(self):
+        """Client C4 P4: DependencyNotReady / Progressing got 400 and Flux logged
+        "failed to send notification" on every reconcile."""
+        for reason, message in (('DependencyNotReady', "dependency 'flux-system/infra' is not ready"),
+                                ('Progressing', 'Reconciliation in progress'),
+                                ('HealthCheckPassed', 'Health check passed in 2s')):
+            r = self.client.post(self._url(), self._payload(reason=reason, message=message), format='json')
+            self.assertEqual(r.status_code, 200, reason)
+            self.assertTrue(r.json()['ignored'], reason)
+        self.assertEqual(Deployment.objects.count(), 0)
+
+    def test_helmrelease_upgrade_is_a_deploy_from_origin_revision(self):
+        sha = 'b' * 40
+        response = self.client.post(self._url(), self._payload(
+            involvedObject={'kind': 'HelmRelease', 'name': 'payments', 'namespace': 'production'},
+            reason='UpgradeSucceeded', reportingController='helm-controller',
+            message='Helm upgrade succeeded for release production/payments.v4 with chart payments@1.4.2',
+            metadata={'revision': '1.4.2', 'originRevision': f'main@sha1:{sha}'},
+        ), format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['commit_sha'], sha)
+        self.assertIn('flux-helmrelease=payments', Deployment.objects.get().notes)
+
+    def test_helmrelease_from_a_chart_repository_is_ignored(self):
+        response = self.client.post(self._url(), self._payload(
+            involvedObject={'kind': 'HelmRelease', 'name': 'payments', 'namespace': 'production'},
+            reason='UpgradeSucceeded', message='Helm upgrade succeeded', metadata={'revision': '1.4.2'},
+        ), format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['ignored'])
+
+    def test_revision_without_sha_is_ignored(self):
         response = self.client.post(
             self._url(),
             self._payload(metadata={'revision': 'main@sha1:'}),
             format='json',
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['ignored'])
 
     def test_revision_with_sha256_algo(self):
         """Newer Flux builds use sha256 prefix — must still parse."""
@@ -336,13 +431,15 @@ class FluxWebhookTest(GitopsWebhookBase):
         )
         self.assertEqual(response.json()['environment'], 'development')
 
-    def test_missing_metadata_400(self):
+    def test_missing_metadata_is_ignored(self):
         response = self.client.post(
             self._url(),
             self._payload(metadata={}),
             format='json',
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['ignored'])
+        self.assertEqual(Deployment.objects.count(), 0)
 
 
 class FluxGenericHmacSignatureTest(GitopsWebhookBase):
@@ -355,7 +452,7 @@ class FluxGenericHmacSignatureTest(GitopsWebhookBase):
         body = json.dumps({
             'involvedObject': {'kind': 'Kustomization', 'name': 'api', 'namespace': 'flux-system'},
             'severity': 'info', 'reason': 'ReconciliationSucceeded',
-            'metadata': {'revision': 'main@sha1:' + 'a' * 40}, 'message': 'Applied revision',
+            'metadata': {'revision': 'main@sha1:' + 'a' * 40}, 'message': 'Deployment/flux-system/api configured',
         }).encode()
         sig = 'sha256=' + hmac.new(b'gitops-secret', body, hashlib.sha256).hexdigest()
         response = self.client.post(f'/api/providers/webhook/flux/{self.binding.id}/', data=body,
@@ -363,3 +460,31 @@ class FluxGenericHmacSignatureTest(GitopsWebhookBase):
                                     HTTP_X_SEROPS_SIGNATURE='', HTTP_X_SIGNATURE=sig)
         self.assertNotEqual(response.status_code, 403, response.content)
 
+
+
+class FailedApplyReachesTheAnalysisTest(GitopsWebhookBase):
+    """The rejected apply's message reaches the code-changes section as
+    "NOT deployed: … failed …" (client C4 P6)."""
+
+    def test_failed_apply_line_in_the_prompt(self):
+        from datetime import datetime, timedelta, timezone as dt_tz
+        from ai_model.diff_selection import build_code_changes_section
+        from providers.code_change_service import CodeChangeService
+        from providers.deployment_service import DeploymentService
+        r = self.client.post(f'/api/providers/webhook/flux/{self.binding.id}/', {
+            'involvedObject': {'kind': 'Kustomization', 'name': 'api', 'namespace': 'production'},
+            'severity': 'error', 'reason': 'ReconciliationFailed',
+            'message': 'Deployment/production/api dry-run failed (Invalid): cpu request exceeds limit',
+            'metadata': {'revision': 'main@sha1:' + 'c' * 40},
+            'timestamp': '2026-10-25T14:25:00Z', 'reportingController': 'kustomize-controller',
+        }, format='json')
+        self.assertEqual(r.status_code, 200)
+        at = datetime(2026, 10, 25, 14, 25, tzinfo=dt_tz.utc)
+        changes = DeploymentService.get_deployments_for_batch(
+            environment='production', start_time=at - timedelta(minutes=5), end_time=at + timedelta(minutes=5),
+            organisation_id=self.org.id, only_successful=False)
+        summaries = CodeChangeService.prepare_changes_for_ai(changes, environment='production')
+        self.assertEqual(summaries[0]['pipeline_status'], 'failed')
+        section = build_code_changes_section(summaries, [], redact=lambda t: t)
+        self.assertIn('NOT deployed: pipeline failed', section)
+        self.assertIn('dry-run failed (Invalid): cpu request exceeds limit', section)

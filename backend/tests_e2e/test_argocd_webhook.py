@@ -172,11 +172,14 @@ class ArgoCDWebhookE2ETest(E2ETestCase):
         payload = self._payload(sync_status='OutOfSync')
         payload['app']['status'].pop('operationState', None)
         resp = self.client.post(self._url(), data=payload, format='json')
-        self.assertEqual(resp.status_code, 400, resp.content)
+        # 200 "ignored": Argo CD retries a notification answered non-2xx.
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertTrue(resp.data['ignored'])
         self.assertEqual(Deployment.objects.count(), 0)
         self.assertEqual(CodeChange.objects.count(), 0)
 
-    def test_failed_phase_is_rejected_no_deployment(self):
+    def test_failed_phase_is_recorded_as_a_failed_deployment(self):
+        """A rejected sync did not land; the analysis sees it as failed."""
         self._as_argocd()
 
         resp = self.client.post(
@@ -184,8 +187,8 @@ class ArgoCDWebhookE2ETest(E2ETestCase):
             data=self._payload(phase='Failed'),
             format='json',
         )
-        self.assertEqual(resp.status_code, 400, resp.content)
-        self.assertEqual(Deployment.objects.count(), 0)
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertEqual(Deployment.objects.get().status, 'failed')
 
     def test_unknown_binding_is_403(self):
         self._as_argocd()

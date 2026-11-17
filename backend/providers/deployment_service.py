@@ -201,6 +201,7 @@ class DeploymentService:
                 change = deployment.code_change
                 change.deployed_at_in_env = deployment.deployed_at
                 change.deploy_status_in_env = deployment.status
+                change.deploy_note_in_env = deployment.notes if deployment.status != 'success' else ''
                 by_sha[sha] = change
                 code_changes.append(change)
                 seen_shas.add(sha)
@@ -209,6 +210,7 @@ class DeploymentService:
                 # at the successful one (SC-05).
                 change.deployed_at_in_env = deployment.deployed_at
                 change.deploy_status_in_env = 'success'
+                change.deploy_note_in_env = ''
         
         logger.info(
             f"Found {len(code_changes)} unique code changes deployed to "

@@ -23,9 +23,12 @@ Payload shape (Flux notification-controller v1.x)::
       "reportingController": "kustomize-controller"
     }
 
-Recorded only when ``severity == "info"`` and ``reason`` names a
-successful reconciliation. Errors / drift / dry-runs are ignored so
-"Recent Deployments" stays clean.
+Recorded as a deploy only when the event shows the apply changed
+something: kustomize-controller's change set ("Deployment/ns/x
+configured") or a helm-controller install/upgrade/rollback. A reconcile
+that changed nothing ("Reconciliation finished …"), progress and
+dependency notices are answered 200 "ignored". An error event (a
+rejected apply) is recorded as a failed deployment.
 
 Revision format is ``<branch|tag>@sha1:<sha>``. We extract the sha
 after ``sha1:``.
@@ -45,19 +48,24 @@ from datetime import datetime
 from django.utils import timezone
 
 from .argocd_webhook import _env_from_name, _map_env_alias
-from .deployment_webhook import GenericDeploymentWebhookHandler, _PayloadError
+from .deployment_webhook import GenericDeploymentWebhookHandler, _IgnoredEvent, _PayloadError
 
 logger = logging.getLogger(__name__)
 
 
-# Success reasons we treat as a deployment. Flux emits many others
-# (Progressing, ValidationFailed, DependencyNotReady) — we ignore.
-_FLUX_SUCCESS_REASONS = {
-    'ReconciliationSucceeded',
-    'ProgressingWithReconciliation',   # some templates use this
-    'HealthCheckPassed',
-}
-
+# What counts as a deploy (client C4, Flux 2.7 monorepo):
+# - kustomize-controller lists what an apply changed, one object per line
+#   ("Deployment/studio/pricing configured", "Namespace/studio created"), in
+#   an info event whose reason is the Ready reason at the time (usually
+#   "Progressing"). Every Kustomization of a monorepo also reports
+#   "Reconciliation finished in 2.1s, next run in 10m0s" with the new
+#   revision on ANY commit: that is not a deploy, or a pricing-only commit
+#   is recorded as a deploy of every service.
+# - helm-controller reports InstallSucceeded / UpgradeSucceeded /
+#   RollbackSucceeded for a release it changed.
+_CHANGESET_RE = re.compile(r'^\s*[\w.-]+/(?:[\w.-]+/)?[\w.:-]+\s+(?:created|configured|deleted)\b',
+                           re.MULTILINE)
+_HELM_DEPLOY_REASONS = {'InstallSucceeded', 'UpgradeSucceeded', 'RollbackSucceeded'}
 
 # Flux revisions are ``<ref>@sha1:<sha>`` (older) or ``<ref>@<algo>:<sha>``
 # (newer builds with SHA-256 support). Capture whichever hash comes last.
@@ -72,18 +80,37 @@ class FluxDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
 
         severity = str(raw.get('severity') or '').lower()
         reason = str(raw.get('reason') or '')
-
-        if severity and severity != 'info':
-            raise _PayloadError(f'Ignored: severity is "{severity}" (not info)')
-        if reason and reason not in _FLUX_SUCCESS_REASONS:
-            raise _PayloadError(f'Ignored: reason "{reason}" is not a success signal')
-
+        message = str(raw.get('message') or '')
         metadata = raw.get('metadata') or {}
+        if not isinstance(metadata, dict):
+            raise _PayloadError('metadata must be an object')
+
+        # A failed apply is recorded as a failed deployment, so the analysis
+        # learns a change was attempted and rejected (client C4 L9: "dry-run
+        # failed (Invalid)" answered 400 and recorded nowhere).
+        if severity == 'error':
+            deploy_status = 'failed'
+        elif severity and severity != 'info':
+            raise _IgnoredEvent(f'Ignored: severity "{severity}"')
+        elif _CHANGESET_RE.search(message) or reason in _HELM_DEPLOY_REASONS:
+            deploy_status = 'success'
+        else:
+            # "Reconciliation finished … next run in …", DependencyNotReady,
+            # Progressing without a change set, health checks: not a deploy.
+            raise _IgnoredEvent(f'Ignored: no change applied (reason "{reason[:60]}")')
+
+        # A HelmRelease's revision is its chart version; the Git commit is
+        # in originRevision (Flux 2.2+) when the chart comes from Git.
         revision = str(metadata.get('revision') or '').strip()
         commit_sha = self._extract_sha(revision)
         if not commit_sha:
-            raise _PayloadError(
-                f'metadata.revision "{revision[:60]}" contains no recognisable commit sha'
+            origin = str(metadata.get('originRevision') or '').strip()
+            commit_sha = self._extract_sha(origin)
+            if commit_sha:
+                revision = origin
+        if not commit_sha:
+            raise _IgnoredEvent(
+                f'Ignored: revision "{revision[:60]}" names no Git commit'
             )
 
         involved = raw.get('involvedObject') or {}
@@ -103,6 +130,9 @@ class FluxDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
             notes_parts.append(f'revision={revision[:80]}')
         if env_source == 'default':
             notes_parts.append('environment=assumed-production')
+        if deploy_status == 'failed':
+            # What the controller said, so the analysis can quote it.
+            notes_parts.append(f'failed ({reason[:40] or "error"}): ' + ' '.join(message.split())[:300])
         notes = ' '.join(notes_parts)[:500]
 
         return {
@@ -111,6 +141,7 @@ class FluxDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
             'deployed_at': deployed_at,
             'actor': controller,
             'notes': notes,
+            'status': deploy_status,
         }
 
     # ------------------------------------------------------------------

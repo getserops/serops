@@ -335,6 +335,7 @@ class CodeChangeService:
                 deployed_at=getattr(change, 'deployed_at_in_env', None),
                 environment=environment,
                 deploy_status=getattr(change, 'deploy_status_in_env', None),
+                deploy_note=getattr(change, 'deploy_note_in_env', ''),
             )
             for change in changes
         ]
