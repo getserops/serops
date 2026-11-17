@@ -53,6 +53,26 @@ describe('useFilterUrlSync', () => {
     expect(query(result).get('status')).toBe('OPEN');
   });
 
+  it('a URL with one filter decides alone: the other one is "all", not the stored choice', async () => {
+    window.localStorage.setItem('serops.deployment.filter', JSON.stringify({ environment: 'production', clusterId: 4 }));
+    const { result } = setup('/dash/issues?environment=staging');
+    await waitFor(() => expect(result.current.deployment.loading).toBe(false));
+    await waitFor(() => expect(result.current.deployment.filter.environment).toBe('staging'));
+    expect(result.current.deployment.filter.clusterId).toBeNull();
+    expect(query(result).get('environment')).toBe('staging');
+    expect(query(result).get('cluster')).toBeNull();
+  });
+
+  it('a URL with only a cluster clears the stored environment', async () => {
+    window.localStorage.setItem('serops.deployment.filter', JSON.stringify({ environment: 'production', clusterId: 4 }));
+    const { result } = setup('/dash/data?cluster=3');
+    await waitFor(() => expect(result.current.deployment.loading).toBe(false));
+    await waitFor(() => expect(result.current.deployment.filter.clusterId).toBe(3));
+    expect(result.current.deployment.filter.environment).toBe('');
+    expect(query(result).get('environment')).toBeNull();
+    expect(query(result).get('cluster')).toBe('3');
+  });
+
   it('writes the persisted filter into a URL that has none', async () => {
     window.localStorage.setItem('serops.deployment.filter', JSON.stringify({ environment: 'development', clusterId: 4 }));
     const { result } = setup('/dash?tab=x');

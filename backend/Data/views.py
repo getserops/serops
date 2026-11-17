@@ -1007,14 +1007,69 @@ class IssueListView(OrgFilterMixin, APIView):
 
             # Base queryset - filtered by organization
             base_queryset = self.filter_by_org(request, Issue.objects.all(), 'issue')
+            scoped = False
+            # Scope filters (where the issue lives: cluster, deployment, project,
+            # environment, service). They narrow the summary tiles as well as the
+            # list, so the tiles never count issues the list leaves out.
+            # Apply Cluster Filter (Item #19) — issues live on batches
+            # live on projects live on clusters. Silently ignore bad ids.
+            cluster_id = request.query_params.get('cluster')
+            if cluster_id:
+                try:
+                    base_queryset = base_queryset.filter(batch__project__cluster_id=int(cluster_id))
+                    scoped = True
+                except (TypeError, ValueError):
+                    pass
 
-            # Build summary from unfiltered base queryset — single aggregate query
+            # Composed-filter dimensions (Batch 54 completion / L2 fix).
+            # Reach into batch.deployment for region/namespace since
+            # issues don't carry those directly.
+            deployment_id = request.query_params.get('deployment')
+            if deployment_id:
+                try:
+                    base_queryset = base_queryset.filter(batch__deployment_id=int(deployment_id))
+                    scoped = True
+                except (TypeError, ValueError):
+                    pass
+
+            region = request.query_params.get('region', '').strip()
+            if region:
+                base_queryset = base_queryset.filter(batch__deployment__region=region)
+                scoped = True
+
+            namespace = request.query_params.get('namespace', '').strip()
+            if namespace:
+                base_queryset = base_queryset.filter(batch__deployment__namespace=namespace)
+                scoped = True
+
+            # Project / environment / service filters (Issues page toolbar).
+            project_id = request.query_params.get('project', '').strip()
+            if project_id:
+                if not project_id.isdigit():
+                    return Response({'error': 'project must be a number'}, status=status.HTTP_400_BAD_REQUEST)
+                base_queryset = base_queryset.filter(project_id=int(project_id))
+                scoped = True
+            environment = request.query_params.get('environment', '').strip()
+            if environment:
+                base_queryset = base_queryset.filter(environment__iexact=environment)
+                scoped = True
+            component = request.query_params.get('component', '').strip()
+            if component:
+                # A service filter also finds issues caused elsewhere that affect it.
+                base_queryset = base_queryset.filter(Q(component__iexact=component) | Q(affected_services__contains=[component]))
+                scoped = True
+
+            # Build summary from the scoped base queryset — single aggregate query
             # Cached for 30s per org to reduce DB round-trips (critical for remote DB)
             user_org = getattr(request.user, 'organisation', None)
             org_id = user_org.id if user_org else 0
+            scope_key = '|'.join(
+                request.query_params.get(k, '').strip()
+                for k in ('cluster', 'deployment', 'region', 'namespace', 'project', 'environment', 'component')
+            )
             summary = _build_issue_summary(
                 base_queryset, include_batch_count=True,
-                cache_key=f'issue_summary:org:{org_id}{scope_signature(request.user, "issue.read")}'
+                cache_key=f'issue_summary:org:{org_id}{scope_signature(request.user, "issue.read")}:{scope_key}'
             )
             summary['filter_applied'] = severity_filter
 
@@ -1026,7 +1081,7 @@ class IssueListView(OrgFilterMixin, APIView):
             )
 
             # Determine if filters are applied (affects total count)
-            has_filters = (severity_filter != 'ALL' or status_filter != 'ALL' or search)
+            has_filters = (scoped or severity_filter != 'ALL' or status_filter != 'ALL' or search)
 
             # Apply Severity Filter
             if severity_filter != 'ALL':
@@ -1036,53 +1091,6 @@ class IssueListView(OrgFilterMixin, APIView):
             if status_filter != 'ALL':
                 queryset = queryset.filter(status=status_filter)
 
-            # Apply Cluster Filter (Item #19) — issues live on batches
-            # live on projects live on clusters. Silently ignore bad ids.
-            cluster_id = request.query_params.get('cluster')
-            if cluster_id:
-                try:
-                    queryset = queryset.filter(batch__project__cluster_id=int(cluster_id))
-                    has_filters = True
-                except (TypeError, ValueError):
-                    pass
-
-            # Composed-filter dimensions (Batch 54 completion / L2 fix).
-            # Reach into batch.deployment for region/namespace since
-            # issues don't carry those directly.
-            deployment_id = request.query_params.get('deployment')
-            if deployment_id:
-                try:
-                    queryset = queryset.filter(batch__deployment_id=int(deployment_id))
-                    has_filters = True
-                except (TypeError, ValueError):
-                    pass
-
-            region = request.query_params.get('region', '').strip()
-            if region:
-                queryset = queryset.filter(batch__deployment__region=region)
-                has_filters = True
-
-            namespace = request.query_params.get('namespace', '').strip()
-            if namespace:
-                queryset = queryset.filter(batch__deployment__namespace=namespace)
-                has_filters = True
-
-            # Project / environment / service filters (Issues page toolbar).
-            project_id = request.query_params.get('project', '').strip()
-            if project_id:
-                if not project_id.isdigit():
-                    return Response({'error': 'project must be a number'}, status=status.HTTP_400_BAD_REQUEST)
-                queryset = queryset.filter(project_id=int(project_id))
-                has_filters = True
-            environment = request.query_params.get('environment', '').strip()
-            if environment:
-                queryset = queryset.filter(environment__iexact=environment)
-                has_filters = True
-            component = request.query_params.get('component', '').strip()
-            if component:
-                # A service filter also finds issues caused elsewhere that affect it.
-                queryset = queryset.filter(Q(component__iexact=component) | Q(affected_services__contains=[component]))
-                has_filters = True
             # Time range: issues seen in the last N hours.
             since_hours = request.query_params.get('since_hours', '').strip()
             if since_hours:

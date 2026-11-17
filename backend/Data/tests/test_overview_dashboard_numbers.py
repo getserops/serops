@@ -44,6 +44,12 @@ OVERVIEW_ENDPOINTS = [
     '/api/data/recommendation-stats/?status=OPEN',
     '/api/data/issue-stats/?status=OPEN',
     '/api/data/issues/?status=OPEN',  # Needs attention
+    '/api/data/issues/',  # Issues page
+]
+
+# Blocks a page shows on their own, next to a list that is filtered anyway.
+BLOCKS = [
+    ('/api/data/issues/', 'summary'),  # Issues page header tiles
 ]
 
 
@@ -164,6 +170,25 @@ class EveryEndpointHonoursItsFiltersTest(OverviewFixture):
                         filtered = self.get(url, **{name: value})
                     if filtered == unfiltered:
                         ignored.append(f'{url} ignores {name} ({"filtered" if filtered_first else "unfiltered"} first)')
+        self.assertEqual(ignored, [], '\n'.join(ignored))
+
+    def test_filter_changes_each_block(self):
+        """A response whose list follows the filter can still carry a block
+        that does not (the Issues page tiles read ``summary``). Each block
+        that a page shows on its own is compared alone."""
+        ignored = []
+        for url, block in BLOCKS:
+            for name, value in self._filters():
+                for filtered_first in (False, True):
+                    cache.clear()
+                    if filtered_first:
+                        filtered = self.get(url, **{name: value})[block]
+                        unfiltered = self.get(url)[block]
+                    else:
+                        unfiltered = self.get(url)[block]
+                        filtered = self.get(url, **{name: value})[block]
+                    if filtered == unfiltered:
+                        ignored.append(f'{url} [{block}] ignores {name} ({"filtered" if filtered_first else "unfiltered"} first)')
         self.assertEqual(ignored, [], '\n'.join(ignored))
 
 

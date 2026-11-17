@@ -12,10 +12,13 @@ const parseCluster = (raw) => {
  * (``?environment=staging&cluster=3``), so a link or a bookmark opens
  * the same slice.
  *
- * - The URL wins when it changes and names a value: a shared link, a
- *   bookmark, back / forward.
- * - Otherwise the filter wins and is written into the URL (replace, so
- *   the picker doesn't fill the history).
+ * - A URL that carries any filter parameter decides alone: a shared
+ *   link, a bookmark, back / forward. A parameter it leaves out means
+ *   "all", never the stored choice (``?environment=staging`` shows
+ *   staging on every cluster).
+ * - A URL with no filter parameter takes the stored choice, which is
+ *   then written into it (replace, so the picker doesn't fill the
+ *   history).
  *
  * Other query parameters are left alone. A page that rewrites its whole
  * query string must carry ``environment`` and ``cluster`` over.
@@ -42,10 +45,10 @@ export default function useFilterUrlSync(enabled = true) {
 
     if (urlChanged && (urlEnv !== null || urlCluster !== null)) {
       const partial = {};
-      const nextEnv = urlEnv === 'all' ? '' : urlEnv;
-      if (urlEnv !== null && nextEnv !== env) partial.environment = nextEnv;
+      const nextEnv = urlEnv === null || urlEnv === 'all' ? '' : urlEnv;
+      if (nextEnv !== env) partial.environment = nextEnv;
       const nextCluster = urlCluster === null ? null : parseCluster(urlCluster);
-      if (urlCluster !== null && nextCluster !== clusterId) partial.clusterId = nextCluster;
+      if (nextCluster !== clusterId) partial.clusterId = nextCluster;
       if (Object.keys(partial).length) {
         setFilter(partial);
         return;
