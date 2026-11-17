@@ -124,7 +124,7 @@ const RecentDeploymentsCard = ({ data, loading }) => {
         <div className="chart-card deployments-card">
             <div className="chart-header">
                 <h2><FaRocket className="chart-icon" /> {t('dashboard.recentDeployments')}</h2>
-                <span className="chart-subtitle">{t('dashboard.servicesWithCicd', { count: services.length })}</span>
+                <span className="chart-subtitle">{t('dashboard.servicesWithCicd', { count: services.length })} · {t('dashboard.window.latestRuns', { count: 3 })}</span>
             </div>
 
             <div className="deployments-list" tabIndex={0} role="region" aria-label={t('dashboard.recentDeployments')}>

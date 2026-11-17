@@ -5,6 +5,7 @@ import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
 import DashboardService from "../services/dash.service";
 import { useCluster } from "../context/ClusterContext";
+import useFilterUrlSync from "../hooks/useFilterUrlSync";
 import { useQuery } from "@tanstack/react-query";
 import { FaChartPie, FaExclamationTriangle, FaBolt } from "react-icons/fa";
 import { useMediaQuery } from "@mui/material";
@@ -50,6 +51,9 @@ const Dashboard = () => {
   const clusterId = clustersLoading ? null : (currentCluster?.id ?? null);
   // The environment comes from the top-bar picker (global filter).
   const environment = filter?.environment || 'all';
+  // On the Overview, environment and cluster are in the URL too (the
+  // pages under /dash/* that filter do their own).
+  useFilterUrlSync(isRootDashboard);
 
   React.useEffect(() => {
     setIsSidebarOpen(!isSmallScreen);
@@ -64,8 +68,8 @@ const Dashboard = () => {
     isLoading: loadingRecs,
     error: errorRecs
   } = useQuery({
-    queryKey: ["recommendation-stats", environment, clusterId],
-    queryFn: () => DashboardService.getRecommendationStats(environment),
+    queryKey: ["recommendation-stats", "open", environment, clusterId],
+    queryFn: () => DashboardService.getRecommendationStats(environment, "OPEN"),
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,
   });
@@ -75,9 +79,9 @@ const Dashboard = () => {
     isLoading: loadingSeverity,
     error: errorSeverity
   } = useQuery({
-    queryKey: ["issue-stats", environment, clusterId],
+    queryKey: ["issue-stats", "open", environment, clusterId],
     queryFn: async () => {
-      const severityStats = await DashboardService.getIssueStats(environment);
+      const severityStats = await DashboardService.getIssueStats(environment, "OPEN");
       return severityStats.filter(entry =>
         entry.name.toUpperCase() === "CRITICAL" ||
         entry.name.toUpperCase() === "WARNING"
@@ -161,7 +165,7 @@ const Dashboard = () => {
 
   const error = errorRecs || errorSeverity ? t('dashboard.errorLoadingStats') : null;
 
-  // Calculate totals for top-row cards
+  // Top-row tiles: both count issues that are open now.
   const totalRecommendations = chartData.reduce((sum, item) => sum + item.value, 0);
   const criticalCount = severityData.find(s => s.name === "CRITICAL")?.value || 0;
 
@@ -235,8 +239,9 @@ const Dashboard = () => {
                   <div className="metric-content">
                     <span className="metric-value">{totalRecommendations}</span>
                     <span className="metric-label">{t('dashboard.aiInsights')}</span>
+                    <span className="panel-window">{t('dashboard.window.openNow')}</span>
                   </div>
-                  <div className="metric-trend positive"><FaChartPie /> {t('dashboard.active')}</div>
+                  <div className="metric-trend neutral"><FaChartPie /> {t('dashboard.onOpenIssues')}</div>
                 </div>
               )}
 
@@ -245,7 +250,8 @@ const Dashboard = () => {
                   <div className="metric-icon"><FaExclamationTriangle /></div>
                   <div className="metric-content">
                     <span className="metric-value">{criticalCount}</span>
-                    <span className="metric-label">{t('issues.critical')}</span>
+                    <span className="metric-label">{t('dashboard.openCritical')}</span>
+                    <span className="panel-window">{t('dashboard.window.openNow')}</span>
                   </div>
                   {criticalCount > 0
                     ? <div className="metric-trend negative">{t('dashboard.needsAttention')}</div>

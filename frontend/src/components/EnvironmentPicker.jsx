@@ -6,7 +6,9 @@ import { useDeployment } from '../context/DeploymentContext';
 
 // The common environment names. A custom value set elsewhere (the
 // cluster picker's env field, a shared link) is listed too.
-export const ENVIRONMENTS = ['production', 'staging', 'dev'];
+// The canonical names batches and issues carry (AIAnalyzedBatch.ENVIRONMENT_CHOICES):
+// 'dev' matched nothing, the data says 'development'.
+export const ENVIRONMENTS = ['production', 'staging', 'development'];
 
 // Top-bar environment filter. Writes the global deployment filter, which
 // every API call already forwards, so all pages follow the same choice.

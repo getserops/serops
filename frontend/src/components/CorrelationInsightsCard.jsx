@@ -24,6 +24,7 @@ const CorrelationInsightsCard = ({ data, loading }) => {
         anomaly_type_breakdown = {},
         high_confidence_count = 0,
         cicd_correlations = 0,
+        period_days = 7,
     } = data || {};
 
     const hasData = total_issues > 0;
@@ -33,7 +34,7 @@ const CorrelationInsightsCard = ({ data, loading }) => {
             <div className="chart-header">
                 <h2><FaLink className="chart-icon" /> {t('dashboard.correlationInsights', 'AI Correlation Insights')}</h2>
                 <span className="chart-subtitle">
-                    {t('dashboard.correlationSubtitle', 'Issues linked to deployments & metric spikes')}
+                    {t('dashboard.correlationSubtitle')} · {t('dashboard.window.lastDays', { count: period_days })}
                 </span>
             </div>
 
@@ -60,7 +61,7 @@ const CorrelationInsightsCard = ({ data, loading }) => {
                             <div className="corr-stat-info">
                                 <span className="corr-stat-value">{commit_correlations}</span>
                                 <span className="corr-stat-label">
-                                    {t('dashboard.deploymentLinks', 'Deployment Links')}
+                                    {t('dashboard.commitLinks')}
                                 </span>
                             </div>
                         </div>
@@ -133,7 +134,7 @@ const CorrelationInsightsCard = ({ data, loading }) => {
                     {top_correlated_components.length > 0 && (
                         <div className="corr-components">
                             <span className="corr-components-title">
-                                {t('dashboard.topAffected', 'Top Affected')}
+                                {t('dashboard.topAffected')}
                             </span>
                             <div className="corr-component-tags">
                                 {top_correlated_components.map((comp, i) => (

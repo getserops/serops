@@ -54,10 +54,12 @@ const withEnv = (params = {}, environment) => {
 };
 
 const DashboardService = {
-  async getRecommendationStats(environment) {
+  // ``status`` ('OPEN') counts only issues in that state; the Overview's
+  // tiles count open issues.
+  async getRecommendationStats(environment, status) {
     try {
       const response = await axios.get(`${API_BASE_URL}/recommendation-stats/`, {
-        params: withEnv({}, environment),
+        params: withEnv(status ? { status } : {}, environment),
         headers: getAuthHeaders()
       });
       const apiData = response.data.statistics;
@@ -97,10 +99,10 @@ const DashboardService = {
     }
   },
 
-  async getIssueStats(environment) {
+  async getIssueStats(environment, status) {
     try {
       const response = await axios.get(`${API_BASE_URL}/issue-stats/`, {
-        params: withEnv({}, environment),
+        params: withEnv(status ? { status } : {}, environment),
         headers: getAuthHeaders()
       });
       const apiData = response.data?.statistics;

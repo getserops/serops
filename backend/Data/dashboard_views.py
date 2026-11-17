@@ -23,6 +23,7 @@ from django.views.decorators.vary import vary_on_headers
 from django.db.models import Count, Avg, Q, F, ExpressionWrapper, fields
 from django.core.cache import cache
 from datetime import timedelta
+from .health import DEGRADED_MIN, HEALTHY_MIN, health_by_component, health_score
 from .models import AIAnalyzedBatch, Issue
 from notifications.models import Notification
 from Projects.models import Project
@@ -61,25 +62,43 @@ def cache_per_user(timeout):
     return [cache_page(timeout), vary_on_headers('Authorization', 'Cookie')]
 
 
+# Below this many resolved issues the halves the trend compares are too
+# small to mean anything, so the card says "not enough data" instead.
+MTTR_MIN_SAMPLE_FOR_TREND = 12
+MTTR_SEVERITIES = ('CRITICAL', 'WARNING', 'INFO')
+
+
 @method_decorator(cache_per_user(CACHE_TTL_STATS), name='dispatch')
 class MTTRView(OrgFilterMixin, APIView):
     """
-    Calculate Mean Time To Resolution for issues.
-    Requires authentication. Filters by user's organization.
+    Mean Time To Resolution of the issues created in the last ``days``
+    (default 30) and resolved since, in the selected environment and
+    cluster.
+
+    ``trend`` compares the newer half of the sample with the older half,
+    and is ``INSUFFICIENT_DATA`` below MTTR_MIN_SAMPLE_FOR_TREND issues.
+    ``by_severity`` keeps CRITICAL, WARNING and INFO apart; anything
+    else is ``OTHER``.
 
     Cached for 15 minutes (CACHE_TTL_STATS) as MTTR changes slowly.
     """
     permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
-    
+
     def get(self, request):
         try:
             # Time window (default: last 30 days)
             days = int(request.query_params.get('days', 30))
 
-            # Use org-specific cache key
+            # Per organisation, project scope, environment and cluster: the
+            # key used to leave the filters out, so whichever filter was
+            # asked first was served for all of them for 15 minutes.
             org_id = self.get_user_org_id(request)
-            # Per project scope too: members of restricted projects see their own numbers.
-            cache_key = f"mttr_stats_{days}_org_{org_id}{scope_signature(request.user, 'issue.read')}"
+            cache_key = (
+                f"mttr_stats_{days}_org_{org_id}"
+                f"_env_{self._get_environment(request) or 'all'}"
+                f"_cluster_{self._get_cluster_id(request) or 'all'}"
+                f"{scope_signature(request.user, 'issue.read')}"
+            )
             cached_result = cache.get(cache_key)
             if cached_result:
                 return Response(cached_result)
@@ -96,7 +115,7 @@ class MTTRView(OrgFilterMixin, APIView):
 
             # Calculate time deltas per issue
             mttr_data = []
-            by_severity = {'CRITICAL': [], 'WARNING': []}
+            by_severity = {}
 
             for issue in resolved_issues:
                 delta = issue.resolved_at - issue.created_at
@@ -105,15 +124,20 @@ class MTTRView(OrgFilterMixin, APIView):
                 # Only include reasonable values (> 0 and < 30 days)
                 if 0 < hours < 720:
                     mttr_data.append(hours)
-                    sev = issue.severity if issue.severity in by_severity else 'WARNING'
-                    by_severity[sev].append(hours)
+                    sev = issue.severity if issue.severity in MTTR_SEVERITIES else 'OTHER'
+                    by_severity.setdefault(sev, []).append(hours)
 
+            base = {
+                'period_days': days,
+                'sample_size': len(mttr_data),
+                'min_sample_for_trend': MTTR_MIN_SAMPLE_FOR_TREND,
+            }
             if not mttr_data:
                 result = {
-                    'overall_mttr_hours': 0,
+                    **base,
+                    'overall_mttr_hours': None,
                     'by_severity': {},
-                    'trend': 'STABLE',
-                    'sample_size': 0,
+                    'trend': 'INSUFFICIENT_DATA',
                     'message': 'No resolved issues found'
                 }
                 cache.set(cache_key, result, CACHE_TTL_STATS)
@@ -122,17 +146,14 @@ class MTTRView(OrgFilterMixin, APIView):
             # Calculate averages
             overall_mttr = sum(mttr_data) / len(mttr_data)
 
-            severity_stats = {}
-            for sev, times in by_severity.items():
-                if times:
-                    severity_stats[sev] = {
-                        'avg_hours': round(sum(times) / len(times), 2),
-                        'count': len(times)
-                    }
+            severity_stats = {
+                sev: {'avg_hours': round(sum(times) / len(times), 2), 'count': len(times)}
+                for sev, times in by_severity.items()
+            }
 
-            # Simple trend: compare first half (recent) vs second half (older)
-            mid = len(mttr_data) // 2
-            if mid > 5:
+            # Trend: compare the newer half with the older half.
+            if len(mttr_data) >= MTTR_MIN_SAMPLE_FOR_TREND:
+                mid = len(mttr_data) // 2
                 recent_avg = sum(mttr_data[:mid]) / mid
                 older_avg = sum(mttr_data[mid:]) / (len(mttr_data) - mid)
                 diff = ((recent_avg - older_avg) / older_avg) * 100 if older_avg else 0
@@ -144,13 +165,13 @@ class MTTRView(OrgFilterMixin, APIView):
                 else:
                     trend = 'STABLE'
             else:
-                trend = 'STABLE'
+                trend = 'INSUFFICIENT_DATA'
 
             result = {
+                **base,
                 'overall_mttr_hours': round(overall_mttr, 2),
                 'by_severity': severity_stats,
                 'trend': trend,
-                'sample_size': len(mttr_data)
             }
             cache.set(cache_key, result, CACHE_TTL_STATS)
             return Response(result)
@@ -158,7 +179,7 @@ class MTTRView(OrgFilterMixin, APIView):
         except Exception as e:
             logger.error(f"Error calculating MTTR: {e}")
             return Response({
-                'overall_mttr_hours': 0,
+                'overall_mttr_hours': None,
                 'by_severity': {},
                 'trend': 'UNKNOWN',
                 'sample_size': 0,
@@ -170,26 +191,24 @@ class MTTRView(OrgFilterMixin, APIView):
 @method_decorator(cache_per_user(CACHE_TTL_DASHBOARD), name='dispatch')
 class ServiceHealthView(OrgFilterMixin, APIView):
     """
-    Service health heatmap data.
-    Requires authentication. Filters by user's organization.
+    Service health map: one tile per registered service, in the selected
+    environment and cluster.
 
-    Queries registered services from the Service model and calculates
-    health scores based on Issue counts per service.
+    A service's issues are the open issues whose component is the
+    service's name, in the service's project. Scored with the shared
+    formula and thresholds in Data/health.py, the same as System Health
+    and Top Failing Services. A service whose registry status is
+    ``error`` is shown critical, ``maintenance`` degraded.
 
     Cached for 5 minutes (CACHE_TTL_DASHBOARD) for frequently refreshed dashboards.
     """
     permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
-    
+
     def get(self, request):
         from Services.models import Service
         from Projects.models import ProjectService
-        
+
         try:
-            # Time window (default: last 7 days)
-            days = int(request.query_params.get('days', 7))
-            since = timezone.now() - timedelta(days=days)
-            
-            # Get user's organization
             user_org = getattr(request.user, 'organisation', None)
             if not user_org:
                 return Response({
@@ -197,7 +216,7 @@ class ServiceHealthView(OrgFilterMixin, APIView):
                     'total_services': 0,
                     'message': 'No organization found'
                 })
-            
+
             # Item #17 / Q1.4: optionally scope to a single cluster.
             cluster_id = self._get_cluster_id(request)
             cluster_kwargs = (
@@ -212,139 +231,59 @@ class ServiceHealthView(OrgFilterMixin, APIView):
             # Strategy 2: Also get services from ProjectService (legacy)
             project_services = scope(ProjectService.objects.filter(
                 project__organisation=user_org, **cluster_kwargs,
-            ), request.user, 'batch.read').select_related('project')[:50]
-            
-            services_list = []
-            
-            # Process Service model entries
-            for service in org_services:
-                # Get issue stats for this service with SINGLE aggregation query
-                # This replaces 4 separate count() queries with 1 aggregate() query
-                service_filter = Q(description__icontains=service.name) | \
-                                Q(error_class__icontains=service.name) | \
-                                Q(component__icontains=service.name)
+            ), request.user, 'batch.read').select_related('project', 'gitlab_project')[:50]
 
-                stats = scope(Issue.objects.filter(
-                    batch__project__organisation=user_org,
-                    created_at__gte=since
-                ), request.user, 'issue.read').filter(service_filter).aggregate(
-                    total_issues=Count('id'),
-                    critical_count=Count('id', filter=Q(severity='CRITICAL')),
-                    error_count=Count('id', filter=Q(severity__in=['CRITICAL', 'WARNING'])),
-                    resolved_count=Count('id', filter=Q(status='RESOLVED'))
-                )
+            # One query for every service: open issues per (project, component),
+            # environment and cluster applied by the shared org filter.
+            stats = health_by_component(
+                self.filter_issues_by_org(request, Issue.objects.all()))
 
-                total_issues = stats['total_issues']
-                critical_count = stats['critical_count']
-                error_count = stats['error_count']
-                resolved_count = stats['resolved_count']
-                
-                # Calculate health score
-                if total_issues == 0:
-                    health_score = 100.0  # No issues = healthy
+            def tile(name, project_id, category, registry_status=None):
+                s = stats.get((project_id, name.lower()))
+                if s:
+                    score, status_val = s['health_score'], s['status']
                 else:
-                    # Base health minus penalties for unresolved issues
-                    unresolved = total_issues - resolved_count
-                    error_penalty = (unresolved / max(total_issues, 1)) * 60
-                    critical_penalty = (critical_count / max(total_issues, 1)) * 30
-                    health_score = 100 - error_penalty - critical_penalty
-                    health_score = max(0, min(100, health_score))
-                
-                # Determine status based on health score
-                if health_score >= 80:
-                    status_val = 'healthy'
-                elif health_score >= 50:
-                    status_val = 'degraded'
-                else:
-                    status_val = 'critical'
-                
-                # Also consider service status field
-                if service.status == 'error':
-                    status_val = 'critical'
-                    health_score = min(health_score, 30)
-                elif service.status == 'maintenance':
-                    status_val = 'degraded'
-                    health_score = min(health_score, 70)
-                
-                services_list.append({
-                    'name': service.name,
-                    'health_score': round(health_score, 1),
-                    'status': status_val,
-                    'total_issues': total_issues,
-                    'error_count': error_count,
-                    'critical_issues': critical_count,
-                    'category': service.category
-                })
-            
+                    score, status_val = health_score(0, 0)
+                if registry_status == 'error':
+                    score, status_val = min(score, DEGRADED_MIN - 1), 'Critical'
+                elif registry_status == 'maintenance' and status_val == 'Healthy':
+                    score, status_val = HEALTHY_MIN - 1, 'Degraded'
+                return {
+                    'name': name,
+                    'health_score': score,
+                    'status': status_val.lower(),
+                    'open_issues': s['open_issues'] if s else 0,
+                    'critical_issues': s['critical_issues'] if s else 0,
+                    'warning_issues': s['warning_issues'] if s else 0,
+                    # Open CRITICAL + WARNING, kept for the tile tooltip.
+                    'error_count': (s['critical_issues'] + s['warning_issues']) if s else 0,
+                    'category': category,
+                }
+
+            services_list = [
+                tile(service.name, service.project_id, service.category, service.status)
+                for service in org_services
+            ]
+
             # Process ProjectService entries (legacy services with GitLab)
-            seen_names = {s['name'].lower() for s in services_list}
-            
+            seen = {(s.project_id, s.name.lower()) for s in org_services}
             for ps in project_services:
                 service_name = ps.name or (ps.gitlab_project.name if ps.gitlab_project else None)
-                if not service_name or service_name.lower() in seen_names:
+                if not service_name or (ps.project_id, service_name.lower()) in seen:
                     continue
-                
-                # Get issue stats for this service with SINGLE aggregation query
-                service_filter = Q(description__icontains=service_name) | \
-                                Q(error_class__icontains=service_name) | \
-                                Q(component__icontains=service_name)
+                # D2 fix: real service_type values ('infrastructure',
+                # 'application', ...) so the heatmap groups services.
+                services_list.append(tile(service_name, ps.project_id, ps.service_type or 'other'))
+                seen.add((ps.project_id, service_name.lower()))
 
-                stats = scope(Issue.objects.filter(
-                    batch__project__organisation=user_org,
-                    created_at__gte=since
-                ), request.user, 'issue.read').filter(service_filter).aggregate(
-                    total_issues=Count('id'),
-                    critical_count=Count('id', filter=Q(severity='CRITICAL')),
-                    error_count=Count('id', filter=Q(severity__in=['CRITICAL', 'WARNING'])),
-                    resolved_count=Count('id', filter=Q(status='RESOLVED'))
-                )
-
-                total_issues = stats['total_issues']
-                critical_count = stats['critical_count']
-                error_count = stats['error_count']
-                resolved_count = stats['resolved_count']
-                
-                # Calculate health score
-                if total_issues == 0:
-                    health_score = 100.0
-                else:
-                    unresolved = total_issues - resolved_count
-                    error_penalty = (unresolved / max(total_issues, 1)) * 60
-                    critical_penalty = (critical_count / max(total_issues, 1)) * 30
-                    health_score = 100 - error_penalty - critical_penalty
-                    health_score = max(0, min(100, health_score))
-                
-                if health_score >= 80:
-                    status_val = 'healthy'
-                elif health_score >= 50:
-                    status_val = 'degraded'
-                else:
-                    status_val = 'critical'
-                
-                # D2 fix: was hard-coded ``'scm'`` for every ProjectService.
-                # Real service_type values are 'infrastructure',
-                # 'application', 'custom' etc. Using them lets the frontend
-                # heatmap group services meaningfully (databases together,
-                # apps together, workers together).
-                services_list.append({
-                    'name': service_name,
-                    'health_score': round(health_score, 1),
-                    'status': status_val,
-                    'total_issues': total_issues,
-                    'error_count': error_count,
-                    'critical_issues': critical_count,
-                    'category': ps.service_type or 'other',
-                })
-                seen_names.add(service_name.lower())
-            
             # Sort by health score (worst first for visibility)
             services_list.sort(key=lambda x: x['health_score'])
-            
+
             return Response({
                 'services': services_list[:12],  # Limit to 12 for grid
                 'total_services': len(services_list)
             })
-            
+
         except Exception as e:
             logger.error(f"Error getting service health: {e}")
             return Response({
@@ -432,6 +371,7 @@ class RootCauseStatsView(OrgFilterMixin, APIView):
                 return Response({
                     'breakdown': [],
                     'total_issues': 0,
+                    'period_days': days,
                     'message': 'No root cause data found'
                 })
             
@@ -451,7 +391,8 @@ class RootCauseStatsView(OrgFilterMixin, APIView):
             
             return Response({
                 'breakdown': breakdown,
-                'total_issues': total
+                'total_issues': total,
+                'period_days': days,
             })
             
         except Exception as e:
@@ -469,8 +410,9 @@ FLUX_CONTROLLERS = {'kustomize-controller', 'helm-controller', 'source-controlle
 
 class RecentDeploymentsView(OrgFilterMixin, APIView):
     """
-    Recent CI/CD deployments per service.
-    Returns the latest pipelines for each service with CI/CD configured.
+    Recent CI/CD deployments per service: the latest three pipeline runs
+    or GitOps deploys of each service with CI/CD configured, in the
+    selected environment and cluster. No time window.
     """
     permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
     
@@ -511,6 +453,10 @@ class RecentDeploymentsView(OrgFilterMixin, APIView):
             if cluster_id is not None:
                 services = services.filter(project__cluster_id=cluster_id)
 
+            # Environment filter: only that environment's runs and deploys.
+            environment = self._get_environment(request)
+            env_kwargs = {'environment__iexact': environment} if environment else {}
+
             deployments = []
 
             for service in services[:10]:  # Limit to 10 services
@@ -540,10 +486,10 @@ class RecentDeploymentsView(OrgFilterMixin, APIView):
                         'created_at': p.created_at.isoformat() if p.created_at else None,
                         'provider': p.cicd_provider,
                     }
-                    for p in Pipeline.objects.filter(pipeline_q, organisation=user_org).order_by('-created_at')[:3]
+                    for p in Pipeline.objects.filter(pipeline_q, organisation=user_org, **env_kwargs).order_by('-created_at')[:3]
                 ]
                 # GitOps deployments: no pipeline, recorded for the service.
-                for d in (Deployment.objects.filter(project_service=service, pipeline__isnull=True)
+                for d in (Deployment.objects.filter(project_service=service, pipeline__isnull=True, **env_kwargs)
                           .select_related('code_change').order_by('-deployed_at')[:3]):
                     entries.append({
                         'id': (d.code_change.commit_sha or '')[:8] if d.code_change else str(d.pk),
@@ -557,6 +503,9 @@ class RecentDeploymentsView(OrgFilterMixin, APIView):
                 entries.sort(key=lambda e: e['created_at'] or '', reverse=True)
                 entries = entries[:3]
 
+                if not entries and environment:
+                    # Nothing in the chosen environment: not a deployment of it.
+                    continue
                 if not entries:
                     # Nothing yet, still show service — with the CI it is
                     # bound to rather than assuming GitLab.
@@ -880,7 +829,8 @@ class SentinelStatsView(OrgFilterMixin, APIView):
             # rate over a list-price estimate because the org may be
             # using a mix of cheap and expensive models. Falls back to
             # 0.0 when there is no usage data yet (greenfield orgs).
-            cost_per_token, ai_spend_usd = self._derive_cost_rate(org_id, since, environment)
+            cost_per_token, ai_spend_usd = self._derive_cost_rate(
+                org_id, since, environment, cluster_id)
             estimated_cost_saved_usd = round(cost_per_token * estimated_tokens_saved, 4)
 
             return Response({
@@ -891,6 +841,9 @@ class SentinelStatsView(OrgFilterMixin, APIView):
                     'quiet': decision_map.get('quiet', 0),
                     'first': decision_map.get('first', 0),
                     'shadow': decision_map.get('shadow', 0),
+                    # A user asked for the analysis. Listed so the five
+                    # decisions add up to total_batches.
+                    'manual': decision_map.get('manual', 0),
                 },
                 'ai_analyzed': analyzed,
                 'ai_skipped': skipped,
@@ -907,7 +860,7 @@ class SentinelStatsView(OrgFilterMixin, APIView):
             return Response({
                 'period_days': days if 'days' in dir() else 7,
                 'total_batches': 0,
-                'decisions': {'alert': 0, 'quiet': 0, 'first': 0, 'shadow': 0},
+                'decisions': {'alert': 0, 'quiet': 0, 'first': 0, 'shadow': 0, 'manual': 0},
                 'ai_analyzed': 0,
                 'ai_skipped': 0,
                 'skip_rate_percent': 0,
@@ -918,10 +871,15 @@ class SentinelStatsView(OrgFilterMixin, APIView):
             })
 
     @staticmethod
-    def _derive_cost_rate(org_id, since, environment):
-        """Compute (cost_per_token_usd, total_spend_usd) from the org's
-        own recent AI token usage. Returns (0.0, 0.0) when there is no
-        usage data — the hero widget then shows $0 saved rather than
+    def _derive_cost_rate(org_id, since, environment=None, cluster_id=None):
+        """Return (cost_per_token_usd, spend_usd).
+
+        The rate is org-wide on purpose: the price of a token doesn't
+        depend on the environment, and a narrow slice may have no usage
+        of its own. The spend is the selected slice's: usage of batches
+        in that environment and cluster. With no filter it is all of the
+        org's AI spend, chat and postmortems included. (0.0, spend) when
+        there is no usage data, so the widget shows $0 saved rather than
         an invented figure."""
         from ai_model.models import AITokenUsage
         from django.db.models import Sum
@@ -929,13 +887,20 @@ class SentinelStatsView(OrgFilterMixin, APIView):
         qs = AITokenUsage.objects.filter(timestamp__gte=since)
         if org_id:
             qs = qs.filter(organisation_id=org_id)
-        # AITokenUsage doesn't carry environment directly; the batch FK
-        # does, but cost is per-call and the rate is the same regardless
-        # of environment, so we skip environment filtering here.
 
         agg = qs.aggregate(tokens=Sum('tokens_total'), cost=Sum('cost_usd'))
         total_tokens = agg['tokens'] or 0
         total_cost = float(agg['cost'] or 0)
+
+        spend = total_cost
+        if environment and environment != 'all' or cluster_id is not None:
+            sliced = qs
+            if environment and environment != 'all':
+                sliced = sliced.filter(batch__environment__iexact=environment)
+            if cluster_id is not None:
+                sliced = sliced.filter(batch__project__cluster_id=cluster_id)
+            spend = float(sliced.aggregate(cost=Sum('cost_usd'))['cost'] or 0)
+
         if total_tokens <= 0:
-            return 0.0, total_cost
-        return total_cost / total_tokens, total_cost
+            return 0.0, spend
+        return total_cost / total_tokens, spend

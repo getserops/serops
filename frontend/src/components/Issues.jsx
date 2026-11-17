@@ -11,6 +11,7 @@ import InvestigationService from "../services/investigation.service";
 import PageHeader from "./PageHeader";
 import IssuePanel, { StatusChip } from "./issues/IssuePanel";
 import { useCluster } from "../context/ClusterContext";
+import useFilterUrlSync from "../hooks/useFilterUrlSync";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import "./Issues.css";
 
@@ -101,7 +102,11 @@ const Issues = () => {
   const { t } = useTranslation();
   const { batchId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { clusterId } = useCluster();
+  // Environment and cluster are the global filter (top bar), kept in the URL.
+  const { clusterId, filter: deploymentFilter, setField } = useCluster();
+  useFilterUrlSync(!batchId);
+  const environmentFilter = deploymentFilter.environment || "";
+  const setEnvironmentFilter = (value) => setField("environment", value);
   const [currentPage, setCurrentPage] = useState(
     parseInt(searchParams.get("page") || "1")
   );
@@ -122,7 +127,6 @@ const Issues = () => {
   );
   const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
   const [projectFilter, setProjectFilter] = useState(searchParams.get("project") || "");
-  const [environmentFilter, setEnvironmentFilter] = useState(searchParams.get("environment") || "");
   const [componentFilter, setComponentFilter] = useState(searchParams.get("component") || "");
   const [sinceFilter, setSinceFilter] = useState(searchParams.get("since") || "");
   const [scopeOptions, setScopeOptions] = useState({ projects: [] });
@@ -226,11 +230,11 @@ const Issues = () => {
     if (statusFilter !== "All") params.status = statusFilter.toUpperCase();
     if (debouncedSearch) params.search = debouncedSearch;
     if (projectFilter) params.project = projectFilter;
-    if (environmentFilter) params.environment = environmentFilter;
     if (componentFilter) params.component = componentFilter;
     if (sinceFilter) params.since_hours = sinceFilter;
-    // Cluster picker (Item #19) — only applied when set + not viewing a
-    // single batch's issues (that batch already implies its cluster).
+    // Environment and cluster — only when not viewing a single batch's
+    // issues (that batch already implies both).
+    if (environmentFilter && !batchId) params.environment = environmentFilter;
     if (clusterId != null && !batchId) params.cluster = clusterId;
     return params;
   }, [currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, projectFilter, environmentFilter, componentFilter, sinceFilter, clusterId, batchId]);
@@ -273,12 +277,18 @@ const Issues = () => {
     if (sortDir !== "desc") params.sort_dir = sortDir;
     if (debouncedSearch) params.search = debouncedSearch;
     if (projectFilter) params.project = projectFilter;
-    if (environmentFilter) params.environment = environmentFilter;
     if (componentFilter) params.component = componentFilter;
     if (sinceFilter) params.since = sinceFilter;
     if (panelIssueId) params.id = panelIssueId;
-    setSearchParams(params);
-  }, [currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, projectFilter, environmentFilter, componentFilter, sinceFilter, panelIssueId, setSearchParams]);
+    // environment / cluster belong to useFilterUrlSync: carry them over.
+    setSearchParams((prev) => {
+      const next = { ...params };
+      for (const key of ["environment", "cluster"]) {
+        if (prev.get(key) !== null) next[key] = prev.get(key);
+      }
+      return next;
+    });
+  }, [currentPage, severityFilter, statusFilter, sortBy, sortDir, debouncedSearch, projectFilter, componentFilter, sinceFilter, panelIssueId, setSearchParams]);
 
   // Project / environment / service choices for the filters.
   useEffect(() => {
@@ -626,8 +636,11 @@ const Issues = () => {
     setCurrentPage(1);
   };
   const scopeProject = scopeOptions.projects.find((p) => String(p.id) === String(projectFilter));
-  const environmentChoices = [...new Set((scopeProject ? [scopeProject] : scopeOptions.projects)
-    .flatMap((p) => p.environments.map((e) => e.name)))].sort();
+  // The global environment is listed even when this project lacks it.
+  const environmentChoices = [...new Set([
+    ...(scopeProject ? [scopeProject] : scopeOptions.projects).flatMap((p) => p.environments.map((e) => e.name)),
+    ...(environmentFilter ? [environmentFilter] : []),
+  ])].sort();
   const serviceChoices = [...new Set((scopeProject ? [scopeProject] : scopeOptions.projects)
     .flatMap((p) => p.services))].sort();
   const selectedIssues = issuesData.filter((i) => selectedIds.has(i.id));
@@ -809,7 +822,7 @@ const Issues = () => {
             <>
               <Form.Select value={projectFilter} size="sm" className="issues-scope-select"
                            aria-label={t('issues.filters.project')}
-                           onChange={(e) => { setProjectFilter(e.target.value); setEnvironmentFilter(''); setComponentFilter(''); setCurrentPage(1); }}>
+                           onChange={(e) => { setProjectFilter(e.target.value); setComponentFilter(''); setCurrentPage(1); }}>
                 <option value="">{t('issues.filters.allProjects')}</option>
                 {scopeOptions.projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </Form.Select>

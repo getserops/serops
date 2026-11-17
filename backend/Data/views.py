@@ -21,6 +21,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from Projects.models import Project
 from .audit import log_batch_delete
+from .health import health_by_component, overall_health
 
 
 logger = logging.getLogger(__name__)
@@ -692,6 +693,15 @@ class BatchDetailView(OrgFilterMixin, APIView):
             )
 
 
+def _filter_issue_status(request, issues):
+    """Optional ``?status=OPEN|MUTED|RESOLVED``: the Overview's tiles count
+    open issues only. Without it every issue counts, as before."""
+    wanted = request.query_params.get('status', '').strip().upper()
+    if wanted in dict(Issue.STATUS_CHOICES):
+        return issues.filter(status=wanted)
+    return issues
+
+
 #recommendation stats
 class RecommendationStatsView(OrgFilterMixin, APIView):
     """
@@ -708,7 +718,8 @@ class RecommendationStatsView(OrgFilterMixin, APIView):
             logger.info('Starting recommendation statistics calculation from database...')
             
             # Filter by user's organization
-            base_issues = self.filter_by_org(request, Issue.objects.all(), 'issue')
+            base_issues = _filter_issue_status(
+                request, self.filter_by_org(request, Issue.objects.all(), 'issue'))
             base_batches = self.filter_by_org(request, AIAnalyzedBatch.objects.all(), 'batch')
             
             from django.db.models import Q, Count
@@ -799,7 +810,8 @@ class IssueStatsView(OrgFilterMixin, APIView):
             logger.info('Starting issue statistics calculation from database...')
             
             # Filter issues by user's organization
-            base_issues = self.filter_by_org(request, Issue.objects.all(), 'issue')
+            base_issues = _filter_issue_status(
+                request, self.filter_by_org(request, Issue.objects.all(), 'issue'))
             base_batches = self.filter_by_org(request, AIAnalyzedBatch.objects.all(), 'batch')
             
             # Aggregate counts by severity
@@ -1844,88 +1856,28 @@ class DeleteOldBatchesView(APIView):
 
 class SystemHealthView(OrgFilterMixin, APIView):
     """
-    Calculate system health score (0-100) based on recent issues.
-    Requires authentication. Only counts issues from user's organization.
+    System health score (0-100) for the selected environment and cluster.
+
+    Scored from the issues that are open NOW, whatever their age, with a
+    small bonus for issues resolved in the last 24 hours. Formula and
+    thresholds: Data/health.py (shared with the Service Health Map and
+    Top Failing Services).
     """
     permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
-    
+
     def get(self, request):
-        """
-        Calculate system health score (0-100) based on recent issues.
-        Uses ratio-based scoring that scales with system size:
-        - Resolution ratio: what % of issues are resolved (higher = healthier)
-        - Critical ratio: what % of open issues are critical (higher = worse)
-        Period: Last 24 hours by default.
-        """
         try:
-            import math
-
-            # Time window: last 24 hours — used for resolved-in-window
-            # bonus + activity-freshness hints only. Health itself now
-            # reflects the CURRENT open state (bug fixed 2027-03):
-            # previously we filtered ``recent_issues`` to only issues
-            # ``created_at__gte=last_24h``, so an org with 9 open
-            # critical issues from three days ago returned total=0
-            # and health_score=100. Users trusted a green 100% while
-            # actual reliability was on fire.
-            last_24h = timezone.now() - timedelta(hours=24)
-
             base_queryset = self.filter_by_org(request, Issue.objects.all(), 'issue')
-
-            # Currently-open issues drive the score.
-            open_qs = base_queryset.filter(status='OPEN')
-            recent_qs = base_queryset.filter(created_at__gte=last_24h)
-
-            open_stats = open_qs.aggregate(
-                open_count=Count('id'),
-                critical=Count('id', filter=Q(severity='CRITICAL')),
-                warning=Count('id', filter=Q(severity='WARNING')),
-            )
-            recent_stats = recent_qs.aggregate(
-                total=Count('id'),
-                resolved=Count('id', filter=Q(status='RESOLVED')),
-            )
-
-            open_count = open_stats['open_count']
-            critical_count = open_stats['critical']
-            warning_count = open_stats['warning']
-            resolved_count = recent_stats['resolved']
-            total = recent_stats['total']  # kept for API response compat
-
-            if open_count == 0:
-                # No open issues → healthy. A resolved-in-last-24h
-                # bonus is implicit (they've been cleared).
-                health_score = 100
-            else:
-                # Base 100, subtract per open issue by severity, cap
-                # at 0. Weights tuned so a single critical drags
-                # health into "Degraded" and three criticals push
-                # into "Critical".
-                penalty = (
-                    critical_count * 20
-                    + warning_count * 6
-                    + max(0, open_count - critical_count - warning_count) * 2
-                )
-                # Small bonus for freshly-resolved work in the last
-                # 24h (rewarded, but never enough to hide open pain).
-                recovery_bonus = min(10, resolved_count * 2)
-                health_score = round(max(0, min(100, 100 - penalty + recovery_bonus)))
-
-            status_label = "Healthy"
-            if health_score < 60:
-                status_label = "Critical"
-            elif health_score < 85:
-                status_label = "Degraded"
-
+            health = overall_health(base_queryset)
             return Response({
-                "health_score": health_score,
-                "status": status_label,
+                "health_score": health['health_score'],
+                "status": health['status'],
                 "metrics": {
-                    "critical_last_24h": critical_count,
-                    "warning_last_24h": warning_count,
-                    "resolved_last_24h": resolved_count,
-                    "open_last_24h": open_count
-                }
+                    "open_critical": health['critical_issues'],
+                    "open_warning": health['warning_issues'],
+                    "open_total": health['open_issues'],
+                    "resolved_last_24h": health['resolved_last_24h'],
+                },
             })
         except Exception as e:
             logger.error(f"Error calculating health score: {str(e)}")
@@ -1934,32 +1886,32 @@ class SystemHealthView(OrgFilterMixin, APIView):
 
 class ServiceReliabilityView(OrgFilterMixin, APIView):
     """
-    Return top failing services/components based on issue count.
-    Requires authentication. Filters by user's organization for data isolation.
+    Top failing services: the five components with the worst health
+    score, from their open issues (Data/health.py, the same formula and
+    thresholds as System Health and the Service Health Map). A component
+    with no open issue is healthy and never listed.
     """
     permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
-    
+
     def get(self, request):
         try:
-            # Filter by user's organization
             base_issues = self.filter_by_org(request, Issue.objects.all(), 'issue')
-
-            # Get top 5 failing components by component name
-            top_components = base_issues.exclude(
-                component__isnull=True
-            ).exclude(
-                component__exact=''
-            ).values('component').annotate(
-                count=Count('id')
-            ).order_by('-count')[:5]
-
-            # Format for frontend
-            result = [
-                {'name': item['component'], 'count': item['count']}
-                for item in top_components
-            ]
-
-            return Response(result)
+            failing = [c for c in health_by_component(base_issues).values() if c['open_issues']]
+            # The same name in two projects is one bar, scored on its worst project.
+            by_name = {}
+            for c in sorted(failing, key=lambda c: (c['health_score'], -c['open_issues'])):
+                by_name.setdefault(c['component'].lower(), c)
+            top = sorted(by_name.values(), key=lambda c: (c['health_score'], -c['open_issues']))[:5]
+            return Response([
+                {
+                    'name': c['component'],
+                    'count': c['open_issues'],
+                    'critical': c['critical_issues'],
+                    'health_score': c['health_score'],
+                    'status': c['status'].lower(),
+                }
+                for c in top
+            ])
 
         except Exception as e:
             logger.error(f"Error getting service reliability: {str(e)}")

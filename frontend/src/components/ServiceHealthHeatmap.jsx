@@ -55,7 +55,7 @@ const ServiceHealthHeatmap = ({ data, loading }) => {
             <div className="chart-card service-heatmap">
                 <div className="chart-header">
                     <h2><FaMapMarkedAlt className="chart-icon" aria-hidden="true" /> {t('dashboard.serviceHealthMap')}</h2>
-                    <span className="chart-subtitle">{t('dashboard.realTimeStatus')}</span>
+                    <span className="chart-subtitle">{t('dashboard.window.openNow')}</span>
                 </div>
                 <div className="chart-container">
                     <p style={{ textAlign: 'center', color: '#8b96a5', padding: '40px' }}>
@@ -70,7 +70,7 @@ const ServiceHealthHeatmap = ({ data, loading }) => {
         <div className="chart-card service-heatmap">
             <div className="chart-header">
                 <h2><FaMapMarkedAlt className="chart-icon" aria-hidden="true" /> {t('dashboard.serviceHealthMap')}</h2>
-                <span className="chart-subtitle">{t('dashboard.servicesMonitored', { count: total_services })}</span>
+                <span className="chart-subtitle">{t('dashboard.servicesMonitored', { count: total_services })} · {t('dashboard.window.openNow')}</span>
             </div>
             <div className="heatmap-container">
                 <div className="heatmap-grid">
@@ -84,7 +84,7 @@ const ServiceHealthHeatmap = ({ data, loading }) => {
                                     backgroundColor: statusInfo.bgColor,
                                     color: statusInfo.textColor
                                 }}
-                                title={`${service.name}\nHealth: ${service.health_score}%\nErrors: ${service.error_count}\nCritical: ${service.critical_issues}`}
+                                title={`${service.name}\nHealth: ${service.health_score}%\nOpen issues: ${service.open_issues}\nOpen critical: ${service.critical_issues}`}
                             >
                                 <div className="tile-icon">{statusInfo.icon}</div>
                                 <div className="tile-name">{service.name}</div>

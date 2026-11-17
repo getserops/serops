@@ -159,6 +159,8 @@ class TestServiceHealthPerformance(TestCase):
                 severity='CRITICAL',
                 status='OPEN',
                 fingerprint=f'fp-agg-crit-{i}',
+                component='test-service-agg',
+                organisation=self.org,
                 description=f'Critical issue in test-service-agg',
                 created_at=timezone.now()
             )
@@ -171,6 +173,8 @@ class TestServiceHealthPerformance(TestCase):
                 severity='WARNING',
                 status='RESOLVED' if i == 0 else 'OPEN',
                 fingerprint=f'fp-agg-warn-{i}',
+                component='test-service-agg',
+                organisation=self.org,
                 description=f'Warning issue in test-service-agg',
                 created_at=timezone.now()
             )
@@ -182,6 +186,8 @@ class TestServiceHealthPerformance(TestCase):
             severity='INFO',
             status='OPEN',
             fingerprint='fp-agg-info-0',
+            component='test-service-agg',
+            organisation=self.org,
             description='Info issue in test-service-agg',
             created_at=timezone.now()
         )
@@ -206,11 +212,16 @@ class TestServiceHealthPerformance(TestCase):
             f"{service_names}. Full response: {response.data}"
         )
 
-        # Verify counts
-        self.assertEqual(our_service['total_issues'], 6, "Should have 6 total issues")
-        self.assertEqual(our_service['critical_issues'], 3, "Should have 3 critical issues")
-        # error_count includes CRITICAL + WARNING = 5
-        self.assertEqual(our_service['error_count'], 5, "Should have 5 error-level issues")
+        # Open issues only: the resolved warning no longer counts.
+        self.assertEqual(our_service['open_issues'], 5)
+        self.assertEqual(our_service['critical_issues'], 3)
+        self.assertEqual(our_service['warning_issues'], 1)
+        # error_count = open CRITICAL + WARNING
+        self.assertEqual(our_service['error_count'], 4)
+        # Shared formula (Data/health.py): 100 - 3x20 - 1x6 - 1x2 = 32,
+        # + 2 for the warning resolved just now (save() stamps resolved_at).
+        self.assertEqual(our_service['health_score'], 34)
+        self.assertEqual(our_service['status'], 'critical')
 
 
 class TestServiceHealthScaling(TestCase):

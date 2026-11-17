@@ -38,8 +38,7 @@
     "systemHealth": "System Health Dashboard",
     "realTimeMonitoring": "Real-time monitoring and AI-driven insights",
     "noData": "No data available",
-    "aiInsights": "AI Insights",
-    "active": "Active",
+    "aiInsights": "AI recommendations",
     "totalIssues": "Total Issues",
     "needsAttention": "Needs attention",
     "allClear": "All clear",
@@ -52,9 +51,9 @@
     "realTimeStatus": "Real-time service status",
     "servicesMonitored": "{{count}} services monitored",
     "noServiceData": "No service data available",
-    "healthy": "Healthy (80-100%)",
-    "degraded": "Degraded (50-79%)",
-    "criticalStatus": "Critical (<50%)",
+    "healthy": "Healthy (85-100%)",
+    "degraded": "Degraded (60-84%)",
+    "criticalStatus": "Critical (<60%)",
     "topFailingServices": "Top Failing Services",
     "mostFrequentRootCauses": "Most frequent root causes",
     "noFailureData": "No failure data available",
@@ -79,12 +78,12 @@
     "success": "success",
     "noPipelinesYet": "No pipelines yet",
     "healthTitle": "System Health",
-    "basedOnLast24h": "Based on last 24h",
     "mttr": "Mean Time To Resolve",
     "trend": {
       "improving": "Improving",
       "degrading": "Degrading",
-      "stable": "Stable"
+      "stable": "Stable",
+      "insufficient": "Not enough data for a trend"
     },
     "statusLabels": {
       "healthy": "Healthy",
@@ -124,17 +123,15 @@
     "daysAgo": "{{count}}d ago",
     "totalAnalyses": "{{count}} total analyses",
     "noSummary": "Analysis completed",
-    "byIssueCount": "By issue count",
     "envAll": "All",
     "correlationInsights": "AI Correlation Insights",
-    "correlationSubtitle": "Issues linked to deployments & metric spikes",
+    "correlationSubtitle": "Issues linked to commits, metric spikes & failed pipelines",
     "noCorrelationData": "No correlation data available yet",
     "issuesCorrelated": "of issues correlated",
-    "deploymentLinks": "Deployment Links",
     "memorySpikes": "Memory Spikes",
     "cpuSpikes": "CPU Spikes",
     "pipelineFailures": "Pipeline Failures",
-    "topAffected": "Top Affected",
+    "topAffected": "Most correlated components",
     "viewAllAnalyses": "View all {{count}} analyses",
     "attention": {
       "title": "Needs attention now",
@@ -148,7 +145,29 @@
     },
     "overviewSubtitle": "What's broken, why, and what to do.",
     "autoRefresh": "Live · refreshes every minute",
-    "trendsTitle": "Trends"
+    "trendsTitle": "Trends",
+    "onOpenIssues": "On open issues",
+    "openCritical": "Open critical",
+    "healthWindow": "Open issues now",
+    "worstHealthFirst": "Worst health first",
+    "openIssues_one": "{{count}} open issue",
+    "openIssues_other": "{{count}} open issues",
+    "commitLinks": "Commit links",
+    "mttrSample": "n = {{count}}",
+    "notEnoughData": "Not enough data",
+    "window": {
+      "openNow": "Open issues now",
+      "lastDays_one": "Last {{count}} day",
+      "lastDays_other": "Last {{count}} days",
+      "latestRuns": "Latest {{count}} runs per service",
+      "latestAnalyses": "Latest {{count}} analyses"
+    },
+    "sentinel": {
+      "decisionsHint": "Alert, quiet, first, shadow and manual add up to {{count}} batches.",
+      "analysed": "{{analysed}} of {{total}} batches analysed by AI",
+      "shadow": "Shadow",
+      "manual": "Manual"
+    }
   },
   "data": {
     "title": "Data",

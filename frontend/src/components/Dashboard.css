@@ -760,6 +760,13 @@
     margin-top: var(--space-1);
 }
 
+/* The time window (and sample) a number covers, under its label. */
+.panel-window {
+    display: block;
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+}
+
 /* ============ EXTENDED GRID ============ */
 .extended-grid> :first-child {
     grid-column: span 2;

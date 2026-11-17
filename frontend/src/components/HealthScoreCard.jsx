@@ -80,7 +80,7 @@ const HealthScoreCard = ({ score, status, loading }) => {
                         <Icon className="status-icon" />
                         {t(`dashboard.statusLabels.${status?.toLowerCase()}`, { defaultValue: status })}
                     </div>
-                    <div className="health-subtitle">{t('dashboard.basedOnLast24h')}</div>
+                    <div className="health-subtitle">{t('dashboard.healthWindow')}</div>
                 </div>
             </div>
         </div>

@@ -1,8 +1,10 @@
 import React from 'react';
-import { FaShieldAlt, FaBell, FaVolumeMute, FaStar, FaEyeSlash, FaDollarSign } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
+import { FaShieldAlt, FaBell, FaVolumeMute, FaStar, FaEyeSlash, FaDollarSign, FaUser, FaFlask } from 'react-icons/fa';
 import './Dashboard.css';
 
 const SentinelStatsCard = ({ data, loading }) => {
+    const { t } = useTranslation();
     if (loading) {
         return (
             <div className="chart-card sentinel-stats-card">
@@ -12,8 +14,10 @@ const SentinelStatsCard = ({ data, loading }) => {
     }
 
     const {
+        period_days = 7,
         total_batches = 0,
         decisions = {},
+        ai_analyzed = 0,
         ai_skipped = 0,
         skip_rate_percent = 0,
         estimated_tokens_saved = 0,
@@ -42,7 +46,7 @@ const SentinelStatsCard = ({ data, loading }) => {
         <div className="chart-card sentinel-stats-card">
             <div className="chart-header">
                 <h2><FaShieldAlt className="chart-icon" /> Sentinel Intelligence</h2>
-                <span className="chart-subtitle">AI gating decisions &amp; savings</span>
+                <span className="chart-subtitle">AI gating decisions &amp; savings · {t('dashboard.window.lastDays', { count: period_days })}</span>
             </div>
 
             {!hasData ? (
@@ -65,7 +69,7 @@ const SentinelStatsCard = ({ data, loading }) => {
                                 <div>
                                     <div className="small">
                                         <FaDollarSign className="me-1" />
-                                        Saved this week by Sentinel
+                                        Saved by Sentinel
                                     </div>
                                     <div style={{ fontSize: '1.75rem', fontWeight: 700 }}>
                                         {formatUsd(estimated_cost_saved_usd)}
@@ -118,7 +122,30 @@ const SentinelStatsCard = ({ data, loading }) => {
                                 <span className="corr-stat-label">First</span>
                             </div>
                         </div>
+
+                        {/* Shadow and manual batches too, so the buckets add up to the total. */}
+                        {decisions.shadow > 0 && (
+                            <div className="corr-stat">
+                                <div className="corr-stat-icon"><FaFlask /></div>
+                                <div className="corr-stat-info">
+                                    <span className="corr-stat-value">{decisions.shadow}</span>
+                                    <span className="corr-stat-label">{t('dashboard.sentinel.shadow')}</span>
+                                </div>
+                            </div>
+                        )}
+                        {decisions.manual > 0 && (
+                            <div className="corr-stat">
+                                <div className="corr-stat-icon"><FaUser /></div>
+                                <div className="corr-stat-info">
+                                    <span className="corr-stat-value">{decisions.manual}</span>
+                                    <span className="corr-stat-label">{t('dashboard.sentinel.manual')}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
+                    <p className="panel-window" title={t('dashboard.sentinel.decisionsHint', { count: total_batches })}>
+                        {t('dashboard.sentinel.analysed', { analysed: ai_analyzed, total: total_batches })}
+                    </p>
 
                     {/* Detail row — drilldown beneath the hero number */}
                     {ai_skipped > 0 && (

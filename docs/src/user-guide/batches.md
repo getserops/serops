@@ -16,7 +16,7 @@ A batch is a snapshot of your system at a point in time:
 | `timestamp` | When the batch was created |
 | `logs_analyzed` | Number of log entries |
 | `issue_count` | Number of issues found |
-| `environment` | dev, staging, or production |
+| `environment` | development, staging, or production |
 | `model_name` | AI model used for analysis |
 
 ---

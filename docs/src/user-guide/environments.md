@@ -89,10 +89,12 @@ Add environments beyond the defaults:
 
 The **Environment** picker at the top left of every page filters the whole
 app: Overview, Issues, Analyses, traces and the rest follow the same choice.
-Pick **All environments** or one of production, staging and dev (an
+Pick **All environments** or one of production, staging and development (an
 environment set elsewhere, for example from a shared link, is listed too).
 Organisations with registered Kubernetes clusters also get a **Cluster**
-picker next to it.
+picker next to it. On the Overview, Issues and Analyses pages both choices
+are kept in the address (`?environment=staging&cluster=3`), so a link or a
+bookmark opens the same view.
 
 On the **Analyses** page each analysis shows its environment as a badge.
 

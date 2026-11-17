@@ -20,7 +20,7 @@ const AIAnalysisFeed = ({ data, loading }) => {
             <div className="chart-card analysis-feed-card">
                 <div className="chart-header">
                     <h2><FaRobot className="chart-icon" /> {t('dashboard.aiAnalysisFeed', 'Recent AI Analyses')}</h2>
-                    <span className="chart-subtitle">{t('dashboard.latestFindings', 'Latest findings from AI analysis')}</span>
+                    <span className="chart-subtitle">{t('dashboard.latestFindings', 'Latest findings from AI analysis')} · {t('dashboard.window.latestAnalyses', { count: FEED_SIZE })}</span>
                 </div>
                 <div className="feed-skeleton">
                     {[1, 2, 3].map(i => (
@@ -42,7 +42,7 @@ const AIAnalysisFeed = ({ data, loading }) => {
             <div className="chart-card analysis-feed-card">
                 <div className="chart-header">
                     <h2><FaRobot className="chart-icon" /> {t('dashboard.aiAnalysisFeed', 'Recent AI Analyses')}</h2>
-                    <span className="chart-subtitle">{t('dashboard.latestFindings', 'Latest findings from AI analysis')}</span>
+                    <span className="chart-subtitle">{t('dashboard.latestFindings', 'Latest findings from AI analysis')} · {t('dashboard.window.latestAnalyses', { count: FEED_SIZE })}</span>
                 </div>
                 <div className="no-data-message">
                     {t('dashboard.noAnalysisData', 'No AI analyses available yet. Analyses run automatically on log batches.')}
@@ -80,7 +80,7 @@ const AIAnalysisFeed = ({ data, loading }) => {
             <div className="chart-header">
                 <h2><FaRobot className="chart-icon" /> {t('dashboard.aiAnalysisFeed', 'Recent AI Analyses')}</h2>
                 <span className="chart-subtitle">
-                    {t('dashboard.totalAnalyses', '{{count}} total analyses', { count: total_analyses })}
+                    {t('dashboard.totalAnalyses', '{{count}} total analyses', { count: total_analyses })} · {t('dashboard.window.latestAnalyses', { count: FEED_SIZE })}
                 </span>
             </div>
 

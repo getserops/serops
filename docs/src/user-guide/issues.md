@@ -123,7 +123,7 @@ SerOps uses **fingerprint-based deduplication** to prevent duplicate issues whil
    - Issue type (MEMORY_HIGH, CPU_HIGH, etc.)
    - Scope (SERVICE, INFRASTRUCTURE, PIPELINE)
    - Component (normalized service name)
-   - Environment (dev, staging, production)
+   - Environment (development, staging, production)
    - **Error Class** (v3) - AI-classified error category
    - **Error Target** (v3) - Specific failing item
 

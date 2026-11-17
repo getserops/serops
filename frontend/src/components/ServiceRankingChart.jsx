@@ -12,7 +12,7 @@ const ServiceRankingChart = ({ data, loading }) => {
             return (
                 <div className="chart-tooltip">
                     <p className="tooltip-label">{payload[0].payload.name || t('dashboard.unknownService')}</p>
-                    <p className="tooltip-value">{payload[0].value} {t('issues.title').toLowerCase()}</p>
+                    <p className="tooltip-value">{t('dashboard.openIssues', { count: payload[0].value })} · {payload[0].payload.health_score}%</p>
                 </div>
             );
         }
@@ -33,7 +33,7 @@ const ServiceRankingChart = ({ data, loading }) => {
             <div className="chart-card">
                 <div className="chart-header">
                     <h2><FaServer className="chart-icon" /> {t('dashboard.topFailingServices')}</h2>
-                    <span className="chart-subtitle">{t('dashboard.byIssueCount', 'By issue count')}</span>
+                    <span className="chart-subtitle">{t('dashboard.window.openNow')} · {t('dashboard.worstHealthFirst')}</span>
                 </div>
                 <div className="no-data-message">
                     {t('dashboard.noFailureData')}
@@ -46,7 +46,7 @@ const ServiceRankingChart = ({ data, loading }) => {
         <div className="chart-card">
             <div className="chart-header">
                 <h2><FaServer className="chart-icon" /> {t('dashboard.topFailingServices')}</h2>
-                <span className="chart-subtitle">{t('dashboard.byIssueCount', 'By issue count')}</span>
+                <span className="chart-subtitle">{t('dashboard.window.openNow')} · {t('dashboard.worstHealthFirst')}</span>
             </div>
 
             <div className="chart-container">

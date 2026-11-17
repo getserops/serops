@@ -8,13 +8,23 @@ Endpoints for retrieving system health scores, service reliability metrics, tren
 
 These endpoints power the SerOps dashboard and provide aggregated insights across all projects and services.
 
+The `/api/data/analytics/` endpoints, Recommendation Stats and Issue Stats take the optional `environment` (an environment name, or `all`) and `cluster` (a cluster id, or `all`) query parameters and return only that slice.
+
 ## System Health
 
 ```
 GET /api/data/analytics/health/
 ```
 
-Returns the overall system health score and breakdown by category.
+Returns the health score of the issues open now, whatever their age. The formula and thresholds are in [How health is scored](../user-guide/dashboard.md#how-health-is-scored); the Service Health Map and Service Reliability use the same ones.
+
+```json
+{
+  "health_score": 74,
+  "status": "Degraded",
+  "metrics": {"open_critical": 1, "open_warning": 1, "open_total": 2, "resolved_last_24h": 0}
+}
+```
 
 ## Service Reliability
 
@@ -22,7 +32,7 @@ Returns the overall system health score and breakdown by category.
 GET /api/data/analytics/services/
 ```
 
-Returns per-service reliability scores based on recent batch analysis.
+Returns the five components (services) with the lowest health score from their open issues, worst first: `name`, `count` (open issues), `critical` (open critical issues), `health_score` and `status` (`healthy`, `degraded`, `critical`). A component with no open issue is not listed.
 
 ## Trend Analysis
 
@@ -38,7 +48,7 @@ Returns issue counts over time, grouped by severity. Useful for visualising whet
 GET /api/data/analytics/mttr/
 ```
 
-Returns Mean Time To Resolution metrics, showing how quickly issues are being resolved across the organisation.
+Returns the mean time to resolution of the issues created in the last `days` (default 30) and resolved since: `overall_mttr_hours` (`null` with no sample), `sample_size`, `period_days`, `by_severity` (`CRITICAL`, `WARNING`, `INFO`, `OTHER`, each with `avg_hours` and `count`) and `trend`: `IMPROVING`, `DEGRADING` or `STABLE`, or `INSUFFICIENT_DATA` below `min_sample_for_trend` (12) resolved issues.
 
 ## Service Health Map
 
@@ -46,7 +56,7 @@ Returns Mean Time To Resolution metrics, showing how quickly issues are being re
 GET /api/data/analytics/service-health/
 ```
 
-Returns heatmap data for all services, showing health status across time periods.
+Returns one entry per registered service (up to 12, worst first) with `health_score`, `status`, `open_issues`, `critical_issues`, `warning_issues` and `error_count` (open critical + warning). A service's issues are the open issues whose component is the service's name, in its project.
 
 ## Root Cause Statistics
 
@@ -62,7 +72,7 @@ Returns the distribution of root cause categories (e.g., memory, CPU, database, 
 GET /api/data/analytics/deployments/
 ```
 
-Returns the latest deployment events across all projects. Useful for correlating deployments with issue spikes.
+Returns the latest three pipeline runs or GitOps deploys of each service with CI/CD configured. With `environment`, only that environment's runs, and only the services that have one.
 
 ## Correlation Insights
 
@@ -110,7 +120,7 @@ Returns raw node CPU samples from the configured metric provider.
 GET /api/data/recommendation-stats/
 ```
 
-Returns statistics on AI-generated recommendations (total, accepted, dismissed).
+Returns how many issues carry an AI recommendation, split into immediate (critical issues) and long term. `status=OPEN` (or `MUTED`, `RESOLVED`) counts only issues in that state; the Overview's **AI recommendations** card uses `status=OPEN`.
 
 ## Issue Stats
 
@@ -118,7 +128,7 @@ Returns statistics on AI-generated recommendations (total, accepted, dismissed).
 GET /api/data/issue-stats/
 ```
 
-Returns aggregate issue statistics (open, resolved, muted counts) across the organisation.
+Returns issue counts by severity. `status=OPEN` (or `MUTED`, `RESOLVED`) counts only issues in that state; the Overview's **Open critical** card uses `status=OPEN`.
 
 ## Sentinel Stats
 
@@ -134,6 +144,7 @@ Returns Sentinel decision distribution and AI savings statistics.
 |-----------|------|---------|-------------|
 | `days` | integer | 7 | Lookback period in days |
 | `environment` | string | all | Filter by environment name |
+| `cluster` | integer | all | Filter by cluster id |
 
 **Response:**
 
@@ -145,7 +156,8 @@ Returns Sentinel decision distribution and AI savings statistics.
     "alert": 18,
     "quiet": 120,
     "first": 5,
-    "shadow": 7
+    "shadow": 7,
+    "manual": 0
   },
   "ai_analyzed": 30,
   "ai_skipped": 120,
@@ -156,11 +168,13 @@ Returns Sentinel decision distribution and AI savings statistics.
 
 | Field | Description |
 |-------|-------------|
-| `decisions` | Count of each sentinel decision type |
+| `decisions` | Count of each sentinel decision type; the five add up to `total_batches` |
 | `ai_analyzed` | Batches that received full AI analysis |
 | `ai_skipped` | Batches where AI was skipped (active mode, quiet decision) |
 | `skip_rate_percent` | Percentage of batches that skipped AI |
 | `estimated_tokens_saved` | Average tokens per analysis × skipped count |
+| `ai_spend_usd` | AI spend in the window: the selected environment and cluster's batches when filtered, the whole organisation's otherwise |
+| `estimated_cost_saved_usd` | Tokens saved × the organisation's cost per token in the window |
 
 ---
 

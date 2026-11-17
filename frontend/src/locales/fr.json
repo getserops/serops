@@ -38,8 +38,7 @@
     "systemHealth": "Tableau de Bord de Santé Système",
     "realTimeMonitoring": "Surveillance en temps réel et analyses IA",
     "noData": "Aucune donnée disponible",
-    "aiInsights": "Analyses IA",
-    "active": "Actif",
+    "aiInsights": "Recommandations IA",
     "totalIssues": "Total des Problèmes",
     "needsAttention": "Nécessite attention",
     "allClear": "Rien à signaler",
@@ -52,9 +51,9 @@
     "realTimeStatus": "État des services en temps réel",
     "servicesMonitored": "{{count}} services surveillés",
     "noServiceData": "Aucune donnée de service disponible",
-    "healthy": "Sain (80-100%)",
-    "degraded": "Dégradé (50-79%)",
-    "criticalStatus": "Critique (<50%)",
+    "healthy": "Sain (85-100%)",
+    "degraded": "Dégradé (60-84%)",
+    "criticalStatus": "Critique (<60%)",
     "topFailingServices": "Services les Plus Défaillants",
     "mostFrequentRootCauses": "Causes racines les plus fréquentes",
     "noFailureData": "Aucune donnée de défaillance disponible",
@@ -79,12 +78,12 @@
     "success": "succès",
     "noPipelinesYet": "Pas encore de pipelines",
     "healthTitle": "Santé du Système",
-    "basedOnLast24h": "Basé sur les dernières 24h",
     "mttr": "Temps Moyen de Résolution",
     "trend": {
       "improving": "En Amélioration",
       "degrading": "En Dégradation",
-      "stable": "Stable"
+      "stable": "Stable",
+      "insufficient": "Pas assez de données pour une tendance"
     },
     "statusLabels": {
       "healthy": "Sain",
@@ -124,17 +123,15 @@
     "daysAgo": "il y a {{count}} j",
     "totalAnalyses": "{{count}} analyses au total",
     "noSummary": "Analyse terminée",
-    "byIssueCount": "Par nombre de problèmes",
     "envAll": "Tous",
     "correlationInsights": "Corrélations IA",
-    "correlationSubtitle": "Problèmes liés aux déploiements et aux pics de métriques",
+    "correlationSubtitle": "Problèmes liés aux commits, aux pics de métriques et aux pipelines en échec",
     "noCorrelationData": "Aucune donnée de corrélation pour le moment",
     "issuesCorrelated": "des problèmes corrélés",
-    "deploymentLinks": "Liens avec un déploiement",
     "memorySpikes": "Pics mémoire",
     "cpuSpikes": "Pics CPU",
     "pipelineFailures": "Échecs de pipeline",
-    "topAffected": "Les plus touchés",
+    "topAffected": "Composants les plus corrélés",
     "viewAllAnalyses": "Voir les {{count}} analyses",
     "attention": {
       "title": "À traiter maintenant",
@@ -148,7 +145,29 @@
     },
     "overviewSubtitle": "Ce qui est cassé, pourquoi, et quoi faire.",
     "autoRefresh": "En direct · actualisé chaque minute",
-    "trendsTitle": "Tendances"
+    "trendsTitle": "Tendances",
+    "onOpenIssues": "Sur les problèmes ouverts",
+    "openCritical": "Critiques ouverts",
+    "healthWindow": "Problèmes ouverts maintenant",
+    "worstHealthFirst": "Santé la plus basse d'abord",
+    "openIssues_one": "{{count}} problème ouvert",
+    "openIssues_other": "{{count}} problèmes ouverts",
+    "commitLinks": "Liens avec un commit",
+    "mttrSample": "n = {{count}}",
+    "notEnoughData": "Pas assez de données",
+    "window": {
+      "openNow": "Problèmes ouverts maintenant",
+      "lastDays_one": "Dernier jour",
+      "lastDays_other": "{{count}} derniers jours",
+      "latestRuns": "{{count}} dernières exécutions par service",
+      "latestAnalyses": "{{count}} dernières analyses"
+    },
+    "sentinel": {
+      "decisionsHint": "Alerte, calme, premier, shadow et manuel font {{count}} lots.",
+      "analysed": "{{analysed}} lots sur {{total}} analysés par l'IA",
+      "shadow": "Shadow",
+      "manual": "Manuel"
+    }
   },
   "data": {
     "title": "Données",

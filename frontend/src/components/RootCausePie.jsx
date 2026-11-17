@@ -15,7 +15,8 @@ const RootCausePie = ({ data, loading }) => {
         );
     }
 
-    const { breakdown = [], total_issues = 0 } = data || {};
+    const { breakdown = [], total_issues = 0, period_days = 30 } = data || {};
+    const windowText = t('dashboard.window.lastDays', { count: period_days });
 
     // Ensure breakdown is an array
     if (!Array.isArray(breakdown) || breakdown.length === 0) {
@@ -23,7 +24,7 @@ const RootCausePie = ({ data, loading }) => {
             <div className="chart-card">
                 <div className="chart-header">
                     <h2><FaCode className="chart-icon" /> {t('dashboard.rootCauseAnalysis')}</h2>
-                    <span className="chart-subtitle">{t('dashboard.issueCategoriesBreakdown')}</span>
+                    <span className="chart-subtitle">{t('dashboard.issueCategoriesBreakdown')} · {windowText}</span>
                 </div>
                 <div className="no-data-message">{t('dashboard.noRootCauseData')}</div>
             </div>
@@ -87,7 +88,7 @@ const RootCausePie = ({ data, loading }) => {
             <div className="chart-card">
                 <div className="chart-header">
                     <h2><FaQuestionCircle className="chart-icon" /> {t('dashboard.rootCauseBreakdown')}</h2>
-                    <span className="chart-subtitle">{t('dashboard.issueCategorization')}</span>
+                    <span className="chart-subtitle">{t('dashboard.issueCategorization')} · {windowText}</span>
                 </div>
                 <div className="chart-container">
                     <p style={{ textAlign: 'center', color: '#8b96a5', padding: '40px' }}>
@@ -102,7 +103,7 @@ const RootCausePie = ({ data, loading }) => {
         <div className="chart-card">
             <div className="chart-header">
                 <h2><FaQuestionCircle className="chart-icon" /> {t('dashboard.rootCauseBreakdown')}</h2>
-                <span className="chart-subtitle">{t('dashboard.issuesAnalyzed', { count: total_issues })}</span>
+                <span className="chart-subtitle">{t('dashboard.issuesAnalyzed', { count: total_issues })} · {windowText}</span>
             </div>
             <div className="chart-container">
                 {/* Screen readers get the numbers as a list; the drawing is decorative. */}

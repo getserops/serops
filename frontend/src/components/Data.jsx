@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useCluster } from "../context/ClusterContext";
+import useFilterUrlSync from "../hooks/useFilterUrlSync";
 import PostmortemModal from "./PostmortemModal";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import PageHeader from "./PageHeader";
@@ -28,8 +29,12 @@ const Data = () => {
   // forward an ID that doesn't match a loaded cluster — that's what
   // used to silently return zero batches when a user visited the
   // demo with a stale filter from a different org (Batch 54 fix).
-  const { currentCluster, loading: clustersLoading } = useCluster();
+  const { currentCluster, loading: clustersLoading, filter: deploymentFilter, setField } = useCluster();
   const clusterId = clustersLoading ? null : (currentCluster?.id ?? null);
+  // The environment is the global filter (top bar), like every page, and
+  // both it and the cluster live in the URL.
+  useFilterUrlSync();
+  const selectedEnvironment = deploymentFilter.environment || "all";
 
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
@@ -37,7 +42,6 @@ const Data = () => {
   const pageSize = 5;
   const [selectedDeepseek, setSelectedDeepseek] = useState("Gemini"); // DEPRECATED - keeping for potential future use
   const [selectedProject, setSelectedProject] = useState("all");
-  const [selectedEnvironment, setSelectedEnvironment] = useState("all");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   // Item #28: which batch id (if any) has the post-mortem modal open.
   const [postmortemBatchId, setPostmortemBatchId] = useState(null);
@@ -258,7 +262,7 @@ const Data = () => {
   };
 
   const handleEnvironmentChange = (environment) => {
-    setSelectedEnvironment(environment);
+    setField("environment", environment === "all" ? "" : environment);
     setCurrentPage(1);
   };
 
@@ -559,7 +563,7 @@ const Data = () => {
 
               <Dropdown className="filter-dropdown">
                 <Dropdown.Toggle variant="light">
-                  {t('data.environment')}: {selectedEnvironment === 'all' ? t('common.all') : t(`data.${selectedEnvironment}`)}
+                  {t('data.environment')}: {selectedEnvironment === 'all' ? t('common.all') : t(`data.${selectedEnvironment}`, { defaultValue: selectedEnvironment })}
                 </Dropdown.Toggle>
                 <Dropdown.Menu>
                   <Dropdown.Item onClick={() => handleEnvironmentChange("all")}>
