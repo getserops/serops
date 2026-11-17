@@ -27,12 +27,34 @@ class TestPrometheusMetricProvider(SimpleTestCase):
     def test_health_check_failure(self, mock_get):
         mock_get.return_value = MagicMock(status_code=503)
         self.assertFalse(self.provider.health_check())
+        self.assertIn("503", self.provider.last_error)
+        self.assertIn("retry in a minute", self.provider.last_error)
+
+    @patch("integrations.adapters.prometheus.requests.Session.get")
+    def test_health_check_falls_back_to_the_query_api(self, mock_get):
+        """Mimir under /prometheus: no /-/healthy there, the query API works."""
+        mock_get.side_effect = [MagicMock(status_code=404), MagicMock(status_code=200)]
+        self.assertTrue(self.provider.health_check())
+        self.assertIn("/api/v1/query", mock_get.call_args[0][0])
+
+    @patch("integrations.adapters.prometheus.requests.Session.get")
+    def test_health_check_wrong_url_says_so(self, mock_get):
+        mock_get.return_value = MagicMock(status_code=404)
+        self.assertFalse(self.provider.health_check())
+        self.assertIn("Check the URL", self.provider.last_error)
+
+    @patch("integrations.adapters.prometheus.requests.Session.get")
+    def test_health_check_unauthorised_names_the_tenant_header(self, mock_get):
+        mock_get.side_effect = [MagicMock(status_code=401), MagicMock(status_code=401)]
+        self.assertFalse(self.provider.health_check())
+        self.assertIn("X-Scope-OrgID", self.provider.last_error)
 
     @patch("integrations.adapters.prometheus.requests.Session.get")
     def test_health_check_exception(self, mock_get):
         from requests.exceptions import ConnectionError
         mock_get.side_effect = ConnectionError("refused")
         self.assertFalse(self.provider.health_check())
+        self.assertIn("not reachable", self.provider.last_error)
 
     # ---- query_range ----
 

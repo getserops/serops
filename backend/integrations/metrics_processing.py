@@ -218,6 +218,10 @@ def fetch_metrics_with_provider(start_time, end_time, project_obj=None, project_
             # the sum cannot show. See K8S_PEAK_POD_EXPR_TEMPLATES.
             peak = _fetch_peak_pod_metrics(provider, labels, start_time, end_time)
             metrics.update(peak)
+            unlabelled = _fetch_unlabelled_pods(provider, labels, start_time, end_time)
+            if unlabelled:
+                metrics['container_lifecycle'] = {**(metrics.get('container_lifecycle') or {}),
+                                                  'unlabelled_pods': unlabelled}
 
     except Exception as e:
         logger.error(f"Error fetching metrics from provider: {e}", exc_info=True)
@@ -328,6 +332,46 @@ def _fetch_peak_pod_metrics(provider, labels, start_time, end_time):
         out[key] = points
 
     return out
+
+
+# The busiest pods among containers with no service label.
+#
+# Client C1 (I7): a bare Pod (a nightly reindex, no Deployment) took the CPU.
+# The documented pod-name relabel gave it no service_name, so it summed into
+# "unlabelled containers" and the analysis explained the bucket away as an
+# aggregate instead of naming the workload. The pod names let it name it.
+UNLABELLED_TOP_PODS_TEMPLATE = (
+    'topk(3, sum by (namespace, pod) '
+    '(rate(container_cpu_usage_seconds_total{{{labels}}}[5m])))'
+)
+
+
+def _fetch_unlabelled_pods(provider, labels, start_time, end_time):
+    """[{'pod', 'namespace', 'peak_cores'}], busiest first, at most 3.
+    Best-effort: [] on any failure."""
+    if not hasattr(provider, 'query_range_expr'):
+        return []
+    from integrations.adapters.prometheus import CONTAINER_LEVEL_MATCHER, ROOT_CGROUP_MATCHER
+    from integrations.promql import promql_matchers
+    matchers = [m for m in (promql_matchers(labels), ROOT_CGROUP_MATCHER, CONTAINER_LEVEL_MATCHER,
+                            'service_name=""', 'pod!=""') if m]
+    try:
+        series = provider.query_range_expr(
+            UNLABELLED_TOP_PODS_TEMPLATE.format(labels=",".join(matchers)), start_time, end_time)
+    except Exception as exc:                                    # noqa: BLE001
+        logger.warning('unlabelled pods query failed: %s', exc)
+        return []
+    peaks = {}
+    for ts in series or []:
+        tags = getattr(ts, 'labels', {}) or {}
+        values = [p.value for p in getattr(ts, 'points', []) or [] if isinstance(p.value, (int, float))
+                  and p.value == p.value]
+        if not tags.get('pod') or not values:
+            continue
+        key = (tags.get('namespace') or '', tags['pod'])
+        peaks[key] = max(peaks.get(key, 0), max(values))
+    top = sorted(peaks.items(), key=lambda kv: kv[1], reverse=True)[:3]
+    return [{'pod': pod, 'namespace': ns, 'peak_cores': round(v, 2)} for (ns, pod), v in top if v >= 0.01]
 
 
 def _fetch_container_lifecycle(provider, labels, start_time, end_time, failures=None):

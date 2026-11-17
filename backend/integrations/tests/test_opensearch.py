@@ -33,6 +33,29 @@ class TestOpenSearchLogProvider(SimpleTestCase):
         self.mock_client.cluster.health.side_effect = Exception("down")
         self.assertFalse(self.provider.health_check())
 
+    def test_health_check_red_says_why(self):
+        self.mock_client.cluster.health.return_value = {"status": "red"}
+        self.provider.health_check()
+        self.assertIn("status is red", self.provider.last_error)
+
+    def _forbidden(self):
+        exc = Exception("AuthorizationException(403, 'security_exception')")
+        exc.status_code = 403
+        return exc
+
+    def test_read_only_user_passes_on_the_log_indices(self):
+        """Client C4: read on the indices only, 403 on _cluster/health."""
+        self.mock_client.cluster.health.side_effect = self._forbidden()
+        self.mock_client.count.return_value = {"count": 116}
+        self.assertTrue(self.provider.health_check())
+        self.assertIsNone(self.provider.last_error)
+
+    def test_no_read_at_all_says_what_to_grant(self):
+        self.mock_client.cluster.health.side_effect = self._forbidden()
+        self.mock_client.count.side_effect = self._forbidden()
+        self.assertFalse(self.provider.health_check())
+        self.assertIn("read on the log indices", self.provider.last_error)
+
     def test_search_returns_log_entries(self):
         self.mock_client.search.return_value = {
             "hits": {

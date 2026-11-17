@@ -1400,6 +1400,15 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
                 snapshot_trace_context(batch)
         except Exception as _trace_exc:
             logger.warning(f"Trace snapshot failed for batch {batch_id}: {_trace_exc}")
+        # The count above is taken only when logs and metrics are empty, and
+        # from the native store only; the snapshot covers both stores. Without
+        # this an investigation whose analysis used Tempo spans said "0
+        # traces" (clients C2 and C2 rerun).
+        if investigation is not None:
+            spans = ((batch.data or {}).get('traces') or {}).get('span_count') if isinstance(batch.data, dict) else None
+            if isinstance(spans, int) and spans > (investigation.counts or {}).get('traces', 0):
+                investigation.counts = {**(investigation.counts or {}), 'traces': spans}
+                investigation.save(update_fields=['counts'])
 
         # Snapshot enabled data-source capabilities onto batch.data so the
         # prompt builder, correlation engine, and frontend all agree on

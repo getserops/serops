@@ -203,16 +203,39 @@ class PrometheusMetricProvider(MetricProvider):
     # ------------------------------------------------------------------
 
     def health_check(self) -> bool:
-        """Hit /-/healthy (returns 200 OK if Prometheus is up)."""
+        """/-/healthy, then the query API itself.
+
+        Mimir, Thanos and VictoriaMetrics serve the Prometheus query API under
+        the configured URL but not always /-/healthy, and what SerOps needs
+        is the query API. On failure ``last_error`` says what answered: the
+        bare "Health check failed" left a Mimir that was still joining its
+        ring (503 for a minute after a restart) looking like a wrong URL
+        (clients C2 and C2 rerun)."""
+        self.last_error = None
         try:
-            resp = self._session.get(
-                f"{self.base_url}/-/healthy",
-                timeout=self.timeout_seconds,
-            )
-            return resp.status_code == 200
+            resp = self._session.get(f"{self.base_url}/-/healthy", timeout=self.timeout_seconds)
+            if resp.status_code == 200:
+                return True
+            query = self._session.get(f"{self.base_url}/api/v1/query", params={"query": "vector(1)"},
+                                      timeout=self.timeout_seconds)
+            if query.status_code == 200:
+                return True
         except RequestException as exc:
             logger.error("Prometheus health check failed: %s", exc)
+            self.last_error = f"The metrics store is not reachable at {self.base_url}: {exc}"
             return False
+        codes = (resp.status_code, query.status_code)
+        if 503 in codes:
+            hint = ("The store is up but not ready. Mimir answers 503 while it joins its ring after a "
+                    "restart: retry in a minute.")
+        elif 401 in codes or 403 in codes:
+            hint = "Check the credentials, and the tenant header for a multi-tenant store (Mimir: X-Scope-OrgID)."
+        else:
+            hint = ("Check the URL: it is the base the query API lives under "
+                    "(Mimir: http://<mimir>/prometheus).")
+        self.last_error = (f"HTTP {resp.status_code} on /-/healthy and HTTP {query.status_code} on "
+                           f"/api/v1/query. {hint}")
+        return False
 
     def topology_hint(self):
         """A hint when the integration is in VM mode on a Kubernetes store.

@@ -183,6 +183,19 @@ class InvestigationPipelineTest(PipelineMixin, TestCase):
         self.assertEqual(inv.counts['logs'], 2)
         self.analyze.assert_called_once_with(batch.batch_id)
 
+    def test_counts_the_spans_of_the_trace_snapshot(self):
+        """Client C2: logs present, spans from Tempo reached the analysis,
+        and the investigation still said 0 traces."""
+        def snapshot(batch):
+            batch.data['traces'] = {'span_count': 340, 'trace_count': 60, 'source': 'tempo'}
+            batch.save(update_fields=['data'])
+        inv = self.make_investigation(self.project, self.env)
+        with patch('ai_model.trace_context.snapshot_trace_context', side_effect=snapshot):
+            self.run_pipeline([log('timeout')], investigation_id=inv.id)
+        inv.refresh_from_db()
+        self.assertEqual(inv.counts['traces'], 340)
+        self.assertEqual(inv.counts['logs'], 1)
+
     def test_reads_exactly_the_requested_window(self):
         inv = self.make_investigation(self.project, self.env, minutes=60)
         self.run_pipeline([log('a', minutes_ago=30), log('old', minutes_ago=90)], investigation_id=inv.id)

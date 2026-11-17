@@ -293,3 +293,51 @@ class PeakPodHidesNoHotReplicaTest(SimpleTestCase):
         summary = preprocess_metrics_for_ai(raw)
         self.assertEqual(summary['peak_pod']['memory_anomalies'], [])
         self.assertEqual(summary['peak_pod']['memory_percent'], {})
+
+
+class UnlabelledPodsNamedTest(SimpleTestCase):
+    """Client C1 I7: a bare Pod (no Deployment) took the CPU, landed in the
+    unlabelled bucket, and the analysis could not name it."""
+
+    def _provider(self, series):
+        from types import SimpleNamespace
+
+        class P:
+            queries = []
+
+            def query_range_expr(self, expr, start, end):
+                self.queries.append(expr)
+                return [SimpleNamespace(labels=labels, points=[SimpleNamespace(timestamp=BASE, value=v)
+                                                              for v in values])
+                        for labels, values in series]
+        return P()
+
+    def test_busiest_pods_come_back_by_peak(self):
+        from integrations.metrics_processing import _fetch_unlabelled_pods
+        p = self._provider([({'namespace': 'shop', 'pod': 'reindex-nightly'}, [0.2, 0.93]),
+                            ({'namespace': 'kube-system', 'pod': 'tiny'}, [0.001]),
+                            ({'namespace': 'shop', 'pod': 'cron-x'}, [0.1])])
+        pods = _fetch_unlabelled_pods(p, {'project_name': 'shopfront'}, BASE, BASE + timedelta(hours=1))
+        self.assertEqual(pods, [{'pod': 'reindex-nightly', 'namespace': 'shop', 'peak_cores': 0.93},
+                                {'pod': 'cron-x', 'namespace': 'shop', 'peak_cores': 0.1}])
+        self.assertIn('service_name=""', p.queries[0])
+        self.assertIn('project_name="shopfront"', p.queries[0])
+        self.assertIn('container!="POD"', p.queries[0])
+
+    def test_a_failing_query_costs_nothing(self):
+        from integrations.metrics_processing import _fetch_unlabelled_pods
+
+        class Broken:
+            def query_range_expr(self, *a):
+                raise ConnectionError('down')
+        self.assertEqual(_fetch_unlabelled_pods(Broken(), {}, BASE, BASE), [])
+
+    def test_prompt_names_the_pod_under_the_unlabelled_row(self):
+        raw = {'memory_total': [], 'memory_available': [],
+               'cpu_usage_percent': (_points('web', [10] * 12, 'c') + _points('default', [90] * 12, 'c')),
+               'container_lifecycle': {'unlabelled_pods': [
+                   {'pod': 'reindex-nightly', 'namespace': 'shop', 'peak_cores': 0.93}]}}
+        raw['memory_usage_percent'] = []
+        prompt = _prompt_for(preprocess_metrics_for_ai(raw))
+        self.assertIn('unlabelled containers', prompt)
+        self.assertIn('reindex-nightly in shop (0.93 cores peak)', prompt)

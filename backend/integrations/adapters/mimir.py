@@ -51,16 +51,37 @@ class MimirMetricProvider(PrometheusMetricProvider):
             self._session.headers["X-Scope-OrgID"] = tenant_id
 
     def health_check(self) -> bool:
-        """Mimir uses /ready endpoint."""
+        """/ready, then the query API.
+
+        /ready answers 503 until every module is running and the ring is
+        joined, which takes a minute after a restart, while queries may
+        already work. Reading only /ready failed the check once on client
+        C2 with a bare "Health check failed". A working query API passes;
+        otherwise ``last_error`` says what Mimir answered."""
+        self.last_error = None
         try:
-            resp = self._session.get(
-                f"{self.base_url}/ready",
-                timeout=self.timeout_seconds,
-            )
-            return resp.status_code == 200
+            ready = self._session.get(f"{self.base_url}/ready", timeout=self.timeout_seconds)
+            if ready.status_code == 200:
+                return True
+            query = self._session.get(f"{self._query_base}/api/v1/query", params={"query": "vector(1)"},
+                                      timeout=self.timeout_seconds)
+            if query.status_code == 200:
+                return True
         except RequestException as exc:
             logger.error("Mimir health check failed: %s", exc)
+            self.last_error = f"Mimir is not reachable at {self.base_url}: {exc}"
             return False
+        said = (getattr(ready, "text", "") or "").strip().splitlines()
+        said = f' ("{said[0][:120]}")' if said and isinstance(said[0], str) else ""
+        if query.status_code in (401, 403):
+            hint = "Check the tenant ID (sent as X-Scope-OrgID) and the credentials."
+        elif ready.status_code == 503:
+            hint = "Mimir is up but not ready; after a restart it joins its ring within a minute or two: retry then."
+        else:
+            hint = "Check the URL: it is Mimir's base URL, without /prometheus."
+        self.last_error = (f"HTTP {ready.status_code} on /ready{said} and HTTP {query.status_code} on "
+                           f"{self._query_base.replace(self.base_url, '') or ''}/api/v1/query. {hint}")
+        return False
 
     def query_range(self, metric, labels, start, end):
         """Override to use /prometheus/api/v1/query_range path."""

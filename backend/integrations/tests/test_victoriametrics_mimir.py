@@ -68,6 +68,29 @@ class TestMimirProvider(SimpleTestCase):
         self.assertTrue(self.provider.health_check())
         self.assertIn("/ready", mock_get.call_args[0][0])
 
+    @patch("integrations.adapters.prometheus.requests.Session.get")
+    def test_not_ready_but_queries_work_passes(self, mock_get):
+        """Client C2: /ready 503 while the ring forms, queries already fine."""
+        mock_get.side_effect = [MagicMock(status_code=503, text="Some services are not Running"),
+                                MagicMock(status_code=200)]
+        self.assertTrue(self.provider.health_check())
+        self.assertEqual(mock_get.call_args[0][0], "http://mimir:9009/prometheus/api/v1/query")
+
+    @patch("integrations.adapters.prometheus.requests.Session.get")
+    def test_not_ready_says_what_mimir_said(self, mock_get):
+        mock_get.side_effect = [MagicMock(status_code=503, text="Some services are not Running:\nStarting: 1"),
+                                MagicMock(status_code=503, text="")]
+        self.assertFalse(self.provider.health_check())
+        self.assertIn('HTTP 503 on /ready ("Some services are not Running:")', self.provider.last_error)
+        self.assertIn("/prometheus/api/v1/query", self.provider.last_error)
+        self.assertIn("retry", self.provider.last_error)
+
+    @patch("integrations.adapters.prometheus.requests.Session.get")
+    def test_wrong_tenant_says_so(self, mock_get):
+        mock_get.side_effect = [MagicMock(status_code=404, text=""), MagicMock(status_code=401, text="no org id")]
+        self.assertFalse(self.provider.health_check())
+        self.assertIn("X-Scope-OrgID", self.provider.last_error)
+
     def test_tenant_header_set(self):
         self.assertEqual(
             self.provider._session.headers.get("X-Scope-OrgID"), "acme"

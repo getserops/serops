@@ -539,6 +539,14 @@ def _build_user_content(context):
                     metrics_section += (f"  {name}: {s.get('avg')}{unit} avg, peak "
                                        f"{s.get('max')}{unit}, current {s.get('current')}{unit}, "
                                        f"trend: {s.get('trend', 'UNKNOWN')}\n")
+                    pods = ((metrics_summary.get('container_lifecycle') or {}).get('unlabelled_pods')
+                            if svc == 'default' and label == 'CPU' else None)
+                    if pods:
+                        metrics_section += (
+                            "    busiest pods with no service label: "
+                            + ", ".join(f"{p.get('pod')}" + (f" in {p['namespace']}" if p.get('namespace') else '')
+                                        + f" ({p.get('peak_cores')} cores peak)" for p in pods[:3])
+                            + "; a workload the project's services do not include, named by its pod\n")
 
         # Peak single-pod utilisation.
         #

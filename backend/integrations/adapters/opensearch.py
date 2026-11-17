@@ -226,10 +226,34 @@ class OpenSearchLogProvider(LogProvider):
         return discover_log_indices(self.client, project, self.index_patterns)
 
     def health_check(self) -> bool:
-        """Check if OpenSearch cluster is reachable."""
+        """Cluster health, or a read of the log indices when the user may not
+        ask for cluster health.
+
+        A user with only read permission on the log indices (what the docs
+        asked for) got a 403 on _cluster/health and a bare "Health check
+        failed" (client C4). Reading the indices is what SerOps needs, so a
+        403 there falls back to a count on the configured patterns; any
+        failure leaves its reason in ``last_error``."""
+        self.last_error = None
         try:
-            health = self.client.cluster.health()
-            return health.get("status") in ("green", "yellow")
+            status = self.client.cluster.health().get("status")
+            if status in ("green", "yellow"):
+                return True
+            self.last_error = (f"The cluster status is {status}: some primary shards are not assigned, "
+                               "so searches can miss logs.")
+            return False
+        except Exception as exc:
+            if getattr(exc, "status_code", None) != 403:
+                logger.error("OpenSearch health check failed: %s", exc)
+                self.last_error = f"OpenSearch is not reachable: {exc}"
+                return False
+        patterns = self.index_patterns or ["logs-*"]
+        try:
+            self.client.count(index=",".join(patterns), params={"ignore_unavailable": "true"})
+            return True
         except Exception as exc:
             logger.error("OpenSearch health check failed: %s", exc)
+            self.last_error = (f"This user may not read cluster health (cluster:monitor/health) nor count "
+                               f"{', '.join(patterns)}: {exc}. Give it read on the log indices; "
+                               "cluster:monitor/health is optional.")
             return False
