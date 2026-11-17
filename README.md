@@ -82,15 +82,15 @@ Full guides in [docs/](docs/) or at https://serops.ai/docs.
 See the [docs](https://serops.ai/docs/) roadmap for the full picture. Everything above,
 and every item in this list once it ships, is in SerOps Community.
 
-## Community and Enterprise
+## Community and the Enterprise license
 
-Community is the complete product for a team, free under the AGPL. Enterprise adds
-governance for running SerOps as an organisation, under a commercial license. It only
-adds to Community: nothing is ever moved out of it
+Community is the complete product for a team, free under the AGPL. The Enterprise
+license adds governance for running SerOps as an organisation, under a commercial license.
+It only adds to Community: nothing is ever moved out of it
 ([open source promise](https://serops.ai/docs/open-source-promise/)).
 
-Enterprise is priced per organisation by employees, never per seat, and nothing is
-counted or limited in the product:
+The Enterprise license is priced per organisation by employees, in three bands, never per
+seat, and nothing is counted or limited in the product:
 
 | Band | Employees | Price per year |
 |---|---|---|
@@ -98,7 +98,7 @@ counted or limited in the product:
 | Enterprise | up to 5,000 | from €30,000 |
 | Strategic | above 5,000, or a regulated sector | from €60,000 |
 
-Enterprise today, with a commercial license and a support contract:
+In every Enterprise license today, with a commercial license and a support contract:
 
 - custom roles and per-project access (since 1.3.0);
 - SAML 2.0 single sign-on, from Entra ID, Okta, Keycloak or any SAML identity provider
@@ -120,7 +120,7 @@ per-component dev setup and test commands. Security issues go through
 
 ## License
 
-AGPL-3.0. See [LICENSE](LICENSE). The two Enterprise directories, `backend/ee/` and
+AGPL-3.0. See [LICENSE](LICENSE). The two `ee/` directories, `backend/ee/` and
 `frontend/src/ee/`, are the exception: they are under the
 [SerOps Enterprise License](backend/ee/LICENSE), need a license key to run,
 and SerOps is complete without them. Delete them and you have the Community
