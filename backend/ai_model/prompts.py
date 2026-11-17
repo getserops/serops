@@ -216,9 +216,9 @@ CODE CHANGE RULES (apply only when code changes are in the batch):
 
 SIGNAL-ONLY DEGRADATION RULES:
 17. **An absence of error logs is NOT an absence of a problem.** Many real incidents produce no ERROR line at all: a dependency that slowed from 20ms to 900ms still returns HTTP 200, and a service approaching its memory or CPU limit logs nothing until it is killed. When the log section is empty or entirely INFO, you MUST still examine the metric summary and the distributed traces and report what they show.
-18. **Report degradation evidenced by metrics alone.** Rising or sustained CPU/memory against a limit, or a trend flagged in the metric summary's anomalies, is a reportable issue in its own right — use scope=INFRASTRUCTURE with issue_type MEMORY_HIGH, MEMORY_LEAK, CPU_HIGH or SERVICE_DOWN as fits, cite the metric values in root_cause, and name the affected service in `component`.
+18. **Report degradation evidenced by metrics alone.** Rising or sustained CPU/memory against a limit, or a trend flagged in the metric summary's anomalies, is a reportable issue in its own right — use scope=INFRASTRUCTURE with issue_type MEMORY_HIGH, MEMORY_LEAK, CPU_HIGH or SERVICE_DOWN as fits, cite the metric values in root_cause, and name the affected service in `component`. Memory listed as "steady near the limit" is the exception: flat with no restart is a sizing fact, so report it at most as INFO, and never as the cause of an error elsewhere.
 19. **Report degradation evidenced by traces alone — but judge the durations, not their ranking.** If span durations are slow, or have grown, the service they concentrate in is the suspect even when every span returned success: use issue_type CONNECTION_TIMEOUT or SERVICE_UNAVAILABLE as fits, and cite the span operation and duration in root_cause. A trace is the only signal that attributes latency to a specific hop, so do not discard it because the logs are quiet. **Being the slowest is not the same as being slow.** Some service always tops the slowest-span list, including in a perfectly healthy window, so "these spans dominate the top 5" is never on its own a finding. Report a trace-only latency issue only when the duration is bad in absolute terms — a user-facing request around a second or worse, or a dependency call consuming most of its parent's time — or when it is markedly higher than the other spans in the same window. Spans measured in tens of milliseconds are healthy: do not report them because they happen to be at the top of the list. **Follow the self time, not the total.** When per-service timings are given, latency originates in the service with a high SELF time (time inside the service itself); a caller whose total time is high but whose self time is low is only waiting on it, a symptom. Name the service with the high self time as the root cause, and use its "window before" values to show the change.
-20. **Return an empty correlated_issues list when logs, metrics AND traces are all unremarkable.** That is the correct answer for a healthy window, not a failure to find something, and you must not manufacture a finding to avoid an empty list. The reverse error is just as damaging: saying nothing when the traces show a 40× latency increase teaches the operator that silence means health. Judge each signal on its absolute values and report what is actually wrong — neither more nor less.
+20. **Return an empty correlated_issues list when logs, metrics AND traces are all unremarkable.** Data that stopped is never unremarkable: when "Data that stopped" or "Traffic stopped or collapsed" is shown, report it. That is the correct answer for a healthy window, not a failure to find something, and you must not manufacture a finding to avoid an empty list. The reverse error is just as damaging: saying nothing when the traces show a 40× latency increase teaches the operator that silence means health. Judge each signal on its absolute values and report what is actually wrong — neither more nor less.
 21. **A change made to a service is the first suspect for what follows it.** When "Kubernetes changes" lists a rollout or scale change shortly before the errors began, check it first. A service that cannot reach a dependency right after its OWN rollout with the image unchanged most likely got a wrong configuration (address, port, credentials): name that service and its rollout as the root cause, not the dependency — especially when the dependency's own logs, metrics and spans look healthy. A workload scaled to 0, short of replicas or stuck in ImagePullBackOff / CrashLoopBackOff is unavailable whatever its callers log: name it, and the change that caused it, rather than the callers reporting the failure. The exception is a rollout listed under "Rollouts not completing": its new pods fail but the previous version still serves every replica, so customers are not affected yet — report it as WARNING, not CRITICAL, and say the old version is still serving.
 22. **When everything slows down at once, look at traffic before code.** The trace context gives the spans in this window against the window before, per service and in total. If most services slowed down together while their traffic rose sharply (x2 or more), the cause is load: a traffic surge beyond capacity (replicas, CPU limits, connection pools, autoscaling). Name the surge, where it enters (the service whose traffic rose first or most) and what ran out; do not blame one service's code or a commit unless the evidence points at it independently of the load. The reverse holds too: more traffic with latency and errors still healthy is a spike that was absorbed, not an issue.
 
@@ -298,6 +298,8 @@ def _build_user_content(context):
         f"Logs to Analyze:\n-------------\n{chr(10).join(logs) if logs else 'No logs provided'}\n"
     )
     change_events_text = _change_events_text(context.change_events)
+    from Data.volume_gap import format_data_gap
+    gap_facts, gap_services = format_data_gap(context.data_gap)
 
     # Build correlation section from correlation engine output
     correlation_section = ""
@@ -784,6 +786,20 @@ def _build_user_content(context):
             "its timing and the errors, metrics or traces support it, and never report an issue "
             "from these lines alone.\n"
             + fence_data(change_events_text, 'change and job events'))
+    gap_section = ''
+    if gap_facts:
+        # Counted by SerOps, not by the monitored systems: the instruction and
+        # the counts stay outside the fence, the service names go inside it.
+        gap_section = (
+            "\nData that stopped (counted by SerOps):\n-------------\n"
+            "Log records at every level, this window against the window before of the same length. "
+            "A project or service that logged steadily and is now silent is a finding, never a sign "
+            "of health: the service may be down or unreachable, its traffic may have stopped, or the "
+            "log pipeline or log store may have stopped ingesting. Report it (SERVICE_DOWN or "
+            "SERVICE_UNAVAILABLE for a service, OTHER with scope INFRASTRUCTURE for the log "
+            "pipeline), say which of these the other data supports, and do not call the window "
+            "healthy.\n" + gap_facts + "\n"
+            + (fence_data(gap_services, 'silent services') if gap_services else ''))
     metrics_section = fence_data(metrics_section, 'metrics')
     code_changes_section = fence_data(code_changes_section, 'code changes')
     cicd_section = fence_data(cicd_section, 'ci/cd')
@@ -799,7 +815,7 @@ Environment: {batch_data.get('environment', 'unknown')}
 {project_context_section}{capability_note}
 Available Data Sources:
 -------------
-{log_section}{change_section}
+{log_section}{change_section}{gap_section}
 {metrics_section}
 {code_changes_section}
 {cicd_section}

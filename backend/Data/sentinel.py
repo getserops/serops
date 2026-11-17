@@ -207,6 +207,15 @@ def evaluate_batch(project, environment, batch_data, organisation, thresholds=No
     # task takes before calling Sentinel.
     triggers.extend(_trace_triggers(batch_data.get('traces')))
 
+    # 2d. Data that stopped: a project or service that logged steadily and
+    # went silent, or a service whose traffic collapsed (Data/volume_gap.py,
+    # ai_model.trace_context). Silence after steady data is not a quiet window.
+    if batch_data.get('data_gap'):
+        triggers.append('data_gap')
+    traces = batch_data.get('traces')
+    if isinstance(traces, dict) and traces.get('traffic_drops'):
+        triggers.append('traffic_drop')
+
     # 3. Error rate spike
     current_errors = batch_stats['error_count']
     if state.baseline_error_rate > 0 and current_errors > error_spike_mult * state.baseline_error_rate:

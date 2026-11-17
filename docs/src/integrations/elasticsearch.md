@@ -169,6 +169,9 @@ containerd against Elasticsearch 8.15, and produces all five canonical fields:
     Match   kube.*
     Set     organisation_name <YOUR-ORG>
     Set     project_name      <YOUR-PROJECT>
+    # Uncomment when the whole cluster is one environment and the namespaces
+    # are not named after it (see "Environment" below).
+    # Set     environment       production
 
 [FILTER]
     Name    lua
@@ -214,7 +217,12 @@ function set_canonical(tag, timestamp, record)
   if svc == nil or svc == "" then svc = k["container_name"] end
   record["service_name"] = svc
 
-  record["environment"] = k["namespace_name"]
+  -- The environment: the fixed value set above, else a pod label
+  -- `environment`, else the namespace name (see "Environment" below).
+  local env = record["environment"]
+  if env == nil or env == "" then env = labels["environment"] end
+  if env == nil or env == "" then env = k["namespace_name"] end
+  record["environment"] = env
 
   -- SerOps reads `message`; the CRI parser produces `log`.
   local msg = record["log"] or record["message"] or ""
@@ -230,6 +238,18 @@ function set_canonical(tag, timestamp, record)
   return 2, timestamp, record
 end
 ```
+
+!!! note "Environment: the namespace only when it is named after one"
+    The namespace is a good environment only when namespaces are named after
+    environments (`production`, `staging`). When they are named after teams or
+    applications (`fleet`, `payments`), every log would carry
+    `environment = fleet`, which matches none of the project's environments,
+    and **Check my data** reports the environment as not tagged. Then either
+    set a fixed value in the `modify` filter (one cluster, one environment),
+    or label the pods `environment: production` and let the script read it.
+    You can also keep the namespace and tell SerOps that `fleet` means
+    production: **Check my data** offers that value for the environment
+    ("Use the environment your logs carry").
 
 !!! note "Why `log_level` is parsed, not labelled"
     Severity changes on almost every line, so it does not belong in pod

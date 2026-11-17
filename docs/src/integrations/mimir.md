@@ -81,6 +81,13 @@ relabel_configs:
     replacement: checkout-api
 ```
 
+That form labels the targets of a pod scrape job. Kubernetes container CPU and
+memory come from cAdvisor, which a pod job does not scrape: label those samples
+instead, as in [Prometheus → Kubernetes setup](prometheus.md#kubernetes-setup).
+For Mimir that is usually Grafana Alloy's `prometheus.relabel` before
+`prometheus.remote_write`, shown in
+[With Grafana Alloy](prometheus.md#with-grafana-alloy).
+
 See [Configure Data Collection](../how-to/configure-data-collection.md)
 for the full reference, including the equivalent setup for logs.
 

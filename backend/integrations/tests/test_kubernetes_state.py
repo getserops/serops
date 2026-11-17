@@ -215,6 +215,25 @@ class KubernetesStateTest(SimpleTestCase):
         self.assertEqual(details, [f'image {bad} -> {good}', f'image {good} -> {bad}'])
         self.assertEqual(state['unavailable'], [{'workload': 'paymentservice', 'available': 0, 'desired': 1, 'now': 1}])
 
+    def test_c1_i12_an_undo_that_keeps_the_old_pod_reads_as_the_rollback(self):
+        # One replica, the new pod never became ready, so the old pod was
+        # never replaced; `rollout undo` only deletes the new one. No pod is
+        # created by the undo.
+        dep = {'namespace': 'boutique', 'deployment': 'paymentservice'}
+        good, bad = 'payments:v0.10.7', 'payments:v0.10.8-missing'
+        m = lambda minutes: T0 - timedelta(minutes=minutes)
+        prom = FakeProm({**NAMESPACE,
+            'kube_deployment_metadata_generation': [series(dep, *([1] * 10 + [2] * 3 + [3] * 17))],
+            'kube_deployment_spec_replicas': [series(dep, *([1] * 30))],
+            'kube_deployment_status_replicas_available': [series(dep, *([1] * 30))],
+            'kube_pod_container_info': [
+                series({'pod': 'paymentservice-6d8f7c9b4-aaaaa', 'container': 'server', 'image': good}, *([1] * 30)),
+                series({'pod': 'paymentservice-79c5d8f6b-bbbbb', 'container': 'server', 'image': bad}, 1, 1, 1, start=m(20))],
+        })
+        state = fetch_kubernetes_state(prom, LABELS, START, END)
+        details = [c['detail'] for c in state['changes']]       # newest first
+        self.assertEqual(details, [f'image {bad} -> {good}', f'image {good} -> {bad}'])
+
     def test_b1_scale_to_zero_is_a_scale_not_a_rollout(self):
         dep = {'namespace': 'boutique', 'deployment': 'redis-cart'}
         prom = FakeProm({**NAMESPACE,

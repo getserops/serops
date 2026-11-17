@@ -195,6 +195,23 @@ spans exist for the incident window, it falls back to the pull adapter
 and enriches the RCA prompt with the top-slow and top-error spans it
 finds.
 
+**How pulled traces are matched to an analysis.** SerOps asks the trace
+provider for each service the project lists, by **service name only**, over the
+analysis window: up to 20 traces per service. Unlike spans received through
+OTLP, pulled traces are **not** filtered by environment or project, because
+SerOps does not read those attributes from the trace store's search. So:
+
+- Name your services in the project exactly as they appear in the trace store
+  (`service.name`).
+- If staging and production send the same service names to one Tempo or
+  Jaeger, a production analysis also reads staging traces. Use a separate
+  tenant or trace store per environment (Tempo: a tenant via
+  `extra_config.tenant_id`), or send spans to SerOps over OTLP with
+  `deployment.environment.name` set, where the environment is respected.
+- The analysis uses one trace provider for the organisation, chosen without a
+  cluster or environment: integration scopes do not route pulled traces, so
+  every project reads from the same one.
+
 Pull adapters are **read-only**. Nothing is pushed to the trace
 backend, and no state is stored in SerOps beyond the transient
 summary in the AI prompt for that one analysis.

@@ -269,6 +269,93 @@ on GKE (2026-11-16); every service then had its own CPU and memory series.
     curl -s 'http://<prometheus>/api/v1/query?query=count(container_cpu_usage_seconds_total{service_name!=""})'
     ```
 
+### With Grafana Alloy
+
+Alloy scrapes cAdvisor and kube-state-metrics itself and relabels each sample
+with `prometheus.relabel`, the Alloy form of `metric_relabel_configs`. This is
+the metrics part of a client's Alloy configuration (a DaemonSet in clustering
+mode, remote-writing to Mimir), checked on GKE on 2026-11-16: every service had
+its own CPU and memory series.
+
+```hcl
+discovery.kubernetes "nodes" {
+  role = "node"
+}
+
+// cAdvisor through the API server's node proxy: Alloy's ServiceAccount needs
+// `get` on `nodes/proxy`.
+discovery.relabel "cadvisor" {
+  targets = discovery.kubernetes.nodes.targets
+  rule {
+    target_label = "__address__"
+    replacement  = "kubernetes.default.svc:443"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_node_name"]
+    regex         = "(.+)"
+    target_label  = "__metrics_path__"
+    replacement   = "/api/v1/nodes/$1/proxy/metrics/cadvisor"
+  }
+}
+
+prometheus.scrape "cadvisor" {
+  targets           = discovery.relabel.cadvisor.output
+  scheme            = "https"
+  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+  tls_config {
+    insecure_skip_verify = true
+  }
+  clustering {
+    enabled = true
+  }
+  forward_to = [prometheus.relabel.serops.receiver]
+}
+
+// kube-state-metrics (restarts, OOM kills, rollouts), labelled the same way.
+prometheus.scrape "ksm" {
+  targets    = [{"__address__" = "<kube-state-metrics-service>:8080"}]
+  forward_to = [prometheus.relabel.serops.receiver]
+}
+
+// The SerOps labels, on every sample.
+prometheus.relabel "serops" {
+  rule {
+    // `container` only when every container is named after its service;
+    // otherwise take the workload from `pod`, as in the kube-prometheus-stack
+    // values above.
+    source_labels = ["container"]
+    regex         = "(.+)"
+    target_label  = "service_name"
+  }
+  rule {
+    source_labels = ["namespace"]
+    regex         = "ledger"            // the namespace your services run in
+    target_label  = "environment"
+    replacement   = "production"
+  }
+  rule {
+    target_label = "organisation_name"
+    replacement  = "<YOUR-ORG>"
+  }
+  rule {
+    source_labels = ["namespace"]
+    regex         = "ledger"
+    target_label  = "project_name"
+    replacement   = "<YOUR-PROJECT>"
+  }
+  forward_to = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.remote_write "default" {
+  endpoint {
+    url = "http://<mimir-or-prometheus>/api/v1/push"
+  }
+}
+```
+
+The same labels then reach Mimir, VictoriaMetrics or a Prometheus with remote
+write enabled; point the SerOps integration at that store.
+
 **Verify with the ingest validator**:
 
 ```bash

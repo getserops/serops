@@ -1641,6 +1641,11 @@ class Command(BaseCommand):
 
         for scene_index, scene in enumerate(STORY_ARC):
             scene_time = now - timedelta(days=scene.days_ago, hours=2)
+            # A scene of today stays today: in the two hours after midnight
+            # UTC it landed on yesterday, and the dashboard showed no issue
+            # for today (and its test failed at that hour).
+            if scene.days_ago == 0 and scene_time.date() != now.date():
+                scene_time = now - timedelta(minutes=2)
             # Route to the project that owns the affected service. Infra
             # scenes (postgres, redis) end up under acme-platform; app
             # scenes stay in acme-checkout. Prevents acme-platform from

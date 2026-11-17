@@ -104,6 +104,60 @@ def _demote_side_code_findings(parsed_result):
     return demoted
 
 
+def _ensure_data_gap_issue(parsed_result, batch_data):
+    """When data stopped and the analysis still reports nothing worse than
+    INFO, add one WARNING saying so. A window in which a project or a service
+    went silent, or a service's traffic collapsed, must never read as healthy
+    (phase 3 client C4, L3 and L5). Returns True when an issue was added."""
+    if not isinstance(parsed_result, dict) or not isinstance(batch_data, dict):
+        return False
+    gap = batch_data.get('data_gap') or {}
+    traces = batch_data.get('traces') if isinstance(batch_data.get('traces'), dict) else {}
+    drops = traces.get('traffic_drops') or []
+    silent = [s.get('service') for s in gap.get('silent_services') or [] if s.get('service')]
+    if not (gap.get('collapsed') or silent or drops):
+        return False
+    issues = parsed_result.get('correlated_issues')
+    if not isinstance(issues, list):
+        issues = []
+        parsed_result['correlated_issues'] = issues
+    if any(isinstance(i, dict) and str(i.get('severity', '')).upper() in ('WARNING', 'CRITICAL')
+           for i in issues):
+        return False
+    stopped = [d.get('service') for d in drops if d.get('service')]
+    if gap.get('collapsed'):
+        component, scope, issue_type = 'log pipeline', 'INFRASTRUCTURE', 'OTHER'
+        what = (f"The project's logs stopped: {gap.get('window_logs', 0)} records in this window "
+                f"against {gap.get('previous_logs', 0)} in the window before.")
+        why = ("Either every service stopped logging at once, or the log pipeline or log store "
+               "stopped ingesting (a full or read-only store, a failing collector or exporter).")
+        action = ("Check that the log store accepts writes and that the collector is shipping; "
+                  "then check whether the services are up.")
+    else:
+        names = (silent or stopped)[:5]
+        component, scope, issue_type = names[0], 'SERVICE', 'SERVICE_UNAVAILABLE'
+        what = ("Data stopped for " + ', '.join(names) + ": "
+                + ('no log records' if silent else 'its traffic collapsed') + " in this window, "
+                "after a steady stream in the window before.")
+        why = ("The service may be down or unreachable, its traffic may have stopped upstream "
+               "(a routing, feature-flag or front-end change), or its logs stopped being shipped.")
+        action = "Check the service is running and receiving traffic, and what changed upstream of it."
+    issues.append({
+        'issue_type': issue_type, 'scope': scope, 'component': component, 'severity': 'WARNING',
+        'affected_services': (silent or stopped)[1:5],
+        'error_class': 'OTHER', 'error_target': 'data stopped',
+        'description': what, 'root_cause': what + ' ' + why, 'recommended_action': action,
+        'reasoning': ['SerOps compared this window with the window before of the same length.',
+                      what, 'Silence after steady data is not a sign of health.'],
+        'caused_by_commits': [], 'confidence': 'MEDIUM', 'evidence_sources': {},
+        'added_by': 'serops_data_gap',
+    })
+    summary = parsed_result.get('summary')
+    if isinstance(summary, dict) and str(summary.get('overall_health', '')).upper() == 'HEALTHY':
+        summary['overall_health'] = 'DEGRADED'
+    return True
+
+
 def _cap_stuck_rollout_severity(parsed_result, batch_data):
     """A rollout whose new pods fail while the old version serves is not an outage.
 
@@ -131,6 +185,43 @@ def _cap_stuck_rollout_severity(parsed_result, batch_data):
             issue['severity'] = 'WARNING'
             capped += 1
     return capped
+
+
+def _demote_steady_memory(parsed_result, batch_data):
+    """Memory that sits still near its limit is a sizing fact, not an incident.
+
+    The metrics summary already moves a flat level with no restart to
+    "steady near the limit" and the prompt calls it context. The AI still
+    opened a WARNING MEMORY_HIGH issue from it in every window on client C2
+    (accounting 84 %, kafka 88 %, the healthy control included). The facts are
+    measured, so the demotion is applied here: a MEMORY_HIGH issue on a service
+    listed as steady, and not also listed with a memory anomaly or a restart,
+    becomes INFO. MEMORY_LEAK and anything with growth keep their severity.
+
+    Returns the number demoted.
+    """
+    summary = (batch_data or {}).get('metrics_summary') or {}
+    memory = summary.get('memory') or {}
+    steady = {e.get('service') for e in memory.get('steady_near_limit') or [] if isinstance(e, dict)}
+    steady.discard(None)
+    if not steady:
+        return 0
+    moving = {a.get('service') or 'default' for a in (memory.get('anomalies') or [])
+              + ((summary.get('peak_pod') or {}).get('memory_anomalies') or []) if isinstance(a, dict)}
+    restarts = (summary.get('container_lifecycle') or {}).get('restarts') or {}
+    if isinstance(restarts, dict):
+        moving |= {name for name, count in restarts.items() if count}
+    demoted = 0
+    for issue in parsed_result.get('correlated_issues') or []:
+        if not isinstance(issue, dict) or str(issue.get('issue_type', '')).upper() != 'MEMORY_HIGH':
+            continue
+        if str(issue.get('severity', '')).upper() not in ('WARNING', 'CRITICAL'):
+            continue
+        component = str(issue.get('component') or '').strip()
+        if component in steady and component not in moving:
+            issue['severity'] = 'INFO'
+            demoted += 1
+    return demoted
 
 
 _REVIEW_ISSUE_TYPES = ('CODE_QUALITY', 'POTENTIAL_BUG', 'SECURITY_RISK', 'DEPRECATED_USAGE')
@@ -1216,6 +1307,12 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
         for cicd in cicd_logs:
             if cicd.get('status') == 'failed':
                 output = f"[CI/CD] Job '{cicd.get('job_name', 'unknown')}' FAILED on branch '{cicd.get('branch', 'unknown')}' (Pipeline #{cicd.get('pipeline_id', 'N/A')})"
+                if cicd.get('commit_sha'):
+                    # A failed deploy creates no Deployment: the run is the
+                    # only place its commit reaches the analysis.
+                    output += f"\n  Commit: {str(cicd['commit_sha'])[:12]}"
+                    if cicd.get('commit_message'):
+                        output += f" \"{cicd['commit_message']}\""
                 if cicd.get('trace_errors'):
                     output += f"\n  Errors:\n{cicd['trace_errors']}"
                 cicd_outputs.append(output)
@@ -1301,6 +1398,7 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
             traces_summary=traces_summary,
             enabled_capabilities=enabled_capabilities,
             change_events=batch.data.get('change_events') if isinstance(batch.data, dict) else None,
+            data_gap=batch.data.get('data_gap') if isinstance(batch.data, dict) else None,
         )
         system_prompt, analysis_prompt = get_batch_analysis_prompt_parts(context)
 
@@ -1493,6 +1591,9 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                     )
                     model_name = f"{model_name} (truncated)"
 
+                # Data that stopped is reported even when the analysis did not.
+                _ensure_data_gap_issue(parsed_result, batch.data)
+
                 # Save structured analysis with model name
                 batch.save_analysis(parsed_result, model_name=model_name)
 
@@ -1518,6 +1619,7 @@ def analyze_batch(self, batch_id, preprocessed_logs=None):
                     
                     _demote_side_code_findings(parsed_result)
                     _cap_stuck_rollout_severity(parsed_result, batch.data)
+                    _demote_steady_memory(parsed_result, batch.data)
                     for issue_data in parsed_result.get('correlated_issues', []):
                         if not isinstance(issue_data, dict):
                             continue
@@ -1854,6 +1956,7 @@ def _apply_primary_analysis_to_batch(batch, parsed_result, model_name):
         batch.model_name = model_name
     if batch.data is None:
         batch.data = {}
+    _ensure_data_gap_issue(parsed_result, batch.data)
     batch.data['analysis_result'] = parsed_result
     batch.save(update_fields=['analysis_text', 'analyzed_at', 'model_name', 'data'])
 
@@ -1867,6 +1970,7 @@ def _apply_primary_analysis_to_batch(batch, parsed_result, model_name):
 
     _demote_side_code_findings(parsed_result)
     _cap_stuck_rollout_severity(parsed_result, batch.data)
+    _demote_steady_memory(parsed_result, batch.data)
     for issue_data in parsed_result.get('correlated_issues', []) or []:
         if not isinstance(issue_data, dict):
             continue
@@ -2095,6 +2199,7 @@ def reanalyze_batch_with_model(self, batch_id, model_name, mode='compare'):
             traces_summary=traces_summary,
             enabled_capabilities=enabled_capabilities,
             change_events=batch.data.get('change_events') if isinstance(batch.data, dict) else None,
+            data_gap=batch.data.get('data_gap') if isinstance(batch.data, dict) else None,
         )
         system_prompt, analysis_prompt = get_batch_analysis_prompt_parts(context)
 

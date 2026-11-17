@@ -379,13 +379,19 @@ def _from_native(organisation, service_names, start, end, scope=None):
         return None
 
     trace_pks = _project_trace_pks(organisation, service_names, start, end, scope)
-    if not trace_pks:
-        return None
-
-    span_qs = Span.objects.filter(trace__in=trace_pks)
-    total_spans = span_qs.count()
+    span_qs = Span.objects.filter(trace__in=trace_pks) if trace_pks else Span.objects.none()
+    total_spans = span_qs.count() if trace_pks else 0
     if total_spans == 0:
-        return None
+        # No spans now: still a finding when services sent steady traffic in
+        # the window before (phase 3 client C4, L3: checkout stopped, nothing
+        # logged an error, and the window read as healthy).
+        drops = _traffic_drops(_traffic(organisation, list(service_names or []), start, end, scope))
+        if not drops:
+            return None
+        return {'source': 'otlp', 'span_count': 0, 'error_span_count': 0, 'trace_count': 0,
+                'top_slow': [], 'top_errors': [], 'services_touched': [], 'per_service': [],
+                'traffic': {'spans': 0, 'before': sum(d['before'] for d in drops)},
+                'traffic_drops': drops}
 
     error_spans = span_qs.filter(status_code='ERROR')
 
@@ -431,10 +437,13 @@ def _from_native(organisation, service_names, start, end, scope=None):
     # alike. Without the change in volume, "every service slowed down at
     # once" read as a code problem (Online Boutique on AKS, scenario R9: a
     # 5x load-generator surge blamed on recommendationservice's client code).
-    traffic = _traffic(organisation, list(per_service), start, end, scope)
+    # Every listed service, not only those with spans now: a service whose
+    # traffic stopped has no spans in this window and would not be seen.
+    traffic = _traffic(organisation, sorted(set(per_service) | set(service_names or [])), start, end, scope)
     for name, row in per_service.items():
         if name in traffic['per_service']:
             row['traffic'] = traffic['per_service'][name]
+    drops = _traffic_drops(traffic)
 
     return {
         'source': 'otlp',
@@ -446,7 +455,25 @@ def _from_native(organisation, service_names, start, end, scope=None):
         'services_touched': services_touched,
         'per_service': _top_services(per_service),
         'traffic': {'spans': traffic['spans'], 'before': traffic['before']},
+        **({'traffic_drops': drops} if drops else {}),
     }
+
+
+# A service's traffic "stopped" when it had at least this many spans in the
+# window before and now has 10 % of that or less. The floor keeps a service
+# that is quiet anyway (a few spans) from raising it.
+TRAFFIC_DROP_MIN_BEFORE = 30
+TRAFFIC_DROP_RATIO = 0.10
+
+
+def _traffic_drops(traffic):
+    """Services whose span count collapsed against the window before."""
+    drops = []
+    for name, row in sorted((traffic or {}).get('per_service', {}).items()):
+        before, now = row.get('before') or 0, row.get('spans') or 0
+        if before >= TRAFFIC_DROP_MIN_BEFORE and now <= TRAFFIC_DROP_RATIO * before:
+            drops.append({'service': name, 'spans': now, 'before': before})
+    return drops[:10]
 
 
 def _traffic(organisation, service_names, start, end, scope=None):
@@ -675,10 +702,18 @@ def format_trace_context_for_prompt(traces_summary):
     """
     if not traces_summary or not isinstance(traces_summary, dict):
         return ''
-    if traces_summary.get('span_count', 0) == 0:
+    drops = traces_summary.get('traffic_drops') or []
+    if traces_summary.get('span_count', 0) == 0 and not drops:
         return ''
 
     parts = ['\nDistributed Traces:', '-------------']
+    if drops:
+        # First, so it is not read past: a service whose traffic stopped
+        # sends no spans, and the rest of this block cannot show it.
+        parts.append("Traffic stopped or collapsed against the window before:")
+        for d in drops:
+            parts.append(f"  {d.get('service', '?')}: {d.get('spans', 0)} spans now, "
+                         f"{d.get('before', 0)} in the window before")
     source = traces_summary.get('source', 'otlp')
     parts.append(
         f"Source: {source}  Traces: {traces_summary.get('trace_count', 0)}  "

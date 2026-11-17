@@ -1203,6 +1203,18 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         except Exception as e:
             logger.warning(f"Failed to fetch CI/CD logs: {e}")
         
+        # A project or service that logged steadily and has stopped is a
+        # finding, not a quiet window (phase 3 client C4: a read-only log
+        # store and a checkout that stopped were both reported healthy).
+        # Two bounded reads at every level, never able to fail the batch
+        # (Data/volume_gap.py).
+        data_gap = None
+        if provider is not None and log_query is not None and not search_error and project is not None:
+            from .volume_gap import check_log_volume
+            data_gap = check_log_volume(
+                provider, index_pattern, log_query, environment=batch_environment,
+                env_labels=environment.log_labels() if environment else ())
+
         # === SKIP EMPTY BATCHES ===
         # Don't create batches for environments with no data.
         #
@@ -1213,7 +1225,8 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
         # was computed by the earlier gate, which runs only on the same
         # logs-and-metrics-empty path that reaches this branch.
         total_data_points = (len(filtered_hits) + metrics_count + len(code_changes_data)
-                             + len(cicd_logs_data) + trace_span_count + (1 if triggering_alert else 0))
+                             + len(cicd_logs_data) + trace_span_count + (1 if triggering_alert else 0)
+                             + (1 if data_gap else 0))
         if investigation is not None:
             investigation.counts = {
                 'logs': len(filtered_hits), 'metrics': metrics_count, 'traces': trace_span_count,
@@ -1273,6 +1286,8 @@ def create_log_batch_with_project_name(self, index_name=None, project_name=None,
             batch_data['operator_context'] = investigation.hint
         if triggering_alert:
             batch_data['triggering_alert'] = triggering_alert
+        if data_gap:
+            batch_data['data_gap'] = data_gap
         cleaned_data = clean_json(batch_data)
 
         project_instance = project
@@ -2456,6 +2471,7 @@ def _cicd_from_database(project, environment, start, end, limit=20):
         guessed = meta.get('environment_source') in (None, 'default')
         if p.environment and p.environment != environment and not guessed:
             continue
+        commit_sha, commit_message = _run_commit(p, meta)
         jobs = list(p.jobs.all()) or [None]
         for job in jobs:
             trace = (getattr(job, 'logs', '') or '') if job else ''
@@ -2472,8 +2488,24 @@ def _cicd_from_database(project, environment, start, end, limit=20):
                 'service_name': meta.get('service_name'),
                 'trace': trace[-2000:] or None,
                 'trace_errors': errors or None,
+                'commit_sha': commit_sha or None,
+                'commit_message': commit_message or None,
             })
     return out
+
+
+def _run_commit(pipeline, meta):
+    """The commit a CI/CD run built or deployed, with its message when
+    SerOps knows the commit (looked up in the run's organisation only)."""
+    from providers.models import CodeChange
+    shas = meta.get('commit_shas') or []
+    sha = str(shas[0]) if shas else ''
+    if not sha:
+        return '', ''
+    change = CodeChange.objects.filter(organisation=pipeline.organisation, commit_sha__startswith=sha[:7]).first() \
+        if pipeline.organisation_id else None
+    message = (change.commit_message or '').splitlines()[0][:120] if change and change.commit_message else ''
+    return sha, message
 
 
 @shared_task(bind=True, max_retries=0, priority=9, queue='high_priority')

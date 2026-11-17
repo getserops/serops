@@ -59,6 +59,9 @@ class DataSourceContext:
     # INFO lines that say a job, deploy, restart or failover happened
     # (Data/change_events.py): context only.
     change_events: list[dict[str, Any]] | None = None
+    # A project or service that logged steadily and stopped
+    # (Data/volume_gap.py): silence that is not health.
+    data_gap: dict[str, Any] | None = None
 
     # ----- optional narrative context -----
     project_context: dict[str, Any] | None = None

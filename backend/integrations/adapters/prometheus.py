@@ -68,8 +68,14 @@ ROOT_CGROUP_MATCHER = 'id=~"/kubepods.*"'
 # left side's series and adds right-side series whose labels differ, so after
 # `sum by (service_name)` each service comes from one level. QoS and root
 # cgroups carry no pod label and drop out of both sides.
+#
+# The pod-level side also requires a service name. Under the containerd recipe
+# that relabels service_name from `container`, pod-level series have none, and
+# `or` kept their sum as a `service_name=""` series: 1.25 cores of
+# "unlabelled containers" on client C2 after the fallback above was added.
+# Containers that really have no service label still come from the left side.
 CONTAINER_LEVEL_MATCHER = 'container!="",container!="POD"'
-POD_LEVEL_MATCHER = 'container="",pod!=""'
+POD_LEVEL_MATCHER = 'container="",pod!="",service_name!=""'
 
 
 def k8s_container_expr(template, label_str):

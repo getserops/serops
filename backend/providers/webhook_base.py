@@ -293,6 +293,13 @@ class BaseCICDWebhookHandler(APIView, ABC):
         env_source = normalized.get('environment_source')
         if env_source:
             metadata['environment_source'] = env_source
+        # The commit the run built or deployed, kept on the run itself: a
+        # failed deploy creates no Deployment, and its commit was lost to the
+        # analysis (client C3 K9: an out-of-memory deploy linked by timing
+        # only).
+        shas = [str(c)[:64] for c in (normalized.get('commit_shas') or []) if c]
+        if shas:
+            metadata['commit_shas'] = shas[:5]
         owner = {}
         if binding is not None:
             try:

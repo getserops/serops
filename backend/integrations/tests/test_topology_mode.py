@@ -749,6 +749,19 @@ class OneCgroupLevelTest(SimpleTestCase):
     def test_no_unlabelled_bucket_from_hierarchy(self):
         self.assertNotIn('', self._evaluate(self._expr()))
 
+    def test_container_relabel_recipe_leaves_no_unlabelled_pod_bucket(self):
+        """Client C2 rerun: service_name relabelled from `container`, so the
+        pod-level cgroups carry no service_name; their sum came back as an
+        unlabelled series of 1.25 cores."""
+        self.SERIES = [{k: v for k, v in sr.items() if not (k == 'service_name' and not sr.get('container'))}
+                       for sr in OneCgroupLevelTest.SERIES]
+        self.assertEqual(self._evaluate(self._expr()), {'cart': 0.29, 'ads': 0.19})
+
+    def test_container_without_a_service_label_still_counts(self):
+        self.SERIES = OneCgroupLevelTest.SERIES + [
+            {'id': '/kubepods/besteffort/podz/c9', 'pod': 'reindex-nightly', 'container': 'reindex', 'value': 0.8}]
+        self.assertEqual(self._evaluate(self._expr()).get(''), 0.8)
+
     def test_peak_pod_queries_use_the_same_levels(self):
         from datetime import datetime, timezone
         from integrations.metrics_processing import _fetch_peak_pod_metrics

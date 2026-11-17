@@ -253,6 +253,17 @@ def _around(history, when):
     after = [h for h in history if h[0] >= created_from]
     old = max(before, key=lambda h: h[0])[2] if before else None
     new = min(after, key=lambda h: h[0])[2] if after else None
+    if new is None:
+        # A rollout that created no pod: `kubectl rollout undo` while the
+        # previous version's pod was never replaced (one replica, the new pod
+        # never became ready) only deletes the new pod. What runs after is the
+        # pod that outlived the change. Without this the detail read "image
+        # unchanged (<bad tag>)" and the analysis said the revert had not
+        # taken effect (client C1, I12).
+        survivors = [h for h in history
+                     if h[0] < created_from and h[1] >= when + timedelta(seconds=60)]
+        if survivors:
+            new = max(survivors, key=lambda h: h[0])[2]
     return old, new
 
 

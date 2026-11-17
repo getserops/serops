@@ -178,6 +178,17 @@ the store came back full, SerOps reads each registered service that is
 missing from it on its own (up to 8 services, 200 records each), so a quiet
 service's warnings are not pushed out by a loud one.
 
+**Data that stops is reported.** When few records arrive, SerOps also counts
+the window's log records at every level and compares them with the window
+before of the same length (two reads of at most 300 records). A project whose
+volume falls by 90 % or more, or a service that logged steadily (20 records or
+more over at least three minutes) and is now silent, is reported as a
+warning: the service may be down, its traffic may have stopped, or the log
+store may have stopped ingesting. The same holds for traces: a service whose
+spans fall to a tenth of the window before (30 spans or more before) is shown
+as traffic that stopped. A service that is quiet anyway, or logs in short
+bursts, does not raise it.
+
 ### Environment Names
 
 Use standard names or their aliases. SerOps queries every spelling of the

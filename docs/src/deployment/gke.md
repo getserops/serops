@@ -5,7 +5,7 @@ description: "Install SerOps on GKE with the Helm chart: TLS from cert-manager, 
 # Install on GKE
 
 !!! success "Tested on 2026-11-12 and 2026-11-16"
-    SerOps 1.3.0 on GKE 1.36.4 (Standard, zonal `europe-west1-b`, 2 ×
+    On 2026-11-12, SerOps 1.3.0 on GKE 1.36.4 (Standard, zonal `europe-west1-b`, 2 ×
     `e2-standard-2`), Dataplane V2: a fresh install in 76 seconds, TLS from
     Let's Encrypt through cert-manager, NetworkPolicies enforced, Google Cloud
     Logging and Monitoring for logs and metrics with a three-permission custom
@@ -69,7 +69,7 @@ cluster, 2026-11-16). The `serops-data` passwords then go into the
   exists only in the cluster, so no Google credential sits on disk and the
   `gke-gcloud-auth-plugin` is not needed (`cluster.sh token` renews it).
 * Chart versions before 1.2.14 refused GKE's version string
-  (`v1.36.4-gke.…`); 1.3.0 installs.
+  (`v1.36.4-gke.…`); 1.3.0 and later install, 1.4.0 included.
 
 ## 3. Secrets, values, install
 

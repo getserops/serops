@@ -104,3 +104,35 @@ class JenkinsDeployWarningTest(TestCase):
 
     def test_failure_has_no_deploy_warning(self):
         self.assertNotIn('warning', self.post_build(10).json())
+
+
+class FailedDeployKeepsItsCommitTest(TestCase):
+    """Client C3 K9: a failed deploy creates no Deployment, so its commit
+    never reached the analysis. The run keeps it, and the CI/CD entries the
+    analysis reads carry it with its message."""
+
+    setUp = JenkinsBuildOwnershipTest.setUp
+
+    def test_failed_run_carries_its_commit_to_the_analysis(self):
+        from providers.models import CodeChange
+        CodeChange.objects.create(organisation=self.org, provider='github', project_id='acme/shop',
+                                  commit_sha='5f4a0b2c' + '0' * 32, commit_message='payments: right-size memory\n\nbody',
+                                  author_name='sam', timestamp=timezone.now(), branch='main')
+        r = APIClient().post(f'/api/webhooks/jenkins/{self.binding.id}/', {
+            'job_name': 'payments-deploy', 'build_number': '11', 'status': 'FAILURE',
+            'commit': '5f4a0b2c' + '0' * 32, 'environment': 'production',
+        }, format='json', HTTP_X_JENKINS_TOKEN='whsec')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(Pipeline.objects.get().provider_metadata['commit_shas'], ['5f4a0b2c' + '0' * 32])
+        now = timezone.now()
+        runs = _cicd_from_database(self.project, 'production', now - timedelta(minutes=5), now + timedelta(minutes=1))
+        self.assertEqual(runs[0]['commit_sha'][:8], '5f4a0b2c')
+        self.assertEqual(runs[0]['commit_message'], 'payments: right-size memory')
+
+    def test_run_without_commit_has_none(self):
+        APIClient().post(f'/api/webhooks/jenkins/{self.binding.id}/', {
+            'job_name': 'payments-deploy', 'build_number': '12', 'status': 'FAILURE', 'environment': 'production',
+        }, format='json', HTTP_X_JENKINS_TOKEN='whsec')
+        now = timezone.now()
+        runs = _cicd_from_database(self.project, 'production', now - timedelta(minutes=5), now + timedelta(minutes=1))
+        self.assertIsNone(runs[0]['commit_sha'])
