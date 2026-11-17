@@ -172,6 +172,10 @@ the UI is already the redacted form.
 
 ---
 
+## Outbound requests
+
+Cloud metadata and every link-local address are always refused, before and after redirects; localhost and private addresses are allowed by default because a self-hosted install reaches Ollama at `http://localhost:11434` and Loki, Prometheus or Elasticsearch inside its own network (set `SEROPS_OUTBOUND_ALLOW_PRIVATE=false` on a shared install to refuse them).
+
 ## Secrets at Rest
 
 Some values must be stored to function, so the question is what an

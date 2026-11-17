@@ -47,8 +47,8 @@ off; no data is deleted and Community features keep working.
 
 - Images and the Helm chart are built in public GitHub Actions workflows
   from the tagged commit.
-- Each image is scanned with Trivy (a critical or high finding blocks the
-  release), carries an SPDX SBOM and SLSA provenance, is signed with
+- Each image is scanned with Trivy (a critical or high finding with an available fix
+  blocks the release), carries an SPDX SBOM and SLSA provenance, is signed with
   cosign (keyless) and attested with GitHub artifact attestations. The
   chart is signed the same way.
 - The commands to verify all of this are in
@@ -82,8 +82,8 @@ AGPL. See the [open source promise](../open-source-promise.md) and the
   Tunisia ([Terms, section 5](enterprise-terms.md#5-support-and-updates)).
 - Business band: standard terms, best effort, security review from public
   documentation.
-- Enterprise and Strategic bands: a business-hours response time written
-  into the order.
+- Enterprise band: a business-hours response time written into the
+  order.
 
 ## Personal data
 
@@ -96,8 +96,8 @@ AGPL. See the [open source promise](../open-source-promise.md) and the
 
 ## How employees are counted
 
-The Business, Enterprise and Strategic bands are set by Headcount, never by
-seats ([Terms, section 2](enterprise-terms.md#2-order-and-subscription)):
+The Business and Enterprise bands are set by Headcount, never by seats
+([Terms, section 2](enterprise-terms.md#2-order-and-subscription)):
 
 - **Headcount** is the total number of employees of the organisation that
   signs, plus the employees of each affiliate (more than 50% common control)

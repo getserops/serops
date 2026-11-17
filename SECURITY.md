@@ -89,8 +89,9 @@ cosign verify ghcr.io/getserops/charts/serops:1.4.0 \
   --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/helm-release\.yml@refs/(tags/v|heads/main$)'
 ```
 
-Every GitHub Action the workflows use is pinned to a commit SHA, and
-Dependabot opens the bumps.
+Every GitHub Action the workflows use is pinned to a commit SHA. Dependency
+and action updates are made in the development repository and arrive here with
+each sync; Dependabot security alerts stay on for this repository.
 
 ## Coordinated Disclosure
 
