@@ -94,10 +94,8 @@ seat, and nothing is counted or limited in the product:
 
 | Band | Employees | Price per year |
 |---|---|---|
-| Business | up to 500 | €7,500 (€625 a month, billed yearly), introductory |
-| Business | 501 to 2,000 | €15,000 (€1,250 a month, billed yearly), introductory |
+| Business | up to 2,000 | €7,500 (€625 a month, billed yearly), introductory |
 | Enterprise | over 2,000, or a negotiated contract | from €30,000 |
-| Strategic | above 5,000, or a regulated sector | from €60,000 |
 
 In every Enterprise license today, with a commercial license and a support contract:
 
@@ -112,6 +110,12 @@ In every Enterprise license today, with a commercial license and a support contr
 OpenID Connect sign-in, with the same group-to-role and group-to-team rules, stays in
 Community. Planned next: delegated administration across organisations and compliance
 reports. Cloud is planned for 2027.
+
+## Community
+
+Questions, ideas and setups you want to share:
+[GitHub Discussions](https://github.com/getserops/serops/discussions). Bugs go in
+[issues](https://github.com/getserops/serops/issues).
 
 ## Contributing
 
