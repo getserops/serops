@@ -112,12 +112,16 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Trivy scan (report)
+        # Only findings that have a fix reach the Security tab: a distribution
+        # package with no upstream patch is not something this repo can act
+        # on, and 218 of them buried the ones it can (owner, 17 Nov 2026).
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           image-ref: serops-scan/${{ matrix.component }}:${{ github.sha }}
           format: 'sarif'
           output: 'trivy-${{ matrix.component }}.sarif'
           severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
           exit-code: '0'
       - name: Upload SARIF to Security tab
         uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.39.3
