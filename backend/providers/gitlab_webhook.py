@@ -165,13 +165,10 @@ class GitLabCICDWebhookHandler(BaseCICDWebhookHandler):
                     'message': 'Webhook received, but not for a handled event type.'
                 })
 
-        except Exception as e:
-            import traceback
-            logger.error(f"Error: {str(e)}")
-            traceback.print_exc()
-            logger.error(f"GitLab webhook processing failed: {str(e)}")
+        except Exception:
+            logger.exception('GitLab webhook processing failed')
             return Response(
-                {'error': 'Webhook processing failed', 'details': str(e)},
+                {'error': 'Webhook processing failed'},
                 status=500,
             )
 

@@ -609,9 +609,9 @@ def generate_text(request):
             logger.error(f'Failed to parse JSON: {str(e)}')
             return JsonResponse({"error": "Invalid JSON payload"}, status=400)
         
-        except Exception as e:
-            logger.exception(f'Unexpected error occurred: {str(e)}')
-            return JsonResponse({"error": "Internal server error", "details": str(e)}, status=500)
+        except Exception:
+            logger.exception('Unexpected error occurred')
+            return JsonResponse({"error": "Internal server error"}, status=500)
     
     return JsonResponse({"error": "Invalid request method"}, status=400)
 
@@ -707,11 +707,10 @@ def trigger_batch_analysis(request):
         return JsonResponse({
             'error': 'Invalid JSON payload'
         }, status=status.HTTP_400_BAD_REQUEST)
-    except Exception as e:
-        logger.error(f'Error analyzing batch: {str(e)}')
+    except Exception:
+        logger.exception('Error analyzing batch')
         return JsonResponse({
             'error': 'Internal server error',
-            'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -786,11 +785,10 @@ def get_chat_history(request, chat_id):
             'error': 'Chat session not found'
         }, status=404)
     
-    except Exception as e:
-        logger.error(f'Error fetching chat history: {str(e)}')
+    except Exception:
+        logger.exception('Error fetching chat history')
         return JsonResponse({
             'error': 'Internal server error',
-            'details': str(e)
         }, status=500)
 
 
@@ -887,9 +885,8 @@ def get_chat_sessions(request):
             } for session in sessions]
         })
 
-    except Exception as e:
-        logger.error(f'Error fetching chat sessions: {str(e)}')
+    except Exception:
+        logger.exception('Error fetching chat sessions')
         return JsonResponse({
             'error': 'Internal server error',
-            'details': str(e)
         }, status=500)

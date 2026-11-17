@@ -214,10 +214,10 @@ class BaseCICDWebhookHandler(APIView, ABC):
             # 3. Normalize to standard format
             try:
                 normalized = self.parse_pipeline_event(payload)
-            except Exception as e:
-                logger.error(f"[{self.provider_name}] Failed to parse payload: {e}")
+            except Exception:
+                logger.exception(f'[{self.provider_name}] Failed to parse payload')
                 return Response(
-                    {'error': f'Failed to parse webhook: {str(e)}'}, 
+                    {'error': 'Failed to parse webhook. The backend log has the details.'}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
@@ -278,10 +278,10 @@ class BaseCICDWebhookHandler(APIView, ABC):
                                        'this service has it): recorded as a build, not a deploy.')
             return Response(body)
             
-        except Exception as e:
-            logger.exception(f"[{self.provider_name}] Webhook processing error: {e}")
+        except Exception:
+            logger.exception(f'[{self.provider_name}] Webhook processing error')
             return Response(
-                {'error': f'Internal error: {str(e)}'}, 
+                {'error': 'Internal error. The backend log has the details.'}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     

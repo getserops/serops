@@ -781,11 +781,11 @@ class SCMBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
                 'success': False,
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.exception(f"SCM sync failed: {e}")
+        except Exception:
+            logger.exception('SCM sync failed')
             return Response({
                 'success': False,
-                'error': f'Sync failed: {str(e)}'
+                'error': 'Sync failed. The backend log has the details.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'], url_path='setup-webhook')
@@ -837,11 +837,11 @@ class SCMBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
                 'count': len(suggestions)
             })
             
-        except Exception as e:
-            logger.exception(f"Auto-link detection failed: {e}")
+        except Exception:
+            logger.exception('Auto-link detection failed')
             return Response({
                 'can_auto_link': False,
-                'error': str(e),
+                'error': 'Auto-link detection failed. The backend log has the details.',
                 'suggestions': []
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
@@ -881,11 +881,11 @@ class SCMBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
                 ]
             })
             
-        except Exception as e:
-            logger.exception(f"Auto-link creation failed: {e}")
+        except Exception:
+            logger.exception('Auto-link creation failed')
             return Response({
                 'success': False,
-                'error': str(e)
+                'error': 'Auto-link creation failed. The backend log has the details.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -1189,11 +1189,11 @@ class CICDBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
                     'error': 'Trigger not supported for this provider'
                 }, status=status.HTTP_400_BAD_REQUEST)
                 
-        except Exception as e:
-            logger.exception(f"CI/CD trigger failed: {e}")
+        except Exception:
+            logger.exception('CI/CD trigger failed')
             return Response({
                 'success': False,
-                'error': f'Trigger failed: {str(e)}'
+                'error': 'Trigger failed. The backend log has the details.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -1276,9 +1276,9 @@ Rejects when no secret is configured (fail closed).
 
         except SCMBinding.DoesNotExist:
             return Response({'error': 'Binding not found'}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            logger.exception(f"Webhook receiver error: {e}")
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception:
+            logger.exception('Webhook receiver error')
+            return Response({'error': 'Webhook processing failed. The backend log has the details.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ProjectDeploymentViewSet(ProjectScoped, viewsets.ModelViewSet):

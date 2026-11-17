@@ -878,9 +878,10 @@ class PipelineLogsView(APIView):
             return Response({"message": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
         except Pipeline.DoesNotExist:
             return Response({"message": "Pipeline not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
+        except Exception:
+            logger.exception('Failed to retrieve pipeline logs')
             return Response({
-                "message": f"Error retrieving pipeline logs: {str(e)}"
+                "message": 'Error retrieving pipeline logs. The backend log has the details.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -1010,10 +1011,11 @@ class VerifyGitHubProjectView(APIView):
                 'error': f'Network error while connecting to GitHub: {str(e)}'
             }, status=status.HTTP_502_BAD_GATEWAY)
             
-        except Exception as e:
+        except Exception:
+            logger.exception('GitHub repository verification failed')
             return Response({
                 'exists': False,
-                'error': f'Error verifying GitHub repository: {str(e)}'
+                'error': 'Error verifying GitHub repository. The backend log has the details.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -1136,10 +1138,11 @@ class VerifyBitbucketProjectView(APIView):
                 'error': f'Network error while connecting to Bitbucket: {str(e)}'
             }, status=status.HTTP_502_BAD_GATEWAY)
             
-        except Exception as e:
+        except Exception:
+            logger.exception('Bitbucket repository verification failed')
             return Response({
                 'exists': False,
-                'error': f'Error verifying Bitbucket repository: {str(e)}'
+                'error': 'Error verifying Bitbucket repository. The backend log has the details.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -1265,10 +1268,11 @@ class VerifyAzureDevOpsProjectView(APIView):
                 'error': f'Network error while connecting to Azure DevOps: {str(e)}'
             }, status=status.HTTP_502_BAD_GATEWAY)
             
-        except Exception as e:
+        except Exception:
+            logger.exception('Azure DevOps project verification failed')
             return Response({
                 'exists': False,
-                'error': f'Error verifying Azure DevOps project: {str(e)}'
+                'error': 'Error verifying Azure DevOps project. The backend log has the details.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 from rest_framework import viewsets, serializers
 from rest_framework.decorators import action
@@ -1438,10 +1442,10 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except Exception as e:
-            logger.exception("Integration verification failed: %s", e)
+            logger.exception("Integration verification failed")
             integration.mark_verified(success=False, error=str(e))
             return Response(
-                {'success': False, 'message': f'Verification failed: {str(e)}'},
+                {'success': False, 'message': 'Verification failed. The backend log has the details.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -1515,10 +1519,10 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
                 {'success': False, 'message': str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        except Exception as e:
-            logger.exception("Test connection failed: %s", e)
+        except Exception:
+            logger.exception("Test connection failed")
             return Response(
-                {'success': False, 'message': f'Connection test failed: {str(e)}'},
+                {'success': False, 'message': 'Connection test failed. The backend log has the details.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -1589,10 +1593,10 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
             )
         except SCMProviderError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.exception("Failed to discover repos: %s", e)
+        except Exception:
+            logger.exception("Failed to discover repos")
             return Response(
-                {'error': f'Failed to discover repositories: {str(e)}'},
+                {'error': 'Failed to discover repositories. The backend log has the details.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -1623,10 +1627,10 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
             if health['healthy']:
                 return Response(health)
             return Response(health, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.exception("Health check failed: %s", e)
+        except Exception:
+            logger.exception("Health check failed")
             return Response(
-                {'healthy': False, 'error': str(e)},
+                {'healthy': False, 'error': 'Health check failed. The backend log has the details.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -1653,10 +1657,10 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
                 'unhealthy': len(results) - healthy_count,
                 'results': results,
             })
-        except Exception as e:
-            logger.exception("Health check all failed: %s", e)
+        except Exception:
+            logger.exception("Health check all failed")
             return Response(
-                {'error': str(e)},
+                {'error': 'Health check failed. The backend log has the details.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -1795,9 +1799,9 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
 
             return Response(summary)
 
-        except Exception as e:
-            logger.exception("Failed to build usage summary: %s", e)
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception:
+            logger.exception("Failed to build usage summary")
+            return Response({'error': 'Failed to build usage summary'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # ── sync ─────────────────────────────────────────────────────
 
@@ -1838,10 +1842,10 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
                 {'success': False, 'message': str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        except Exception as e:
-            logger.exception("Sync failed: %s", e)
+        except Exception:
+            logger.exception("Sync failed")
             return Response(
-                {'success': False, 'message': f'Sync failed: {str(e)}'},
+                {'success': False, 'message': 'Sync failed. The backend log has the details.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 

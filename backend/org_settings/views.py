@@ -572,12 +572,12 @@ class TestAIConnectionView(APIView):
                 'response_preview': response[:100] if response else None
             })
             
-        except Exception as e:
-            logger.error(f"Error testing AI connection: {e}")
+        except Exception:
+            logger.exception('Error testing AI connection')
             self._update_test_status(request.user.organisation, provider_name, False)
             return Response({
                 'success': False,
-                'error': str(e)
+                'error': 'AI connection test failed. The backend log has the details.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def _update_test_status(self, organisation, provider_name, success):

@@ -1,3 +1,5 @@
+import logging
+
 from Middlewares.rbac import Requires
 from Middlewares.project_access import ProjectScoped
 from rest_framework import viewsets, status
@@ -12,6 +14,8 @@ from .serializers import (
     InfraServiceSerializer, CustomServiceSerializer,
     ServiceListSerializer
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ServiceViewSet(ProjectScoped, viewsets.ModelViewSet):
@@ -97,8 +101,9 @@ class SCMServiceViewSet(ProjectScoped, viewsets.ModelViewSet):
             service.webhook_enabled = True
             service.save()
             return Response({"status": "webhook enabled"})
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            logger.exception('Webhook setup failed for SCM service %s', pk)
+            return Response({"error": "Failed to enable webhook. The backend log has the details."}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class InfraServiceViewSet(ProjectScoped, viewsets.ModelViewSet):

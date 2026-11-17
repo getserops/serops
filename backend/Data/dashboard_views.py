@@ -176,14 +176,14 @@ class MTTRView(OrgFilterMixin, APIView):
             cache.set(cache_key, result, CACHE_TTL_STATS)
             return Response(result)
 
-        except Exception as e:
-            logger.error(f"Error calculating MTTR: {e}")
+        except Exception:
+            logger.exception('Error calculating MTTR')
             return Response({
                 'overall_mttr_hours': None,
                 'by_severity': {},
                 'trend': 'UNKNOWN',
                 'sample_size': 0,
-                'error': str(e)
+                'error': 'Failed to calculate MTTR'
             })
 
 
@@ -284,12 +284,12 @@ class ServiceHealthView(OrgFilterMixin, APIView):
                 'total_services': len(services_list)
             })
 
-        except Exception as e:
-            logger.error(f"Error getting service health: {e}")
+        except Exception:
+            logger.exception('Error getting service health')
             return Response({
                 'services': [],
                 'total_services': 0,
-                'error': str(e)
+                'error': 'Failed to get service health'
             })
 
 
@@ -395,12 +395,12 @@ class RootCauseStatsView(OrgFilterMixin, APIView):
                 'period_days': days,
             })
             
-        except Exception as e:
-            logger.error(f"Error getting root cause stats: {e}")
+        except Exception:
+            logger.exception('Error getting root cause stats')
             return Response({
                 'breakdown': [],
                 'total_issues': 0,
-                'error': str(e)
+                'error': 'Failed to get root cause stats'
             })
 
 
@@ -554,12 +554,12 @@ class RecentDeploymentsView(OrgFilterMixin, APIView):
             # cache.set(cache_key, result, CACHE_TTL)
             return Response(result)
             
-        except Exception as e:
-            logger.error(f"Error getting recent deployments: {e}")
+        except Exception:
+            logger.exception('Error getting recent deployments')
             return Response({
                 'services': [],
                 'total_services': 0,
-                'error': str(e)
+                'error': 'Failed to get recent deployments'
             })
 
 
@@ -636,8 +636,8 @@ class CorrelationInsightsView(OrgFilterMixin, APIView):
                 'period_days': days,
             })
 
-        except Exception as e:
-            logger.error(f"Error getting correlation insights: {e}")
+        except Exception:
+            logger.exception('Error getting correlation insights')
             return Response({
                 'total_issues': 0,
                 'commit_correlations': 0,
@@ -646,7 +646,7 @@ class CorrelationInsightsView(OrgFilterMixin, APIView):
                 'correlation_rate': 0,
                 'top_correlated_components': [],
                 'period_days': 7,
-                'error': str(e)
+                'error': 'Failed to get correlation insights'
             })
 
 
@@ -778,12 +778,12 @@ class RecentAnalysisFeedView(OrgFilterMixin, APIView):
                 ).exclude(analysis_text__exact='').count(),
             })
 
-        except Exception as e:
-            logger.error(f"Error getting analysis feed: {e}")
+        except Exception:
+            logger.exception('Error getting analysis feed')
             return Response({
                 'feed': [],
                 'total_analyses': 0,
-                'error': str(e)
+                'error': 'Failed to get analysis feed'
             })
 
 
@@ -855,8 +855,8 @@ class SentinelStatsView(OrgFilterMixin, APIView):
                 'estimated_cost_saved_usd': estimated_cost_saved_usd,
                 'ai_spend_usd': round(float(ai_spend_usd), 4),
             })
-        except Exception as e:
-            logger.error(f"Error getting sentinel stats: {e}")
+        except Exception:
+            logger.exception('Error getting sentinel stats')
             return Response({
                 'period_days': days if 'days' in dir() else 7,
                 'total_batches': 0,
@@ -867,7 +867,7 @@ class SentinelStatsView(OrgFilterMixin, APIView):
                 'estimated_tokens_saved': 0,
                 'estimated_cost_saved_usd': 0,
                 'ai_spend_usd': 0,
-                'error': str(e)
+                'error': 'Failed to get sentinel stats'
             })
 
     @staticmethod

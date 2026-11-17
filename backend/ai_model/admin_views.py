@@ -39,11 +39,11 @@ def get_ai_circuit_status(request):
             'status': 'error',
             'message': 'Circuit breaker module not available'
         }, status=status.HTTP_501_NOT_IMPLEMENTED)
-    except Exception as e:
-        logger.error(f"Error getting circuit status: {e}")
+    except Exception:
+        logger.exception('Error getting circuit status')
         return Response({
             'status': 'error',
-            'message': str(e)
+            'message': 'Failed to get circuit status'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -73,11 +73,11 @@ def get_ai_rate_status(request):
             'status': 'error',
             'message': 'Rate limiter module not available'
         }, status=status.HTTP_501_NOT_IMPLEMENTED)
-    except Exception as e:
-        logger.error(f"Error getting rate status: {e}")
+    except Exception:
+        logger.exception('Error getting rate status')
         return Response({
             'status': 'error',
-            'message': str(e)
+            'message': 'Failed to get rate status'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -119,11 +119,11 @@ def reset_ai_circuit(request, provider):
             'status': 'error',
             'message': 'Circuit breaker module not available'
         }, status=status.HTTP_501_NOT_IMPLEMENTED)
-    except Exception as e:
-        logger.error(f"Error resetting circuit: {e}")
+    except Exception:
+        logger.exception('Error resetting circuit')
         return Response({
             'status': 'error',
-            'message': str(e)
+            'message': 'Failed to reset circuit'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -168,11 +168,11 @@ def trip_ai_circuit(request, provider):
             'status': 'error',
             'message': 'Circuit breaker module not available'
         }, status=status.HTTP_501_NOT_IMPLEMENTED)
-    except Exception as e:
-        logger.error(f"Error tripping circuit: {e}")
+    except Exception:
+        logger.exception('Error tripping circuit')
         return Response({
             'status': 'error',
-            'message': str(e)
+            'message': 'Failed to trip circuit'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -219,9 +219,9 @@ def get_ai_health(request):
             pass
         
         return Response(health)
-    except Exception as e:
-        logger.error(f"Error getting AI health: {e}")
+    except Exception:
+        logger.exception('Error getting AI health')
         return Response({
             'status': 'error',
-            'message': str(e)
+            'message': 'Failed to get AI health'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

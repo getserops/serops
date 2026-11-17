@@ -157,10 +157,10 @@ class BatchReanalyzeView(APIView):
                 'mode': mode,
             }, status=status.HTTP_200_OK)
             
-        except Exception as e:
+        except Exception:
             logger.exception("Error queuing re-analysis")
             return Response(
-                {'error': 'Failed to queue re-analysis', 'details': str(e)},
+                {'error': 'Failed to queue re-analysis'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -202,10 +202,10 @@ class BatchAnalysisHistoryView(APIView):
                 {'error': f'Batch {batch_id} not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        except Exception as e:
-            logger.exception(f"Error getting analysis history for batch {batch_id}")
+        except Exception:
+            logger.exception(f'Error getting analysis history for batch {batch_id}')
             return Response(
-                {'error': 'Failed to get analysis history', 'details': str(e)},
+                {'error': 'Failed to get analysis history'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -245,10 +245,10 @@ class BatchPromoteAnalysisView(APIView):
             summary = promote_history_entry_to_primary(batch, analyzed_at)
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
+        except Exception:
             logger.exception('Failed to promote history entry')
             return Response(
-                {'error': 'Failed to promote analysis', 'details': str(e)},
+                {'error': 'Failed to promote analysis'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -395,10 +395,10 @@ class MetricCorrelationView(APIView):
                 {'correlations': [], 'error': 'Batch not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        except Exception as e:
-            logger.error(f"Error getting correlations: {e}")
+        except Exception:
+            logger.exception('Error getting correlations')
             return Response(
-                {'correlations': [], 'error': str(e)},
+                {'correlations': [], 'error': 'Failed to get correlations'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -528,10 +528,10 @@ class LogBatchView(OrgFilterMixin, APIView):
                 {'error': 'Invalid parameter value', 'details': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        except Exception as e:
+        except Exception:
             logger.exception("Error retrieving log batches")
             return Response(
-                {'error': 'Failed to retrieve log batches', 'details': str(e)},
+                {'error': 'Failed to retrieve log batches'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -611,10 +611,10 @@ class NodeMemoryRawView(APIView):
 
             return Response(response_data, status=200)
 
-        except Exception as e:
-            logger.error(f"Error fetching memory data: {str(e)}")
+        except Exception:
+            logger.exception('Error fetching memory data')
             return Response(
-                {'error': 'Failed to retrieve memory data', 'details': str(e)},
+                {'error': 'Failed to retrieve memory data'},
                 status=500
             )
         
@@ -685,10 +685,10 @@ class BatchDetailView(OrgFilterMixin, APIView):
                 {'error': f'Batch {batch_id} not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        except Exception as e:
-            logger.exception(f"Error retrieving batch {batch_id}")
+        except Exception:
+            logger.exception(f'Error retrieving batch {batch_id}')
             return Response(
-                {'error': 'Failed to retrieve batch details', 'details': str(e)},
+                {'error': 'Failed to retrieve batch details'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -781,10 +781,10 @@ class RecommendationStatsView(OrgFilterMixin, APIView):
 
             return Response(response_data, status=status.HTTP_200_OK)
 
-        except Exception as e:
+        except Exception:
             logger.exception("Fatal error in recommendation stats calculation")
             return Response(
-                {'error': 'Internal server error', 'details': str(e)},
+                {'error': 'Internal server error'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -873,10 +873,10 @@ class IssueStatsView(OrgFilterMixin, APIView):
 
             return Response(response_data, status=status.HTTP_200_OK)
 
-        except Exception as e:
+        except Exception:
             logger.exception("Fatal error in issue stats calculation")
             return Response(
-                {'error': 'Internal server error', 'details': str(e)},
+                {'error': 'Internal server error'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -1141,9 +1141,9 @@ class IssueListView(OrgFilterMixin, APIView):
         except ValueError as e:
             logger.error(f"Invalid parameter value: {str(e)}")
             return Response({'error': 'Invalid parameter', 'details': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
+        except Exception:
             logger.exception("Error retrieving issues")
-            return Response({'error': 'Failed to retrieve issues', 'details': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': 'Failed to retrieve issues'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class BatchIssuesView(OrgFilterMixin, APIView):
@@ -1269,9 +1269,9 @@ class BatchIssuesView(OrgFilterMixin, APIView):
 
         except ValueError as e:
             return Response({'error': 'Invalid parameter', 'details': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.exception(f"Error retrieving issues for batch {batch_id}")
-            return Response({'error': 'Internal server error', 'details': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception:
+            logger.exception(f'Error retrieving issues for batch {batch_id}')
+            return Response({'error': 'Internal server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def _get_issues_from_analysis_text(self, batch, severity_filter, page, page_size):
         """Fallback: Extract issues from analysis_text JSON for legacy batches."""
@@ -1452,10 +1452,10 @@ class IssueActionsView(OrgFilterMixin, APIView):
             serializer = IssueSerializer(issue)
             return Response(serializer.data, status=status.HTTP_200_OK)
             
-        except Exception as e:
-            logger.exception(f"Error performing action {action} on issue {issue_id}")
+        except Exception:
+            logger.exception(f'Error performing action {action} on issue {issue_id}')
             return Response(
-                {'error': f'Failed to {action} issue', 'details': str(e)},
+                {'error': f'Failed to {action} issue'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -1515,10 +1515,10 @@ class IssueBulkActionsView(OrgFilterMixin, APIView):
             logger.info(f"Bulk {action} on {updated} issues by user {request.user.id}")
             return Response({'updated': updated}, status=status.HTTP_200_OK)
 
-        except Exception as e:
-            logger.exception(f"Error performing bulk {action}")
+        except Exception:
+            logger.exception(f'Error performing bulk {action}')
             return Response(
-                {'error': f'Failed to bulk {action}', 'details': str(e)},
+                {'error': f'Failed to bulk {action}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -1601,12 +1601,11 @@ class NodeCPURawView(APIView):
 
             return Response(response_data, status=200)
 
-        except Exception as e:
-            logger.error(f"Critical error: {str(e)}", exc_info=True)
+        except Exception:
+            logger.exception('Critical error')
             return Response(
                 {
                     'error': 'Database error',
-                    'details': str(e)
                 },
                 status=500
             )
@@ -1854,10 +1853,10 @@ class DeleteOldBatchesView(APIView):
                 },
                 status=200
             )
-        except Exception as e:
-            logger.error(f"Error deleting old batches: {str(e)}")
+        except Exception:
+            logger.exception('Error deleting old batches')
             return Response(
-                {"error": "Failed to delete old batches", "details": str(e)},
+                {"error": "Failed to delete old batches"},
                 status=500
             )
 
@@ -1887,9 +1886,9 @@ class SystemHealthView(OrgFilterMixin, APIView):
                     "resolved_last_24h": health['resolved_last_24h'],
                 },
             })
-        except Exception as e:
-            logger.error(f"Error calculating health score: {str(e)}")
-            return Response({"error": str(e)}, status=500)
+        except Exception:
+            logger.exception('Error calculating health score')
+            return Response({"error": "Failed to calculate health score"}, status=500)
 
 
 class ServiceReliabilityView(OrgFilterMixin, APIView):
@@ -1921,9 +1920,9 @@ class ServiceReliabilityView(OrgFilterMixin, APIView):
                 for c in top
             ])
 
-        except Exception as e:
-            logger.error(f"Error getting service reliability: {str(e)}")
-            return Response({"error": str(e)}, status=500)
+        except Exception:
+            logger.exception('Error getting service reliability')
+            return Response({"error": "Failed to get service reliability"}, status=500)
 
 
 class TrendAnalysisView(OrgFilterMixin, APIView):
@@ -1975,6 +1974,6 @@ class TrendAnalysisView(OrgFilterMixin, APIView):
 
             return Response(daily_stats)
 
-        except Exception as e:
-            logger.error(f"Error calculating trends: {str(e)}")
-            return Response({"error": str(e)}, status=500)
+        except Exception:
+            logger.exception('Error calculating trends')
+            return Response({"error": "Failed to calculate trends"}, status=500)
