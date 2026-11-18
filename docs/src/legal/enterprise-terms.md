@@ -53,8 +53,9 @@ organisation.
    work around the license key check; or resell, sublicense or host the
    Enterprise features as a service for third parties without a written
    agreement.
-4. Development, testing and evaluation use is allowed without a
-   subscription, as the Enterprise License states.
+4. Development and testing use is allowed without a subscription, as the
+   Enterprise License states. For evaluation, we issue a free 30-day key on
+   request.
 
 ## 4. Fees and payment
 

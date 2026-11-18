@@ -69,7 +69,9 @@ _HELM_DEPLOY_REASONS = {'InstallSucceeded', 'UpgradeSucceeded', 'RollbackSucceed
 
 # Flux revisions are ``<ref>@sha1:<sha>`` (older) or ``<ref>@<algo>:<sha>``
 # (newer builds with SHA-256 support). Capture whichever hash comes last.
-_REVISION_RE = re.compile(r'(?:[^@]+@)?[a-z0-9]+:([a-fA-F0-9]{7,64})')
+# Applied to the part after the last '@', anchored: no backtracking on a
+# hostile body (CodeQL py/polynomial-redos).
+_REVISION_RE = re.compile(r'[a-z0-9]+:([a-fA-F0-9]{7,64})')
 
 
 class FluxDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
@@ -158,9 +160,7 @@ class FluxDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
     def _extract_sha(revision: str) -> str:
         if not revision:
             return ''
-        # A real revision is under 200 characters; the cap keeps the regex
-        # linear on a hostile body (CodeQL py/polynomial-redos).
-        m = _REVISION_RE.search(revision[:512])
+        m = _REVISION_RE.match(revision.rsplit('@', 1)[-1])
         return m.group(1) if m else ''
 
     @staticmethod
