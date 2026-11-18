@@ -195,7 +195,8 @@
     "viewMetrics": "Voir les Métriques",
     "openBatch": "Ouvrir le lot {{id}}",
     "trigger": "Déclencheur",
-    "pageSubtitle": "Toutes les analyses IA de vos logs, des plus récentes aux plus anciennes."
+    "pageSubtitle": "Toutes les analyses IA de vos logs, des plus récentes aux plus anciennes.",
+    "sentinel": "Sentinel"
   },
   "issues": {
     "title": "Problèmes",
@@ -481,7 +482,8 @@
       "allIssues": "Problèmes",
       "sampleCrumb": "Incident d'exemple",
       "sampleTitle": "Incident d'exemple",
-      "sampleBody": "Données fictives et analyse rédigée pour cet exemple : votre fournisseur d'IA n'a pas été appelé et rien n'a été ajouté à votre espace. Connectez une source de logs et SerOps produira cette page à partir de vos propres incidents."
+      "sampleBody": "Données fictives et analyse rédigée pour cet exemple : votre fournisseur d'IA n'a pas été appelé et rien n'a été ajouté à votre espace. Connectez une source de logs et SerOps produira cette page à partir de vos propres incidents.",
+      "sentinel": "Sentinel"
     },
     "codeNotes": {
       "title_one": "{{count}} note de revue de code",
@@ -660,7 +662,7 @@
     "showPassword": "Afficher le mot de passe",
     "hidePassword": "Masquer le mot de passe",
     "demoOnlyTitle": "Découvrez la démo en direct",
-    "demoOnlyText": "Un espace SerOps en lecture seule avec de vrais incidents, causes racines et chronologies. Aucun compte requis.",
+    "demoOnlyText": "Un espace SerOps en lecture seule avec des incidents d'exemple, causes racines et chronologies. Aucun compte requis.",
     "tryDemo": "Essayer la démo",
     "selfHost": "Héberger votre propre SerOps →",
     "ssoSignInFailed": "Échec de la connexion SSO. Vérifiez avec votre administrateur que votre compte appartient à cette organisation.",
@@ -1889,5 +1891,35 @@
     "label": "Enterprise",
     "notice": "Cette fonctionnalité fait partie de SerOps Enterprise. Tout le reste fonctionne sans licence.",
     "seePricing": "À propos de SerOps Enterprise"
+  },
+  "batchTrigger": {
+    "trigger": {
+      "scheduled": "Planifiée",
+      "alert": "Alerte reçue",
+      "manual": "Investigation"
+    },
+    "sentinel": {
+      "skipped": "IA non lancée : rien de nouveau",
+      "quietShadow": "Rien de nouveau, IA lancée quand même (mode observation)",
+      "routine": "Contrôle périodique",
+      "signals": "Signaux détectés",
+      "first": "Première analyse",
+      "shadow": "Mode observation",
+      "notConsulted": "Non consulté",
+      "notConsultedHint": "Une investigation lance toujours l'IA"
+    },
+    "reason": {
+      "forced_periodic": "Contrôle de santé périodique",
+      "deployment_detected": "Nouveau déploiement",
+      "new_error_pattern": "Nouveau type d'erreur",
+      "error_rate_spike": "Pic du taux d'erreurs",
+      "memory_anomaly": "Anomalie mémoire",
+      "cpu_anomaly": "Anomalie CPU",
+      "error_rate_escalating": "Taux d'erreurs en hausse",
+      "first_batch": "Premier lot",
+      "kubernetes_failure": "Redémarrages ou pods indisponibles dans Kubernetes",
+      "trace_latency_spike": "Pic de latence des traces",
+      "trace_error_spike": "Pic d'erreurs dans les traces"
+    }
   }
 }

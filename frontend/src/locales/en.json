@@ -195,7 +195,8 @@
     "viewMetrics": "View Metrics",
     "openBatch": "Open batch {{id}}",
     "trigger": "Trigger",
-    "pageSubtitle": "Every AI analysis of your logs, newest first."
+    "pageSubtitle": "Every AI analysis of your logs, newest first.",
+    "sentinel": "Sentinel"
   },
   "issues": {
     "title": "Issues",
@@ -481,7 +482,8 @@
       "allIssues": "Issues",
       "sampleCrumb": "Sample incident",
       "sampleTitle": "Sample incident",
-      "sampleBody": "Made-up data, and an analysis written for this example: your AI provider was not called and nothing was added to your workspace. Connect a log source and SerOps produces this page from your own incidents."
+      "sampleBody": "Made-up data, and an analysis written for this example: your AI provider was not called and nothing was added to your workspace. Connect a log source and SerOps produces this page from your own incidents.",
+      "sentinel": "Sentinel"
     },
     "codeNotes": {
       "title_one": "{{count}} code review note",
@@ -660,7 +662,7 @@
     "showPassword": "Show password",
     "hidePassword": "Hide password",
     "demoOnlyTitle": "Explore the live demo",
-    "demoOnlyText": "A read-only SerOps workspace with real incidents, root causes and timelines. No account needed.",
+    "demoOnlyText": "A read-only SerOps workspace with example incidents, root causes and timelines. No account needed.",
     "tryDemo": "Try the live demo",
     "selfHost": "Self-host your own SerOps →",
     "ssoSignInFailed": "SSO sign-in failed. Check with your administrator that your account belongs to this organisation.",
@@ -1889,5 +1891,35 @@
     "label": "Enterprise",
     "notice": "This is a SerOps Enterprise feature. Everything else keeps working without a license.",
     "seePricing": "About SerOps Enterprise"
+  },
+  "batchTrigger": {
+    "trigger": {
+      "scheduled": "Scheduled",
+      "alert": "Alert received",
+      "manual": "Investigation"
+    },
+    "sentinel": {
+      "skipped": "AI skipped: nothing new",
+      "quietShadow": "Nothing new, AI ran anyway (shadow mode)",
+      "routine": "Periodic check",
+      "signals": "Signals found",
+      "first": "First analysis",
+      "shadow": "Shadow mode",
+      "notConsulted": "Not consulted",
+      "notConsultedHint": "An investigation always runs the AI"
+    },
+    "reason": {
+      "forced_periodic": "Periodic health check",
+      "deployment_detected": "New deployment",
+      "new_error_pattern": "New error pattern",
+      "error_rate_spike": "Error rate spike",
+      "memory_anomaly": "Memory anomaly",
+      "cpu_anomaly": "CPU anomaly",
+      "error_rate_escalating": "Error rate escalating",
+      "first_batch": "First batch",
+      "kubernetes_failure": "Kubernetes restarts or unavailable pods",
+      "trace_latency_spike": "Trace latency spike",
+      "trace_error_spike": "Trace error spike"
+    }
   }
 }

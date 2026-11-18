@@ -203,13 +203,13 @@ STORY_ARC: list[Scene] = [
         ),
         issue_recommendation=(
             'Cap the DataFrame at 10k rows per worker and flush to disk '
-            'between batches. Patch in PR #1252.'
+            'between batches.'
         ),
         issue_reasoning=[
-            'Saw memory grow linearly on backend-api after 14:02 UTC',
-            'Cross-referenced with deploys — only v2.3.2 landed in that window',
-            'Diffed v2.3.1 → v2.3.2: payment_webhooks.py introduces an unbounded list',
-            'Confirmed leak hypothesis by replaying staging traffic locally',
+            'backend-api memory rose steadily from 55 % to 88 % over the 3 hours after the v2.3.2 deploy',
+            'v2.3.2 is the only deploy in the window',
+            'The v2.3.2 diff makes payment_webhooks.py append every webhook to a DataFrame that is never trimmed',
+            'Request rate stayed flat over the same hours, so the growth follows the change, not the load',
         ],
         issue_confidence='HIGH',
     ),
@@ -235,15 +235,15 @@ STORY_ARC: list[Scene] = [
             '~4 minutes, after which workers cannot acquire a connection.'
         ),
         issue_recommendation=(
-            'Revert the pool size to 50 (PR #1259) and add a Prometheus '
+            'Revert the pool size to 50 and add a Prometheus '
             'alert on redis_pool_used > 80 % so this fails loud next time.'
         ),
         issue_reasoning=[
-            'Saw repeated ConnectionRefusedError in payment-worker logs after 13:58 UTC',
-            'Checked deploys — v2.3.3 reduced the Redis pool from 50 to 20',
-            'Pulled Redis metrics: redis_pool_used hit 100 % within 4 min of the deploy',
-            'Ruled out upstream payment-provider issue — their status page is green '
-            'and other queues backed by the same Redis are unaffected',
+            'payment-worker logs repeated ConnectionRefusedError to redis:6379 from minutes after the v2.3.3 deploy',
+            'The v2.3.3 diff lowers the Redis connection pool from 50 to 20',
+            'The redis_pool_used metric reaches 100 % within 4 minutes of the deploy and stays there',
+            'No error in the window names the payment provider: every failure is a refused '
+            'connection to redis:6379, inside the cluster',
         ],
         issue_confidence='HIGH',
         is_centerpiece=True,
@@ -265,12 +265,12 @@ STORY_ARC: list[Scene] = [
         ),
         issue_recommendation=(
             'Move the monthly aggregate to a read replica and lower the '
-            'primary timeout back to 5 s. See PR #1264.'
+            'primary timeout back to 5 s.'
         ),
         issue_reasoning=[
-            'Saw `canceling statement due to statement timeout` errors',
-            'Traced the timeouts to the aggregate query introduced in v2.3.4',
-            'Confirmed it is holding row locks long enough to back up checkout writes',
+            'backend-api logs `canceling statement due to statement timeout` after the v2.3.4 deploy',
+            'The v2.3.4 diff raises the timeout of the monthly aggregate query from 5 s to 30 s',
+            'Checkout writes log lock-wait timeouts in the same minutes as the long aggregate queries',
         ],
         issue_confidence='MEDIUM',
     ),
@@ -291,14 +291,14 @@ STORY_ARC: list[Scene] = [
         issue_status='OPEN',
         issue_description='Postgres CPU drifted from 35 % baseline to 78 % over 2 h.',
         issue_root_cause=(
-            'Sustained CPU rise correlates with increased vacuum activity. '
-            'Likely caused by yesterday\'s missing index on payment_events.'
+            'Sustained CPU rise correlates with repeated autovacuum and '
+            'sequential scans on payment_events, which has no index on created_at.'
         ),
         issue_recommendation='Create btree index on payment_events.created_at.',
         issue_reasoning=[
-            'CPU climbed steadily without a corresponding traffic increase',
-            'pg_stat_activity shows long-running autovacuum on payment_events',
-            'Table has 12M rows and no index on the column being scanned',
+            'postgres-primary CPU rose from 35 % to 78 % over 2 hours while the request rate stayed flat',
+            'Postgres logs show automatic vacuum of payment_events running again and again in the window',
+            'Slow-query log lines show sequential scans on payment_events filtered by created_at',
         ],
         issue_confidence='MEDIUM',
     ),
@@ -316,8 +316,8 @@ STORY_ARC: list[Scene] = [
         issue_root_cause='Test is racing against a fixture cleanup teardown.',
         issue_recommendation='Add explicit `await` on the cleanup future.',
         issue_reasoning=[
-            'Failure rate is ~5% across the last 100 staging runs',
-            'No production impact — only staging fixture race',
+            'The test failed in 2 of the 6 staging pipeline runs in the window, each time timing out in fixture teardown',
+            'No production impact: the failures are in staging pipeline runs only',
         ],
         issue_confidence='LOW',
     ),
@@ -335,7 +335,7 @@ STORY_ARC: list[Scene] = [
         issue_description='Vite 6 emits a peer-dep warning for @vitejs/plugin-react.',
         issue_root_cause='Plugin lags one major version behind Vite core.',
         issue_recommendation='Pin @vitejs/plugin-react to ^5 until it publishes v6.',
-        issue_reasoning=['warning is dev-only, no runtime impact'],
+        issue_reasoning=['The warning appears only in the development build log; no runtime error follows it'],
         issue_confidence='LOW',
     ),
     # Quiet production windows: no deploy, no error spike, so Sentinel
@@ -2134,8 +2134,8 @@ class Command(BaseCommand):
         # A read digest so the notification list has both states.
         Notification.objects.create(
             user=user,
-            subject='Weekly digest — 3 issues resolved, 2 opened',
-            message='Your team resolved the payment-webhook memory leak and the flaky staging test this week. Two new criticals remain open on redis-cache and postgres-primary.',
+            subject='Weekly digest — 2 issues resolved, 3 open',
+            message='This week your team resolved the payment-webhook memory leak on backend-api and the Vite peer-dependency warning in development, and muted the flaky staging test. Two criticals remain open, on redis-cache and backend-api, with a warning on postgres-primary.',
             notification_type='digest',
             is_read=True,
         )
@@ -2257,18 +2257,18 @@ class Command(BaseCommand):
                     (
                         'Could it be the upstream payment provider instead?',
                         (
-                            'No — checked the provider status page (all '
-                            'green) and other queues backed by the same '
-                            'Redis cluster (session store, analytics) are '
-                            'also showing pool exhaustion. The fault is '
-                            'inside our own Redis cluster, not upstream.'
+                            'Nothing in the window points there: no error '
+                            'names the payment provider, and every failure '
+                            'is a refused connection to redis:6379 inside '
+                            'the cluster, starting minutes after the pool '
+                            'was shrunk. The fault is on our side.'
                         ),
                     ),
                     (
                         'What\'s the quickest fix?',
                         (
-                            'Revert the pool size to 50 (PR #1259, ready '
-                            'to merge). Longer term, add a Prometheus '
+                            'Revert the pool size to 50. Longer term, '
+                            'add a Prometheus '
                             'alert on redis_pool_used > 80 % so this '
                             'fails loud rather than silently degrading '
                             'into a queue backup.'
@@ -2312,17 +2312,17 @@ class Command(BaseCommand):
                     (
                         'Show me your reasoning for the Redis incident',
                         (
-                            'Step 1 — I saw repeated `ConnectionRefusedError` in '
-                            'payment-worker logs starting 13:58 UTC.\n\n'
-                            'Step 2 — I checked the recent deploys and found '
-                            'v2.3.3 landed 4 minutes earlier; the diff shrank '
+                            'Step 1 — The payment-worker logs in the window show '
+                            'repeated `ConnectionRefusedError` to redis:6379.\n\n'
+                            'Step 2 — The window\'s deploys include v2.3.3, '
+                            'minutes before the first error; its diff shrinks '
                             'the Redis pool from 50 to 20.\n\n'
-                            'Step 3 — I pulled Redis metrics: redis_pool_used '
-                            'hit 100% within 4 minutes of the deploy, exactly '
-                            'matching the log onset.\n\n'
-                            'Step 4 — I ruled out the upstream payment provider '
-                            'because their status page is green and unrelated '
-                            'queues sharing the same Redis are also affected.'
+                            'Step 3 — The redis_pool_used metric reaches 100% '
+                            'within 4 minutes of the deploy, matching the '
+                            'onset of the errors.\n\n'
+                            'Step 4 — No error names the payment provider; '
+                            'every failure is a refused connection to Redis '
+                            'inside the cluster, so the cause is on our side.'
                         ),
                     ),
                 ],

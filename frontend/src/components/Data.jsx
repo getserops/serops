@@ -17,6 +17,7 @@ import DataService from "../services/data.service";
 import "./Data.css";
 
 import { useQuery } from "@tanstack/react-query";
+import { batchTrigger, sentinelOutcome, sentinelReasonLabels } from "../utils/batchTrigger";
 
 const Data = () => {
   const { t } = useTranslation();
@@ -656,6 +657,7 @@ const Data = () => {
                     <th>{t('projects.title')}</th>
                     <th>{t('data.environment')}</th>
                     <th>{t('data.trigger')}</th>
+                    <th>{t('data.sentinel', 'Sentinel')}</th>
                     <th>{t('issues.title')}</th>
                     <th>{t('data.status')}</th>
                     <th className="text-end" style={{ width: "80px" }}>{t('data.actions')}</th>
@@ -664,14 +666,14 @@ const Data = () => {
                 <tbody>
                   {isLoading && data.length === 0 ? (
                     <tr>
-                      <td colSpan="9" className="table-loading">
+                      <td colSpan="10" className="table-loading">
                         <Spinner animation="border" variant="primary" />
                         <p className="mt-2">{t('data.loading')}</p>
                       </td>
                     </tr>
                   ) : data.length === 0 ? (
                     <tr>
-                      <td colSpan="9" className="table-loading">
+                      <td colSpan="10" className="table-loading">
                         <p>{t('data.noBatches')}</p>
                       </td>
                     </tr>
@@ -698,7 +700,7 @@ const Data = () => {
                           return <span className="status-badge failed" title={tooltip}>Failed</span>;
                         }
                         if (item.issue_count > 0 || item.analyzed_at) {
-                          return <span className="status-badge analyzed">Analyzed</span>;
+                          return <span className="status-badge analyzed" title={item.model && item.model !== "Not found" ? item.model : undefined}>Analyzed</span>;
                         }
                         if (item.ai_skipped) {
                           return <span className="status-badge skipped">Skipped</span>;
@@ -741,39 +743,20 @@ const Data = () => {
                             </span>
                           </td>
                           <td data-label={t('data.trigger')}>
-                            {/* Why this batch was analysed: an investigation or an
-                                alert webhook, otherwise Sentinel's decision. */}
-                            {(item.trigger === 'manual' || item.trigger === 'alert') ? (
-                              <span className={`ds-chip ${item.trigger === 'alert' ? 'ds-chip-err' : 'ds-chip-brand'}`}>
-                                {t(`investigate.trigger.${item.trigger}`)}
-                              </span>
-                            ) : (() => {
-                              const isRoutine = item.sentinel_decision === 'alert'
-                                && item.sentinel_triggers?.length === 1
-                                && item.sentinel_triggers[0] === 'forced_periodic';
-                              const badgeClass = isRoutine ? 'sentinel-routine' : `sentinel-${item.sentinel_decision}`;
-                              const label = isRoutine ? 'routine' : item.sentinel_decision;
-                              const triggerLabels = {
-                                forced_periodic: 'Periodic health check',
-                                deployment_detected: 'New deployment',
-                                new_error_pattern: 'New error pattern',
-                                error_rate_spike: 'Error rate spike',
-                                memory_anomaly: 'Memory anomaly',
-                                cpu_anomaly: 'CPU anomaly',
-                                error_rate_escalating: 'Error rate escalating',
-                                first_batch: 'First batch',
-                                kubernetes_failure: 'Kubernetes restarts or unavailable pods',
-                                trace_latency_spike: 'Trace latency spike',
-                                trace_error_spike: 'Trace error spike',
-                              };
-                              const tooltip = (item.sentinel_triggers || [])
-                                .map(t => triggerLabels[t] || t)
-                                .join(', ') || item.sentinel_decision;
-                              return (
-                                <span className={`sentinel-badge ${badgeClass}`} title={tooltip}>
-                                  {label}
-                                </span>
-                              );
+                            {/* What created the batch, then what Sentinel decided:
+                                two different things (a scheduled run Sentinel let
+                                through is not an alert). */}
+                            {(() => {
+                              const trig = batchTrigger(item);
+                              return <span className={`ds-chip ${trig.klass}`}>{t(trig.label, trig.fallback)}</span>;
+                            })()}
+                          </td>
+                          <td data-label={t('data.sentinel', 'Sentinel')}>
+                            {(() => {
+                              const outcome = sentinelOutcome(item);
+                              if (!outcome) return <span className="text-secondary" title={t('batchTrigger.sentinel.notConsultedHint', 'An investigation always runs the AI')}>{t('batchTrigger.sentinel.notConsulted', 'Not consulted')}</span>;
+                              const tooltip = sentinelReasonLabels(outcome.reasons, t).join(', ') || undefined;
+                              return <span className={`sentinel-badge ${outcome.klass}`} title={tooltip}>{t(outcome.label, outcome.fallback)}</span>;
                             })()}
                           </td>
                           <td data-label={t('issues.title')}>
@@ -791,10 +774,10 @@ const Data = () => {
                           </td>
                           <td data-label={t('data.status')}>
                             <div className="d-flex align-items-center gap-2">
+                              {/* The model is in the badge's tooltip and on the analysis
+                                  page: printed here it pushed Actions out of the table
+                                  once the Sentinel column was added. */}
                               {getStatusBadge()}
-                              {item.model && item.model !== "Not found" && (
-                                <span className="text-muted small">({item.model})</span>
-                              )}
                             </div>
                           </td>
                           <td className="text-end">

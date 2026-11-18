@@ -439,3 +439,18 @@
 .data-table-wrap .modern-table td:last-child { border-radius: 0; }
 /* The view button's own padding would push it off the right-aligned header. */
 .modern-table td:last-child > .view-btn { display: inline-flex; margin-right: calc(-1 * var(--space-2)); }
+
+/* Trigger and Sentinel chips may break onto two lines on narrow screens,
+   so the Sentinel column does not push Actions out of the table. */
+@media (max-width: 1439px) {
+  :is(html, :root[data-theme]) .data-table-wrap .modern-table td .sentinel-badge,
+  :is(html, :root[data-theme]) .data-table-wrap .modern-table td .ds-chip {
+    height: auto;
+    min-height: 20px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    white-space: normal;
+    line-height: 1.25;
+    border-radius: 4px;
+  }
+}

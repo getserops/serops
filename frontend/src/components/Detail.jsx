@@ -16,6 +16,7 @@ import BatchTimelineChart from "./BatchTimelineChart";
 import "./Detail.css";
 import { projectOf, serviceOf } from "../utils/logFields";
 import { splitCodeNotes } from "../utils/codeNotes";
+import { batchTrigger, sentinelOutcome, sentinelReasonLabels } from "../utils/batchTrigger";
 
 // Investigate prefilled with this batch's scope and window.
 const rerunLink = (batch) => {
@@ -40,16 +41,6 @@ const relTime = (isoLike) => {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
-};
-
-// Sentinel decision → chip tone
-const sentinelChip = (decision) => {
-  switch ((decision || '').toLowerCase()) {
-    case 'alert':   return { klass: 'ds-chip-err',  label: 'ALERT' };
-    case 'shadow':  return { klass: 'ds-chip-info', label: 'SHADOW' };
-    case 'quiet':   return { klass: 'ds-chip-ok',   label: 'QUIET' };
-    default:        return { klass: 'ds-chip-neutral', label: (decision || 'PENDING').toUpperCase() };
-  }
 };
 
 // Issue severity → chip tone
@@ -381,7 +372,8 @@ const Detail = () => {
     return items;
   };
 
-  const sentinel = sentinelChip(batchMeta?.sentinel_decision);
+  const trigger = batchTrigger(batchMeta);
+  const sentinelResult = sentinelOutcome(batchMeta);
   const allIssues = Array.isArray(batchMeta?.issues) ? batchMeta.issues : [];
   // During an incident, findings from reviewing the code (CODE scope, INFO)
   // are notes, not suspects: shown apart, left out of counts and actions.
@@ -468,9 +460,10 @@ const Detail = () => {
     : unacknowledged.length > 0
       ? { klass: primarySeverity === 'CRITICAL' ? 'ds-chip-err' : 'ds-chip-warn', label: t('detail.incident.statusOpen') }
       : { klass: 'ds-chip-info', label: t('detail.incident.statusAcknowledged') };
-  const triggerLabel = batchMeta?.trigger === 'manual' || batchMeta?.trigger === 'alert'
-    ? t(`investigate.trigger.${batchMeta.trigger}`)
-    : sentinel.label;
+  const triggerLabel = t(trigger.label, trigger.fallback);
+  const sentinelLabel = sentinelResult
+    ? t(sentinelResult.label, sentinelResult.fallback)
+    : t('batchTrigger.sentinel.notConsulted', 'Not consulted');
   const correlationLabel = (c) => {
     if (c.type === 'commit') return t('detail.incident.corrCommit', { value: c.value });
     if (c.type === 'metric') return t('detail.incident.corrMetric', { value: c.value });
@@ -609,8 +602,8 @@ const Detail = () => {
                   {!batchMeta.ai_skipped && typeof batchMeta.token_count === 'number' && batchMeta.token_count > 0 && (
                     <span>{t('detail.incident.tokens', { count: batchMeta.token_count, formatted: batchMeta.token_count.toLocaleString() })}</span>
                   )}
-                  {(batchMeta.sentinel_triggers || []).slice(0, 3).map((tr) => (
-                    <span key={tr} className="ds-chip ds-chip-warn">{tr}</span>
+                  {sentinelReasonLabels((batchMeta.sentinel_triggers || []).slice(0, 3), t).map((label) => (
+                    <span key={label} className="ds-chip ds-chip-warn">{label}</span>
                   ))}
                 </div>
               </div>
@@ -858,6 +851,7 @@ const Detail = () => {
               <h2 className="incident-rail-title">{t('detail.incident.response')}</h2>
               <div className="ds-kv"><span>{t('detail.incident.status')}</span><span><span className={`ds-chip ds-dot ${status.klass}`}>{status.label}</span></span></div>
               <div className="ds-kv"><span>{t('detail.incident.trigger')}</span><span>{triggerLabel}</span></div>
+              <div className="ds-kv"><span>{t('detail.incident.sentinel', 'Sentinel')}</span><span>{sentinelLabel}</span></div>
               {batchMeta.model_name && <div className="ds-kv"><span>{t('detail.incident.model')}</span><span className="ds-mono">{batchMeta.model_name}</span></div>}
               {batchMeta.analyzed_at && <div className="ds-kv"><span>{t('detail.incident.analysed')}</span><span>{relTime(batchMeta.analyzed_at)}</span></div>}
             </section>

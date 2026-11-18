@@ -77,6 +77,15 @@ describe('sample incident', () => {
     expect(apiClient.get).not.toHaveBeenCalled();
   });
 
+  it('shows what created the batch and what Sentinel decided as two things', async () => {
+    renderSample();
+    expect((await screen.findAllByText('Alert received')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Signals found').length).toBeGreaterThan(0);
+    expect(screen.getByText('Error rate spike')).toBeInTheDocument();
+    expect(screen.queryByText('error_rate_spike')).toBeNull();
+    expect(screen.queryByText('ALERT')).toBeNull();
+  });
+
   it('is offered on the step a new admin really lands on, and moves the wizard aside', () => {
     render(<MemoryRouter><OnboardingWizard /></MemoryRouter>);
     const link = screen.getByRole('link', { name: 'onboarding.viewSample' });
