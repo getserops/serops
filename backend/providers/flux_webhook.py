@@ -69,9 +69,10 @@ _HELM_DEPLOY_REASONS = {'InstallSucceeded', 'UpgradeSucceeded', 'RollbackSucceed
 
 # Flux revisions are ``<ref>@sha1:<sha>`` (older) or ``<ref>@<algo>:<sha>``
 # (newer builds with SHA-256 support). Capture whichever hash comes last.
-# Applied to the part after the last '@', anchored: no backtracking on a
-# hostile body (CodeQL py/polynomial-redos).
-_REVISION_RE = re.compile(r'[a-z0-9]+:([a-fA-F0-9]{7,64})')
+# Parsed by hand, not with a regex, so a hostile body costs linear time
+# (CodeQL py/polynomial-redos flagged both earlier regexes).
+_ALGO_CHARS = frozenset('abcdefghijklmnopqrstuvwxyz0123456789')
+_HEX_CHARS = frozenset('0123456789abcdefABCDEF')
 
 
 class FluxDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
@@ -160,8 +161,13 @@ class FluxDeploymentWebhookHandler(GenericDeploymentWebhookHandler):
     def _extract_sha(revision: str) -> str:
         if not revision:
             return ''
-        m = _REVISION_RE.match(revision.rsplit('@', 1)[-1])
-        return m.group(1) if m else ''
+        algo, sep, rest = revision.rsplit('@', 1)[-1].partition(':')
+        if not sep or not algo or not _ALGO_CHARS.issuperset(algo):
+            return ''
+        n = 0
+        while n < 64 and n < len(rest) and rest[n] in _HEX_CHARS:
+            n += 1
+        return rest[:n] if n >= 7 else ''
 
     @staticmethod
     def _resolve_environment(involved: dict, metadata: dict):
