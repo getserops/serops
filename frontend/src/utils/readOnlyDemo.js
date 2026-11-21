@@ -10,14 +10,13 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import i18n from "../i18n";
 import apiClient from "../services/api-client";
+import { isDemoRefusal } from "./demoRefusal";
 
 export const DEMO_TOAST_ID = "demo-read-only";
 const FOLLOW_UP_MS = 2500;
 let refusedAt = 0;
 
-export function isDemoRefusal(error) {
-  return error?.response?.status === 403 && error.response.data?.error === "demo_read_only";
-}
+export { isDemoRefusal };
 
 function onError(error) {
   if (isDemoRefusal(error)) {

@@ -12,6 +12,7 @@
 import { useState, useEffect } from "react";
 import { ProjectService } from "../services/project.service";
 import { IntegrationService } from "../services/integration.service";
+import { isDemoRefusal } from "../utils/demoRefusal";
 
 // Initial form data for adding new service
 const INITIAL_FORM_DATA = {
@@ -589,7 +590,8 @@ export const useServiceProjects = (projectId) => {
                 await refreshServices();
             } catch (error) {
                 console.error("Error deleting service:", error);
-                alert("Failed to delete service. Please try again.");
+                // On the read-only demo the notice is already on screen.
+                if (!isDemoRefusal(error)) alert("Failed to delete service. Please try again.");
             }
         }
     };

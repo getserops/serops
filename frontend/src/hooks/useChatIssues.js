@@ -583,7 +583,9 @@ export const useChatIssues = () => {
     // Delete session
     const deleteSession = async (chatId) => {
         try {
-            await deleteChatSession(chatId);
+            // deleteChatSession answers false when the server refused: the
+            // conversation is still there, so leave the open one alone.
+            if (!(await deleteChatSession(chatId))) return;
             fetchHistory();
             if (currentSessionId === chatId) {
                 setCurrentSessionId(null);

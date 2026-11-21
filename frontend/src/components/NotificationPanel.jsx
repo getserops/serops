@@ -34,7 +34,9 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
     if (data?.error === 'demo_read_only') {
       setActionNotice({
         kind: 'demo',
-        text: data.message || t('notifications.panel.demoReadOnly'),
+        // The same sentence as everywhere else on the demo (the server's own
+        // message says "sign up", and the demo has no sign-up).
+        text: t('demo.readOnlyNotice'),
       });
       return;
     }

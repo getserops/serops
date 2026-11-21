@@ -325,5 +325,23 @@ describe('useServiceProjects', () => {
             expect(ProjectService.DeleteProjectService).toHaveBeenCalledWith(1);
             expect(ProjectService.GetProjectServices).toHaveBeenCalledTimes(2); // Initial + refresh
         });
+
+        it('a delete refused by the read-only demo shows no browser alert; any other failure still does', async () => {
+            vi.spyOn(window, 'confirm').mockReturnValue(true);
+            const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+            const { result } = renderHook(() => useServiceProjects(mockProjectId));
+            await waitFor(() => expect(result.current.loading).toBe(false));
+
+            ProjectService.DeleteProjectService.mockRejectedValue(
+                Object.assign(new Error('refused'), { response: { status: 403, data: { error: 'demo_read_only' } } }));
+            await act(async () => { await result.current.handleDelete(1); });
+            expect(alertSpy).not.toHaveBeenCalled();
+
+            ProjectService.DeleteProjectService.mockRejectedValue(
+                Object.assign(new Error('boom'), { response: { status: 500, data: {} } }));
+            await act(async () => { await result.current.handleDelete(1); });
+            expect(alertSpy).toHaveBeenCalledTimes(1);
+            expect(ProjectService.GetProjectServices).toHaveBeenCalledTimes(1); // no refresh after a failure
+        });
     });
 });

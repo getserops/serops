@@ -1,6 +1,6 @@
 ---
 seo_title: "Install SerOps on Amazon EKS"
-description: "Install SerOps 1.3.0 on Amazon EKS with the Helm chart: a Network Load Balancer, TLS from cert-manager, NetworkPolicies enforced by the VPC CNI, CloudWatch Container Insights with a five-action IAM policy, and the exact commands we ran."
+description: "Install SerOps on Amazon EKS with the Helm chart: a Network Load Balancer, TLS from cert-manager, NetworkPolicies enforced by the VPC CNI, CloudWatch Container Insights with a five-action IAM policy, and the exact commands we ran."
 ---
 # Install on EKS
 
@@ -102,13 +102,13 @@ kubectl apply -f deploy/cloud/common/cluster-issuer.yaml
 As on AKS: [secrets and values](aks.md#3-secrets-and-values), then
 
 ```bash
-helm install serops oci://ghcr.io/getserops/charts/serops --version 1.3.0 \
+helm install serops oci://ghcr.io/getserops/charts/serops --version 1.5.0 \
   -n serops -f eks-values.yaml --wait --timeout 15m
 kubectl -n serops get certificate serops-tls      # READY True
 ```
 
-Install `--version 1.5.0` (the fix for several clusters in one region,
-found on this test, is in every release since 1.3.1; see [Known issues](#known-issues)).
+Use 1.3.1 or later: the fix for several clusters in one region, found on
+this test, is in every release since (see [Known issues](#known-issues)).
 
 The defaults fit three `t3.medium` nodes: no resource override is needed.
 Open `https://HOST`, register the first account (registration then closes),

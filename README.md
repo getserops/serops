@@ -2,7 +2,7 @@
 
 **AGPL-3.0 AI Root Cause Analysis platform** — logs · infrastructure metrics · distributed traces · deploys · code changes.
 
-**Benchmark:** the right root cause on 29 of 30 unseen synthetic incidents, and on 66 of 84 analyses across four test estates we built on real clusters. Every miss is shown: [method and results](https://serops.ai/benchmark).
+**Benchmark:** the right root cause on 27 to 29 of 30 unseen synthetic incidents over three rounds, and on 66 of 84 analyses across four test estates we built on real clusters. Every miss is shown: [method and results](https://serops.ai/benchmark).
 
 ## Try it in one command
 
@@ -10,7 +10,7 @@
 git clone --depth 1 https://github.com/getserops/serops.git && serops/deploy/demo/demo.sh
 ```
 
-Then open http://localhost:8080 and click **Try the live demo**. It starts SerOps with Docker Compose and loads the same data as the [live demo](https://app.serops.ai): 14 analyses from our benchmark runs on test environments, shown under a fictional organisation name. You can read each root cause, the reasoning behind it, and the logs, deploys and diffs it cites. No AI key is needed, nothing leaves your machine, and the demo is read-only. Measured with 1.5.0 on an empty Docker engine: 39 seconds, most of it downloading about 1.1 GB of images. Stop and delete it with `serops/deploy/demo/demo.sh down`.
+Then open http://localhost:8080 and click **Try the live demo**. It starts SerOps with Docker Compose and loads the same data as the [live demo](https://app.serops.ai): 14 analyses from our benchmark runs on test environments, shown under a fictional organisation name. You can read each root cause, the reasoning behind it, and the logs, deploys and diffs it cites. No AI key is needed, nothing leaves your machine, and the demo is read-only. Measured with 1.5.0 on an empty Docker engine: ready in under a minute (39 and 44 seconds in two runs), most of it downloading about 1.1 GB of images. Stop and delete it with `serops/deploy/demo/demo.sh down`.
 
 ## What it reads
 

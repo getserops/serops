@@ -14,6 +14,7 @@ import { FaPlus, FaEdit, FaTrash } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
 import { ProjectService } from "../services/project.service";
 import { can, canOnProject } from "../utils/permissions";
+import { demoNoticeOr, isDemoRefusal } from "../utils/demoRefusal";
 
 const Project = () => {
   const { t } = useTranslation();
@@ -168,11 +169,7 @@ const Project = () => {
         fetchProjects();
       }, 1500);
     } catch (error) {
-      let errorMessage = t('projects.createError');
-      if (error.response) {
-        errorMessage = error.response.data?.error || errorMessage;
-      }
-      setSubmitError(errorMessage);
+      setSubmitError(demoNoticeOr(error, error.response?.data?.error || t('projects.createError')));
     } finally {
       setIsSubmitting(false);
     }
@@ -247,7 +244,8 @@ const Project = () => {
       fetchProjects();
     } catch (error) {
       console.error("Failed to delete project:", error);
-      alert(t('projects.deleteError') || 'Failed to delete project');
+      // On the read-only demo the notice is already on screen.
+      if (!isDemoRefusal(error)) alert(t('projects.deleteError') || 'Failed to delete project');
     } finally {
       setIsDeleting(false);
     }
@@ -293,11 +291,10 @@ const Project = () => {
         fetchProjects();
       }, 1500);
     } catch (error) {
-      let errorMessage = editingProject ? t('projects.updateError') : t('projects.createError');
-      if (error.response) {
-        errorMessage = error.response.data?.error || errorMessage;
-      }
-      setSubmitError(errorMessage);
+      setSubmitError(demoNoticeOr(
+        error,
+        error.response?.data?.error || (editingProject ? t('projects.updateError') : t('projects.createError')),
+      ));
     } finally {
       setIsSubmitting(false);
     }

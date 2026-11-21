@@ -1,5 +1,6 @@
 import axios from "axios";
 import { describeRequestError } from "../utils/apiError";
+import { demoNoticeOr } from "../utils/demoRefusal";
 
 const BACKEND_HOST = import.meta.env.VITE_BASE_URL;
 const API_BASE_URL = BACKEND_HOST;
@@ -40,12 +41,10 @@ export const ProjectService = {
       );
       return response.data;
     } catch (error) {
+      // Thrown, like UpdateProject and DeleteProject: this used to return
+      // {error} for a refused create, and the page, which only catches,
+      // showed "created successfully" for a project that was never created.
       console.error("Error creating project:", error);
-      if (error.response && error.response.data) {
-        return {
-          error: error.response.data.error || "Failed to create project",
-        };
-      }
       throw error;
     }
   },
@@ -136,8 +135,7 @@ export const ProjectService = {
       console.error(`Error adding service to project ${projectId}:`, error);
       if (error.response && error.response.data) {
         return {
-          error:
-            error.response.data.error || "Failed to add service to project",
+          error: demoNoticeOr(error, error.response.data.error || "Failed to add service to project"),
         };
       }
       throw error;
@@ -307,7 +305,7 @@ export const ProjectService = {
 
       if (error.response) {
         return {
-          error: error.response.data?.error || "Failed to add GitHub service",
+          error: demoNoticeOr(error, error.response.data?.error || "Failed to add GitHub service"),
           status: error.response.status,
         };
       }
@@ -350,7 +348,7 @@ export const ProjectService = {
 
       if (error.response) {
         return {
-          error: error.response.data?.error || "Failed to add Bitbucket service",
+          error: demoNoticeOr(error, error.response.data?.error || "Failed to add Bitbucket service"),
           status: error.response.status,
         };
       }
@@ -387,7 +385,7 @@ export const ProjectService = {
       if (error.response) {
         return {
           exists: false,
-          error: error.response.data?.error || "Failed to verify Bitbucket repository",
+          error: demoNoticeOr(error, error.response.data?.error || "Failed to verify Bitbucket repository"),
         };
       }
 
@@ -425,7 +423,7 @@ export const ProjectService = {
       if (error.response) {
         return {
           exists: false,
-          error: error.response.data?.error || "Failed to verify Azure DevOps project",
+          error: demoNoticeOr(error, error.response.data?.error || "Failed to verify Azure DevOps project"),
         };
       }
 
@@ -589,7 +587,7 @@ export const ProjectService = {
         }
 
         return {
-          error: errorMessage,
+          error: demoNoticeOr(error, errorMessage),
           status: error.response.status,
           step: step,
         };
@@ -638,7 +636,7 @@ export const ProjectService = {
 
       if (error.response) {
         return {
-          error: error.response.data?.error || "Failed to add Azure DevOps service",
+          error: demoNoticeOr(error, error.response.data?.error || "Failed to add Azure DevOps service"),
           status: error.response.status,
         };
       }
@@ -680,7 +678,7 @@ export const ProjectService = {
 
       if (error.response) {
         return {
-          error: error.response.data?.error || "Failed to add Jenkins service",
+          error: demoNoticeOr(error, error.response.data?.error || "Failed to add Jenkins service"),
           status: error.response.status,
         };
       }
@@ -712,9 +710,7 @@ export const ProjectService = {
       );
       if (error.response?.data) {
         return {
-          error:
-            error.response.data.error ||
-            "Échec de l'ajout du service personnalisé",
+          error: demoNoticeOr(error, error.response.data.error || "Échec de l'ajout du service personnalisé"),
         };
       }
       throw error;
@@ -736,7 +732,7 @@ export const ProjectService = {
       );
       return response.data;
     } catch (error) {
-      return { error: describeRequestError(error, "Failed to create service") };
+      return { error: demoNoticeOr(error, describeRequestError(error, "Failed to create service")) };
     }
   },
 
@@ -769,10 +765,7 @@ export const ProjectService = {
       );
       if (error.response?.data) {
         return {
-          error:
-            error.response.data.error ||
-            error.response.data.detail ||
-            "Failed to add infrastructure service",
+          error: demoNoticeOr(error, error.response.data.error || error.response.data.detail || "Failed to add infrastructure service"),
         };
       }
       throw error;
