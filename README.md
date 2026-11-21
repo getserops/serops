@@ -2,6 +2,18 @@
 
 **AGPL-3.0 AI Root Cause Analysis platform** — logs · infrastructure metrics · distributed traces · deploys · code changes.
 
+**Benchmark:** the right root cause on 29 of 30 unseen synthetic incidents, and on 66 of 84 analyses across four test estates we built on real clusters. Every miss is shown: [method and results](https://serops.ai/benchmark).
+
+## Try it in one command
+
+```bash
+git clone --depth 1 https://github.com/getserops/serops.git && serops/deploy/demo/demo.sh
+```
+
+Then open http://localhost:8080 and click **Try the live demo**. It starts SerOps with Docker Compose and loads the same data as the [live demo](https://app.serops.ai): 14 analyses from our benchmark runs on test environments, shown under a fictional organisation name. You can read each root cause, the reasoning behind it, and the logs, deploys and diffs it cites. No AI key is needed, nothing leaves your machine, and the demo is read-only. Measured with 1.5.0 on an empty Docker engine: 39 seconds, most of it downloading about 1.1 GB of images. Stop and delete it with `serops/deploy/demo/demo.sh down`.
+
+## What it reads
+
 Runs on Kubernetes (Helm) or Docker Compose and analyses workloads wherever they run — Kubernetes-aware (pods, restarts, OOMKills) but not Kubernetes-only. Complements your existing observability stack rather than replacing it:
 
 - **Logs** — Elasticsearch, OpenSearch, Loki, Splunk, Datadog, AWS CloudWatch, Google Cloud Logging, Azure Log Analytics
@@ -11,6 +23,18 @@ Runs on Kubernetes (Helm) or Docker Compose and analyses workloads wherever they
 
 SerOps watches the signals you already produce, correlates them, and asks a large language model to explain *why* an incident happened. It is alert-agnostic: it surfaces issues even when nobody set up an alert for them.
 
+## Try the benchmark yourself
+
+The [RCA benchmark](https://serops.ai/benchmark) runs on any SerOps install, the demo included, with your own AI key. The key is read from an environment variable for this run only:
+
+```bash
+cd serops/deploy/demo
+RCA_API_KEY=your-key docker compose exec -e RCA_API_KEY backend \
+  python manage.py rca_benchmark --provider claude --set held_out_v2 --budget-usd 2
+```
+
+This scores the 30 unseen incidents and 2 healthy windows that the headline figure on /benchmark comes from, for about $1 with Claude Sonnet 5.5. `--provider` takes the provider name as in Settings (`claude`, `gemini`…); `--budget-usd` stops the run once that much is spent. Method and options: [RCA benchmark in the docs](https://serops.ai/docs/development/rca-benchmark/).
+
 ## Repository layout
 
 ```
@@ -19,6 +43,7 @@ serops/
 ├── frontend/    # React 19 + Vite + Bootstrap — the dashboard
 ├── docs/        # MkDocs Material — https://serops.ai/docs
 └── deploy/
+    ├── demo/           # one-command local demo (read-only example data)
     ├── quick-start/    # docker-compose self-host (about 10 minutes)
     └── helm/serops/    # Kubernetes Helm chart
 ```

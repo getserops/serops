@@ -1,0 +1,21 @@
+# Local demo: plain HTTP on port 8080 inside the container (published on
+# 127.0.0.1 only). No HSTS: there is no certificate on localhost.
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+	handle {
+		reverse_proxy frontend:3000
+	}
+	encode gzip zstd
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+}
