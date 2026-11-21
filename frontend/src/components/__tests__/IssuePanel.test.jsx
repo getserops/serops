@@ -57,4 +57,11 @@ describe('IssuePanel evidence', () => {
     const link = screen.getByRole('link', { name: 'e7d3b201' });
     expect(link.getAttribute('href')).toBe('/dash/code-changes/shop-1?sha=e7d3b201abc');
   });
+
+  it('shows a commit the analysis has no code change for as plain text', () => {
+    panel({ ...base, batch_id_str: 'shop-1', linked_commits: [{ sha: 'e7d3b201abc', message: 'hotfix', in_batch: false }] });
+    expect(screen.getByText('e7d3b201')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'e7d3b201' })).toBeNull();
+    expect(document.querySelector('a[href*="code-changes"]')).toBeNull();
+  });
 });

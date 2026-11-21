@@ -46,7 +46,7 @@ jobs:
         env:
           POSTGRES_DB: test_serops
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: testpass
+          POSTGRES_PASSWORD: testpass  # secret-scan: allow (throwaway CI database)
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -71,7 +71,7 @@ jobs:
       TEST_DB_PORT: '5432'
       TEST_DB_NAME: test_serops
       TEST_DB_USER: postgres
-      TEST_DB_PASSWORD: testpass
+      TEST_DB_PASSWORD: testpass  # secret-scan: allow (throwaway CI database)
       REDIS_URL: redis://localhost:6379/0
       CELERY_BROKER_URL: redis://localhost:6379/0
       CELERY_RESULT_BACKEND: redis://localhost:6379/0
@@ -193,6 +193,19 @@ jobs:
         if: failure()
         working-directory: deploy/quick-start
         run: docker compose logs --tail=200 backend frontend caddy
+
+  secret-scan:
+    name: Secret scan — literal passwords
+    # Not path-scoped: a secret can arrive in any file. Same script as the
+    # pre-commit hook and the GitLab job; prints file, line and rule, never
+    # the value.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: '3.12'
+      - run: python3 backend/Utils/secret_scan.py --all
 
   docs:
     name: Docs — strict build

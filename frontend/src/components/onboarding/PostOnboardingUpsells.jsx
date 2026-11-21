@@ -31,6 +31,7 @@ import { Alert, Box, Button, Stack } from '@mui/material';
 import { FaCodeBranch, FaCog } from 'react-icons/fa';
 
 import apiClient from '../../services/api-client';
+import { isDemoUser } from '../../utils/demo';
 
 export default function PostOnboardingUpsells() {
     const [state, setState] = useState({
@@ -67,8 +68,10 @@ export default function PostOnboardingUpsells() {
         return () => { cancelled = true; };
     }, []);
 
-    // Nothing to say: loading or fully set up.
-    if (state.loading || (state.hasSCM && state.hasCICD)) return null;
+    // Nothing to say: loading or fully set up. Nor in the read-only demo:
+    // a visitor cannot connect anything, and the demo's analyses already
+    // cite the commits and deploys their environments had.
+    if (isDemoUser() || state.loading || (state.hasSCM && state.hasCICD)) return null;
 
     return (
         <Box sx={{ mb: 2 }}>

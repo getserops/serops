@@ -568,6 +568,12 @@ def sync_stuck_pipelines():
         return {"synced": 0, "deployments_created": 0, "error": str(e)}
 
 
+def _is_demo_org(organisation) -> bool:
+    """Whether this is a demo organisation. A demo is seeded content:
+    nothing of it is a system to call, so the syncs below pass it by."""
+    return getattr(organisation, 'is_demo', False) is True
+
+
 @shared_task
 def sync_recent_deployments(hours: int = 2):
     """
@@ -615,7 +621,7 @@ def sync_recent_deployments(hours: int = 2):
             logger.info(f"Syncing deployments for {gitlab_projects.count()} GitLab projects (last {hours}h)")
         
         for gitlab_project in gitlab_projects:
-            if not gitlab_project.access_token:
+            if not gitlab_project.access_token or _is_demo_org(gitlab_project.organisation):
                 continue
                 
             stats["projects_processed"] += 1
@@ -767,6 +773,8 @@ def sync_recent_deployments(hours: int = 2):
 
             for binding in bindings:
                 try:
+                    if _is_demo_org(binding.project_service.project.organisation):
+                        continue
                     provider = binding.get_provider()
                     recent_pipelines = provider.list_recent_pipelines(hours)
 

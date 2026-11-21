@@ -88,7 +88,7 @@ metric.type="compute.googleapis.com/instance/cpu/utilization"
 AND metric.labels.env="prod"
 ```
 
-Canonical Prometheus-style metric names (`node_cpu_seconds_total`, `container_memory_usage_bytes`) map to the corresponding GCP metric types via a small dictionary in the adapter. Unknown names pass through unchanged so you can query raw GCP types directly.
+Canonical Prometheus-style metric names (`node_cpu_seconds_total`, `container_memory_usage_bytes`) map to the corresponding GCP metric types via a small dictionary in the adapter. The adapter passes unknown names through unchanged, but SerOps itself only asks for CPU and memory: there is no setting to make it query another GCP metric type. See [what SerOps reads](../user-guide/metrics.md#what-serops-reads).
 
 ## Health Check
 

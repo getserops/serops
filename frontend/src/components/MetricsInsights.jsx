@@ -252,8 +252,10 @@ const MetricsInsights = ({ summary }) => {
                                     <FiActivity className="text-primary" aria-hidden="true" />
                                     {t("metrics.perServiceTitle")}
                                 </h6>
-                                {/* Tables are the one thing allowed to scroll sideways. */}
-                                <div style={{ overflowX: "auto" }}>
+                                {/* Tables are the one thing allowed to scroll sideways.
+                                    The 8px indent puts the first column's text under the
+                                    heading's text: icon (14px) + gap (8px) - cell padding (14px). */}
+                                <div style={{ overflowX: "auto", marginLeft: 8 }}>
                                     <Table size="sm" className="mb-0 align-middle">
                                         <thead>
                                             <tr className="text-muted small">

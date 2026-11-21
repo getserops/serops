@@ -30,5 +30,10 @@ integration_tests/
 Dockerfile
 .dockerignore
 
+# Not runtime code. fluentd/ once held a log-shipper config with a real
+# Elasticsearch login (removed 2026-11-20); keep any shipper config out of
+# the image even if one comes back.
+fluentd/
+
 # Celery schedule file
 celerybeat-schedule

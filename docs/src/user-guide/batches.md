@@ -1,10 +1,10 @@
 ---
 seo_title: "Batches and AI analysis"
-description: "How SerOps groups logs, metrics, traces and code changes into batches and runs AI root cause analysis on each one."
+description: "How SerOps groups logs, infrastructure metrics, traces and code changes into batches and runs AI root cause analysis on each one."
 ---
 # Analyses and batches
 
-The **Analyses** page (sidebar) lists every AI analysis. Each one runs on a batch: batches are the core analysis units in SerOps. Each batch contains logs, metrics, a distributed-trace summary, and AI-generated insights.
+The **Analyses** page (sidebar) lists every AI analysis. Each one runs on a batch: batches are the core analysis units in SerOps. Each batch contains logs, CPU and memory metrics (see [what SerOps reads](metrics.md#what-serops-reads)), a distributed-trace summary, and AI-generated insights.
 
 ## What is a Batch?
 

@@ -784,7 +784,19 @@ def _deployed_code_changes(project, environment, window_deployments, until):
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=10)
 def analyze_batch(self, batch_id, preprocessed_logs=None):
-    """Analyze a batch using Gemini AI and save results"""
+    """Analyze a batch with the configured AI and save the results.
+
+    With SEROPS_QUERY_TRAIL_DIR set, every store request the analysis makes
+    (code diffs, trace look-ups) is recorded under the batch id
+    (Utils.query_trail).
+    """
+    from Utils import query_trail
+    with query_trail.recording(batch_id):
+        return _analyze_batch(self, batch_id, preprocessed_logs)
+
+
+def _analyze_batch(self, batch_id, preprocessed_logs=None):
+    """The body of ``analyze_batch``; ``self`` is the bound Celery task."""
     import re
     from django.contrib.auth import get_user_model
     from notifications.services import send_notification_email

@@ -4,7 +4,7 @@ description: "Connect Grafana Mimir to SerOps as a metric provider, with multi-t
 ---
 # Grafana Mimir
 
-Grafana Mimir is a horizontally scalable, highly available, long-term storage solution for Prometheus metrics. SerOps uses it as a metric provider, querying time-series data via PromQL with support for multi-tenant isolation and up to 365 days of retention.
+Grafana Mimir is a horizontally scalable, highly available, long-term storage solution for Prometheus metrics. SerOps uses it as a metric provider, querying time-series data via PromQL with support for multi-tenant isolation and up to 365 days of retention. It reads the same series as the Prometheus integration: see [what SerOps reads](../user-guide/metrics.md#what-serops-reads).
 
 | | |
 |---|---|
@@ -86,7 +86,9 @@ memory come from cAdvisor, which a pod job does not scrape: label those samples
 instead, as in [Prometheus → Kubernetes setup](prometheus.md#kubernetes-setup).
 For Mimir that is usually Grafana Alloy's `prometheus.relabel` before
 `prometheus.remote_write`, shown in
-[With Grafana Alloy](prometheus.md#with-grafana-alloy).
+[With Grafana Alloy](prometheus.md#with-grafana-alloy). Metrics your
+applications push to Mimir over OTLP need the labels added in the collector
+instead: [Metrics your applications push over OTLP](prometheus.md#metrics-your-applications-push-over-otlp).
 
 See [Configure Data Collection](../how-to/configure-data-collection.md)
 for the full reference, including the equivalent setup for logs.

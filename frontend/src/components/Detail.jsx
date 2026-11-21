@@ -17,6 +17,8 @@ import "./Detail.css";
 import { projectOf, serviceOf } from "../utils/logFields";
 import { splitCodeNotes } from "../utils/codeNotes";
 import { batchTrigger, sentinelOutcome, sentinelReasonLabels } from "../utils/batchTrigger";
+import { incidentStatus } from "../utils/incidentStatus";
+import { commitPath, tracePath, logsTrimmed } from "../utils/linkTargets";
 
 // Investigate prefilled with this batch's scope and window.
 const rerunLink = (batch) => {
@@ -107,6 +109,7 @@ const Detail = () => {
   // PR-D: also carry the batch header (analysis / issues / metadata)
   // so this page renders the RCA hero, not just a log dump.
   const [batchMeta, setBatchMeta] = useState(null);
+  const [notFound, setNotFound] = useState(false);
   const [acking, setAcking] = useState(false);
   const [showPostmortem, setShowPostmortem] = useState(false);
 
@@ -165,11 +168,12 @@ const Detail = () => {
         // Fetch the two pieces in parallel: the log adapter output
         // (already merges cicd + logs, sorts by timestamp) and the
         // raw batch envelope (analysis_text, issues, model, etc).
-        const [logsResponse, meta] = await Promise.all([
+        const [logsResponse, { batch: meta, notFound: missing }] = await Promise.all([
           DataService.getBatchLogs(batchId),
-          DataService.getBatchDetails(batchId),
+          DataService.getBatchDetailsResult(batchId),
         ]);
         setBatchMeta(meta || null);
+        setNotFound(Boolean(missing));
 
         if (logsResponse?.results) {
           const formattedData = logsResponse.results.map((log) => ({
@@ -455,11 +459,9 @@ const Detail = () => {
   const environment = batchMeta?.data?.environment || primary?.environment || null;
   const traceCount = batchMeta?.data?.traces?.trace_count || 0;
   const codeCount = batchMeta?.data?.code_changes?.length || 0;
-  const status = issues.length === 0
-    ? { klass: 'ds-chip-ok', label: t('detail.incident.statusNoIssues') }
-    : unacknowledged.length > 0
-      ? { klass: primarySeverity === 'CRITICAL' ? 'ds-chip-err' : 'ds-chip-warn', label: t('detail.incident.statusOpen') }
-      : { klass: 'ds-chip-info', label: t('detail.incident.statusAcknowledged') };
+  // Open, Acknowledged, Resolved or Muted: the same word as the issue rows.
+  const _status = incidentStatus(issues, primarySeverity);
+  const status = { klass: _status.klass, label: t(_status.labelKey) };
   const triggerLabel = t(trigger.label, trigger.fallback);
   const sentinelLabel = sentinelResult
     ? t(sentinelResult.label, sentinelResult.fallback)
@@ -474,20 +476,42 @@ const Detail = () => {
   // Each piece of evidence opens the page that shows it in context.
   const correlationLink = (c) => {
     if (isSample) return null;
-    if (c.type === 'commit') return `/dash/code-changes/${batchId}?sha=${encodeURIComponent(c.value)}`;
+    if (c.type === 'commit') return commitPath(batchId, c);
     if (c.type === 'metric') return `/dash/metrics/${batchId}`;
     if (c.type === 'cicd') return `/dash/timeline/${batchId}`;
-    if (c.type === 'trace') return `/dash/traces/${encodeURIComponent(c.value)}`;
+    if (c.type === 'trace') return tracePath({ trace_id: c.value, trace_stored: c.trace_stored });
     return null;
   };
-  // The failing span closest to this issue, when the batch has traces.
-  const failingTrace = primary?.related_traces?.top_errors?.[0]?.trace_id;
-  const evidenceChips = failingTrace ? [...correlations, { type: 'trace', value: failingTrace }] : correlations;
+  // The failing span closest to this issue, when the batch has traces. The
+  // chip carries whether that trace was stored: without it, it is not a link.
+  const failingSpan = primary?.related_traces?.top_errors?.[0];
+  const failingTrace = failingSpan?.trace_id;
+  const evidenceChips = failingTrace
+    ? [...correlations, { type: 'trace', value: failingTrace, trace_stored: failingSpan.trace_stored }]
+    : correlations;
+  // Set when the API says the log lines below are only part of what was read.
+  const trimmedLogs = logsTrimmed(batchMeta?.data);
   // Three ways to have no incident: Sentinel skipped the AI, the AI ran and
   // found nothing, or it has not run yet. They used to share "Sentinel
   // skipped AI analysis", shown next to the model and token count of an
   // analysis that did run.
   const noIncident = batchMeta?.ai_skipped ? 'quiet' : batchMeta?.analyzed_at ? 'clear' : 'pending';
+
+  // The server answered 404: say so instead of an empty page under the id.
+  if (notFound) {
+    return (
+      <div className="detail-page incident-page">
+        <PageHeader crumbs={[{ label: t('nav.analyses'), to: '/dash/data' }, { label: batchId, mono: true }]} title={t('detail.notFound.title')} />
+        <div className="ds-section">
+          <div className="ds-empty-state" role="status">
+            <div className="ds-empty-state-icon"><FaExclamationCircle aria-hidden="true" /></div>
+            <div className="ds-empty-state-body">{t('detail.notFound.body')}</div>
+            <Link className="ds-btn ds-btn-primary mt-3" to="/dash/data">{t('detail.notFound.back')}</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="detail-page incident-page">
@@ -573,7 +597,9 @@ const Detail = () => {
               <div className="incident-rootcause-body">
                 {narrative ? (
                   <p className="incident-narrative">{narrative}</p>
-                ) : !analysisText && (
+                ) : (!analysisText || issues.length === 0) && (
+                  // Nothing found: say so. The summary is already the page
+                  // title, and the card used to be left with only its heading.
                   <p className="incident-narrative incident-muted">{t(`detail.incident.${noIncident}Body`)}</p>
                 )}
                 {evidence.length > 0 && (
@@ -599,7 +625,9 @@ const Detail = () => {
                 <div className="incident-model">
                   {batchMeta.model_name && !batchMeta.ai_skipped && <span className="ds-mono">{batchMeta.model_name}</span>}
                   {typeof batchMeta.logs_analyzed === 'number' && <span>{t('detail.incident.logsAnalysed', { count: batchMeta.logs_analyzed })}</span>}
-                  {!batchMeta.ai_skipped && typeof batchMeta.token_count === 'number' && batchMeta.token_count > 0 && (
+                  {/* In the demo no token count was recorded with the analyses: the
+                      figure the API gives there is a size estimate, so it is not shown. */}
+                  {!isDemoUser() && !batchMeta.ai_skipped && typeof batchMeta.token_count === 'number' && batchMeta.token_count > 0 && (
                     <span>{t('detail.incident.tokens', { count: batchMeta.token_count, formatted: batchMeta.token_count.toLocaleString() })}</span>
                   )}
                   {sentinelReasonLabels((batchMeta.sentinel_triggers || []).slice(0, 3), t).map((label) => (
@@ -715,7 +743,7 @@ const Detail = () => {
                       fontSize: 11, color: 'var(--text-tertiary)', marginTop: 'auto',
                     }}>
                       <span>{issueCount} issue{issueCount === 1 ? '' : 's'}</span>
-                      {tokensTotal > 0 && <span>{tokensTotal.toLocaleString()} tokens</span>}
+                      {tokensTotal > 0 && !isDemoUser() && <span>{tokensTotal.toLocaleString()} tokens</span>}
                     </div>
                     {!isPrimary && (
                       <button
@@ -1088,6 +1116,11 @@ const Detail = () => {
             per row (only ``logDetails`` message + icon). Real prod
             logs need at least timestamp, level, service, message to
             triage. */}
+        {trimmedLogs && (
+          <p className="small mb-0 mt-2 detail-logs-note" style={{ color: 'var(--text-secondary)' }}>
+            {t('detail.logsShown', { kept: trimmedLogs.kept.toLocaleString(), total: trimmedLogs.total.toLocaleString() })}
+          </p>
+        )}
         <Table
           bordered
           hover

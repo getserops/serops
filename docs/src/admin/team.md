@@ -63,7 +63,7 @@ Roles add up: a user can do everything a viewer can, an admin everything a user 
 | `issue.update` | Resolve, mute, reopen, acknowledge issues | | ✓ | ✓ |
 | `batch.analyze` | Run analyses, re-analyses, investigations and post-mortems (spends the AI budget) | | ✓ | ✓ |
 | `project.write` | Create and edit projects, services, bindings, deployments; set up webhooks; the setup flow | | ✓ | ✓ |
-| `integration.use` | Verify, sync and health-check existing integrations | | ✓ | ✓ |
+| `integration.use` | Verify, sync and health-check existing integrations (the token owner's email in a health check is shown only with `integration.manage`) | | ✓ | ✓ |
 | `settings.read` | Read security, SSO, retention, data usage and AI budget settings | | ✓ | ✓ |
 | `project.delete` | Delete projects and services | | | ✓ |
 | `integration.manage` | Add, edit, delete or test integrations, log/metric sources, clusters and trace ingest keys (they hold credentials) | | | ✓ |

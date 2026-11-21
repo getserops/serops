@@ -147,3 +147,43 @@ class FrontendUrlValidationTest(TestCase):
     @override_settings(CORS_ALLOWED_ORIGINS=[], REACT_URL=None)
     def test_local_fallback_only_when_nothing_configured(self):
         self.assertEqual(_validated_frontend_url(), 'http://localhost:3003')
+
+
+class SSOExchangeHardeningTest(TestCase):
+    """Audit 2026-11-20, item 9: the whole token is checked, with its expiry."""
+
+    def setUp(self):
+        org = Organisations.objects.create(name='Exch Hard Org')
+        self.user = User.objects.create_user(username='exchhard', email='exchhard@test.com', password='unused',
+                                             organisation=org, role='admin', is_active=True)
+        self.client = APIClient()
+        self.token_obj, self.token = AuthToken.objects.create(self.user)
+
+    def _exchange(self, value):
+        self.client.cookies[SSO_HANDOFF_COOKIE] = value
+        return self.client.post('/api/auth/sso/exchange')
+
+    def test_right_key_prefix_wrong_rest_is_refused(self):
+        forged = self.token[:8] + ('0' if self.token[8] != '0' else '1') + self.token[9:]
+        response = self._exchange(forged)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('user', response.data)
+
+    def test_expired_token_is_refused(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        AuthToken.objects.filter(pk=self.token_obj.pk).update(expiry=timezone.now() - timedelta(minutes=1))
+        self.assertEqual(self._exchange(self.token).status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_inactive_user_is_refused(self):
+        User.objects.filter(pk=self.user.pk).update(is_active=False)
+        self.assertEqual(self._exchange(self.token).status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_the_real_token_still_works(self):
+        self.assertEqual(self._exchange(self.token).status_code, status.HTTP_200_OK)
+
+    def test_exchange_is_throttled(self):
+        from Users.sso_views import SSOExchangeView
+        self.assertEqual(SSOExchangeView.throttle_scope, 'auth_sso_exchange')
+        from django.conf import settings
+        self.assertIn('auth_sso_exchange', settings.REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'])

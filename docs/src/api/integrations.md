@@ -102,10 +102,10 @@ Runs a live connectivity check against the stored credentials and updates `last_
 ## Health Check (All Integrations)
 
 ```
-GET /api/providers/integrations/health-check-all/
+POST /api/providers/integrations/health-check-all/
 ```
 
-Runs a connectivity check against every configured SCM/CI-CD integration for the organisation and returns their statuses in one call. Useful for a status dashboard.
+Runs a connectivity check against every configured SCM/CI-CD integration for the organisation and returns their statuses in one call. Needs `integration.use`; the token owner's email in `details` is returned only to callers with `integration.manage`.
 
 ## Usage Summary (All Integrations)
 

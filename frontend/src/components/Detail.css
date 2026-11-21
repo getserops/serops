@@ -79,6 +79,12 @@
 @media (min-width: 768px) {
   :is(html, :root[data-theme]) .detail-logs-table :is(th, td) { padding: 10px 12px; }
 }
+/* The note above the log table starts where the first column's text starts
+   (the cells' 12px left padding). */
+@media (min-width: 768px) {
+  .detail-logs-note { padding-left: 12px; }
+}
+
 :is(html, :root[data-theme]) .detail-logs-table thead th {
   background: var(--bg-sunken);
   color: var(--text-tertiary);

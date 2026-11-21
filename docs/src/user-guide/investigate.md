@@ -9,7 +9,7 @@ next scheduled batch or for an alert. Use it when something looks wrong and
 nothing has fired yet: a customer report, a dashboard that looks off, a
 check right after a deploy.
 
-It runs the same pipeline as scheduled analysis (logs, metrics, traces,
+It runs the same pipeline as scheduled analysis (logs, CPU and memory metrics, traces,
 code changes and CI/CD runs, secrets masked, then your AI model), so the
 result is an ordinary batch with issues, a root cause and evidence.
 

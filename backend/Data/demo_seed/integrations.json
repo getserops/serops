@@ -1,0 +1,35 @@
+{
+ "about": "The stores each test environment really had connected to SerOps when the seeded analyses ran, written by hand from the environments' set-up records. The loader creates one row per entry so the Integrations page shows what the analyses read. A row holds a type and a name only: no address, no host, no user name, no credential. Nothing is ever called through these rows (demo organisations are left out of every read and check).",
+ "written_by": "SerOps team, from the set-up records of the test environments",
+ "projects": {
+  "fleet": {
+   "observability": [
+    {"provider": "elasticsearch", "display_name": "Fleet Elasticsearch", "capabilities": ["logs"]},
+    {"provider": "gcp", "display_name": "Fleet Cloud Monitoring", "capabilities": ["metrics"]},
+    {"provider": "jaeger", "display_name": "Fleet Jaeger", "capabilities": ["traces"]}
+   ],
+   "delivery": [
+    {"provider_type": "github", "name": "Fleet GitHub", "category": "devops"},
+    {"provider_type": "jenkins", "name": "Fleet Jenkins", "category": "cicd"}
+   ]
+  },
+  "shopfront": {
+   "observability": [
+    {"provider": "loki", "display_name": "Shopfront Loki", "capabilities": ["logs"]},
+    {"provider": "prometheus", "display_name": "Shopfront Prometheus", "capabilities": ["metrics"]}
+   ],
+   "delivery": [
+    {"provider_type": "github", "name": "Shopfront GitHub", "category": "devops"}
+   ]
+  },
+  "studio": {
+   "observability": [
+    {"provider": "opensearch", "display_name": "Studio OpenSearch", "capabilities": ["logs"]},
+    {"provider": "victoriametrics", "display_name": "Studio VictoriaMetrics", "capabilities": ["metrics"]}
+   ],
+   "delivery": [
+    {"provider_type": "flux", "name": "Studio Flux", "category": "gitops"}
+   ]
+  }
+ }
+}

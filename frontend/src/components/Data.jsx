@@ -330,7 +330,7 @@ const Data = () => {
                     `${model} finished — primary analysis updated with ${issueCount} issue(s). `
                     + `View them in the Issues tab or on the batch detail page.`
                   ),
-                  cta: { label: 'View batch', href: `/dash/data/details/${firstBatchId}` },
+                  cta: { label: t('data.viewAnalysis', 'View analysis'), href: `/dash/data/details/${firstBatchId}` },
                 });
               } else {
                 setNotification({
@@ -653,7 +653,7 @@ const Data = () => {
                   <tr>
                     <th style={{ width: "60px" }}></th>
                     <th>{t('data.timestamp')}</th>
-                    <th>Batch ID</th>
+                    <th>{t('data.analysisId', 'Analysis ID')}</th>
                     <th>{t('projects.title')}</th>
                     <th>{t('data.environment')}</th>
                     <th>{t('data.trigger')}</th>
@@ -731,7 +731,7 @@ const Data = () => {
                             />
                           </td>
                           <td data-label={t('data.timestamp')}>{highlightSearchTerm(item.timestamp)}</td>
-                          <td data-label="Batch ID" className="ds-mono" style={{ whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.batch}>
+                          <td data-label={t('data.analysisId', 'Analysis ID')} className="ds-mono" style={{ whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.batch}>
                             {highlightSearchTerm(item.batch)}
                           </td>
                           <td data-label={t('projects.title')} style={{ fontWeight: "500" }}>

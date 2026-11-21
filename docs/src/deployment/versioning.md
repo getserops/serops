@@ -91,17 +91,25 @@ SEROPS_BACKEND_IMAGE=my-registry.example.com/serops/backend:1.0.0
 SEROPS_FRONTEND_IMAGE=my-registry.example.com/serops/frontend:1.0.0
 ```
 
-**Kubernetes / Helm** — set `image.tag` in your values:
+**Kubernetes / Helm** — the chart's `appVersion` sets the release by default
+(`helm upgrade ... --version <chart version>`). To pin another release, or
+pull from your own registry, set the backend and frontend images in your
+values:
 
 ```yaml
-image:
-  backend:
+backend:
+  image:
     repository: ghcr.io/getserops/backend
-    tag: "1.0.0"
-  frontend:
+    tag: "1.5.0"
+frontend:
+  image:
     repository: ghcr.io/getserops/frontend
-    tag: "1.0.0"
+    tag: "1.5.0"
 ```
+
+The Celery worker, Celery beat and the migration job run the backend image
+and follow `backend.image` (chart 0.2.2 and later), so the whole
+installation runs one release.
 
 **Never rely on `:latest` in production.** Rolling latest defeats
 version pinning and makes rollbacks impossible. The bundled compose

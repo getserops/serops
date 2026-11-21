@@ -135,7 +135,7 @@ Dotted names match whether the record stores them flat (`"service.name": "x"`) o
 **Provider-specific notes:**
 
 - **Elasticsearch / OpenSearch**: Fields are document fields, top-level or nested (Elastic Common Schema). Every level field is queried, whatever its mapping (keyword, text or a number).
-- **Grafana Loki**: Fields are stored as stream labels (`project_name`, `service_name`, `environment`, `log_level`).
+- **Grafana Loki**: `project_name`, `service_name` and `environment` are stream labels. The level is read from the **line text**, not from a label: SerOps keeps the lines that contain an error or warning word (`ERROR`, `WARNING`, `CRITICAL`, …, any case), so a line whose level exists only as a `log_level` label is not read. Keep the level in the line itself (`2026-11-20 ERROR ...`, or JSON with `"level":"error"`); a `log_level` label is harmless but not used for selection.
 - **Datadog**: Fields can be **tags** (the Agent's `tags:`, `DD_TAGS`, Unified Service Tagging `env` / `service`) or **log attributes** from JSON bodies (`@project_name`); both are matched. Datadog's native `status` field is also used for severity.
 - **AWS CloudWatch**: Fields are stored as JSON fields in structured log entries (`project_name`, `service_name`, `environment`, `log_level`).
 
@@ -280,7 +280,7 @@ SerOps queries these specific metric names (Prometheus naming convention):
 | `node_memory_MemAvailable_bytes` | Available memory |
 | `node_cpu_seconds_total` | CPU time (per-core, per-mode) |
 
-For Datadog and CloudWatch, SerOps automatically maps these names to native equivalents (see provider-specific pages).
+For Datadog, CloudWatch, Azure Monitor and Google Cloud Monitoring, SerOps maps these names to native equivalents (see provider-specific pages). On Kubernetes and on Prometheus-compatible stores it reads more than these four: the full list is in [what SerOps reads](../user-guide/metrics.md#what-serops-reads).
 
 ### `serops_type` Values
 
@@ -422,7 +422,11 @@ filter {
 
 ### Grafana Loki (Promtail)
 
-Loki uses **stream labels** for filtering. Add labels in your Promtail `scrape_configs`:
+Loki uses **stream labels** for `project_name`, `service_name` and
+`environment`. Add them in your Promtail `scrape_configs`. The level stays
+in the line: SerOps selects error and warning lines by their text, so the
+`log_level` label below is optional.
+
 
 ```yaml
 scrape_configs:

@@ -21,6 +21,16 @@ import './SettingsLayout.css';
 import PageHeader from '../PageHeader';
 import { usePermissions } from '../../utils/permissions';
 
+
+// What kind of API a provider speaks, in words. The row used to show the
+// Python class name (ClaudeAdapter, GenericOpenAIAdapter).
+const ADAPTER_LABELS = {
+    GenericOpenAIAdapter: 'OpenAI-compatible API',
+    GeminiAdapter: 'Google Gemini API',
+    ClaudeAdapter: 'Anthropic Claude API',
+};
+export const adapterLabel = (adapterClass) => ADAPTER_LABELS[String(adapterClass || '').split('.').pop()] || '';
+
 const AISettings = () => {
     const { t } = useTranslation();
     const [loading, setLoading] = useState(true);
@@ -382,7 +392,9 @@ const AISettings = () => {
                                                 <span style={{ fontSize: '1.2rem' }}>{getProviderIcon(provider.name)}</span>
                                                 <span className="fw-semibold">{provider.display_name}</span>
                                             </div>
-                                            <div className="small text-muted">{provider.adapter_class?.split('.').pop()}</div>
+                                            {adapterLabel(provider.adapter_class) && (
+                                                <div className="small text-muted">{adapterLabel(provider.adapter_class)}</div>
+                                            )}
                                             <div className="small text-muted">{provider.default_model}</div>
                                         </td>
                                         <td>

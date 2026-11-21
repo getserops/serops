@@ -28,6 +28,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { tracePath } from '../utils/linkTargets';
 import { Form } from 'react-bootstrap';
 import { FaSearchPlus, FaSearchMinus, FaExpand } from 'react-icons/fa';
 
@@ -318,9 +319,10 @@ const BatchTimelineChart = ({
     // Click handler for markers — jumps to the relevant detail page
     // (trace detail for span/log with trace_id).
     const handleMarkerClick = (event) => {
-        const traceId = event?.detail?.trace_id;
-        if (traceId) {
-            navigate(`/dash/traces/${traceId}`);
+        // No page to open when the trace was not stored.
+        const to = tracePath(event?.detail);
+        if (to) {
+            navigate(to);
         }
     };
 
@@ -573,7 +575,7 @@ const BatchTimelineChart = ({
                             onMouseEnter={visible ? () => setHover({ event, x, y }) : undefined}
                             onMouseLeave={visible ? () => setHover(null) : undefined}
                             onClick={visible ? () => handleMarkerClick(event) : undefined}
-                            style={{ cursor: (visible && event?.detail?.trace_id) ? 'pointer' : 'default' }}
+                            style={{ cursor: (visible && tracePath(event?.detail)) ? 'pointer' : 'default' }}
                         >
                             <title>{`${event.kind} · ${event.summary || ''}`}</title>
                         </circle>

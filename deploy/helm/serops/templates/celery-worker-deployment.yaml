@@ -27,7 +27,8 @@ spec:
       {{- include "serops.backendPodSecurity" . | nindent 6 }}
       containers:
         - name: worker
-          image: {{ include "serops.image" (dict "repository" .Values.celeryWorker.image.repository "tag" .Values.celeryWorker.image.tag "root" .) }}
+          {{- /* Follows backend.image unless set: a pinned backend tag used to leave the worker on appVersion. */}}
+          image: {{ include "serops.image" (dict "repository" (.Values.celeryWorker.image.repository | default .Values.backend.image.repository) "tag" (.Values.celeryWorker.image.tag | default .Values.backend.image.tag) "root" .) }}
           imagePullPolicy: {{ .Values.celeryWorker.image.pullPolicy }}
           {{- include "serops.backendContainerSecurity" . | nindent 10 }}
           command:
@@ -42,6 +43,9 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "serops.fullname" . }}-config
+            {{- with $.Values.backend.envFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           env:
             - name: DJANGO_SECRET_KEY
               valueFrom:
@@ -76,6 +80,13 @@ spec:
                   name: {{ .Values.smtp.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
                   key: smtp-password
                   optional: true
+            {{- end }}
+            {{- /* backend.env reaches every pod that runs the backend image:
+                   the API, the Celery workers and beat, and the migration
+                   job. It used to reach the API pods only. */}}
+            {{- range $k, $v := $.Values.backend.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
             {{- end }}
           {{- with .Values.celeryWorker.livenessProbe }}
           {{- if .enabled }}

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FaCheck, FaVolumeMute, FaRedo, FaBell, FaComments, FaLink, FaSearch, FaFileAlt } from "react-icons/fa";
 import { isDemoUser } from "../../utils/demo";
+import { commitPath } from "../../utils/linkTargets";
 
 const MINUTE = 60 * 1000;
 
@@ -138,11 +139,11 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
                 const sha = typeof c === "object" ? c.sha : String(c);
                 const msg = typeof c === "object" ? c.message : "";
                 const code = <code>{(sha || "").slice(0, 8)}</code>;
+                // Plain text when the analysis holds no code change for this sha.
+                const to = commitPath(issue.batch_id_str, c);
                 return (
                   <li key={i}>
-                    {sha && issue.batch_id_str
-                      ? <Link to={`/dash/code-changes/${issue.batch_id_str}?sha=${encodeURIComponent(sha)}`}>{code}</Link>
-                      : code}
+                    {to ? <Link to={to}>{code}</Link> : code}
                     {msg ? ` — ${msg}` : ""}
                   </li>
                 );

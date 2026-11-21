@@ -18,6 +18,26 @@ OpenSearch is an open-source search and analytics engine, fully compatible with 
 - Network access from the SerOps backend to the OpenSearch cluster
 - A user with read permissions on the log indices (`read` on `logs-*` or your own pattern).
   `cluster:monitor/health` is optional: without it the health check counts the log indices instead.
+- The same user must also be able to write SerOps' own CI/CD index. SerOps stores the
+  CI/CD events it receives (deploys, builds) in this cluster, in `serops-cicd-<organisation>`,
+  and reads them back during an analysis. A read-only role on the log indices gets a 403
+  there: the events are lost and analyses see no CI/CD deploys. Grant, on `serops-cicd-*`,
+  the index permissions `read`, `index` and `create_index`, and the cluster permission
+  `indices:data/write/bulk` (part of `cluster_composite_ops`; see
+  [OpenSearch default action groups](https://docs.opensearch.org/latest/security/access-control/default-action-groups/)).
+
+  ```json
+  PUT _plugins/_security/api/roles/serops
+  {
+    "cluster_permissions": ["indices:data/write/bulk"],
+    "index_permissions": [
+      {"index_patterns": ["logs-*"], "allowed_actions": ["read"]},
+      {"index_patterns": ["serops-cicd-*"], "allowed_actions": ["read", "index", "create_index"]}
+    ]
+  }
+  ```
+
+  Replace `logs-*` with your log index pattern (`ss4o_logs-*` for the Collector's default).
 
 ## Configuration
 
@@ -152,6 +172,7 @@ Response:
 |-------|----------|
 | "Connection refused" | Verify `host` URL is reachable from SerOps backend |
 | "401 Unauthorized" | Check `username` and `password` are correct |
+| "403" on `serops-cicd-<organisation>` in the logs | The role cannot write or read SerOps' CI/CD index: add the `serops-cicd-*` permissions from [Prerequisites](#prerequisites) |
 | "403" on the health check | The user may not read the log indices. Grant `read` on them; `cluster:monitor/health` is optional |
 | Logs arrive but no service, environment or level | The Collector's default SS4O shape: see [OpenTelemetry Collector](#opentelemetry-collector) |
 | "SSL certificate error" | Set `verify_certs: false` in `extra_config` (not recommended for production) |

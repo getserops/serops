@@ -27,8 +27,9 @@ import SentinelStatsCard from "./SentinelStatsCard";
 import NeedsAttention from "./NeedsAttention";
 import CommandPalette from "./CommandPalette";
 import { OnboardingWizard, OnboardingResumeChip } from "./onboarding";
-import { isDemoUser } from '../utils/demo';
+import DemoBanner from './DemoBanner';
 import { usePermissions } from '../utils/permissions';
+import { isDemoUser } from '../utils/demo';
 
 
 const Dashboard = () => {
@@ -118,6 +119,8 @@ const Dashboard = () => {
     queryFn: () => DashboardService.getMTTRStats(30, environment),
     staleTime: 2 * 60 * 1000,
     refetchInterval: 2 * 60 * 1000,
+    // The demo does not show this tile (see MTTRCard), so it does not ask for it.
+    enabled: !isDemoUser(),
   });
 
   const { data: serviceHealthData, isLoading: loadingServiceHealth } = useQuery({
@@ -178,32 +181,13 @@ const Dashboard = () => {
     </div>
   );
 
-  // Read the persistent demo flag from the login payload so we can
-  // surface the "you're in the live demo" banner on every page. We
-  // intentionally trust localStorage here rather than fetching /me on
-  // every render — Knox + RBAC will reject any write the banner says
-  // is blocked, so the flag is presentational, not security-bearing.
-  const isDemo = isDemoUser();
-
   return (
     <div className="dashboard-layout">
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
       <div className={`dashboard-main ${isSidebarOpen ? 'expanded' : 'collapsed'}`}>
-        {isDemo && (
-          <div className="demo-banner" role="status">
-            <span>
-              You're in the SerOps live demo · seeded data · resets nightly · nothing hits live infra.
-            </span>
-            <a
-              href="https://serops.ai/docs/getting-started/quick-start-self-hosted/"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Self-host SerOps →
-            </a>
-          </div>
-        )}
+        {/* Demo users only: what the demo shows, on every page. */}
+        <DemoBanner />
 
         <Navbar toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
         <CommandPalette />

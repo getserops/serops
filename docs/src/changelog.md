@@ -16,6 +16,358 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.5.0] - 2026-11-21
+
+Analysis accuracy and integration fixes, most of them found by installing
+1.4.0 fresh on Kubernetes estates and by a review of the integrations. A
+data source that fails is no longer read as a quiet window, an alert is
+analysed from the moment it started, and the analysis reads more of what
+explains an incident: data that stopped, job and change events, JVM
+garbage collection, failed deploys. It also carries the fixes of a security
+review of the API and of single sign-on (see Security).
+
+Set `SEROPS_VERSION=1.5.0` or `--version 1.5.0`. Five migrations run on
+their own and only add columns and tables. Two things to check after upgrading:
+OpenSearch now verifies TLS by default, and an existing Bitbucket webhook
+needs **Setup Webhook** run again. On Kubernetes, chart 0.2.2 changes where
+`backend.env` applies and which image the workers run (see Upgrade).
+
+### Added
+
+- **Data that stopped**: a project whose log volume falls sharply against
+  the window before, a service that logged steadily and went silent, or a
+  service whose traces stopped, is reported instead of being read as a
+  healthy window. If the analysis finds nothing else, it opens one WARNING
+  and a healthy summary becomes degraded. See
+  [Configure data collection](how-to/configure-data-collection.md).
+- **Change and job events**: INFO lines that name an operation (reindex,
+  migration, deploy, restart, failover and similar) reach the analysis, chat
+  and post-mortem drafts as context, at most 20 lines per analysis. They
+  never open an issue on their own. One extra log query, only for a window
+  that is analysed.
+- **JVM garbage collection**: on Prometheus, Mimir and VictoriaMetrics,
+  the analysis reads the share of time the worst JVM of each service spent
+  in garbage collection and its collections per minute, when the store has
+  those metrics. See [Prometheus](integrations/prometheus.md).
+- **One evolving incident stays one issue**: an open or muted issue on the
+  same project, environment and component absorbs a finding of another
+  type seen within `SEROPS_ISSUE_CONTINUITY_HOURS` (default `2`, `0` turns
+  it off), instead of a new issue per step. The issue keeps the type each
+  analysis saw. See [Tune deduplication](how-to/tune-deduplication.md).
+- **Alerts**: an unmatched alert is listed under Alerts & routing →
+  Delivery Channels with the labels tried. A repeat notification of an
+  alert already analysed is linked to the first analysis and starts no new
+  one. See [Alerts](integrations/alerts.md).
+- **Analyses list**: a Trigger column (Scheduled, Alert received,
+  Investigation) and a separate Sentinel column with Sentinel's decision
+  and its reasons. The analysis page shows both the same way.
+- **Failed deploys**: a rejected Flux apply and a failed Argo CD sync are
+  recorded as failed deployments with the controller's message, and a
+  commit whose pipeline failed is shown to the AI as not deployed. A failed
+  CI/CD run's commits reach the analysis.
+- **Unlabelled workloads**: on Kubernetes, the analysis names the three
+  busiest pods among containers that carry no service label.
+- **Azure Monitor**: `AppExceptions`, failed `AppRequests` and failed
+  `AppDependencies` are read.
+- **Bitbucket**: Bitbucket Pipelines runs are polled, like GitHub Actions
+  and GitLab CI. Built from Atlassian's API documentation; not yet tested
+  against a live Bitbucket workspace.
+- **Traces**: spans sent over OTLP carry their environment and project, and
+  an analysis reads the spans of its own environment and project plus those
+  that name neither. See [Traces](integrations/traces.md).
+- **Overview, Issues and Analyses**: the environment and cluster filters
+  are kept in the address, so a filtered page can be shared.
+- **AI usage**: post-mortem drafts are recorded with usage type
+  `postmortem` and count towards the monthly budget.
+- **Usage counting for a public demo instance**, off by default. SerOps
+  ships no tracking. An operator who runs a public demo can set
+  `SEROPS_USAGE_SCRIPT_PATH` and `SEROPS_USAGE_WEBSITE_ID` to count page
+  views with a tool they host themselves: page names only, no record ids
+  and no query strings. Unset, the web app loads nothing and sends nothing.
+  See [Configuration](deployment/configuration.md).
+- **Demo data**: the demo organisation (`seed_demo_org`) loads 14 analyses
+  and their 10 issues from our benchmark runs on test environments, in
+  place of hand-written examples. They are shown under a fictional
+  organisation name, with role names in place of people, and with three
+  conversations with the AI stored as they were asked. No AI spend is shown
+  for them: it was not recorded. The read-only demo hides the buttons its
+  server refuses and figures that come from our test schedule.
+
+### Changed
+
+- **A failed or partial data source is never read as healthy.** A log,
+  metric or trace query that is refused or fails (connection error, 401 or
+  403, 429, 5xx, timeout) used to count as "no errors". The analysis now
+  records each source as ok, unavailable, partial or truncated, tells the
+  AI so, and a run whose log store refused the query reads the same window
+  again next time. See [Troubleshooting](troubleshooting.md).
+- **Alert window**: an alert analysis looks from 20 minutes before the
+  alert started to 2 minutes after SerOps received it, capped at two hours.
+  It used to look 3 minutes either side of receipt.
+- **Alert routing**: the project is found from the alert's labels
+  (`service`, `service_name`, `app_kubernetes_io_name`, `app` and others),
+  then a `namespace` that names a project, then the only project of a
+  single-project organisation. An alert that matches nothing is no longer
+  analysed against the organisation's first project.
+- **Overview**: System Health, the Service Health Map and Top Failing
+  Services use one formula based on open issues (Healthy from 85, Degraded
+  from 60); every panel states its time window; MTTR shows its sample size
+  and "Not enough data" for a small sample. See
+  [How health is scored](user-guide/dashboard.md#how-health-is-scored).
+- **Scheduled log window**: capped at `SEROPS_MAX_LOG_WINDOW_MINUTES`
+  (default `360`); the analysis says when the cap applied.
+- **Log sample**: every service with errors keeps a share of the lines
+  sent to the AI, so one loud service no longer takes them all. The total
+  is unchanged.
+- **Exception lines**: a log line with an exception class and its message
+  (`ValueError: ...`) counts as an error whatever its level field says.
+- **Kubernetes metrics**: CPU is shown as "% of one core" and no longer
+  judged against the 80 % threshold; memory that stays steady near its
+  limit with no restart is context, not an anomaly or a warning.
+- **Code-review notes**: a note on a healthy deploy is INFO and is not
+  linked to the deployed commit.
+- **Flux**: an event is a deploy only when the apply changed something;
+  other events are answered 200 and ignored instead of 400.
+- **Environment names**: `prod`, `prd` and `live` are production, `stage`,
+  `stg` and `preprod` are staging, `dev` and `develop` are development; any
+  other name (`qa`, `uat`, `preview`) is kept. Deploys, alerts and metric
+  queries use the same names.
+- **Default Claude model**: the default Claude model changed from
+  `claude-sonnet-5` (1.4.0) to `claude-sonnet-5-5` (1.5.0); set the model in
+  Settings → AI Providers to keep the earlier one. The seeded Claude provider
+  is moved only when no organisation uses it.
+- **Post-mortem drafts**: likely process factors the data does not show are
+  written as questions to fill in, not as findings.
+- The demo sign-in page says "example incidents".
+
+### Fixed
+
+- **Logs**: a scheduled run reads the log store its deployment is scoped
+  to (environment, region or namespace), not the organisation's default. An
+  analysis reads only its own environment's logs. The service is read from
+  every field name a store uses (`service`, `service.name`, `app`,
+  Kubernetes labels), and level and service under `lvl`, `loglevel`,
+  `levelname` and `svc`.
+- **Check my data** no longer reports good news while errors sit under a
+  field it cannot read: it names the field. A scheduled run whose store has
+  logs but none with the project's tag says so (`logs_not_tagged`).
+- **Google Cloud**: JSON loggers' `level` (pino, zap, winston, structlog)
+  is read when Cloud Logging rates the line INFO or DEFAULT. Cloud
+  Monitoring in VM mode returns series, reads memory as used rather than
+  available, and scales CPU to percent. GKE metrics follow the project's
+  namespace rules.
+- **Datadog**: log search follows the cursor instead of reading one page;
+  429 and 5xx are retried; a gap in a metric series is no longer read as 0.
+- **Azure Monitor**: the `Syslog` and `ContainerLog` tables are read with
+  their own columns; a metric grain without a value is no longer read as 0.
+- **AWS CloudWatch**: more than 50 log groups are all read; metric
+  discovery no longer stops before the project's series.
+- **Prometheus, Mimir, VictoriaMetrics**: container metrics are read at one
+  cgroup level per service, so node-wide CPU no longer shows as
+  "unlabelled containers" and pod-level series are not added twice. The
+  health check works under a path prefix and says why it fails; in VM mode
+  on a store with only container metrics it says to set Topology Mode to
+  Kubernetes. Environment matchers accept every spelling.
+- **OpenSearch**: the health check works for a read-only user and says why
+  it fails.
+- **Deploys and commits**: the analysis sees the deploys and commits of
+  the project's own services and repositories, for every provider (GitHub,
+  Argo CD and Flux deploys never matched before). Commits from an SCM
+  webhook or a manual sync get their diffs. A polled deploy is stamped when
+  its run finished, not when SerOps polled.
+- **Argo CD and Flux**: a deploy gets the environment it deploys to, not
+  the namespace of the Application or the Flux object; multi-source Argo CD
+  Applications record their deploys; a HelmRelease takes its Git commit
+  from `metadata.originRevision`. See [GitOps](integrations/gitops.md).
+- **Kubernetes rollouts**: a rollback that creates no new pod reads as the
+  image change it is.
+- **GitHub Actions and GitLab CI**: the Sync button of a CI/CD binding no
+  longer answers 500. A sync that gets 404, 401 or 403 says so, and the
+  binding form asks for `owner/repo` or `group/project or project ID`.
+- **Jenkins and Bitbucket**: the username saved in Settings → Integrations
+  is kept, so a secured Jenkins authenticates. A successful build that
+  recorded no deploy answers with a warning that says why.
+- **Bitbucket webhooks**: every delivery was refused. SerOps now sets the
+  secret on the webhook it creates and verifies `X-Hub-Signature`.
+- **Integrations API**: an observability integration created without
+  capabilities gets its provider's; a credentials object without a token is
+  refused instead of saved without one.
+- **Chat**: log lines name their service (Elasticsearch, Datadog and most
+  other stores showed `[unknown]`), code changes come from the analysis'
+  own commits for every provider, and every turn keeps the log excerpt.
+  Tables, headings and lists in an answer are shown as tables, headings
+  and lists.
+- **AI usage**: Claude cache tokens are counted, and usage is priced by the
+  model that answered, so spend and the monthly budget no longer read low.
+  A provider spending limit is reported as `SPEND_LIMIT` with the date
+  access returns.
+- **Investigations**: the trace count is right when logs or metrics are
+  present or the spans come from Tempo; with no span and no latency metric
+  the result says latency was not observable.
+- **Overview and Issues**: every panel follows the environment and cluster
+  filters (MTTR, the Service Health Map and Recent Deployments did not);
+  the Issues tiles follow the scope filters; the environment picker offers
+  "development", which matches the data.
+- **Analysis pages**: an unknown id shows "Analysis not found"; the header
+  says Resolved or Muted when the issues are; an analysis that found
+  nothing says so; the Actions column stays inside the Analyses table.
+- **Settings**: an integration card shows the instance's own address and
+  when it was added; AI providers are described by the API they speak.
+- **Demo and sample incident**: the reasoning steps cite only what an
+  analysis reads; demo organisations are left out of scheduled runs.
+
+### Security
+
+- API error responses no longer carry the text of an unexpected exception,
+  which could hold a host, a connection string or a token. The backend log
+  has the details.
+- Organisation, project, environment and service names are escaped in
+  every query SerOps builds (PromQL, LogQL, Datadog, Tempo, Google Cloud).
+  On a shared Prometheus, a crafted project name could read another
+  organisation's series.
+- A signed webhook (GitHub, Jenkins, Bitbucket, Azure DevOps, SCM) is
+  accepted only for the repository, job or pipeline of its binding; events
+  for anything else are acknowledged and ignored.
+- Elasticsearch and OpenSearch requests are checked against the outbound
+  policy before every request, not only when the integration is first
+  used.
+- OpenSearch verifies the TLS certificate by default (`verify_certs`), with
+  a **Verify TLS certificate** checkbox in the Elasticsearch and OpenSearch
+  forms.
+- Whole IBANs are masked before logs reach the AI; the country, check
+  digits and last digits used to pass.
+- The Flux webhook parses the revision in linear time on any input.
+- **Single sign-on**: the hand-off that ends a single sign-on checks the
+  whole sign-in token, its expiry and that the account is active, as every
+  API request does, and is rate-limited. It used to compare only a part of
+  the token.
+- **OpenID Connect**: with an identity provider trusted to omit
+  `email_verified` (Microsoft Entra ID by default), the multi-tenant
+  discovery addresses are refused, and the issuer and expiry of the ID
+  token are checked.
+- **Outbound requests**: every address that is not publicly routable is
+  refused, including one carried inside an IPv6 form of an IPv4 address.
+- **Integration health checks**: checking all integrations at once is a
+  `POST` that needs the right to use integrations; it was a `GET` open to
+  any reader. The read-only demo account no longer makes the server call
+  a provider through any `GET`.
+- **Cache**: Redis over TLS (`rediss://`) or a socket (`unix://`) is used
+  as the shared cache. Before, only `redis://` was, so sign-in throttles
+  were kept per process on those installs.
+- **Logs**: the AI's answers and the analysis prompt, which holds log
+  lines, are no longer written to the backend log.
+- **API reference**: the interactive reference (`/api/docs/`) is off
+  unless `SEROPS_API_DOCS=true` is set.
+- **Audit log export**: cells that a spreadsheet would read as a formula
+  are neutralised.
+- **Repository**: an unused log-shipper configuration file that held a
+  login was removed, and a scan for literal passwords now runs before each
+  commit and in CI.
+
+### Documentation
+
+- [Prometheus](integrations/prometheus.md): a Grafana Alloy example for
+  container metrics, `service_name` from the workload, labelling metrics
+  pushed over OTLP, and the names the JVM figure needs on VictoriaMetrics.
+- [Loki](integrations/loki.md): Promtail Helm-chart values and a Grafana
+  Alloy example. [OpenSearch](integrations/opensearch.md): an OpenTelemetry
+  Collector recipe. [Elasticsearch](integrations/elasticsearch.md): where
+  the environment comes from in the Kubernetes recipe.
+- [GitOps](integrations/gitops.md): one notification per binding, what
+  counts as a deploy, a failed deploy or an ignored event.
+  [Jenkins](integrations/jenkins.md): the step needs the HTTP Request
+  plugin and sends the commit.
+- [Observability overview](integrations/observability-overview.md): an
+  analysis reads one log store. [Traces](integrations/traces.md): how
+  pulled traces are matched to an analysis.
+- [OpenSearch](integrations/opensearch.md): the permissions the SerOps
+  user needs on its own CI/CD index. [Prometheus](integrations/prometheus.md):
+  restart the collector for the OTLP labels to apply.
+- [Install on GKE](deployment/gke.md): commands for 1.4.0, with the data
+  services on your own cluster. The integration pages give a
+  `kubectl exec` form of `check_ingest` next to the `docker compose` one.
+- [Data Protection](security/data-protection.md#what-serops-stores): a new
+  section, What SerOps stores: what each analysis keeps, the limits and the
+  retention defaults. [Metrics](user-guide/metrics.md): what SerOps reads
+  from each metric store, and what it does not.
+- [Quick start](getting-started/quick-start-self-hosted.md): four values
+  to set, `SEROPS_ENCRYPTION_KEY` among them, and the steps as a fresh
+  install shows them. [Bitbucket](integrations/bitbucket.md): sign-in is by
+  access token.
+- Enterprise Terms section 3.4 and the vendor facts page are updated; see
+  [Enterprise Terms](legal/enterprise-terms.md) and
+  [Vendor facts](legal/vendor-facts.md).
+
+### Dependencies
+
+- Backend: Django 5.2.19, celery and kombu 5.7, redis-py 8.1, gunicorn
+  27.0.1, protobuf 7, openai 3.50, opensearch-py 3.2, elasticsearch 8.19.3,
+  anthropic 2.8 or later, python-json-logger 4.2.
+- Frontend: the image is built on Node 26; Vite 8, Vitest 4, framer-motion
+  14, react-icons 5.7, bootstrap 5.3.9; `@iconify/react` removed (unused).
+
+### Known limits
+
+- **The component of an issue can differ between identical runs.** The
+  analysis prompt defines an issue's component in two ways: the service
+  that logged the errors, or the service where the cause lives. When the
+  faulty service logs no errors itself, two runs on the same data can name
+  either one; the cause they describe is the same. Both definitions were
+  already in 1.4.0. The [benchmark page](https://serops.ai/benchmark) says
+  how this can move its held-out score. A fix is planned for a later
+  release.
+- **Logs that stop part-way through a window are read as healthy.** The
+  stopped-data check compares whole windows and stands down when the window
+  already holds 300 records, so logs that stop for part of a window (4 of 7
+  minutes in our tests) are not reported.
+- **One noisy service can crowd out the others.** The log query keeps the
+  newest 5,000 records of a window; when one service's error flood fills
+  them, the errors of the other services do not reach the analysis.
+- **Failures visible only in INFO lines or in request metrics are not seen.**
+  SerOps reads WARN and ERROR lines and infrastructure metrics; a failure
+  that shows only in INFO lines, or only in request rates or latency
+  metrics, is missed.
+
+These three are listed on the [benchmark page](https://serops.ai/benchmark)
+with the incidents they cost; none has a fix yet.
+
+### Upgrade
+
+- Migrations: `Data 0062`–`0063`, `ai_model 0004`, `org_settings 0022`,
+  `traces 0004`.
+- OpenSearch: `verify_certs` defaults to `true` (it was `false`). Set it to
+  `false` only for a self-signed certificate you trust.
+- Bitbucket: run **Setup Webhook** again on an existing CI/CD binding; the
+  webhook created by 1.4.0 and earlier has no secret.
+- Alerts: check Alerts & routing → Delivery Channels for alerts that match
+  no service; they are no longer analysed.
+- Helm chart 0.2.2: `backend.env` and `backend.envFrom` now reach the
+  Celery workers, Celery beat and the migration job as well as the API
+  pods. Before, a variable set there was missing from the workers, which
+  run the analyses, the integration calls and the notifications. Check that
+  nothing you set there was meant for the API pods only. The Celery worker
+  and beat images now follow `backend.image` unless `celeryWorker.image` or
+  `celeryBeat.image` is set; before, pinning `backend.image.tag` (a patch
+  release, a registry mirror) left the workers on the chart's default
+  version.
+- New optional settings: `SEROPS_ISSUE_CONTINUITY_HOURS`,
+  `SEROPS_MAX_LOG_WINDOW_MINUTES`, `SEROPS_USAGE_SCRIPT_PATH`,
+  `SEROPS_USAGE_WEBSITE_ID`, `SEROPS_API_DOCS`.
+- `health-check-all` is now `POST /api/providers/integrations/health-check-all/`
+  and needs `integration.use` (it was a GET open to any reader). A script
+  that called it with GET gets 405. The token owner's email in a health
+  check's `details` is returned only with `integration.manage`.
+- The interactive API reference (`/api/docs/`) is off unless `DEBUG` or
+  `SEROPS_API_DOCS=true` is set.
+- The cache is checked at start-up: `REDIS_URL` (or `CELERY_BROKER_URL` when
+  it is unset) may be `redis://`, `rediss://` or `unix://`; any other scheme
+  stops the backend with a clear error. With neither set, it starts with a
+  warning that throttles and SAML request tracking are kept per process.
+  The quick-start, the Helm chart and Redis over TLS (`rediss://`) need no
+  change.
+
+---
+
 ## [1.4.0] - 2026-11-15
 
 The Enterprise features compliance teams ask for by name: SAML 2.0 single

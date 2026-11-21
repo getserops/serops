@@ -70,6 +70,7 @@
     "loadingDeployments": "Chargement des déploiements...",
     "noCicdServices": "Aucun service CI/CD configuré",
     "addCicdServices": "Ajoutez des services GitLab ou GitHub pour voir les déploiements",
+    "demoNoPipelineHistory": "Les données de la démo ne contiennent pas d'historique de pipelines",
     "servicesWithCicd": "{{count}} services avec CI/CD",
     "noDeployments": "Aucun déploiement",
     "justNow": "À l'instant",
@@ -171,16 +172,18 @@
   },
   "data": {
     "title": "Données",
-    "batches": "Lots",
+    "batches": "Analyses",
     "logs": "Journaux",
     "metrics": "Métriques",
-    "noBatches": "Aucun lot trouvé",
+    "noBatches": "Aucune analyse trouvée",
+    "viewAnalysis": "Voir l’analyse",
+    "analysisId": "ID de l’analyse",
     "loading": "Chargement des données...",
     "refresh": "Actualiser",
     "export": "Exporter",
     "filter": "Filtrer",
     "search": "Rechercher",
-    "searchPlaceholder": "Rechercher des lots...",
+    "searchPlaceholder": "Rechercher des analyses...",
     "analyzeWithAI": "Analyser avec l'IA",
     "environment": "Environnement",
     "allEnvironments": "Tous les Environnements",
@@ -193,7 +196,7 @@
     "viewDetails": "Voir Détails",
     "viewLogs": "Voir les Journaux",
     "viewMetrics": "Voir les Métriques",
-    "openBatch": "Ouvrir le lot {{id}}",
+    "openBatch": "Ouvrir l’analyse {{id}}",
     "trigger": "Déclencheur",
     "pageSubtitle": "Toutes les analyses IA de vos logs, des plus récentes aux plus anciennes.",
     "sentinel": "Sentinel"
@@ -337,6 +340,7 @@
     "demoReadOnly": "Le chat est désactivé dans la démo en lecture seule. Hébergez SerOps pour poser des questions sur vos propres données.",
     "demoPlaceholder": "Le chat est désactivé dans la démo",
     "demoSelfHost": "Guide d'auto-hébergement",
+    "demoSaved": "Lisez une conversation que nous avons eue avec l'IA sur l'une de ces analyses :",
     "noModelConfigured": "Aucun fournisseur d'IA",
     "configureAIInSettings": "Aucun fournisseur d'IA configuré — configurez-en un dans Paramètres → IA"
   },
@@ -427,8 +431,14 @@
     "colLevel": "Niveau",
     "colService": "Service",
     "colMessage": "Message",
+    "notFound": {
+      "title": "Analyse introuvable",
+      "body": "Aucune analyse ne porte cet identifiant dans votre organisation. Elle a peut-être été supprimée par le réglage de rétention, ou le lien est erroné.",
+      "back": "Retour aux analyses"
+    },
     "noLogs": "Aucune ligne de log collectée pour ce lot.",
     "noLogsMatch": "Aucune ligne de log ne correspond à ces filtres.",
+    "logsShown": "{{kept}} lignes de log affichées sur {{total}}",
     "incident": {
       "acknowledge_one": "Prendre en charge",
       "acknowledge_other": "Prendre en charge {{count}} incidents",
@@ -442,6 +452,8 @@
       "statusOpen": "Ouvert",
       "statusAcknowledged": "Pris en charge",
       "statusNoIssues": "Aucun problème",
+      "statusResolved": "Résolu",
+      "statusMuted": "En sourdine",
       "analysedAgo": "analysé {{when}}",
       "quietTitle": "Pas d’analyse IA : le signal était calme",
       "quietBody": "Sentinel a ignoré l’analyse IA de ce lot car rien ne se démarquait.",
@@ -492,7 +504,7 @@
     }
   },
   "timeline": {
-    "title": "Chronologie du batch",
+    "title": "Chronologie de l’analyse",
     "batch": "Batch",
     "eventCount": "{{count}} événement(s)",
     "empty": "Aucun événement enregistré pour la fenêtre temporelle de ce batch.",
@@ -583,7 +595,7 @@
     "regenerate": "Régénérer"
   },
   "batchTraces": {
-    "title": "Traces pour ce batch",
+    "title": "Traces de cette analyse",
     "batch": "Batch",
     "traces": "Traces",
     "spans": "Spans",
@@ -593,7 +605,7 @@
     "topSlow": "Spans les plus lents",
     "topErrors": "Spans en erreur",
     "loadFailed": "Impossible de charger les données du batch.",
-    "notFound": "Batch introuvable.",
+    "notFound": "Analyse introuvable.",
     "noSnapshot": "Aucun snapshot de traces pour ce batch.",
     "noSnapshotHint": "Ce batch a été créé avant l'activation du snapshot des traces, ou l'étape a été ignorée. Les batchs plus récents capturent les traces automatiquement.",
     "emptyWindow": "Aucune trace distribuée n'a été enregistrée pour la fenêtre temporelle de ce batch."
@@ -634,7 +646,7 @@
     "feature1Title": "Corrélation de Déploiement",
     "feature1Desc": "Relie les erreurs de production au commit et déploiement exact",
     "feature2Title": "Analyse de Cause Racine par IA",
-    "feature2Desc": "Corrèle journaux, métriques et code pour expliquer pourquoi",
+    "feature2Desc": "Corrèle journaux, métriques CPU et mémoire, et code pour expliquer pourquoi",
     "feature3Title": "Déduplication Intelligente",
     "feature3Desc": "26+ types d'incidents avec fingerprinting — fini la fatigue d'alertes",
     "welcomeBack": "Connexion",
@@ -1324,7 +1336,7 @@
         "delete": "Supprimer la notification"
       },
       "types": {
-        "batch_created": "Batch Créé",
+        "batch_created": "Analyse créée",
         "critical_issue": "Problème Critique",
         "analysis_failed": "Analyse Échouée",
         "default": "Notification",
@@ -1648,7 +1660,13 @@
   "demo": {
     "readOnlyNotice": "Ceci est la démo en lecture seule : les modifications ne sont pas enregistrées. Hébergez SerOps pour utiliser vos propres données.",
     "settingsReadOnly": "Les paramètres sont en lecture seule dans la démo : vous pouvez tout consulter, mais rien n'est enregistré.",
-    "controlDisabled": "Lecture seule dans la démo. Installez SerOps pour modifier les paramètres."
+    "controlDisabled": "Lecture seule dans la démo. Installez SerOps pour modifier les paramètres.",
+    "banner": {
+      "before": "Voici des analyses que SerOps a réussies. Les échecs sont sur la ",
+      "link": "page du benchmark",
+      "after": ". Elles sont issues de nos séries de benchmark sur des environnements de test que nous avons construits, présentées sous le nom Acme Cloud. SerOps a trouvé la cause de chaque incident présenté ici ; deux analyses portent sur des périodes saines, où il n'a, à juste titre, rien signalé. Les compteurs reflètent les analyses présentées ici.",
+      "selfHost": "Héberger SerOps vous-même →"
+    }
   },
   "palette": {
     "title": "Rechercher dans SerOps",

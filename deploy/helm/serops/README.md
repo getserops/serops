@@ -18,7 +18,7 @@ your own for production:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.4.0 \
+  --version 1.5.0 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set django.encryptionKey="$(openssl rand -base64 32 | tr '+/' '-_')" \
@@ -151,6 +151,23 @@ reachable. Egress is open by default because SerOps queries the observability
 providers, SCM and AI endpoints you configure, on their own hosts and ports;
 narrow `networkPolicy.egress` once you know them. The policies need a CNI
 that enforces NetworkPolicy; set `networkPolicy.enabled=false` to skip them.
+
+## Upgrading to chart 0.2.2
+
+* The Celery worker and beat follow `backend.image.repository` and
+  `backend.image.tag` unless `celeryWorker.image.*` / `celeryBeat.image.*` are
+  set. Before, pinning `backend.image.tag` (a patch release, a registry
+  mirror) left the worker and beat on the chart's `appVersion` from GHCR:
+  new migrations, old workers. If you set the worker or beat image on
+  purpose, it still wins.
+
+## Upgrading to chart 0.2.1
+
+* `backend.env` and `backend.envFrom` now reach the Celery workers, Celery
+  beat and the migration job as well as the API pods. Before, a variable set
+  there was missing from the workers, which run the analyses, the integration
+  calls and the notifications. Check that nothing you set there was meant
+  for the API pods only.
 
 ## Upgrading to chart 0.2.0
 

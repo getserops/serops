@@ -150,6 +150,14 @@ DEMO_ONLY_LOGIN = os.getenv('DEMO_ONLY_LOGIN', 'false').strip().lower() in ('tru
 # SEROPS_OUTBOUND_ALLOW_PRIVATE=false so a tenant cannot reach the host's
 # network. Cloud metadata and link-local addresses are refused either way,
 # and notification webhooks are always public-only. See Utils/url_validator.py.
+# Page counts for a public demo instance. Empty by default: SerOps ships no
+# tracking and sends no usage data anywhere. When both are set, the web app
+# loads that script from its own origin (the path must be served by the
+# operator's reverse proxy, e.g. a self-hosted Umami) and reports route names
+# only: no record id, no query string, no text. See api/client_config.py.
+SEROPS_USAGE_SCRIPT_PATH = os.getenv('SEROPS_USAGE_SCRIPT_PATH', '').strip()
+SEROPS_USAGE_WEBSITE_ID = os.getenv('SEROPS_USAGE_WEBSITE_ID', '').strip()
+
 OUTBOUND_ALLOW_PRIVATE_URLS = os.getenv('SEROPS_OUTBOUND_ALLOW_PRIVATE', 'true').strip().lower() in ('true', '1', 'yes')
 
 # Security: Only allow specific hosts (configure via environment)
@@ -348,6 +356,8 @@ REST_FRAMEWORK = {
         'auth_register': '5/hour',
         'auth_password_reset': '5/hour',
         'auth_sso_init': '20/hour',
+        # One exchange per sign-in; the hand-off cookie lives two minutes.
+        'auth_sso_exchange': '30/hour',
         # SAML assertion consumer: one post per sign-in, per client IP.
         'auth_saml_acs': '60/min',
         # SCIM provisioning, per token (Entra ID syncs in bursts every 40 minutes).
@@ -621,28 +631,54 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 
 
-# Cache Configuration (used by AI circuit breaker and rate limiter)
-# Uses Redis if REDIS_URL is set, otherwise falls back to local memory cache
-REDIS_URL = os.getenv('REDIS_URL', os.getenv('CELERY_BROKER_URL', ''))
+# Cache Configuration. Shared across processes and pods when Redis is
+# configured: login throttles, the AI circuit breaker and rate limiter, and
+# SAML request tracking all depend on it. REDIS_URL falls back to the broker.
+_REDIS_CACHE_SCHEMES = ('redis', 'rediss', 'unix')
 
-if REDIS_URL and REDIS_URL.startswith('redis://'):
-    CACHES = {
-        'default': {
-            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-            'LOCATION': REDIS_URL,
-            'KEY_PREFIX': 'serops',
-            'TIMEOUT': 300,  # Default cache timeout: 5 minutes
-        }
-    }
-else:
-    # Fallback to local memory cache (works for single-instance deployments)
-    CACHES = {
+
+def _cache_config(redis_url, debug):
+    """Return (CACHES, problem). problem is None, ('error', msg) or ('warning', msg).
+
+    Redis for redis://, rediss:// (TLS, e.g. managed Redis) and unix://
+    sockets. Before 1.5.0 only redis:// counted, so a rediss:// install
+    silently got one cache per process (audit 2026-11-20, item 5).
+    """
+    scheme = redis_url.split('://', 1)[0].lower() if '://' in redis_url else ''
+    if redis_url and scheme in _REDIS_CACHE_SCHEMES:
+        return {
+            'default': {
+                'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+                'LOCATION': redis_url,
+                'KEY_PREFIX': 'serops',
+                'TIMEOUT': 300,  # Default cache timeout: 5 minutes
+            }
+        }, None
+    local = {
         'default': {
             'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
             'LOCATION': 'serops-cache',
             'TIMEOUT': 300,
         }
     }
+    if debug:
+        return local, None
+    if redis_url:
+        return local, ('error', (
+            f'REDIS_URL / CELERY_BROKER_URL uses a scheme the cache cannot use ({scheme or "none"}://). '
+            'Use redis://, rediss:// or unix://.'))
+    return local, ('warning', (
+        'No shared cache: REDIS_URL and CELERY_BROKER_URL are unset, so login throttles and SAML '
+        'request tracking are kept per process. Set REDIS_URL when running more than one process.'))
+
+
+REDIS_URL = os.getenv('REDIS_URL') or os.getenv('CELERY_BROKER_URL') or ''
+CACHES, _cache_problem = _cache_config(REDIS_URL, DEBUG)
+if _cache_problem and _cache_problem[0] == 'error':
+    raise ValueError(_cache_problem[1])
+if _cache_problem:
+    import logging as _logging
+    _logging.getLogger('serops.settings').warning(_cache_problem[1])
 
 
 # SMTP is env-var-only (Grafana model). To change, edit .env and
@@ -723,3 +759,8 @@ SSO_TRUST_MISSING_EMAIL_VERIFIED = [
 # superuser (the quick start creates one). When enabled, its login is
 # throttled too (api/urls.py).
 DJANGO_ADMIN_ENABLED = os.getenv('DJANGO_ADMIN_ENABLED', 'False') == 'True'
+
+# Interactive API docs (Swagger UI at /api/docs/): only in DEBUG or when
+# SEROPS_API_DOCS=true. They listed every endpoint to anyone, signed in or
+# not (audit 2026-11-20, item 13).
+SEROPS_API_DOCS = DEBUG or os.getenv('SEROPS_API_DOCS', 'False').lower() in ('true', '1', 'yes')

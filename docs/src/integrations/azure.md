@@ -87,7 +87,7 @@ Canonical Prometheus-style names map to Azure metric names via a small dictionar
 | `container_cpu_usage_seconds_total` | `CPU Usage` |
 | `container_memory_usage_bytes` | `Memory Usage` |
 
-Unknown names pass through unchanged so you can query any native Azure metric directly.
+The adapter passes unknown names through unchanged, but SerOps itself only asks for CPU and memory: there is no setting to make it query another Azure metric. See [what SerOps reads](../user-guide/metrics.md#what-serops-reads).
 
 **Granularity** is auto-picked based on the query time range — targeting ~200 data points to stay well under Azure's per-query cap.
 

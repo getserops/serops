@@ -236,6 +236,11 @@ def fetch_metrics_with_provider(start_time, end_time, project_obj=None, project_
                 metrics['container_lifecycle'] = {**(metrics.get('container_lifecycle') or {}),
                                                   'unlabelled_pods': unlabelled}
 
+        # JVM garbage collection, any topology: best-effort, never fails the
+        # batch. Client C2 (J2): a Java service in repeated full GCs was named
+        # but GC never was; the agent's GC metrics are the only evidence.
+        metrics.update(_fetch_jvm_gc(provider, labels, start_time, end_time, project_obj))
+
     except Exception as e:
         logger.error(f"Error fetching metrics from provider: {e}", exc_info=True)
         metrics = {
@@ -385,6 +390,173 @@ def _fetch_unlabelled_pods(provider, labels, start_time, end_time):
         peaks[key] = max(peaks.get(key, 0), max(values))
     top = sorted(peaks.items(), key=lambda kv: kv[1], reverse=True)[:3]
     return [{'pod': pod, 'namespace': ns, 'peak_cores': round(v, 2)} for (ns, pod), v in top if v >= 0.01]
+
+
+# JVM garbage collection.
+#
+# Metric names, in the order they are tried for each service (``or`` keeps
+# the first that answers), with the factor that turns their ``_sum`` into
+# seconds:
+#   jvm_gc_duration_seconds                        OpenTelemetry Java agent 2.x (jvm.gc.duration)
+#   process_runtime_jvm_gc_duration_seconds        older OpenTelemetry Java agent
+#   process_runtime_jvm_gc_duration_milliseconds   the same, exported in milliseconds
+#   jvm_gc_collection_seconds                      Prometheus simpleclient_hotspot
+#   jvm_gc_pause_seconds                           Micrometer
+JVM_GC_METRICS = (
+    ('jvm_gc_duration_seconds', 1.0),
+    ('process_runtime_jvm_gc_duration_seconds', 1.0),
+    ('process_runtime_jvm_gc_duration_milliseconds', 0.001),
+    ('jvm_gc_collection_seconds', 1.0),
+    ('jvm_gc_pause_seconds', 1.0),
+)
+# Concurrent collector work (G1 concurrent cycle, ZGC, Shenandoah) is not a
+# pause. Agents that report it name it in an action or collector label; a
+# series without the label matches a negative regex, so this only removes
+# what is labelled concurrent. What the agent does not separate stays in.
+JVM_GC_NOT_CONCURRENT = ('jvm_gc_action!~"(?i).*concurrent.*",jvm_gc_name!~"(?i).*concurrent.*",'
+                         'gc!~"(?i).*concurrent.*",action!~"(?i).*concurrent.*",'
+                         'cause!~"(?i).*concurrent.*"')
+
+
+def _jvm_gc_expr(selectors, part):
+    """Worst single JVM per service: % of wall time in GC (``part='sum'``)
+    or collections per minute (``part='count'``), across every metric name
+    and every selector, joined with ``or``."""
+    terms = []
+    for selector in selectors:
+        for name, to_seconds in JVM_GC_METRICS:
+            scale = f'{to_seconds * 100:g}' if part == 'sum' else '60'
+            terms.append(
+                'max by (service_name, job) (sum by (service_name, job, instance, pod) '
+                f'(rate({name}_{part}{{{selector}}}[5m]))) * {scale}')
+    return ' or '.join(f'({t})' for t in terms)
+
+
+def _promql_regex_value(values):
+    """``a|b`` for a PromQL regex string: each value regex-escaped, then
+    escaped for the double-quoted string."""
+    import re
+    return '|'.join(re.escape(str(v)).replace('\\', '\\\\').replace('"', '\\"') for v in values)
+
+
+def _project_namespaces_and_services(project_obj):
+    """(namespaces, services) the project declares: namespace log rules and
+    deployment namespaces; its service names. Empty when unknown."""
+    namespaces, services = [], []
+    if project_obj is None:
+        return namespaces, services
+    try:
+        from integrations.schemas import _GCP_RESOURCE_FIELDS
+        rules = project_obj.log_rules_clean() if hasattr(project_obj, 'log_rules_clean') else []
+        namespaces += [str(v) for f, v in (rules if isinstance(rules, list) else [])
+                       if _GCP_RESOURCE_FIELDS.get(f) == 'namespace_name']
+    except Exception as exc:                                    # noqa: BLE001
+        logger.warning('JVM GC: namespace rules unreadable: %s', exc)
+    try:
+        namespaces += [n for n in project_obj.deployments.exclude(namespace='')
+                       .values_list('namespace', flat=True)]
+    except Exception:                                           # noqa: BLE001
+        pass
+    try:
+        services = [n for n in project_obj.services.values_list('name', flat=True) if n]
+    except Exception:                                           # noqa: BLE001
+        services = []
+    return sorted(set(namespaces)), sorted(set(services))
+
+
+def _jvm_gc_points(series, source_table):
+    points = []
+    for ts in series or []:
+        tags = getattr(ts, 'labels', {}) or {}
+        # OTel sets job to "<namespace>/<service>" or "<service>".
+        svc = tags.get('service_name') or str(tags.get('job') or '').rsplit('/', 1)[-1] or 'default'
+        for pt in getattr(ts, 'points', []) or []:
+            if isinstance(pt.value, (int, float)) and pt.value == pt.value:
+                points.append({'time': pt.timestamp, 'value': pt.value, 'series_key': str(svc),
+                               'series_id': 0, 'source_table': source_table})
+    return points
+
+
+def _fetch_jvm_gc(provider, labels, start_time, end_time, project_obj=None):
+    """``{'jvm_gc_time_percent': [...], 'jvm_gc_collections_per_minute': [...],
+    'jvm_gc_matched_by': 'project labels' | 'namespace and service'}`` or {}.
+
+    First with the project's labels. When that finds nothing, and only then,
+    a narrow fallback for JVM metrics an agent pushed without them (OTLP
+    into Mimir): the project's own services, and only when the project
+    declares a namespace and the series carry a ``namespace`` label. Never
+    wider. Best-effort: {} on any failure.
+    """
+    if not hasattr(provider, 'query_range_expr'):
+        return {}
+    from integrations.promql import promql_matchers
+    try:
+        label_str = promql_matchers(labels)
+    except ValueError:
+        return {}
+    attempts = []
+    if label_str:
+        attempts.append(('project labels', [f'{label_str},{JVM_GC_NOT_CONCURRENT}']))
+    namespaces, services = _project_namespaces_and_services(project_obj)
+    if namespaces and services:
+        ns = f'namespace=~"{_promql_regex_value(namespaces)}"'
+        svc = _promql_regex_value(services)
+        attempts.append(('namespace and service', [
+            f'{ns},service_name=~"{svc}",{JVM_GC_NOT_CONCURRENT}',
+            f'{ns},job=~"(.+/)?({svc})",{JVM_GC_NOT_CONCURRENT}',
+        ]))
+    for matched_by, selectors in attempts:
+        try:
+            share = provider.query_range_expr(_jvm_gc_expr(selectors, 'sum'), start_time, end_time)
+        except Exception as exc:                                # noqa: BLE001
+            logger.warning('JVM GC time query failed (%s): %s', matched_by, exc)
+            continue
+        share_points = _jvm_gc_points(share, 'jvm_gc_time_percent')
+        if not share_points:
+            continue
+        try:
+            count = provider.query_range_expr(_jvm_gc_expr(selectors, 'count'), start_time, end_time)
+        except Exception as exc:                                # noqa: BLE001
+            logger.warning('JVM GC count query failed (%s): %s', matched_by, exc)
+            count = []
+        return {'jvm_gc_time_percent': share_points,
+                'jvm_gc_collections_per_minute': _jvm_gc_points(count, 'jvm_gc_collections_per_minute'),
+                'jvm_gc_matched_by': matched_by}
+    return {}
+
+
+# Above this share of wall time in GC a JVM is flagged. Set from what the
+# JVM itself treats as normal, not from any benchmark incident: G1, the
+# default collector, sizes the heap to keep GC under 1/(1+GCTimeRatio) of
+# the time, GCTimeRatio=12 by default, "a target with about 8% of the time
+# to be spent in garbage collection" (Java SE 21 GC Tuning Guide, G1 tunable
+# defaults: https://docs.oracle.com/en/java/javase/21/gctuning/garbage-first-garbage-collector-tuning.html).
+# The Parallel collector's default target is 1 % (GCTimeRatio=99). A JVM
+# past 10 % is beyond the default target of either collector.
+JVM_GC_TIME_THRESHOLD_PERCENT = 10.0
+
+
+def _jvm_gc_summary(raw_metrics):
+    share = raw_metrics.get('jvm_gc_time_percent') or []
+    if not share:
+        return {}
+    counts = raw_metrics.get('jvm_gc_collections_per_minute') or []
+    by_svc, peak_count = {}, {}
+    for p in share:
+        by_svc.setdefault(p.get('series_key', 'default'), []).append(p['value'])
+    for p in counts:
+        key = p.get('series_key', 'default')
+        peak_count[key] = max(peak_count.get(key, 0), p['value'])
+    services = []
+    for svc, vals in by_svc.items():
+        peak = round(max(vals), 1)
+        services.append({'service': svc, 'peak_percent': peak,
+                         'avg_percent': round(sum(vals) / len(vals), 1),
+                         'peak_collections_per_minute': round(peak_count[svc], 1) if svc in peak_count else None,
+                         'over_threshold': peak > JVM_GC_TIME_THRESHOLD_PERCENT})
+    services.sort(key=lambda s: s['peak_percent'], reverse=True)
+    return {'threshold_percent': JVM_GC_TIME_THRESHOLD_PERCENT,
+            'matched_by': raw_metrics.get('jvm_gc_matched_by'), 'services': services}
 
 
 def _fetch_container_lifecycle(provider, labels, start_time, end_time, failures=None):
@@ -805,6 +977,7 @@ def preprocess_metrics_for_ai(raw_metrics: dict, time_window_minutes: int = 5) -
 
     return {
         "container_lifecycle": lifecycle,
+        "jvm_gc": _jvm_gc_summary(raw_metrics),
         "per_service": per_service,
         "peak_pod": peak_pod,
         "time_range": time_range,

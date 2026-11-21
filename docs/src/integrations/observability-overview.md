@@ -13,7 +13,7 @@ replacing it:
 
 1.  **Retrieve Logs**: Fetch application and CI/CD logs for AI analysis.
 2.  **Ingest Events**: Send enriched CI/CD event documents to your log store.
-3.  **Query Metrics**: Fetch performance metrics for correlation.
+3.  **Query Metrics**: Fetch CPU and memory (and, from Prometheus-compatible stores, Kubernetes state) for correlation.
 4.  **Collect Traces**: Receive spans over OpenTelemetry OTLP, or query Jaeger,
     Zipkin or Datadog APM if your traces already live there.
 

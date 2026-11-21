@@ -96,9 +96,11 @@ class TestFetchMetricsWithProviderCPU(TestCase):
 
         result = fetch_metrics_with_provider(start, end, project_obj=mock_project, project_name_str='demo')
 
-        # query_range_expr should have been called with a PromQL expression
-        provider.query_range_expr.assert_called_once()
-        expr_arg = provider.query_range_expr.call_args[0][0]
+        # query_range_expr should have been called with a PromQL expression,
+        # once for CPU (the JVM garbage-collection queries come after it).
+        cpu_calls = [c[0][0] for c in provider.query_range_expr.call_args_list if 'node_cpu' in c[0][0]]
+        self.assertEqual(len(cpu_calls), 1)
+        expr_arg = cpu_calls[0]
         self.assertIn('rate(node_cpu_seconds_total', expr_arg)
         self.assertIn('mode="idle"', expr_arg)
 

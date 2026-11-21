@@ -32,7 +32,8 @@ spec:
       {{- include "serops.backendPodSecurity" . | nindent 6 }}
       containers:
         - name: beat
-          image: {{ include "serops.image" (dict "repository" .Values.celeryBeat.image.repository "tag" .Values.celeryBeat.image.tag "root" .) }}
+          {{- /* Follows backend.image unless set: a pinned backend tag used to leave beat on appVersion. */}}
+          image: {{ include "serops.image" (dict "repository" (.Values.celeryBeat.image.repository | default .Values.backend.image.repository) "tag" (.Values.celeryBeat.image.tag | default .Values.backend.image.tag) "root" .) }}
           imagePullPolicy: {{ .Values.celeryBeat.image.pullPolicy }}
           {{- include "serops.backendContainerSecurity" . | nindent 10 }}
           command:
@@ -46,6 +47,9 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "serops.fullname" . }}-config
+            {{- with $.Values.backend.envFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           env:
             - name: DJANGO_SECRET_KEY
               valueFrom:
@@ -73,6 +77,13 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.broker.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
                   key: broker-url
+            {{- /* backend.env reaches every pod that runs the backend image:
+                   the API, the Celery workers and beat, and the migration
+                   job. It used to reach the API pods only. */}}
+            {{- range $k, $v := $.Values.backend.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
           resources:
             {{- toYaml .Values.celeryBeat.resources | nindent 12 }}
       {{- include "serops.scheduling" (dict "root" $ "values" .Values.celeryBeat "component" "celery-beat" "spread" false) | nindent 6 }}

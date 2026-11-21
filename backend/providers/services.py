@@ -252,6 +252,12 @@ class IntegrationHealthService:
             'details': None,
         }
 
+        if getattr(self.integration.organisation, 'is_demo', False):
+            # Seeded content: the row holds no address and no credential,
+            # and the demo host calls nothing. Not healthy, not failed.
+            result['details'] = {'demo': True}
+            return result
+
         if self.integration.provider_type in self.integration.GITOPS_PROVIDERS:
             # Receive-only: healthy by definition, nothing to call.
             result['healthy'] = True
@@ -310,6 +316,10 @@ class IntegrationHealthService:
         complete in ~max(latency) time instead of sum(latency).
         """
         from providers.models import ProviderIntegration
+
+        if getattr(organisation, 'is_demo', False):
+            # Seeded content: nothing to check, nothing is called.
+            return []
 
         integrations = list(
             ProviderIntegration.objects.filter(

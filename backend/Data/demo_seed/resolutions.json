@@ -1,0 +1,109 @@
+{
+ "about": "Resolution notes for the issues of the demo seed, written by hand from the injection records: what the cause was and what ended it. They are the team's notes, not text of the AI: the loader writes them to resolution_root_cause and resolution_fix, with a team member as resolved_by. Times of day are UTC; resolved_at is the captured revert time and moves with the seed's time shift. An entry with keep_open true is not loaded: that issue stays open in the demo.",
+ "written_by": "SerOps team, from the injection record",
+ "issues": {
+  "fleet-issue-4": {
+   "seeds": [
+    "fleet-K3-r1",
+    "fleet-K3-r2"
+   ],
+   "keep_open": false,
+   "resolved_at": "2026-11-19T01:59:32Z",
+   "resolution_root_cause": "The analysis named the reindex lock but ruled out the commit that caused the overlap: commit 54c542ad ('jobs: carrier report at 02:00, before the EU cut-off') moved the carrier report from 04:00 to 02:00, so it ran together with the nightly reindex, and the REINDEX locked the shipments table. The first occurrence had the same cause (commit 856388b8).",
+   "resolution_fix": "Reverted by commit 3908dbf8 ('revert: carrier report back to 04:00'), deployed at 01:59 UTC; the running jobs were deleted. The first occurrence was reverted the same way by commit 8609a0f3 at 23:17 UTC.",
+   "written_by": "SerOps team, from the injection record"
+  },
+  "fleet-issue-10": {
+   "seeds": [
+    "fleet-K7-r1"
+   ],
+   "keep_open": true,
+   "resolved_at": "2026-11-19T00:05:49Z",
+   "resolution_root_cause": "Commit 4d5abd99 ('redis: cap memory, never evict queue items') set fleet-redis to --maxmemory 1mb with the noeviction policy. Redis refused writes with 'OOM command not allowed' and orders-api could not enqueue.",
+   "resolution_fix": "Reverted by commit c0c5b6b1 ('revert: redis memory cap'), deployed at 00:05 UTC.",
+   "written_by": "SerOps team, from the injection record"
+  },
+  "shopfront-issue-1": {
+   "seeds": [
+    "shopfront-I1-r1"
+   ],
+   "keep_open": false,
+   "resolved_at": "2026-11-18T22:22:38Z",
+   "resolution_root_cause": "Commit 9f5cc0f7 ('chore: right-size checkout') was followed by the checkoutservice memory limit being set to 5Mi. The container was OOM-killed in a loop.",
+   "resolution_fix": "Reverted by commit 7f4579b9 ('revert: checkout memory back to 128Mi'). The limit was set back to 128Mi and the rollout finished at 22:22 UTC.",
+   "written_by": "SerOps team, from the injection record"
+  },
+  "shopfront-issue-3": {
+   "seeds": [
+    "shopfront-I5-r1"
+   ],
+   "keep_open": false,
+   "resolved_at": "2026-11-18T23:13:04Z",
+   "resolution_root_cause": "No code change was involved. The frontend CPU limit was lowered to 100m while the load generator was raised from 10 to 120 users, so the frontend was CPU-throttled under the extra load.",
+   "resolution_fix": "The load generator was set back to 10 users and the frontend CPU limit to 200m. The rollout finished at 23:13 UTC.",
+   "written_by": "SerOps team, from the injection record"
+  },
+  "shopfront-issue-7": {
+   "seeds": [
+    "shopfront-I5-r1",
+    "shopfront-I12-r2"
+   ],
+   "keep_open": false,
+   "resolved_at": "2026-11-19T03:23:33Z",
+   "resolution_root_cause": "Commit 6e4e0512 ('release(payment): v0.10.8') rolled paymentservice to an image tag that was not published. An earlier analysis had attached a different finding to this same issue: paymentservice rejecting a card type it does not accept, which is validation and not a fault.",
+   "resolution_fix": "Reverted about three minutes after the release by commit ac01a635 ('revert: payment v0.10.8 (image not published)') and a rollout undo of paymentservice. The analysis ran after the service had recovered; the record closes at 03:23 UTC.",
+   "written_by": "SerOps team, from the injection record"
+  },
+  "shopfront-issue-10": {
+   "seeds": [
+    "shopfront-I8-r1"
+   ],
+   "keep_open": true,
+   "resolved_at": "2026-11-18T23:55:15Z",
+   "resolution_root_cause": "Commit 7dd525e8 ('probes: tighten shipping') was followed by the shippingservice liveness probe being pointed at port 50052 with a failure threshold of 1. The probe failed and the container was restarted in a loop.",
+   "resolution_fix": "Reverted by commit dfc3014f ('revert: shipping probes'). The probe was set back to port 50051 with a failure threshold of 3 and the rollout finished at 23:55 UTC.",
+   "written_by": "SerOps team, from the injection record"
+  },
+  "shopfront-issue-12": {
+   "seeds": [
+    "shopfront-I1-r2"
+   ],
+   "keep_open": false,
+   "resolved_at": "2026-11-19T00:57:38Z",
+   "resolution_root_cause": "Commit 615b9fca ('chore: right-size checkout') was followed by the checkoutservice memory limit being set to 5Mi. The container was OOM-killed in a loop. Same cause as the earlier checkoutservice crash, in a second run.",
+   "resolution_fix": "Reverted by commit c328a7e3 ('revert: checkout memory back to 128Mi'). The limit was set back to 128Mi and the rollout finished at 00:57 UTC.",
+   "written_by": "SerOps team, from the injection record"
+  },
+  "studio-issue-4": {
+   "seeds": [
+    "studio-L4-r1",
+    "studio-L4-r2"
+   ],
+   "keep_open": false,
+   "resolved_at": "2026-11-19T01:27:29Z",
+   "resolution_root_cause": "Commit 14dddaff ('payments: strict idempotency keys') set payments to IDEMPOTENCY_MODE=strict. About half of the charges were rejected with HTTP 409 and web answered 502. The first occurrence had the same cause (commit 2f1cb388).",
+   "resolution_fix": "Reverted by commit fb795440 ('revert: payments: strict idempotency keys') at 01:27 UTC. The first occurrence was reverted the same way by commit 083a3092 at 23:06 UTC.",
+   "written_by": "SerOps team, from the injection record"
+  },
+  "studio-issue-5": {
+   "seeds": [
+    "studio-L7-r1"
+   ],
+   "keep_open": false,
+   "resolved_at": "2026-11-18T23:47:28Z",
+   "resolution_root_cause": "Commit 29cdae0e ('notifier: templates from /templates') set TEMPLATE_DIR=/templates and notifier crash-looped at start. Order confirmations were not sent; orders still succeeded.",
+   "resolution_fix": "Reverted by commit 82e5b238 ('revert: notifier: templates from /templates') at 23:47 UTC.",
+   "written_by": "SerOps team, from the injection record"
+  },
+  "studio-issue-6": {
+   "seeds": [
+    "studio-L10-r1"
+   ],
+   "keep_open": true,
+   "resolved_at": "2026-11-19T00:29:44Z",
+   "resolution_root_cause": "Commit c9cabe46 ('pricing: banker's rounding for EU VAT') set PRICE_ROUNDING=banker. About 35 % of price calls failed with HTTP 500 (InvalidOperation); catalog answered 503 and web 502.",
+   "resolution_fix": "Reverted by commit 26d86397 ('revert: pricing: banker's rounding for EU VAT') at 00:29 UTC.",
+   "written_by": "SerOps team, from the injection record"
+  }
+ }
+}

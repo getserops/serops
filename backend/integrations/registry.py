@@ -248,6 +248,12 @@ class IntegrationRegistry:
         already-tried ones (used by the failover chain iterator)."""
         from .models import ObservabilityIntegration
 
+        # A demo organisation is seeded content. Its sources are listed so
+        # a visitor sees what the analyses read; they hold no address and
+        # no credential, and nothing is ever called through them.
+        if getattr(organisation, 'is_demo', False):
+            return None
+
         base_qs = ObservabilityIntegration.objects.filter(
             organisation=organisation,
             is_active=True,

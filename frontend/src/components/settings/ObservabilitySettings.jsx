@@ -42,6 +42,7 @@ import ClusterService from "../../services/cluster.service";
 import ChoiceGroup from "./ChoiceGroup";
 import IntegrationsSectionHeader from "./IntegrationsSectionHeader";
 import { usePermissions } from "../../utils/permissions";
+import { isDemoUser } from "../../utils/demo";
 import { liveTested, liveTestedDetail, liveTestedText } from "../../utils/integrationMaturity";
 
 /* ─── Provider Metadata ──────────────────────────────────────────────── */
@@ -616,7 +617,8 @@ function IntegrationRow({ integration, clusters, onEdit, onDelete }) {
 
 function ProviderPanel({ capability, integrations, onRefresh }) {
     // Sources hold credentials: only admins add, edit or delete them (the API enforces it).
-    const canManage = usePermissions()("integration.manage");
+    // The demo lists the stores its analyses read, with nothing to add, edit or delete.
+    const canManage = usePermissions()("integration.manage") && !isDemoUser();
     const [clusters, setClusters] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [editingRow, setEditingRow] = useState(null);

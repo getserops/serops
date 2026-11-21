@@ -588,6 +588,28 @@ def _build_user_content(context):
                 f"level is an OOMKill candidate even when the service average "
                 f"looks healthy\n")
 
+        # JVM garbage collection. One line when a JVM is over the threshold,
+        # one short line when every JVM is under it, nothing without JVM data.
+        jvm = metrics_summary.get('jvm_gc') or {}
+        jvm_services = jvm.get('services') or []
+        if jvm_services:
+            limit = jvm.get('threshold_percent')
+            over = [j for j in jvm_services if j.get('over_threshold')]
+            if over:
+                metrics_section += (
+                    f"JVM garbage collection above {limit:g}% of time (share of wall time each JVM spent in "
+                    "garbage collection (pauses, plus concurrent phases where the agent does not separate "
+                    "them); worst JVM of each service; the JVM's default collector targets about 8%): "
+                    + ", ".join(
+                        f"{'unlabelled JVMs' if j.get('service') == 'default' else j.get('service')} "
+                        f"peak {j.get('peak_percent')}%, avg {j.get('avg_percent')}%"
+                        + (f", {j['peak_collections_per_minute']:g} collections/min at peak"
+                           if j.get('peak_collections_per_minute') is not None else '')
+                        for j in over[:6]) + "\n")
+            else:
+                metrics_section += (f"JVM garbage collection: all {len(jvm_services)} JVMs under "
+                                    f"{limit:g}% of time in GC.\n")
+
         # Data points info
         data_points = metrics_summary.get('data_points', {})
         if data_points:

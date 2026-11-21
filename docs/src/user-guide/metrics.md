@@ -10,6 +10,26 @@ View system performance metrics for each batch including memory and CPU usage.
 
 Access metrics from the batch detail view by selecting **Metrics** from the **Data Type** dropdown.
 
+## What SerOps reads
+
+SerOps reads **resource metrics**, the same ones for every analysis. It has
+no setting for queries of your own.
+
+| Metric store | What is read |
+|---|---|
+| Every store (Prometheus, VictoriaMetrics, Mimir, Datadog, CloudWatch, Azure Monitor, Google Cloud Monitoring) | CPU and memory: per node on VMs, per container and service on Kubernetes |
+| Prometheus, VictoriaMetrics, Mimir | Also the busiest pod of a service (memory against its limit, CPU), and JVM garbage-collection time when the store has it |
+| Prometheus, VictoriaMetrics, Mimir, with the project in Kubernetes mode | Also CPU throttling, and kube-state-metrics: restarts and their reason (`OOMKilled`), containers stuck starting, rollouts, replica counts, image and CPU/memory limit changes |
+
+**Not read:** request rate, error rate, latency histograms, network, disk,
+queue depth, business or custom metrics. SerOps sees errors and slowness
+through your **logs** and **traces** (error patterns, error-rate spikes in
+logs, slow and failing spans), not through application metrics. If an
+incident shows only in an application metric, with nothing in the logs or
+traces of the window, SerOps does not see it.
+
+The exact series and queries are on the [Prometheus](../integrations/prometheus.md) page.
+
 ---
 
 ## Memory Usage

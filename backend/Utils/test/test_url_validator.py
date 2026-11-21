@@ -8,9 +8,9 @@ checks anyway — mostly what we care about.
 
 from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 
-from Utils.url_validator import validate_public_url
+from Utils.url_validator import validate_outbound_url, validate_public_url
 
 
 class ValidatePublicUrlSchemeTest(SimpleTestCase):
@@ -107,3 +107,49 @@ class ValidatePublicUrlDNSTest(SimpleTestCase):
         mock_getaddrinfo.side_effect = socket.gaierror('nodename nor servname')
         with self.assertRaisesMessage(ValueError, 'Could not resolve'):
             validate_public_url('https://nonexistent.example/hook')
+
+
+class NotGloballyRoutableTest(SimpleTestCase):
+    """Audit 2026-11-20 item 3: anything not ``is_global`` is refused,
+    including the IPv4 address an IPv6 address wraps."""
+
+    REFUSED = (
+        '100.100.100.200',            # Alibaba metadata, in 100.64.0.0/10
+        '100.64.0.1',                 # shared address space (CGNAT)
+        '192.0.0.8',                  # IETF protocol assignments
+        '198.18.0.1',                 # benchmarking
+        '64:ff9b::a9fe:a9fe',         # NAT64 wrapping 169.254.169.254
+        '64:ff9b::a00:1',             # NAT64 wrapping 10.0.0.1
+        '::ffff:169.254.169.254',     # IPv4-mapped metadata
+        '::ffff:100.64.0.1',          # IPv4-mapped CGNAT
+        '2002:a9fe:a9fe::1',          # 6to4 wrapping 169.254.169.254
+    )
+
+    def test_public_url_refuses_non_global(self):
+        for host in self.REFUSED:
+            literal = f'[{host}]' if ':' in host else host
+            with self.subTest(host=host), self.assertRaisesMessage(ValueError, 'non-public'):
+                validate_public_url(f'https://{literal}/')
+
+    @override_settings(OUTBOUND_ALLOW_PRIVATE_URLS=False)
+    def test_public_only_outbound_mode_refuses_non_global(self):
+        for host in self.REFUSED:
+            literal = f'[{host}]' if ':' in host else host
+            with self.subTest(host=host), self.assertRaises(ValueError):
+                validate_outbound_url(f'https://{literal}/')
+
+    def test_nat64_and_mapped_metadata_refused_even_when_private_allowed(self):
+        for host in ('64:ff9b::a9fe:a9fe', '::ffff:169.254.169.254', '2002:a9fe:a9fe::1'):
+            with self.subTest(host=host), self.assertRaises(ValueError):
+                validate_outbound_url(f'http://[{host}]/')
+
+    def test_public_addresses_still_pass(self):
+        for url in ('https://8.8.8.8/', 'https://[2001:4860:4860::8888]/'):
+            with self.subTest(url=url):
+                self.assertEqual(validate_public_url(url), url)
+
+    def test_nat64_is_refused_whatever_it_wraps(self):
+        # Unchanged behaviour: ipaddress counts ::/3, which holds 64:ff9b::/96,
+        # as reserved, so even a NAT64 form of a public address is refused.
+        with self.assertRaisesMessage(ValueError, 'non-public'):
+            validate_public_url('https://[64:ff9b::808:808]/')

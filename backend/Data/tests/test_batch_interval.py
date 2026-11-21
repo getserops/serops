@@ -124,6 +124,35 @@ class TestCreateBatchesOrgGrouping(TestCase):
 
     @patch('Data.tasks.IntegrationRegistry')
     @patch('providers.tasks.sync_recent_deployments')
+    def test_demo_organisation_is_not_scheduled(self, mock_sync, mock_registry):
+        """A demo organisation's log stores are seeded placeholders: the
+        scheduler must not try them, nor record a skipped run for them."""
+        from Data.models import DataRunStatus
+        demo_org = Organisations.objects.create(name='demo-org', is_demo=True)
+        demo_project = self._create_project(demo_org, 'demo-proj')
+        self._create_project(self.org_fast, 'fast-proj')
+
+        asked = []
+        mock_provider = MagicMock()
+        mock_provider.get_indices.return_value = []
+        mock_provider.client.cat.indices.return_value = []
+
+        def _provider_for(org, *args, **kwargs):
+            asked.append(getattr(org, 'id', org))
+            return mock_provider
+        mock_registry.get_log_provider_for_org.side_effect = _provider_for
+
+        from Data.tasks import create_batches_for_all_projects
+        with patch('celery.group') as mock_group:
+            mock_group.return_value.apply_async.return_value = MagicMock(id='grp-1')
+            create_batches_for_all_projects()
+
+        self.assertIn(self.org_fast.id, asked)
+        self.assertNotIn(demo_org.id, asked)
+        self.assertFalse(DataRunStatus.objects.filter(project=demo_project).exists())
+
+    @patch('Data.tasks.IntegrationRegistry')
+    @patch('providers.tasks.sync_recent_deployments')
     def test_first_run_includes_all_orgs(self, mock_sync, mock_registry):
         """On first run (no last-run timestamps), all orgs should be eligible."""
         self._create_project(self.org_fast, 'fast-proj')

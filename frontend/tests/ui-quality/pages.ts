@@ -1,5 +1,8 @@
 // Every main page, using batches and settings the demo seed creates.
-export const BATCH = 'demo-05-2-production';
+// Seeded batch ids come from the seed file name and never change: this is
+// the Studio pricing analysis, which has logs, metrics, code changes and a
+// trace snapshot.
+export const BATCH = 'acme-studio-l10-r1';
 
 export const PAGES: [string, string][] = [
   ['dashboard', '/dash'],

@@ -20,6 +20,7 @@ import {
 } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import DataService from '../services/data.service';
+import { tracePath } from '../utils/linkTargets';
 
 const formatMs = (ms) => (
     ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`
@@ -194,10 +195,13 @@ const SpanTable = ({ rows, showMessage }) => (
                     )}
                     <td>{typeof span.duration_ms === 'number' ? formatMs(span.duration_ms) : '—'}</td>
                     <td>
-                        {span.trace_id ? (
-                            <Link to={`/dash/traces/${span.trace_id}`} className="text-decoration-none">
+                        {/* A trace that was not stored has no page to open. */}
+                        {tracePath(span) ? (
+                            <Link to={tracePath(span)} className="text-decoration-none">
                                 <code>{String(span.trace_id).slice(0, 12)}…</code>
                             </Link>
+                        ) : span.trace_id ? (
+                            <code>{String(span.trace_id).slice(0, 12)}…</code>
                         ) : '—'}
                     </td>
                 </tr>

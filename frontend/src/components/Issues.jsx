@@ -12,6 +12,7 @@ import PageHeader from "./PageHeader";
 import IssuePanel, { StatusChip } from "./issues/IssuePanel";
 import { useCluster } from "../context/ClusterContext";
 import useFilterUrlSync from "../hooks/useFilterUrlSync";
+import { tracePath } from "../utils/linkTargets";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import "./Issues.css";
 
@@ -449,16 +450,19 @@ const Issues = () => {
       const errCount = traces.error_span_count || 0;
       const tooltipText = `${traces.span_count} spans (${errCount} errors)`
         + (svc ? ` — ${svc}` : '') + (op ? ` :: ${op}` : '');
+      // The badge keeps its counts when the trace was not stored, but
+      // has no page to open: no pointer, no navigation.
+      const traceTo = tracePath(traceLink);
       badges.push(
         <OverlayTrigger key="trace" overlay={<Tooltip>{tooltipText}</Tooltip>}>
           <Badge
             bg={errCount > 0 ? 'danger' : 'info'}
             className="d-inline-flex align-items-center"
-            style={{ cursor: 'pointer' }}
-            onClick={(e) => {
+            style={traceTo ? { cursor: 'pointer' } : undefined}
+            onClick={traceTo ? (e) => {
               e.stopPropagation();
-              navigate(`/dash/traces/${traceLink.trace_id}`);
-            }}
+              navigate(traceTo);
+            } : undefined}
           >
             <FaProjectDiagram size={10} className="me-1" />
             {errCount > 0 ? `${errCount} err` : `${traces.span_count} spans`}

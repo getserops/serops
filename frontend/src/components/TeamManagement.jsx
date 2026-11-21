@@ -11,11 +11,15 @@ import { hasFeature, useEdition } from '../utils/edition';
 import CollapsibleSection from './settings/CollapsibleSection';
 import './settings/SettingsLayout.css';
 import PageHeader from './PageHeader';
+import { isDemoUser } from '../utils/demo';
 
 const TeamManagement = ({ embedded = false }) => {
     const { t } = useTranslation();
     // Get user from localStorage (same pattern as other components)
     const user = JSON.parse(localStorage.getItem("user")) || {};
+    // The public demo is read-only: the server refuses every change, so the
+    // buttons that would make one are not shown.
+    const demo = isDemoUser();
     const [teamMembers, setTeamMembers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -144,11 +148,11 @@ const TeamManagement = ({ embedded = false }) => {
             <PageHeader
                 title={t('team.title')}
                 subtitle={t('team.subtitle')}
-                actions={
+                actions={!demo && (
                     <button className="btn btn-primary" onClick={() => handleOpenModal('add')}>
                         <FaUserPlus /> {t('team.inviteUser')}
                     </button>
-                }
+                )}
             />
 
             {ssoSync && (
@@ -158,7 +162,7 @@ const TeamManagement = ({ embedded = false }) => {
             <CollapsibleSection
                 className="ds-settings-section-flush"
                 title={t('team.membersList') || "Users"}
-                description={t('team.membersDesc') || "Invite people, change their roles, remove them"}
+                description={demo ? undefined : (t('team.membersDesc') || "Invite people, change their roles, remove them")}
                 defaultExpanded={true}
             >
                 <div className="settings-card-body p-0 overflow-hidden">
@@ -186,7 +190,7 @@ const TeamManagement = ({ embedded = false }) => {
                                     <th className="py-3 border-0">{t('team.email')}</th>
                                     <th className="py-3 border-0">{t('team.role')}</th>
                                     <th className="py-3 border-0">{t('team.status')}</th>
-                                    <th className="text-end pe-4 py-3 border-0">{t('team.actions')}</th>
+                                    {!demo && <th className="text-end pe-4 py-3 border-0">{t('team.actions')}</th>}
                                 </tr>
                             </thead>
                             <tbody>
@@ -233,7 +237,7 @@ const TeamManagement = ({ embedded = false }) => {
                                                         : t('team.pending')}
                                             </span>
                                         </td>
-                                        <td className="text-end pe-4">
+                                        {!demo && <td className="text-end pe-4">
                                             {member.id !== user?.id && (
                                                 <div className="d-flex justify-content-end gap-2">
                                                     <Button
@@ -254,7 +258,7 @@ const TeamManagement = ({ embedded = false }) => {
                                                     </Button>
                                                 </div>
                                             )}
-                                        </td>
+                                        </td>}
                                     </tr>
                                 ))}
                             </tbody>

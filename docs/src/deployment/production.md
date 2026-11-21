@@ -151,7 +151,8 @@ elsewhere:
 
 1. Remove the `caddy` service from `docker-compose.yml`.
 2. Point your ingress at `frontend:3000` and `backend:8000` (routing
-   `/api/*` and `/images/*` to backend, everything else to frontend
+   `/api/*` to backend (uploaded images are served under `/api` too),
+   everything else to frontend
    — see `config/caddy/Caddyfile` for the exact rules).
 3. Keep `SEROPS_HTTPS: "True"` on the backend (already in
    `docker-compose.yml`): cookies are Secure and responses send HSTS. Your

@@ -49,7 +49,7 @@ The new interval takes effect within 1 minute. Existing in-progress batches are 
 
 | Setting | Description |
 |---------|-------------|
-| **Auto-Cleanup** | Enable/disable automatic deletion |
+| **Auto-Cleanup** | Enable/disable automatic deletion. **Off by default** |
 | **Retention Period** | How long to keep batches |
 | **Frequency** | When cleanup runs |
 
@@ -86,9 +86,15 @@ Separate setting for compliance logs:
 | Period | Description |
 |--------|-------------|
 | 30 days | Short-term |
-| 90 days | Quarterly |
+| 90 days | Quarterly (**default**) |
 | 365 days | Annual |
 | Forever | Never delete |
+
+!!! warning "Audit-log retention runs only with Auto-Cleanup on"
+    Old audit-log entries are deleted by the same cleanup run as old
+    batches, on the same **Frequency**. While **Auto-Cleanup** is off,
+    which is the default, nothing is deleted: neither batches nor audit
+    logs, whatever retention period is set.
 
 ---
 
@@ -111,4 +117,4 @@ For immediate cleanup:
 | Issues | ✅ | - |
 | Logs | ✅ | - |
 | Redaction reports | ✅ | - |
-| Audit logs | Separate policy | - |
+| Audit logs | Separate period, same cleanup run (needs Auto-Cleanup on) | - |

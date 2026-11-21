@@ -98,6 +98,10 @@ Configure automatic data cleanup in **Settings → Data Management**:
 | **Cleanup Frequency** | Daily, Weekly, Monthly |
 | **Audit Log Retention** | 30, 90, 365 days, or Forever |
 
+Audit-log retention runs in the same cleanup as batches: it deletes
+nothing while **Auto-Cleanup** is off, which is the default. See
+[Data retention](../admin/data-retention.md#audit-log-retention).
+
 ### Retention Policy Model
 
 ```python

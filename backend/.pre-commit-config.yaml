@@ -5,7 +5,10 @@
 # password, Google API key, Brevo SMTP credentials). Even though
 # .env is in .gitignore, a `git add -A .` or an editor plugin can
 # still stage it. detect-private-key catches the classic
-# BEGIN PRIVATE KEY / SSH RSA header case.
+# BEGIN PRIVATE KEY / SSH RSA header case. secret-scan catches literal
+# passwords in configuration (`password <value>`, `password: value`, a
+# user/password pair, a base64-looking password); CI runs the same script
+# over every tracked file.
 #
 # Install once per contributor machine:
 #     pip install pre-commit
@@ -34,6 +37,19 @@ repos:
     hooks:
       - id: forbid-env-files
         name: Block .env* commits (except .env.example)
-        entry: bash -c 'for f in "$@"; do case "$f" in *.env|*.env.dev|*.env.local|*.env.prod|*.env.production|*.env.staging|.env|.env.dev|.env.local|.env.prod|.env.production|.env.staging) echo "REFUSING to commit env file: $f (contains secrets)"; exit 1;; esac; done' --
+        # Folded scalar: the command holds `: `, which plain YAML read as a
+        # mapping, so this file did not parse and no hook ran.
+        entry: >-
+          bash -c 'for f in "$@"; do case "$f" in *.env|*.env.dev|*.env.local|*.env.prod|*.env.production|*.env.staging|.env|.env.dev|.env.local|.env.prod|.env.production|.env.staging) echo "REFUSING to commit env file: $f (contains secrets)"; exit 1;; esac; done' --
+        language: system
+        pass_filenames: true
+
+  # Literal passwords in staged files (Utils/secret_scan.py, standard
+  # library only). Paths are relative to the repository root.
+  - repo: local
+    hooks:
+      - id: secret-scan
+        name: Block literal passwords (secret_scan.py)
+        entry: python3 backend/Utils/secret_scan.py
         language: system
         pass_filenames: true

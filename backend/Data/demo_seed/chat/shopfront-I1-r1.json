@@ -1,0 +1,65 @@
+{
+ "schema": "serops-demo-chat/1",
+ "title": "Shopfront: checkout fails",
+ "batch": "shopfront-I1-r1",
+ "model": "claude-sonnet-5-5",
+ "produced": {
+  "how": "Asked on 20 Nov 2026 through SerOps's own chat endpoint on a local instance loaded with this seed, with the model named above. Questions and answers are verbatim. Token counts are the usage the provider returned, as SerOps recorded it (the intent-classification call of a turn is included in that turn); cost is SerOps's figure at the public price of 2 USD per million input tokens and 10 USD per million output tokens.",
+  "time_placement": "offset_seconds places the first question five minutes after the end of the analysis and keeps the order and the real answer times; the questions were sent one right after the other by a script. asked_at is when each question was really asked.",
+  "past_incident_memory": "off",
+  "tokens_input": 498126,
+  "tokens_output": 5036,
+  "cost_usd": "1.046612",
+  "title": "The title is a label written for the demo's chat list. In the product a session is titled with the first 50 characters of its first question, which is the same for all three."
+ },
+ "messages": [
+  {
+   "role": "user",
+   "text": "What changed right before this started?",
+   "offset_seconds": 300
+  },
+  {
+   "role": "assistant",
+   "text": "**What changed right before this started**\n\nThe only change in the window is commit `9f5cc0f7`, \"chore: right-size checkout\". It was committed at 22:16:19 UTC on `main` and deployed to production at **22:16:30 UTC**.\n\n**Timeline**\n- 22:16:30: `9f5cc0f7` is deployed.\n- 22:17:05: the first checkout failure is logged. It is `rpc error: Unavailable ... error reading from server: EOF`, about 35 seconds after the deploy.\n- 22:17:49: two failures with `connection reset by peer`.\n- 22:18:14 to 22:20:10: more `EOF` errors, mixed with the first `connection refused` errors (22:18:28 onward).\n- 22:20:13 to 22:21:40: almost entirely `dial tcp ...:5050: connect: connection refused`.\n\n**What the errors show**\n- All errors come from `POST /cart/checkout` in the frontend. Port 5050 is the checkout service's gRPC port in the Online Boutique setup. This is my inference from the port number, since the logs don't name the target service.\n- The errors change over time. They start as `EOF` and `connection reset`, which means connections were dropped mid-request, and later become `connection refused`, which means nothing is listening on the port. That pattern fits a checkout pod that was killed or restarted, then failed to come back, or crash-looped. It does not look like a network issue.\n- Several sessions fail repeatedly. These are customers retrying, so the impact is ongoing.\n\n**Caveats**\n- The commit shows **0 files changed (+0/-0)**. A \"right-size\" change like this is probably a resource change (CPU or memory requests and limits, or replicas), likely made in deployment config that the diff doesn't capture. That is my guess, and the data doesn't confirm it. If the memory limit was cut too far, you would expect OOMKills, then restarts, then `connection refused`, which matches what the logs show.\n- The timing makes this commit the leading suspect, but the logs contain no direct evidence such as an OOMKill, a restart event, or a checkout service log. The correlation is strong but not proven.\n- The other events are noise. The `shippingservice` GetQuote entries are normal INFO logs. The `redis-cart` background save is routine.\n\n**Suggested next steps**\n1. Run `kubectl get pods` and `kubectl describe pod` for checkoutservice. Check restart counts, `Last State: OOMKilled`, and probe failures.\n2. Check the actual deployed manifest or config for `9f5cc0f7`, since the diff is empty. Look at resource requests and limits and the replica count.\n3. If confirmed, roll back `9f5cc0f7` or restore the previous resource values to stop the checkout failures.",
+   "offset_seconds": 309,
+   "asked_at": "2026-11-20T14:22:15.680077+00:00",
+   "seconds": 9.4,
+   "model_calls": 1,
+   "tokens_input": 5082,
+   "tokens_output": 923,
+   "cost_usd": "0.019394"
+  },
+  {
+   "role": "user",
+   "text": "Which services were affected, and what is the evidence for each?",
+   "offset_seconds": 310
+  },
+  {
+   "role": "assistant",
+   "text": "## Affected services\n\nTwo services are affected: **checkoutservice** (the origin) and **frontend** (a downstream victim). The metrics now confirm what my previous answer could only guess at. The other services show no signs of impact.\n\n### 1. checkoutservice (root cause, hard down)\nThe evidence is direct:\n- **Config change:** the rollout at 22:17:01 changed the memory limit from **128Mi to 5Mi**. This matches commit `9f5cc0f7` \"chore: right-size checkout\", deployed at 22:16:30. The empty diff was misleading: the change was in deployment config.\n- **Memory ceiling dropped:** `MemTotal` went from 134,217,728 to 5,242,880 bytes at the 22:16:46 sample.\n- **Memory pressure:** usage jumped from about 6% to 49.8% at 22:16:46, then 89% at 22:17:31, 97.4% at 22:18:16, 95% at 22:19:01 and 93.5% at 22:20:01. Free memory fell as low as about 135 KB. The repeated climb-and-reset pattern is what repeated OOM kills look like.\n- **Container state:** `OOMKilled` (terminated), `CrashLoopBackOff` (waiting), **5 restarts**, and **0 of 1 replicas available**.\n- **CPU:** usage rose from about 0.11% to 0.32–0.38%, and 42% of CPU periods were throttled. This is consistent with a container repeatedly restarting and being starved.\n- **Current state:** as of 22:21:31 the pod has been in crash-loop backoff for several minutes and has no available replicas, so checkout is fully down. The memory readings after 22:20:16 are flat, which suggests no running process is reporting.\n\n### 2. frontend (victim of the checkout outage)\n- All 19 logged errors are `POST /cart/checkout` failing with `rpc error: code = Unavailable`. They progress from `EOF` and `connection reset by peer` (the checkout container being killed mid-request) to `connection refused` on port 5050 (nothing listening during backoff).\n- The first error is at 22:17:05, about 35 seconds after the deploy. Repeated failures from the same sessions (`04f7b759…`, `5c15b4b4…`, `dc75499e…`, `77d77483…`) show customers retrying.\n- The frontend itself is healthy. CPU is flat at about 2.5–2.7%, and memory is stable at about 8% with no restarts. The failure is in its dependency, not in the frontend. Only the checkout path is affected, and I see no errors for browsing.\n\n### Services with no impact\n- **cartservice, productcatalogservice, currencyservice, recommendationservice, adservice, emailservice, loadgenerator, redis-cart and shippingservice:** CPU and memory are flat, with no restarts or errors. Small wiggles, such as cartservice free memory dipping about 1 MB near 22:19:46 and adservice CPU drifting down, are within normal noise.\n- **paymentservice:** memory creeps from about 19.8% to 21%, but the trend starts before the incident and is gradual, so it is unrelated. It is probably receiving no traffic because checkout is down.\n- **The INFO events** (shippingservice `GetQuote`, redis-cart background save) are routine.\n\n## Recommended action\nRestore checkoutservice's memory limit to 128Mi, or whatever the previous manifest value was, by rolling back `9f5cc0f7` or reverting the resource change. A 5Mi limit is too small for a Go gRPC service. After that, confirm the pod reaches Ready and that `/cart/checkout` errors stop. The crash-loop backoff may delay recovery by a few minutes, and deleting the pod after the fix can speed that up.\n\nThe only uncertainty is that the 22:17:01 rollout timestamp in the lifecycle data is slightly after the 22:16:30 deploy time. The memory-total drop at 22:16:46 and the later first error make the sequence consistent.",
+   "offset_seconds": 331,
+   "asked_at": "2026-11-20T14:22:25.088445+00:00",
+   "seconds": 21.8,
+   "model_calls": 2,
+   "tokens_input": 245834,
+   "tokens_output": 2230,
+   "cost_usd": "0.513968"
+  },
+  {
+   "role": "user",
+   "text": "What should I do now, and how do I check that it worked?",
+   "offset_seconds": 332
+  },
+  {
+   "role": "assistant",
+   "text": "## What to do now\n\n**1. Restore the memory limit on checkoutservice.** Pick one:\n\n- **Normal path (preferred if you deploy through Git/CD):** revert `9f5cc0f7` and let the pipeline deploy it. This keeps the repo and the cluster in sync, so the 5Mi value doesn't get re-applied later.\n- **Fast path (if checkout is down and the pipeline is slow):**\n  ```\n  kubectl rollout undo deployment/checkoutservice\n  ```\n  Before you run it, check `kubectl rollout history deployment/checkoutservice` to confirm the previous revision has the 128Mi limit and nothing else changed since. If you use GitOps (Argo/Flux), the controller may re-apply 5Mi, so revert in Git as well.\n\n**2. Skip the crash-loop backoff.** Once the new spec is applied, delete the stuck pod so Kubernetes schedules a fresh one right away:\n```\nkubectl delete pod -l app=checkoutservice\n```\nAdjust the label to match your manifests.\n\n**3. Don't set a new \"right-sized\" value yet.** The old usage was about 6% of 128Mi, roughly 7–8 MiB at idle, which is already above 5Mi. A 5Mi limit could never have worked. This may have been a unit typo, for example 5Mi instead of 512Mi. Re-do the right-sizing later with a proper margin over observed peak usage.\n\n## How to check that it worked\n\n**Immediately (1–3 minutes):**\n- `kubectl get deploy checkoutservice` shows **1/1 available** (it was 0/1).\n- `kubectl get pod -l app=checkoutservice` shows `Running`, `1/1 Ready`, and the restart count **stops increasing** (it was 5).\n- `kubectl get deploy checkoutservice -o jsonpath='{.spec.template.spec.containers[0].resources}'` shows the 128Mi limit again.\n- `kubectl describe pod` shows no new `OOMKilled` in Last State and no `CrashLoopBackOff` in Waiting.\n\n**In metrics:**\n- `MemTotal` for checkoutservice returns from 5,242,880 to **134,217,728**.\n- Memory usage settles near the old baseline of about **5–7%** instead of spiking to 89–97% and resetting.\n- CPU throttling drops from 42% to about 0, and CPU returns to about 0.1%.\n\n**In user impact:**\n- Frontend `POST /cart/checkout` errors stop. The last one in the data was at 22:21:40, so there should be no `Unavailable` or `connection refused` entries after the new pod goes Ready. The loadgenerator keeps sending traffic, so you'll see this quickly.\n- Run a real or synthetic checkout end to end and confirm it completes. Check the frontend logs and watch the checkout error rate.\n\n**Hold for 10–15 minutes.** Confirm the restart count stays flat and memory stays stable. This confirms the fix is stable and not just a brief recovery.\n\n## If it doesn't recover\n- Run `kubectl describe pod` and `kubectl logs --previous` on checkoutservice. Look for a failing readiness probe, a dependency it can't reach, or another resource setting in the same change (CPU limit, replicas).\n- If the pod is Ready but frontend errors continue, check that the frontend's checkout service address and port 5050 are still correct. The logs never named the target, so this was inferred from the port.\n\n## Afterward\nAdd a guardrail so resource-limit changes can't ship without review, such as a policy check, a staging soak, or a minimum-limit rule. Also note that the commit showed 0 files changed even though it changed production config. That gap in change visibility is worth fixing.",
+   "offset_seconds": 351,
+   "asked_at": "2026-11-20T14:22:46.866051+00:00",
+   "seconds": 20.1,
+   "model_calls": 2,
+   "tokens_input": 247210,
+   "tokens_output": 1883,
+   "cost_usd": "0.513250"
+  }
+ ]
+}

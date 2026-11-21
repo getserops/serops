@@ -78,6 +78,18 @@ upgrades are safe with a brief restart.
 
 Releases that need something from you after upgrading. Migrations run on their own (`docker compose up` / the Helm migrate job).
 
+### 1.5.0: accuracy, integrations and security fixes
+
+- **OpenSearch verifies TLS by default.** `verify_certs` is now `true` (it was `false`). For a self-signed certificate you trust, clear **Verify TLS certificate** on the integration.
+- **Bitbucket webhooks**: run **Setup Webhook** again on an existing CI/CD binding; the webhook created by 1.4.0 and earlier has no secret, and its deliveries are refused.
+- **Alerts that match no service are no longer analysed.** Check **Alerts & routing → Delivery Channels** for the alerts of the last week that matched nothing, with the labels tried.
+- **Helm chart 0.2.2**: `backend.env` and `backend.envFrom` now reach the Celery workers, Celery beat and the migration job as well as the API pods. Check that nothing you set there was meant for the API pods only. The Celery worker and beat images now follow `backend.image` unless `celeryWorker.image` or `celeryBeat.image` is set; before, pinning `backend.image.tag` (a patch release, a registry mirror) left the workers on the chart's default version.
+- **Checking all integrations at once** is `POST /api/providers/integrations/health-check-all/` and needs `integration.use`; a script that called it with `GET` gets 405.
+- **The interactive API reference** (`/api/docs/`) is off unless `DEBUG` or `SEROPS_API_DOCS=true` is set.
+- **Cache address**: `REDIS_URL` (or `CELERY_BROKER_URL` when it is unset) may be `redis://`, `rediss://` or `unix://`; any other scheme stops the backend at start with a clear error. The quick-start and the Helm chart need no change.
+- **New optional settings**: `SEROPS_ISSUE_CONTINUITY_HOURS`, `SEROPS_MAX_LOG_WINDOW_MINUTES`, `SEROPS_USAGE_SCRIPT_PATH`, `SEROPS_USAGE_WEBSITE_ID`, `SEROPS_API_DOCS`.
+- **New migrations**: Data 0062–0063, ai_model 0004, org_settings 0022, traces 0004. They only add columns and tables, except org_settings 0022, which moves the seeded Claude provider to `claude-sonnet-5-5` when no organisation uses it.
+
 ### 1.3.0: users, roles and teams
 
 - **`SEROPS_ENCRYPTION_KEY` is required.** Stored credentials now have their own key instead of being encrypted with `DJANGO_SECRET_KEY`, and SerOps refuses to start without it. Generate one with `openssl rand -base64 32 | tr '+/' '-_'`, add it to your environment, and back it up. Keep `DJANGO_SECRET_KEY` unchanged. Once upgraded, run `python manage.py rotate_secrets` once: until then, existing credentials still depend on `DJANGO_SECRET_KEY`.

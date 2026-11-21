@@ -27,6 +27,7 @@ import {
 } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import DataService from '../services/data.service';
+import { tracePath } from '../utils/linkTargets';
 import BatchTimelineChart from './BatchTimelineChart';
 import './BatchTimeline.css';
 
@@ -118,9 +119,14 @@ const EventDetail = ({ event }) => {
         return (
             <div className="small text-muted mt-1">
                 Trace{' '}
-                <Link to={`/dash/traces/${d.trace_id}`} className="text-decoration-none">
+                {/* A trace that was not stored has no page to open. */}
+                {tracePath(d) ? (
+                    <Link to={tracePath(d)} className="text-decoration-none">
+                        <code>{String(d.trace_id).slice(0, 12)}…</code>
+                    </Link>
+                ) : (
                     <code>{String(d.trace_id).slice(0, 12)}…</code>
-                </Link>
+                )}
                 {d.duration_ms != null ? ` — ${d.duration_ms}ms` : ''}
                 {d.status_message ? ` — ${d.status_message}` : ''}
             </div>

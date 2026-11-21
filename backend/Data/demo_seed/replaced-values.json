@@ -1,0 +1,282 @@
+{
+ "batch_ids": {
+  "rule": "the captured batch id, which holds the time of the analysis, is replaced by a stable id made from the seed file name, so a link to a demo analysis keeps working",
+  "stable_ids": {
+   "fleet-K3-r1.json.gz": "acme-fleet-k3-r1",
+   "fleet-K3-r2.json.gz": "acme-fleet-k3-r2",
+   "fleet-K5-r1.json.gz": "acme-fleet-k5-r1",
+   "fleet-K7-r1.json.gz": "acme-fleet-k7-r1",
+   "shopfront-I1-r1.json.gz": "acme-shopfront-i1-r1",
+   "shopfront-I1-r2.json.gz": "acme-shopfront-i1-r2",
+   "shopfront-I12-r2.json.gz": "acme-shopfront-i12-r2",
+   "shopfront-I5-r1.json.gz": "acme-shopfront-i5-r1",
+   "shopfront-I8-r1.json.gz": "acme-shopfront-i8-r1",
+   "studio-L10-r1.json.gz": "acme-studio-l10-r1",
+   "studio-L4-r1.json.gz": "acme-studio-l4-r1",
+   "studio-L4-r2.json.gz": "acme-studio-l4-r2",
+   "studio-L6-r1.json.gz": "acme-studio-l6-r1",
+   "studio-L7-r1.json.gz": "acme-studio-l7-r1"
+  }
+ },
+ "issues": [
+  {
+   "capture_ref": "fleet-issue-4",
+   "component": "fleet-db",
+   "replaced": [
+    "created_at",
+    "last_seen_at",
+    "occurrence_count"
+   ],
+   "run_time": [
+    {
+     "created_at": "2026-11-18T23:15:13.817940Z",
+     "last_seen_at": "2026-11-18T23:17:14.035855Z",
+     "occurrence_count": 2,
+     "seed": "fleet-K3-r1"
+    },
+    {
+     "created_at": "2026-11-18T23:15:13.817940Z",
+     "last_seen_at": "2026-11-19T01:59:04.499832Z",
+     "occurrence_count": 11,
+     "seed": "fleet-K3-r2"
+    }
+   ],
+   "seeded": {
+    "created_at": "2026-11-18T23:17:14.035855Z",
+    "last_seen_at": "2026-11-19T01:59:04.499832Z",
+    "occurrence_count": 2
+   },
+   "seeds": [
+    "fleet-K3-r1",
+    "fleet-K3-r2"
+   ]
+  },
+  {
+   "capture_ref": "fleet-issue-10",
+   "component": "fleet-redis",
+   "replaced": [
+    "created_at",
+    "occurrence_count"
+   ],
+   "run_time": [
+    {
+     "created_at": "2026-11-19T00:01:47.342128Z",
+     "last_seen_at": "2026-11-19T00:05:21.263725Z",
+     "occurrence_count": 2,
+     "seed": "fleet-K7-r1"
+    }
+   ],
+   "seeded": {
+    "created_at": "2026-11-19T00:05:21.263725Z",
+    "last_seen_at": "2026-11-19T00:05:21.263725Z",
+    "occurrence_count": 1
+   },
+   "seeds": [
+    "fleet-K7-r1"
+   ]
+  },
+  {
+   "capture_ref": "shopfront-issue-1",
+   "component": "checkoutservice",
+   "replaced": [
+    "created_at",
+    "occurrence_count"
+   ],
+   "run_time": [
+    {
+     "created_at": "2026-11-18T22:17:55.095789Z",
+     "last_seen_at": "2026-11-18T22:22:17.728944Z",
+     "occurrence_count": 2,
+     "seed": "shopfront-I1-r1"
+    }
+   ],
+   "seeded": {
+    "created_at": "2026-11-18T22:22:17.728944Z",
+    "last_seen_at": "2026-11-18T22:22:17.728944Z",
+    "occurrence_count": 1
+   },
+   "seeds": [
+    "shopfront-I1-r1"
+   ]
+  },
+  {
+   "capture_ref": "shopfront-issue-3",
+   "component": "frontend",
+   "replaced": [
+    "created_at",
+    "occurrence_count"
+   ],
+   "run_time": [
+    {
+     "created_at": "2026-11-18T22:33:23.996777Z",
+     "last_seen_at": "2026-11-18T23:12:39.871437Z",
+     "occurrence_count": 2,
+     "seed": "shopfront-I5-r1"
+    }
+   ],
+   "seeded": {
+    "created_at": "2026-11-18T23:12:39.871437Z",
+    "last_seen_at": "2026-11-18T23:12:39.871437Z",
+    "occurrence_count": 1
+   },
+   "seeds": [
+    "shopfront-I5-r1"
+   ]
+  },
+  {
+   "capture_ref": "shopfront-issue-7",
+   "component": "paymentservice",
+   "note": "SerOps attached analyses of different incidents (I12, I5) to this one issue. Kept as the product had it: one issue, loaded as its last analysis wrote it, with one occurrence per analysis.",
+   "replaced": [
+    "last_seen_at",
+    "occurrence_count"
+   ],
+   "run_time": [
+    {
+     "created_at": "2026-11-18T23:12:39.928550Z",
+     "last_seen_at": "2026-11-18T23:12:39.928589Z",
+     "occurrence_count": 1,
+     "seed": "shopfront-I5-r1"
+    },
+    {
+     "created_at": "2026-11-18T23:12:39.928550Z",
+     "last_seen_at": "2026-11-19T03:23:29.560000Z",
+     "occurrence_count": 8,
+     "seed": "shopfront-I12-r2"
+    }
+   ],
+   "seeded": {
+    "created_at": "2026-11-18T23:12:39.928550Z",
+    "last_seen_at": "2026-11-19T03:23:29.560000Z",
+    "occurrence_count": 2
+   },
+   "seeds": [
+    "shopfront-I5-r1",
+    "shopfront-I12-r2"
+   ]
+  },
+  {
+   "capture_ref": "shopfront-issue-10",
+   "component": "shippingservice",
+   "replaced": [
+    "created_at",
+    "occurrence_count"
+   ],
+   "run_time": [
+    {
+     "created_at": "2026-11-18T23:51:13.295312Z",
+     "last_seen_at": "2026-11-18T23:54:59.157017Z",
+     "occurrence_count": 2,
+     "seed": "shopfront-I8-r1"
+    }
+   ],
+   "seeded": {
+    "created_at": "2026-11-18T23:54:59.157017Z",
+    "last_seen_at": "2026-11-18T23:54:59.157017Z",
+    "occurrence_count": 1
+   },
+   "seeds": [
+    "shopfront-I8-r1"
+   ]
+  },
+  {
+   "capture_ref": "shopfront-issue-12",
+   "component": "checkoutservice",
+   "replaced": [],
+   "run_time": [
+    {
+     "created_at": "2026-11-19T00:57:21.232162Z",
+     "last_seen_at": "2026-11-19T00:57:21.232205Z",
+     "occurrence_count": 1,
+     "seed": "shopfront-I1-r2"
+    }
+   ],
+   "seeded": {
+    "created_at": "2026-11-19T00:57:21.232162Z",
+    "last_seen_at": "2026-11-19T00:57:21.232205Z",
+    "occurrence_count": 1
+   },
+   "seeds": [
+    "shopfront-I1-r2"
+   ]
+  },
+  {
+   "capture_ref": "studio-issue-4",
+   "component": "payments",
+   "replaced": [
+    "last_seen_at",
+    "occurrence_count"
+   ],
+   "run_time": [
+    {
+     "created_at": "2026-11-18T23:06:12.889088Z",
+     "last_seen_at": "2026-11-18T23:06:12.889131Z",
+     "occurrence_count": 1,
+     "seed": "studio-L4-r1"
+    },
+    {
+     "created_at": "2026-11-18T23:06:12.889088Z",
+     "last_seen_at": "2026-11-19T01:27:11.531647Z",
+     "occurrence_count": 6,
+     "seed": "studio-L4-r2"
+    }
+   ],
+   "seeded": {
+    "created_at": "2026-11-18T23:06:12.889088Z",
+    "last_seen_at": "2026-11-19T01:27:11.531647Z",
+    "occurrence_count": 2
+   },
+   "seeds": [
+    "studio-L4-r1",
+    "studio-L4-r2"
+   ]
+  },
+  {
+   "capture_ref": "studio-issue-5",
+   "component": "notifier",
+   "replaced": [
+    "created_at",
+    "occurrence_count"
+   ],
+   "run_time": [
+    {
+     "created_at": "2026-11-18T23:46:13.014447Z",
+     "last_seen_at": "2026-11-18T23:47:20.879143Z",
+     "occurrence_count": 2,
+     "seed": "studio-L7-r1"
+    }
+   ],
+   "seeded": {
+    "created_at": "2026-11-18T23:47:20.879143Z",
+    "last_seen_at": "2026-11-18T23:47:20.879143Z",
+    "occurrence_count": 1
+   },
+   "seeds": [
+    "studio-L7-r1"
+   ]
+  },
+  {
+   "capture_ref": "studio-issue-6",
+   "component": "pricing",
+   "replaced": [],
+   "run_time": [
+    {
+     "created_at": "2026-11-19T00:29:31.163383Z",
+     "last_seen_at": "2026-11-19T00:29:31.163423Z",
+     "occurrence_count": 1,
+     "seed": "studio-L10-r1"
+    }
+   ],
+   "seeded": {
+    "created_at": "2026-11-19T00:29:31.163383Z",
+    "last_seen_at": "2026-11-19T00:29:31.163423Z",
+    "occurrence_count": 1
+   },
+   "seeds": [
+    "studio-L10-r1"
+   ]
+  }
+ ],
+ "rule": "occurrence_count = number of seeded analyses that raised the issue; created_at = when the earliest of them wrote it; last_seen_at = when the latest of them wrote it",
+ "times": "as captured (UTC), not shifted"
+}

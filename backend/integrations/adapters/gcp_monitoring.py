@@ -19,9 +19,11 @@ can query raw GCP metric types directly.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timezone
 from typing import List, Optional
 
+from Utils import query_trail
 from integrations.adapters.gcp_logging import _health_reason, _load_credentials
 from integrations.base import MetricProvider, MetricProviderCapabilities, MetricQueryError, note_partial
 from integrations.schemas import HostInfo, TimeSeries, TimeSeriesPoint
@@ -39,6 +41,30 @@ def _build_metric_client(credentials):
             "Install with: pip install google-cloud-monitoring"
         ) from exc
     return monitoring_v3.MetricServiceClient(credentials=credentials)
+
+
+def _recorded(iterator, request, started):
+    """Yield ``iterator``'s series, then record them in the query trail.
+
+    ``list_time_series`` is lazy and its callers rely on that (auth and quota
+    errors arrive during iteration), so the answer is recorded as it is
+    consumed, including when the caller stops early or iteration fails.
+    """
+    answer, error = [], None
+    try:
+        for series in iterator:
+            try:
+                answer.append(type(series).to_dict(series))
+            except Exception:                           # noqa: BLE001
+                answer.append(repr(series))
+            yield series
+    except Exception as exc:
+        error = exc
+        raise
+    finally:
+        query_trail.record('monitoring.googleapis.com', 'list_time_series', 'grpc://monitoring.googleapis.com',
+                           request_body=request, status=None if error else 'OK', response_body=answer,
+                           error=error, started=started)
 
 
 def _point_time(end_time):
@@ -163,6 +189,22 @@ class GcpCloudMonitoringProvider(MetricProvider):
         credentials = _load_credentials(self._config)
         self._client = _build_metric_client(credentials)
 
+    def _list_time_series(self, *args, **kwargs):
+        """``list_time_series``, recorded in the query trail when one is active.
+        The gRPC client does not go through Utils.outbound, so it is hooked here."""
+        if not query_trail.active():
+            return self._client.list_time_series(*args, **kwargs)
+        request = kwargs.get('request', args[0] if args else kwargs)
+        started = time.monotonic()
+        try:
+            iterator = self._client.list_time_series(*args, **kwargs)
+        except Exception as exc:
+            query_trail.record('monitoring.googleapis.com', 'list_time_series',
+                               'grpc://monitoring.googleapis.com', request_body=request,
+                               error=exc, started=started)
+            raise
+        return _recorded(iterator, request, started)
+
     # ------------------------------------------------------------------
     # MetricProvider ABC
     # ------------------------------------------------------------------
@@ -223,7 +265,7 @@ class GcpCloudMonitoringProvider(MetricProvider):
         filter_str = self._build_filter(gcp_metric, labels, self._topology_mode)
 
         try:
-            iterator = self._client.list_time_series(
+            iterator = self._list_time_series(
                 request={
                     "name": self._project_name,
                     "filter": filter_str,
@@ -289,7 +331,7 @@ class GcpCloudMonitoringProvider(MetricProvider):
             "view": monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL,
         }
         try:
-            iterator = self._client.list_time_series(request=request)
+            iterator = self._list_time_series(request=request)
             series_list = []
             for i, series in enumerate(iterator):
                 ts = self._to_timeseries(series, metric)
@@ -329,7 +371,7 @@ class GcpCloudMonitoringProvider(MetricProvider):
         """Raw GCP series of one VM metric, narrowed to the instances that
         carry the SerOps scope labels (when any instance carries them)."""
         try:
-            series = list(self._client.list_time_series(
+            series = list(self._list_time_series(
                 request=self._vm_request(gcp_type, start, end, extra)))
         except Exception as exc:
             logger.warning("GCP Cloud Monitoring %s failed: %s", gcp_type, exc)
@@ -436,7 +478,7 @@ class GcpCloudMonitoringProvider(MetricProvider):
         # HEADERS view returns only labels — no data points — so it's
         # much cheaper than pulling the whole series.
         try:
-            iterator = self._client.list_time_series(
+            iterator = self._list_time_series(
                 request={
                     "name": self._project_name,
                     "filter": probe_filter,

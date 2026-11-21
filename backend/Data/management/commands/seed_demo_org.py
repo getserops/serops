@@ -1,67 +1,77 @@
 """
-seed_demo_org — build a read-only demo organisation populated with a
-realistic 7-day operational story.
+seed_demo_org — build the read-only demo organisation from real analyses.
 
 This command powers the public demo at https://app.serops.ai. It is
 also useful when you self-host SerOps: running it once on a fresh
-instance gives you a fully populated org so you can explore every
-dashboard, drill into issues, and read pre-canned chat investigations
-without first having to wire up real observability providers.
+instance gives you a populated org, so you can explore every dashboard
+and drill into issues without first wiring up observability providers.
 
-What it creates (all flagged ``is_demo=True``):
+The content is not written here. It is loaded from ``Data/demo_seed/``:
+14 analyses SerOps made during its benchmark runs on test environments,
+converted by ``tools/demo-seed/build_seed.py`` (format and renaming in
+``tools/demo-seed/README.md``). What SerOps collected, what the model
+answered and the issues it raised are stored as captured.
 
-  - Organisations row "Acme Cloud" with one demo user (viewer role)
-  - 2 projects: acme-checkout and acme-platform
-  - 5 services (3 application + 2 infrastructure)
-  - 7 days of AI-analyzed batches across dev / staging / production
-  - A coherent story arc — deploys → incidents → resolutions
-  - ~12 issues (mix OPEN / RESOLVED / MUTED, including 3 CRITICAL)
-  - 6 deployments with realistic code-change diffs
-  - 3 pre-populated chat sessions showing AI investigation
-  - Sentinel decisions that produce a believable 60-70 % skip rate
-  - Cost tracking (AITokenUsage) so the "Saved this week" hero stat
-    on the Sentinel dashboard widget has real numbers to display
+What it creates:
+
+  - Organisations row "Acme Cloud" (``is_demo=True``) with the demo user
+  - The people who started the investigations, as team members who
+    cannot sign in
+  - 3 projects (Fleet, Shopfront, Studio), their services, one
+    environment and one cluster each
+  - One AIAnalyzedBatch and its Investigation per seed file
+  - The issues those analyses raised, one row per issue with one
+    occurrence per analysis that raised it
+  - The trace rows the seed files hold
+  - Resolution notes from ``demo_seed/resolutions.json``, written by
+    the SerOps team from the injection records, on the resolved issues
+  - Chat sessions from ``demo_seed/chat/*.json``: three real conversations,
+    asked through SerOps's own chat on a local instance; their token and
+    cost figures stay in the files and are not loaded as spend
+  - The stores each environment had connected, from
+    ``demo_seed/integrations.json``: a type and a name per row, with no
+    address, host or credential, so the Integrations page shows what the
+    analyses read and nothing can be called
+
+What it never creates: AI usage or cost rows (the captures hold none),
+an AI budget, alert events, pipelines, notification channels, or an
+integration pointing at a host.
+
+Every analysis is moved by one whole number of days, so that the newest
+falls on the day before the command runs and nothing is in the future.
+Its batch id does not move: it is made from the seed file name
+(``acme-fleet-k7-r1``), so a link to a demo analysis keeps working.
 
 The command is **idempotent** — running it twice is safe. It wipes the
-demo org's mutable data and rebuilds the story, but never touches any
-other organisation.
+demo org's content and loads it again, and never touches any other
+organisation.
 
 Usage::
 
     python manage.py seed_demo_org             # fresh-build / nightly reset
     python manage.py seed_demo_org --dry-run   # report what would change
-
-Centerpiece incident
---------------------
-A Database connection-pool exhaustion on 2026-D-3 caused by deploy
-v2.3.3, which shrank the pool from 50 to 20 connections. The AI traces
-it back through commit ``a3f1d8c`` and links the metric anomaly to the
-deploy time. The chat session shows the AI ruling out an upstream
-provider as the cause.
 """
 
 from __future__ import annotations
 
-import hashlib
-import json
+import re
 import uuid
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import List
+from datetime import timedelta
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
-from django.utils.dateparse import parse_datetime
 
 from Organisations.models import Organisations
 from Users.models import User
-from Projects.models import Project, ProjectService, SCMBinding, CICDBinding, ProjectDeployment
-from providers.models import Pipeline, Job, CodeChange, Deployment, ProviderIntegration
-from Data.models import AIAnalyzedBatch, Issue, IssueOccurrence, AuditLog, AlertEvent, Investigation
+from Projects.models import Project, ProjectDeployment, ProjectEnvironment, ProjectService
+from providers.models import Pipeline, CodeChange, Deployment, ProviderIntegration
+from Data import demo_seed_loader as seed_files
+from Data.demo_seed_time import parse_time
+from Data.models import AIAnalyzedBatch, Issue, IssueOccurrence, AuditLog, AlertEvent, Investigation, DataRunStatus
 from ai_model.models import ChatSession, ChatMessage, AITokenUsage
-from integrations.models import ObservabilityIntegration, Cluster, IntegrationScope
+from integrations.field_aliases import ENVIRONMENT_ALIASES, PROJECT_NAME_ALIASES, first_present
+from integrations.models import ObservabilityIntegration, Cluster
 from notifications.models import (
     Notification, ProjectSubscription, EscalationRule,
     IncidentNotificationChannel,
@@ -82,742 +92,33 @@ DEMO_ORG_SLUG = 'acme-cloud'
 
 DEMO_USER_EMAIL = 'demo@serops.ai'
 DEMO_USER_USERNAME = 'demo'
-
-# The demo org's AI provider. Gemini, the provider the demo story is written
-# around; its key row holds the placeholder (see ``_upsert_ai_key``) because
-# the read-only demo never calls the provider. The model name is read from the provider catalogue at seed time so it
-# follows org_settings' default-model migrations instead of going stale; the
-# fallback only applies on an install whose catalogue has no gemini row.
-DEMO_AI_PROVIDER = 'gemini'
-DEMO_AI_MODEL_FALLBACK = 'gemini-3.6-flash'
-
-
-def _demo_ai_model() -> str:
-    provider = AIModelProvider.objects.filter(name=DEMO_AI_PROVIDER).first()
-    return (provider.default_model if provider and provider.default_model
-            else DEMO_AI_MODEL_FALLBACK)
 DEMO_USER_PASSWORD = 'demo'  # the demo is publicly accessible; password is informational
 
-# Sentinel value stored in place of real credentials on demo integration
-# records. Serializers detect this string and mask the response so no
-# secret material ever leaves the API, and the health-check endpoint
-# short-circuits to synthetic OK when it sees this value — the hosts
-# don't exist and we don't want the demo box making outbound requests.
+# The demo org's AI provider: the one that answered the seeded analyses.
+# Its key row holds the placeholder (see ``_upsert_ai_key``) because the
+# read-only demo never calls the provider. The model shown on a batch is
+# the model id the seed file records (``model.used``), not this name.
+DEMO_AI_PROVIDER = 'claude'
+
+# Sentinel value stored in place of real credentials on demo records.
+# Serializers detect this string and mask the response so no secret
+# material ever leaves the API, and the incident dispatcher does not send
+# to a channel that holds it.
 SEED_DEMO_PLACEHOLDER = 'SEED_DEMO_PLACEHOLDER_NOT_A_REAL_SECRET'
 
-# Pre-seeded "engineers" so the chat history feels human.
-DEMO_AUTHORS = [
-    ('Sarah Chen', 'sarah.chen@acme.cloud'),
-    ('Marc Dubois', 'marc.dubois@acme.cloud'),
-    ('Priya Ramanathan', 'priya.r@acme.cloud'),
-]
+# Team members get an address on a reserved domain (RFC 2606): no mail
+# sent to it, a password reset link included, can reach anyone.
+DEMO_MAIL_DOMAIN = 'acme.example'
 
-PROJECT_CHECKOUT = 'acme-checkout'
-PROJECT_PLATFORM = 'acme-platform'
+DEMO_INGEST_KEY_NAME = 'otel-collector'
 
-# (project_name, service_name, service_type, subtype, description)
-DEMO_SERVICES = [
-    (PROJECT_CHECKOUT, 'backend-api', 'application', 'backend',
-     'Django REST API powering the checkout flow.'),
-    (PROJECT_CHECKOUT, 'payment-worker', 'application', 'worker',
-     'Celery worker for asynchronous payment-gateway calls.'),
-    (PROJECT_CHECKOUT, 'web-frontend', 'application', 'frontend',
-     'React + Vite single-page app served via CDN.'),
-    (PROJECT_PLATFORM, 'postgres-primary', 'infrastructure', 'database',
-     'Primary PostgreSQL cluster for checkout + platform data.'),
-    (PROJECT_PLATFORM, 'redis-cache', 'infrastructure', 'cache',
-     'Redis cluster used as the payment-worker queue and session store.'),
-]
+_SPAN_ID = re.compile(r'[0-9a-f]{16}')
 
 
-# ---------------------------------------------------------------------------
-# Story scenes — declarative, ordered chronologically
-# ---------------------------------------------------------------------------
+def cluster_name(project_key: str) -> str:
+    """The cluster of a project, named as the seed converter renames clusters."""
+    return f'acme-{project_key}-cluster'
 
-@dataclass
-class Scene:
-    """One step in the demo story arc.
-
-    Each scene describes a deploy or an incident that happened N days
-    ago. The seed turns it into batches + issues + (optionally) a
-    Pipeline/CodeChange row. Keeping it declarative makes the arc easy
-    to tweak without touching the rendering code.
-    """
-    days_ago: int
-    deploy_sha: str | None
-    deploy_message: str | None
-    environment: str
-    # Issue spec: None to skip
-    issue_type: str | None = None
-    issue_component: str | None = None
-    issue_severity: str | None = None
-    issue_status: str = 'OPEN'
-    issue_description: str = ''
-    issue_root_cause: str = ''
-    issue_recommendation: str = ''
-    issue_reasoning: list | None = None
-    issue_confidence: str = 'MEDIUM'
-    is_centerpiece: bool = False
-
-    @property
-    def sentinel_triggers(self) -> list[str]:
-        # Same rule as Data/sentinel.py: a new deploy or an error spike
-        # sends the batch to the AI; anything else is a quiet batch.
-        triggers = ['error_rate_spike'] if self.issue_type else []
-        if self.deploy_sha:
-            triggers.append('deployment_detected')
-        return triggers
-
-    @property
-    def quiet(self) -> bool:
-        return not self.sentinel_triggers
-
-
-STORY_ARC: list[Scene] = [
-    Scene(
-        days_ago=7,
-        deploy_sha='f0aabb01',
-        deploy_message='chore(deps): bump axios 1.7.2 → 1.7.3',
-        environment='production',
-    ),
-    Scene(
-        days_ago=6,
-        deploy_sha=None,
-        deploy_message=None,
-        environment='production',
-    ),
-    Scene(
-        days_ago=5,
-        deploy_sha='b2c4d8e3',
-        deploy_message='feat(backend): batch payment-webhook acks (#1247)',
-        environment='production',
-        issue_type='MEMORY_HIGH',
-        issue_component='backend-api',
-        issue_severity='WARNING',
-        issue_status='RESOLVED',
-        issue_description='Backend memory crept from 55 % to 88 % over 3 hours after deploy.',
-        issue_root_cause=(
-            'The webhook-batching change in v2.3.2 introduced an in-memory '
-            'pandas DataFrame that accumulates rows without bound — a slow '
-            'memory leak under steady traffic.'
-        ),
-        issue_recommendation=(
-            'Cap the DataFrame at 10k rows per worker and flush to disk '
-            'between batches.'
-        ),
-        issue_reasoning=[
-            'backend-api memory rose steadily from 55 % to 88 % over the 3 hours after the v2.3.2 deploy',
-            'v2.3.2 is the only deploy in the window',
-            'The v2.3.2 diff makes payment_webhooks.py append every webhook to a DataFrame that is never trimmed',
-            'Request rate stayed flat over the same hours, so the growth follows the change, not the load',
-        ],
-        issue_confidence='HIGH',
-    ),
-    Scene(
-        days_ago=4,
-        deploy_sha='c1e9f7d2',
-        deploy_message='fix(backend): cap webhook DataFrame at 10k rows (#1252)',
-        environment='production',
-    ),
-    Scene(
-        days_ago=3,
-        deploy_sha='a3f1d8c0',
-        deploy_message='perf(infra): shrink redis pool 50→20 to save memory',
-        environment='production',
-        issue_type='CONNECTION_REFUSED',
-        issue_component='redis-cache',
-        issue_severity='CRITICAL',
-        issue_status='OPEN',
-        issue_description='payment-worker throwing ConnectionRefusedError to redis:6379 (p95).',
-        issue_root_cause=(
-            'Deploy v2.3.3 reduced the Redis connection pool from 50 to 20. '
-            'Under current production load this saturates the pool within '
-            '~4 minutes, after which workers cannot acquire a connection.'
-        ),
-        issue_recommendation=(
-            'Revert the pool size to 50 and add a Prometheus '
-            'alert on redis_pool_used > 80 % so this fails loud next time.'
-        ),
-        issue_reasoning=[
-            'payment-worker logs repeated ConnectionRefusedError to redis:6379 from minutes after the v2.3.3 deploy',
-            'The v2.3.3 diff lowers the Redis connection pool from 50 to 20',
-            'The redis_pool_used metric reaches 100 % within 4 minutes of the deploy and stays there',
-            'No error in the window names the payment provider: every failure is a refused '
-            'connection to redis:6379, inside the cluster',
-        ],
-        issue_confidence='HIGH',
-        is_centerpiece=True,
-    ),
-    Scene(
-        days_ago=2,
-        deploy_sha='e7d3b201',
-        deploy_message='hotfix(backend): query timeout 5s → 30s for monthly aggregates',
-        environment='production',
-        issue_type='DATABASE_ERROR',
-        issue_component='backend-api',
-        issue_severity='CRITICAL',
-        issue_status='OPEN',
-        issue_description='Slow analytics queries triggering PostgreSQL `canceling statement` errors.',
-        issue_root_cause=(
-            'The hotfix in v2.3.4 raised the per-query timeout to 30 s but '
-            'a single long-running monthly-aggregate query now holds a row '
-            'lock that blocks checkout writes.'
-        ),
-        issue_recommendation=(
-            'Move the monthly aggregate to a read replica and lower the '
-            'primary timeout back to 5 s.'
-        ),
-        issue_reasoning=[
-            'backend-api logs `canceling statement due to statement timeout` after the v2.3.4 deploy',
-            'The v2.3.4 diff raises the timeout of the monthly aggregate query from 5 s to 30 s',
-            'Checkout writes log lock-wait timeouts in the same minutes as the long aggregate queries',
-        ],
-        issue_confidence='MEDIUM',
-    ),
-    Scene(
-        days_ago=1,
-        deploy_sha='9be4cc55',
-        deploy_message='style(web): tighten button hierarchy on checkout',
-        environment='production',
-    ),
-    Scene(
-        days_ago=0,
-        deploy_sha=None,
-        deploy_message=None,
-        environment='production',
-        issue_type='CPU_HIGH',
-        issue_component='postgres-primary',
-        issue_severity='WARNING',
-        issue_status='OPEN',
-        issue_description='Postgres CPU drifted from 35 % baseline to 78 % over 2 h.',
-        issue_root_cause=(
-            'Sustained CPU rise correlates with repeated autovacuum and '
-            'sequential scans on payment_events, which has no index on created_at.'
-        ),
-        issue_recommendation='Create btree index on payment_events.created_at.',
-        issue_reasoning=[
-            'postgres-primary CPU rose from 35 % to 78 % over 2 hours while the request rate stayed flat',
-            'Postgres logs show automatic vacuum of payment_events running again and again in the window',
-            'Slow-query log lines show sequential scans on payment_events filtered by created_at',
-        ],
-        issue_confidence='MEDIUM',
-    ),
-    # Staging signal — different env, milder issue, MUTED status
-    Scene(
-        days_ago=2,
-        deploy_sha=None,
-        deploy_message=None,
-        environment='staging',
-        issue_type='TEST_FAILED',
-        issue_component='backend-api',
-        issue_severity='INFO',
-        issue_status='MUTED',
-        issue_description='Flaky integration test on staging (intermittent timeout).',
-        issue_root_cause='Test is racing against a fixture cleanup teardown.',
-        issue_recommendation='Add explicit `await` on the cleanup future.',
-        issue_reasoning=[
-            'The test failed in 2 of the 6 staging pipeline runs in the window, each time timing out in fixture teardown',
-            'No production impact: the failures are in staging pipeline runs only',
-        ],
-        issue_confidence='LOW',
-    ),
-    # Dev-environment signal — adds a third environment to the filter
-    # dropdown and a benign chat-friendly issue on the frontend service.
-    Scene(
-        days_ago=3,
-        deploy_sha='dev12345',
-        deploy_message='chore(web): bump vite 5 → 6 in local dev',
-        environment='development',
-        issue_type='BUILD_WARNING',
-        issue_component='web-frontend',
-        issue_severity='INFO',
-        issue_status='RESOLVED',
-        issue_description='Vite 6 emits a peer-dep warning for @vitejs/plugin-react.',
-        issue_root_cause='Plugin lags one major version behind Vite core.',
-        issue_recommendation='Pin @vitejs/plugin-react to ^5 until it publishes v6.',
-        issue_reasoning=['The warning appears only in the development build log; no runtime error follows it'],
-        issue_confidence='LOW',
-    ),
-    # Quiet production windows: no deploy, no error spike, so Sentinel
-    # skips the AI call. These feed the "AI calls skipped" figures.
-    *[
-        Scene(days_ago=d, deploy_sha=None, deploy_message=None, environment='production')
-        for d in (5, 4, 1, 0)
-    ],
-]
-
-
-# ---------------------------------------------------------------------------
-# Component → project routing
-# ---------------------------------------------------------------------------
-# Which project each service belongs to. Used so infra-service issues
-# (postgres, redis) create batches under acme-platform instead of
-# defaulting everything to acme-checkout.
-COMPONENT_TO_PROJECT = {
-    'backend-api': PROJECT_CHECKOUT,
-    'payment-worker': PROJECT_CHECKOUT,
-    'web-frontend': PROJECT_CHECKOUT,
-    'postgres-primary': PROJECT_PLATFORM,
-    'redis-cache': PROJECT_PLATFORM,
-}
-
-
-# ---------------------------------------------------------------------------
-# Synthetic payloads — logs, cicd logs, metrics, correlations
-# ---------------------------------------------------------------------------
-#
-# SerOps normally *queries* logs from an observability provider at
-# batch-analysis time, then persists the raw hits inside ``batch.data``
-# so the Batch Details drill-down can show them without re-querying.
-# The demo host has no real provider (all Integrations are seeded
-# placeholders), so we manufacture the hits directly here — matching
-# the ES-hit shape the frontend expects (Detail.jsx + data.service.js
-# adaptor).
-
-def _synthetic_logs(scene: 'Scene', scene_time: datetime, project_name: str) -> list:
-    """Return 6 ES-hit-shaped log documents matching the scene narrative.
-
-    Every scene gets a couple of INFO lines so the log tab isn't just
-    scary errors; scenes with an issue also get 3 ERROR lines that
-    match the issue's root cause, so a demo visitor can immediately
-    see the evidence backing the AI's analysis.
-    """
-    service = scene.issue_component or 'backend-api'
-    base_ts = scene_time.replace(microsecond=0)
-    index = f'app-logs-{scene_time.strftime("%Y.%m.%d")}'
-
-    entries = [
-        ('INFO', f'GET /api/health/ 200 12ms'),
-        ('INFO', f'{service} healthy — {random_seed_choice(scene, ["200 OK", "connection acquired", "cache hit"])}'),
-    ]
-    if scene.issue_type and not scene.quiet:
-        # Three error lines that echo the scene's issue narrative so
-        # the log page and the AI analysis feel like the same story.
-        error_map = {
-            'MEMORY_HIGH': [
-                'memory_usage_percent: 88.4 (breach threshold 85.0)',
-                'DataFrame webhook_batch grew to 47320 rows without flush',
-                'GC pressure high — pandas.core.frame.DataFrame instances count=12k',
-            ],
-            'CONNECTION_REFUSED': [
-                'ConnectionRefusedError: [Errno 111] connect to redis:6379',
-                'redis.exceptions.ConnectionError: max pool size reached (20/20)',
-                'payment-worker: no free redis connection — dropping task',
-            ],
-            'DATABASE_ERROR': [
-                'psycopg.errors.QueryCanceled: canceling statement due to statement timeout',
-                'lock on relation "payment_events" held for 31s by pid 4472',
-                'checkout write blocked — waiting for row lock on payment_events',
-            ],
-            'CPU_HIGH': [
-                'postgres cpu_usage_percent: 78.2 (baseline 35)',
-                'autovacuum on payment_events running for 480s',
-                'seq_scan_per_second: 340 (typical 15) on payment_events',
-            ],
-            'TEST_FAILED': [
-                'FAIL tests/integration/test_payment_flow.py::test_webhook_race',
-                'AssertionError: expected 200, got 504 (staging fixture teardown)',
-                'pytest: 1 failed, 132 passed, 3 skipped in 214.71s',
-            ],
-            'BUILD_WARNING': [
-                'npm WARN peerDependencies @vitejs/plugin-react wants vite@^5',
-                'vite v6.0.0 building for development...',
-                'built in 3.42s (warnings=1)',
-            ],
-        }
-        for msg in error_map.get(scene.issue_type, ['error observed']):
-            entries.append(('ERROR', msg))
-
-    docs = []
-    for i, (level, message) in enumerate(entries):
-        ts = base_ts + timedelta(seconds=i * 7)
-        docs.append({
-            '_index': index,
-            '_id': f'{scene.days_ago}d-{i}-{service}',
-            '_source': {
-                '@timestamp': ts.isoformat().replace('+00:00', 'Z'),
-                'message': message,
-                'level': level,
-                'service_name': service,
-                'organisation_name': DEMO_ORG_NAME,
-                'project_name': project_name,
-                'environment': scene.environment,
-                'log_level': level,
-            },
-        })
-    return docs
-
-
-def _synthetic_cicd_logs(scene: 'Scene', scene_time: datetime,
-                          pipeline_id_str: str) -> list:
-    """Return 1–2 CI/CD log records matching the deploy in this scene.
-
-    Shape matches what data.service.js#getBatchLogs expects for the
-    ``cicd_logs`` array + what Data.unified_timeline._events_from_cicd
-    reads (finished_at → timeline event time).
-    """
-    if not scene.deploy_sha:
-        return []
-    job_name = 'build-and-test'
-    branch = 'main' if scene.environment == 'production' else scene.environment
-    # The seeded Pipeline row is a success (it shipped the deploy), so the
-    # job log agrees: a failed job showed a red CI event on the timeline
-    # next to a deploy whose pipeline had passed.
-    is_failed = False
-    # Deploy pipeline started ~10 min before the batch window end and
-    # ran for ~2 min. Real timestamps let the CI/CD event plot on the
-    # timeline chart at a plausible position relative to the deploy.
-    started = scene_time - timedelta(minutes=10)
-    finished = scene_time - timedelta(minutes=8)
-    return [{
-        'job_id': f'{scene.deploy_sha}-build',
-        'job_name': job_name,
-        'status': 'failed' if is_failed else 'success',
-        'branch': branch,
-        'pipeline_id': pipeline_id_str,
-        'commit_sha': scene.deploy_sha,
-        'commit_message': scene.deploy_message,
-        'message': f'{job_name} on {branch}: {scene.deploy_message or "no message"}',
-        'trace': (
-            f'++ set -eux\n++ npm ci\n++ npm test\n'
-            f'PASS  tests/unit\n'
-            + ('FAIL  tests/integration/test_payment_flow.py\n' if is_failed else '')
-            + f'{"exit 1" if is_failed else "exit 0"}\n'
-        ),
-        'started_at': started.isoformat(),
-        'finished_at': finished.isoformat(),
-        'timestamp': finished.isoformat(),  # legacy consumers
-        'service_name': scene.issue_component or 'backend-api',
-    }]
-
-
-def _synthetic_metrics(scene: 'Scene', scene_time: datetime) -> dict:
-    """12-point memory + cpu time series per batch.
-
-    Shape matches what data.service.js#getBatchMetrics expects:
-    ``data.metrics.memory_usage_percent`` and ``cpu_usage_percent``,
-    each a list of ``{time, value, source_table}`` dicts.
-    """
-    # The hour that ends at the batch time, like real batch metrics. The
-    # series used to start at the batch time and run forward, so the
-    # batch's metrics chart (its window ends there) showed one point.
-    base = scene_time.replace(microsecond=0) - timedelta(minutes=55)
-    # Baseline series
-    mem_baseline = 55.0
-    cpu_baseline = 30.0
-    # Bumps aligned with issue narrative
-    if scene.issue_type == 'MEMORY_HIGH':
-        mem_curve = [55, 58, 62, 66, 71, 75, 78, 81, 84, 87, 88, 86]
-    elif scene.issue_type == 'CPU_HIGH':
-        mem_curve = [55] * 12
-    else:
-        mem_curve = [max(45, mem_baseline + i * 0.5) for i in range(12)]
-    if scene.issue_type == 'CPU_HIGH':
-        cpu_curve = [35, 38, 42, 48, 55, 61, 66, 70, 73, 76, 78, 76]
-    elif scene.issue_type == 'CONNECTION_REFUSED':
-        cpu_curve = [30, 32, 34, 45, 62, 71, 68, 55, 40, 33, 30, 30]
-    else:
-        cpu_curve = [max(20, cpu_baseline + (i - 6) * 0.8) for i in range(12)]
-
-    def _series(curve, source):
-        return [
-            {
-                'time': (base + timedelta(minutes=i * 5)).isoformat().replace('+00:00', 'Z'),
-                'value': round(float(v), 2),
-                'source_table': source,
-            }
-            for i, v in enumerate(curve)
-        ]
-
-    return {
-        'memory_usage_percent': _series(mem_curve, 'node_memory'),
-        'cpu_usage_percent': _series(cpu_curve, 'node_cpu'),
-    }
-
-
-def _synthetic_correlations(scene: 'Scene') -> dict:
-    """Correlation results in the engine's canonical shape.
-
-    Matches what ``Data.correlation_engine.build_comprehensive_correlations``
-    returns at runtime — a dict with a ``correlations`` sub-dict
-    keyed by correlation type, plus a ``summary``. The timeline
-    endpoint's ``build_causal_pairs`` reads this to draw engine-
-    backed arrows on the chart (Batch 42).
-
-    Prior shape was a flat list of {component, metric, correlation_strength}
-    which no frontend or backend consumer actually read. The chart
-    fell back to a naive time-window heuristic and the demo shipped
-    without any engine-backed arrows.
-    """
-    if scene.quiet or not scene.issue_type or not scene.deploy_sha:
-        # No correlations without both an issue AND a deploy — the
-        # engine needs both endpoints to draw a causal arrow.
-        return {
-            'correlations': {
-                'file_to_error': [],
-                'deployment_to_metric_spike': [],
-                'metric_spike_to_errors': [],
-                'span_error_to_log_error': [],
-                'slow_span_after_deploy': [],
-                'slow_span_during_metric_spike': [],
-            },
-            'summary': {
-                'total_correlations': 0,
-                'high_confidence_count': 0,
-                'primary_correlation': None,
-            },
-        }
-
-    # Component-aware storytelling — different scenes get different
-    # correlation types so the timeline shows variety.
-    component = scene.issue_component or 'backend-api'
-    sha_short = scene.deploy_sha[:8]
-
-    file_to_error = []
-    deployment_to_metric_spike = []
-    slow_span_after_deploy = []
-
-    if scene.issue_type in ('MEMORY_HIGH', 'CONNECTION_REFUSED', 'DATABASE_ERROR', 'CPU_HIGH'):
-        # deploy caused a metric anomaly — the flagship visual pair.
-        metric_map = {
-            'MEMORY_HIGH': ('memory', '88%'),
-            'CONNECTION_REFUSED': ('memory', '76%'),
-            'DATABASE_ERROR': ('cpu', '94%'),
-            'CPU_HIGH': ('cpu', '92%'),
-        }
-        metric_type, peak = metric_map[scene.issue_type]
-        deployment_to_metric_spike.append({
-            'confidence': 'HIGH',
-            'metric_type': metric_type,
-            'anomaly_peak': peak,
-            'time_after_deploy_minutes': 8.5,
-            'commit_sha': sha_short,
-        })
-
-    if scene.issue_type in ('CONNECTION_REFUSED', 'DATABASE_ERROR', 'MEMORY_HIGH'):
-        # deploy also caused error logs referencing changed files.
-        file_map = {
-            'CONNECTION_REFUSED': ['config/redis.py'],
-            'DATABASE_ERROR': ['db/queries.py', 'models/orders.py'],
-            'MEMORY_HIGH': ['api/payment_webhooks.py'],
-        }
-        file_to_error.append({
-            'confidence': 'HIGH',
-            'commit_sha': sha_short,
-            'matching_files': file_map[scene.issue_type],
-            'time_since_commit_minutes': 12.0,
-            'log_message': f'Error in {component}',
-        })
-
-    # slow_span_after_deploy — pairs the deploy with a trace error span
-    # (matches the seeded batch.data.traces content).
-    slow_span_after_deploy.append({
-        'confidence': 'MEDIUM',
-        'commit_sha': sha_short,
-        'services_affected': [component],
-        'top_slow_service': component,
-        'top_slow_operation': f'op on {component}',
-        'top_slow_duration_ms': 3120,
-        'trace_id': 'f0e1d2c3b4a5968778695a4b3c2d1e0f',
-    })
-
-    total = len(file_to_error) + len(deployment_to_metric_spike) + len(slow_span_after_deploy)
-    high = sum(
-        1 for group in (file_to_error, deployment_to_metric_spike, slow_span_after_deploy)
-        for c in group if c.get('confidence') == 'HIGH'
-    )
-    primary_type = 'file_to_error' if file_to_error else (
-        'deployment_to_metric_spike' if deployment_to_metric_spike else 'slow_span_after_deploy'
-    )
-
-    return {
-        'correlations': {
-            'file_to_error': file_to_error,
-            'deployment_to_metric_spike': deployment_to_metric_spike,
-            'metric_spike_to_errors': [],
-            'span_error_to_log_error': [],
-            'slow_span_after_deploy': slow_span_after_deploy,
-            'slow_span_during_metric_spike': [],
-        },
-        'summary': {
-            'total_correlations': total,
-            'high_confidence_count': high,
-            'primary_correlation': {'type': primary_type, 'details': {}},
-        },
-    }
-
-
-# CI each application service is bound to (see binding_specs). Pipelines
-# and commits use the same provider and repo, so the dashboard can match
-# them to the service.
-SERVICE_CI_PROVIDER = {
-    'backend-api': 'gitlab',
-    'payment-worker': 'jenkins',
-    'web-frontend': 'gitlab',
-}
-
-
-def _deploy_service(scene: 'Scene') -> str:
-    """The application service a scene's deploy shipped."""
-    component = scene.issue_component or 'backend-api'
-    return component if component in SERVICE_CI_PROVIDER else 'backend-api'
-
-
-def _deploy_repo(scene: 'Scene') -> str:
-    return f'acme-corp/{_deploy_service(scene)}'
-
-
-def _deploy_branch(scene: 'Scene') -> str:
-    return 'main' if scene.environment == 'production' else 'develop'
-
-
-def _analysis_text(scene: 'Scene') -> str:
-    """What the AI wrote for this batch; empty when Sentinel skipped it."""
-    if scene.quiet:
-        return ''
-    if scene.issue_root_cause:
-        return scene.issue_root_cause
-    return (
-        f'Deploy {scene.deploy_sha} checked: no new errors, latency or '
-        'resource shifts after the rollout.'
-    )
-
-
-def _demo_trace_id(scene_index: int, kind: str) -> str:
-    # (organisation, trace_id) is unique, so every batch needs its own.
-    return hashlib.sha256(f'demo-trace-{scene_index}-{kind}'.encode()).hexdigest()[:32]
-
-
-def _synthetic_traces(scene: 'Scene', scene_time: datetime, scene_index: int) -> dict | None:
-    """OTLP trace summary the way ``ai_model.trace_context`` writes it.
-
-    Shape matches ``batch.data.traces`` produced at ingest time (see
-    trace_context.build_trace_context). BatchTraces reads it directly.
-
-    Returns None for quiet batches so those legitimately render the
-    "no snapshot in this window" state — matching production where a
-    batch that never got trace data gets no key rather than an empty
-    dict.
-    """
-    if scene.quiet:
-        return None
-
-    # Two representative traces per batch — one slow, one erroring.
-    # trace_id / span_id length matches OTLP hex spec (32 / 16 chars).
-    trace_slow = _demo_trace_id(scene_index, 'slow')
-    trace_err = _demo_trace_id(scene_index, 'err')
-
-    # Component-aware content so different scenes tell different
-    # trace stories rather than looking cloned.
-    component = scene.issue_component or 'backend-api'
-    component_traits = {
-        'backend-api': {
-            'service': 'backend-api',
-            'slow_op': 'POST /checkout/complete',
-            'slow_ms': 1840,
-            'err_op': 'POST /checkout/complete',
-            'err_msg': 'unhandled exception: MemoryError',
-        },
-        'payment-worker': {
-            'service': 'payment-worker',
-            'slow_op': 'consume payment.pending',
-            'slow_ms': 4200,
-            'err_op': 'redis.set(cache_key)',
-            'err_msg': 'ConnectionRefusedError: redis pool exhausted',
-        },
-        'redis-cache': {
-            'service': 'payment-worker',
-            'slow_op': 'redis.get(session)',
-            'slow_ms': 950,
-            'err_op': 'redis.set(cache_key)',
-            'err_msg': 'ConnectionRefusedError: redis pool exhausted',
-        },
-        'postgres-primary': {
-            'service': 'backend-api',
-            'slow_op': 'SELECT orders WHERE user_id = $1',
-            'slow_ms': 3120,
-            'err_op': 'INSERT INTO orders',
-            'err_msg': 'deadlock detected',
-        },
-        'web-frontend': {
-            'service': 'web-frontend',
-            'slow_op': 'GET /api/checkout/summary',
-            'slow_ms': 2200,
-            'err_op': 'GET /api/checkout/summary',
-            'err_msg': 'upstream timeout: backend-api',
-        },
-    }
-    t = dict(component_traits.get(component, component_traits['backend-api']))
-    # Error text per incident type; the component default (MemoryError for
-    # backend-api) contradicted the database-lock incident.
-    t.update({
-        'DATABASE_ERROR': {
-            'err_op': 'UPDATE payment_events',
-            'err_msg': 'QueryCanceled: canceling statement due to statement timeout',
-        },
-        'TEST_FAILED': {
-            'err_op': 'POST /checkout/complete',
-            'err_msg': 'fixture teardown raced the request: connection closed',
-        },
-    }.get(scene.issue_type, {}))
-
-    services_touched = sorted({t['service'], 'backend-api', 'web-frontend'})
-
-    # start_time positions each span on the timeline chart. Anchoring
-    # them just before the batch window end matches the "these errors
-    # were surfaced by this batch" mental model.
-    slow_start = (scene_time - timedelta(minutes=4)).isoformat()
-    err_start = (scene_time - timedelta(minutes=2)).isoformat()
-
-    top_slow = [
-        {
-            'service_name': t['service'],
-            'operation_name': t['slow_op'],
-            'duration_ms': t['slow_ms'],
-            'trace_id': trace_slow,
-            'span_id': '1122334455667788',
-            'start_time': slow_start,
-        },
-        {
-            'service_name': 'web-frontend',
-            'operation_name': 'render CheckoutSummary',
-            'duration_ms': int(t['slow_ms'] * 0.6),
-            'trace_id': trace_slow,
-            'span_id': '2233445566778899',
-            'start_time': slow_start,
-        },
-    ]
-
-    top_errors = [
-        {
-            'service_name': t['service'],
-            'operation_name': t['err_op'],
-            'status_message': t['err_msg'],
-            'trace_id': trace_err,
-            'span_id': 'aabbccddeeff0011',
-            'start_time': err_start,
-        },
-    ] if scene.issue_type else []
-
-    return {
-        'source': 'otlp',
-        'span_count': 47,
-        'error_span_count': 3 if scene.issue_type else 0,
-        'trace_count': 12,
-        'services_touched': services_touched,
-        'top_slow': top_slow,
-        'top_errors': top_errors,
-    }
-
-
-def random_seed_choice(scene: 'Scene', options: list) -> str:
-    """Deterministic pick — hashing scene.days_ago keeps the demo stable across reruns."""
-    return options[scene.days_ago % len(options)]
-
-
-# ---------------------------------------------------------------------------
-# Command
-# ---------------------------------------------------------------------------
 
 class Command(BaseCommand):
     help = 'Build (or rebuild) the public read-only Acme Cloud demo org.'
@@ -829,51 +130,69 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **opts):
+        index = seed_files.load_index()
         if opts['dry_run']:
             self.stdout.write(self.style.NOTICE(
-                '[dry-run] Would rebuild the Acme Cloud demo org and its 7-day story arc.'
+                f"[dry-run] Would rebuild the Acme Cloud demo org from {len(index['files'])} seed files."
             ))
             return
 
+        captured = seed_files.load_seeds(index=index)
+        now = self._now()
+        delta = seed_files.whole_day_delta(captured, now)
+        # Times move with the day the command runs; the batch id does not.
+        seeds = [(name, seed_files.with_stable_batch_id(name, seed_files.shift_seed(doc, delta, index)))
+                 for name, doc in captured]
+
         with transaction.atomic():
             org = self._upsert_org()
-            user = self._upsert_user(org)
-            projects = self._upsert_projects(org)
-            services = self._upsert_services(projects)
-            # Clusters must exist before integrations so we can pin
-            # some integrations to a specific cluster (Item #17-19,
-            # Q1.4 multi-cluster wiring).
-            clusters = self._upsert_clusters(org, projects)
-            self._upsert_project_topology(projects, clusters)
-            self._upsert_integrations(org, services, clusters)
+            user = self._upsert_user(org, now)
+            team = self._upsert_team(org, seeds)
+
+            # Wipe the content. This is what makes nightly reset safe:
+            # projects, services, clusters and users are upserted by name
+            # so their IDs do not churn, but batches, issues, traces and
+            # chats are torn down and loaded again.
+            self._wipe_dynamic_content(org)
+
+            projects = self._upsert_topology(org, seeds)
+            self._remove_old_structure(org, projects)
+            self._upsert_integrations(org, projects)
             self._upsert_ingest_key(org)
-            self._upsert_incident_channels(org)
-            self._upsert_ai_budget(org)
+            self._upsert_ai_settings(org)
             self._upsert_ai_key(org)
             self._upsert_sentinel_config(org)
 
-            # Wipe the mutable content. This is what makes nightly reset
-            # safe — projects, services, and the user remain stable so
-            # their IDs do not churn, but issues/batches/chats/code
-            # changes are torn down and rebuilt.
-            self._wipe_dynamic_content(org)
+            batches = self._load_analyses(org, seeds, projects, team)
+            issues = self._load_issues(org, seeds, delta, projects, batches, team)
+            self._load_traces(org, seeds)
+            self._load_chats(org, user, batches)
 
-            self._build_story_arc(org, projects, services)
+            self._seed_notifications(org, user, issues)
+            self._seed_audit_log(org)
 
+        counts = {
+            'projects': Project.objects.filter(organisation=org).count(),
+            'services': ProjectService.objects.filter(project__organisation=org).count(),
+            'clusters': Cluster.objects.filter(organisation=org).count(),
+            'batches': AIAnalyzedBatch.objects.filter(organisation=org).count(),
+            'issues': Issue.objects.filter(organisation=org).count(),
+            'occurrences': IssueOccurrence.objects.filter(issue__organisation=org).count(),
+            'traces': Trace.objects.filter(organisation=org).count(),
+            'team members': User.objects.filter(organisation=org, is_demo=False).count(),
+            'chat sessions': ChatSession.objects.filter(user=user).count(),
+        }
         self.stdout.write(self.style.SUCCESS(
-            f"Demo org '{org.name}' rebuilt: "
-            f"{Project.objects.filter(organisation=org).count()} projects, "
-            f"{ProjectService.objects.filter(project__organisation=org).count()} services, "
-            f"{Cluster.objects.filter(organisation=org).count()} clusters, "
-            f"{ProjectDeployment.objects.filter(project__organisation=org).count()} deployments, "
-            f"{AIAnalyzedBatch.objects.filter(organisation=org).count()} batches, "
-            f"{Issue.objects.filter(organisation=org).count()} issues, "
-            f"{AlertEvent.objects.filter(organisation=org).count()} alert events, "
-            f"{IncidentNotificationChannel.objects.filter(organisation=org).count()} incident channels, "
-            f"{ChatSession.objects.filter(user=user).count()} chat sessions."
+            f"Demo org '{org.name}' rebuilt: " + ', '.join(f'{n} {label}' for label, n in counts.items())
+            + f'. Analyses moved by {delta.days} days.'
         ))
 
-    # ── Org / user / project / service ────────────────────────────────
+    @staticmethod
+    def _now():
+        """The moment the analyses are placed against."""
+        return timezone.now()
+
+    # ── Org / users ────────────────────────────────────────────────────
 
     def _upsert_org(self) -> Organisations:
         from Organisations.models import OnboardingStatus
@@ -882,14 +201,13 @@ class Command(BaseCommand):
             slug=DEMO_ORG_SLUG,
             defaults={
                 'name': DEMO_ORG_NAME,
-                'website': 'https://acme.example.com',
+                'website': f'https://{DEMO_MAIL_DOMAIN}',
                 'language': 'en',
                 'is_demo': True,
             },
         )
         # Mark onboarding as finished so visitors land directly on the
-        # dashboard instead of the wizard. The demo org's projects /
-        # services / integrations are already wired by this command.
+        # dashboard instead of the wizard.
         status, _ = OnboardingStatus.objects.get_or_create(organisation=org)
         if not status.is_completed:
             status.is_completed = True
@@ -902,7 +220,7 @@ class Command(BaseCommand):
             status.save()
         return org
 
-    def _upsert_user(self, org: Organisations) -> User:
+    def _upsert_user(self, org: Organisations, now) -> User:
         user, created = User.objects.get_or_create(
             email=DEMO_USER_EMAIL,
             defaults={
@@ -928,441 +246,154 @@ class Command(BaseCommand):
             user.organisation = org
             user.save()
         user.set_password(DEMO_USER_PASSWORD)
-        user.save(update_fields=['password'])
+        # The demo sign-in issues a token without touching last_login, and
+        # the Team page shows a member with none as "Pending".
+        user.last_login = now
+        user.save(update_fields=['password', 'last_login'])
         return user
 
-    def _upsert_projects(self, org: Organisations) -> dict[str, Project]:
-        projects: dict[str, Project] = {}
-        for project_name in (PROJECT_CHECKOUT, PROJECT_PLATFORM):
-            proj, _ = Project.objects.update_or_create(
-                name=project_name,
-                organisation=org,
-                defaults={
-                    'description': (
-                        'Customer checkout flow — Django backend, React frontend, Celery payment worker.'
-                        if project_name == PROJECT_CHECKOUT
-                        else 'Shared platform infra — PostgreSQL primary, Redis cache.'
-                    ),
-                },
+    def _upsert_team(self, org: Organisations, seeds) -> dict[str, User]:
+        """The people who started the seeded investigations, as team members.
+
+        Their names are the invented ones the seed converter gave them.
+        They are not the demo identity: ``is_demo`` stays False, because
+        the demo sign-in takes the first active ``is_demo`` user of the
+        org and must keep finding the demo user. They cannot sign in:
+        the password is unusable and the address is on a reserved domain.
+        """
+        last_run: dict = {}
+        for _, doc in seeds:
+            inv = doc['investigation']
+            if inv.get('requested_by'):
+                started = parse_time(inv['created_at'])
+                last_run[inv['requested_by']] = max(started, last_run.get(inv['requested_by'], started))
+
+        team: dict[str, User] = {}
+        emails = []
+        for name in seed_files.requesters(seeds):
+            first_name, _, last_name = name.partition(' ')
+            alias = name.lower().replace('. ', '.').replace(' ', '.')
+            email = f'{alias}@{DEMO_MAIL_DOMAIN}'
+            member = User.objects.filter(email=email).first()
+            if member is not None and member.organisation_id != org.id:
+                # Somebody else's account: never taken over. The
+                # investigations of this person load without a requester.
+                continue
+            if member is None:
+                member = User(email=email)
+            member.username = alias[:20]
+            member.first_name = first_name
+            member.last_name = last_name
+            member.role = 'user'
+            member.is_active = True
+            member.is_demo = False
+            member.organisation = org
+            member.set_unusable_password()
+            # Active on the Team page: last seen when they last started an investigation.
+            member.last_login = last_run[name]
+            member.save()
+            team[name] = member
+            emails.append(email)
+
+        # A member a previous version of the seed files named and this one does not.
+        User.objects.filter(
+            organisation=org, is_demo=False, email__endswith=f'@{DEMO_MAIL_DOMAIN}',
+        ).exclude(email__in=emails).delete()
+        return team
+
+    # ── Projects, services, clusters ───────────────────────────────────
+
+    def _upsert_topology(self, org: Organisations, seeds) -> dict[str, dict]:
+        """Projects, their services, environment, cluster and deployment,
+        all read from the seed files. Returns, per project key, the rows
+        the loaders attach batches to."""
+        services = seed_files.project_services(seeds)
+        specs: dict[str, dict] = {}
+        for _, doc in seeds:
+            specs.setdefault(doc['project']['key'], doc['project'])
+
+        projects: dict[str, dict] = {}
+        for key, spec in specs.items():
+            cluster, _ = Cluster.objects.update_or_create(
+                organisation=org, name=cluster_name(key),
+                defaults={'description': '', 'provider': 'kubernetes', 'region': '',
+                          'kubernetes_context': '', 'is_active': True},
             )
-            projects[project_name] = proj
+            project, _ = Project.objects.update_or_create(
+                name=spec['name'], organisation=org,
+                defaults={'description': '', 'cluster': cluster},
+            )
+            for name in services.get(key, []):
+                ProjectService.objects.update_or_create(
+                    project=project, name=name,
+                    defaults={'service_type': 'application', 'subtype': '', 'description': '', 'status': 'Active'},
+                )
+            ProjectService.objects.filter(project=project).exclude(name__in=services.get(key, [])).delete()
+
+            # Creating the environment creates its deployment on the
+            # project's cluster (Projects/signals.py); the get_or_create
+            # below covers an environment that existed before.
+            environment, _ = ProjectEnvironment.objects.update_or_create(
+                project=project, name=spec['environment'],
+                defaults={'display_name': spec['environment'].capitalize(), 'is_active': True,
+                          'log_label_value': spec['environment']},
+            )
+            ProjectEnvironment.objects.filter(project=project).exclude(pk=environment.pk).delete()
+            deployment, _ = ProjectDeployment.objects.get_or_create(
+                project=project, environment=environment, cluster=cluster, region='', namespace='',
+                defaults={'is_active': True},
+            )
+            ProjectDeployment.objects.filter(project=project).exclude(pk=deployment.pk).delete()
+            projects[key] = {'project': project, 'environment': environment,
+                             'deployment': deployment, 'cluster': cluster}
         return projects
 
-    def _upsert_services(self, projects: dict[str, Project]) -> dict[str, ProjectService]:
-        services: dict[str, ProjectService] = {}
-        for proj_name, name, svc_type, subtype, description in DEMO_SERVICES:
-            svc, _ = ProjectService.objects.update_or_create(
-                project=projects[proj_name],
-                name=name,
-                defaults={
-                    'service_type': svc_type,
-                    'subtype': subtype,
-                    'description': description,
-                    'status': 'Active',
-                },
-            )
-            services[name] = svc
-        return services
-
-    # ── Integrations ───────────────────────────────────────────────────
-
-    def _upsert_integrations(
-        self,
-        org: Organisations,
-        services: dict[str, ProjectService],
-        clusters: dict[str, Cluster] | None = None,
-    ) -> None:
-        """Populate Settings → Integrations *and* wire each application
-        service to a plausible repo + pipeline via SCMBinding / CICDBinding.
-
-        Without this, a demo visitor sees a rich dashboard and then an
-        empty Integrations page (org-level integrations) *and* empty
-        Service Details panels (per-service repo/pipeline links). Both
-        read as "the data is fake / the product is broken". These
-        records ship with the sentinel placeholder credential
-        SEED_DEMO_PLACEHOLDER — secrets are never returned by the API
-        anyway, and the health-check
-        endpoint short-circuits to synthetic OK so nothing actually
-        calls out to hosts that don't exist.
-
-        Idempotent: safe to re-run; existing rows are updated in place.
-        """
-        now = timezone.now()
-        prod_cluster = (clusters or {}).get('prod-eks') if clusters else None
-        stg_cluster = (clusters or {}).get('staging-gke') if clusters else None
-
-        # Wipe existing observability integrations for this org so the
-        # new tier/scope-sliced rows don't stack on top of the old
-        # (org, provider)-keyed rows from pre-Batch-48 seed runs.
-        # Idempotent + safe: this seed is the sole author of these rows
-        # in the demo org.
+    def _remove_old_structure(self, org: Organisations, projects: dict[str, dict]) -> None:
+        """Drop what an earlier version of this command created and this
+        one does not: the hand-written projects and clusters, the
+        integrations that pointed at hosts which never existed, and the
+        placeholder notification channels (Slack, PagerDuty, OpsGenie)
+        no test environment had. The integration rows the demo shows are
+        written again, without address or credential, by
+        ``_upsert_integrations``."""
+        keep_projects = [p['project'].pk for p in projects.values()]
+        keep_clusters = [p['cluster'].pk for p in projects.values()]
+        Project.objects.filter(organisation=org).exclude(pk__in=keep_projects).delete()
         ObservabilityIntegration.objects.filter(organisation=org).delete()
+        # Service bindings (SCMBinding, CICDBinding) go with their integration.
+        ProviderIntegration.objects.filter(organisation=org).delete()
+        IncidentNotificationChannel.objects.filter(organisation=org).delete()
+        Cluster.objects.filter(organisation=org).exclude(pk__in=keep_clusters).delete()
+        IngestKey.objects.filter(organisation=org).exclude(name=DEMO_INGEST_KEY_NAME).delete()
 
-        # --- Observability providers ---
-        # Batch 55: seed a mixed-tier, mixed-scope shape so the multi-row
-        # Observability panel (Batch 53) has interesting rows to render
-        # and the composed filter (Batch 54) has real dimensions to
-        # scope by. Primary rows cover the golden path; a fallback and
-        # a tertiary row demonstrate the failover chain badge.
-        obs_specs = [
-            # Prod-EKS · us-east-1 · primary logs
-            {
-                'provider': 'elasticsearch',
-                'display_name': 'Elasticsearch · prod primary',
-                'capabilities': ['logs'],
-                'host': 'https://es.acme.cloud:9200',
-                'username': 'serops',
-                'cluster_key': 'prod-eks',
-                'priority_tier': 'primary',
-                'scope': {'environment': 'production', 'region': 'us-east-1'},
-            },
-            # Prod-EKS · fallback logs (Loki takes over if ES stalls)
-            {
-                'provider': 'loki',
-                'display_name': 'Loki · prod fallback',
-                'capabilities': ['logs'],
-                'host': 'https://loki.acme.cloud',
-                'extra_config': {'tenant_id': 'acme-cloud'},
-                'cluster_key': 'prod-eks',
-                'priority_tier': 'fallback',
-                'scope': {'environment': 'production', 'region': 'us-east-1'},
-                'topology_mode': 'kubernetes',
-            },
-            # Staging-GKE · eu-west-1 · primary logs+metrics via Datadog
-            {
-                'provider': 'datadog',
-                'display_name': 'Datadog · staging',
-                'capabilities': ['logs', 'metrics'],
-                'host': 'https://api.datadoghq.com',
-                'extra_config': {'site': 'datadoghq.com', 'app_key': SEED_DEMO_PLACEHOLDER},
-                'cluster_key': 'staging-gke',
-                'priority_tier': 'primary',
-                'scope': {'environment': 'staging', 'region': 'europe-west1'},
-            },
-            # Prod-EKS · primary metrics
-            {
-                'provider': 'prometheus',
-                'display_name': 'Prometheus · prod primary',
-                'capabilities': ['metrics'],
-                'host': 'https://prom.acme.cloud',
-                'cluster_key': 'prod-eks',
-                'priority_tier': 'primary',
-                'scope': {'environment': 'production', 'region': 'us-east-1'},
-                'topology_mode': 'kubernetes',
-            },
-            # Prod-EKS · fallback metrics — VictoriaMetrics as HA backup
-            {
-                'provider': 'victoriametrics',
-                'display_name': 'VictoriaMetrics · prod fallback',
-                'capabilities': ['metrics'],
-                'host': 'https://vm.acme.cloud',
-                'cluster_key': 'prod-eks',
-                'priority_tier': 'fallback',
-                'scope': {'environment': 'production', 'region': 'us-east-1'},
-                'topology_mode': 'kubernetes',
-            },
-            # Unscoped · tertiary — CloudWatch catches anything the
-            # cluster-scoped rows miss. Demonstrates the "any-cluster
-            # tertiary fallback" path in the failover chain.
-            {
-                'provider': 'cloudwatch',
-                'display_name': 'AWS CloudWatch · tertiary',
-                'capabilities': ['logs', 'metrics'],
-                'host': 'https://logs.us-east-1.amazonaws.com',
-                'username': 'demo-access-key-id',
-                'extra_config': {
-                    'aws_region': 'us-east-1',
-                    'default_log_group': '/acme/production',
-                },
-                'cluster_key': None,
-                'priority_tier': 'tertiary',
-                'scope': {},
-            },
-        ]
+    # ── Integrations: what each environment had connected ─────────────
 
-        cluster_lookup = {
-            'prod-eks': prod_cluster,
-            'staging-gke': stg_cluster,
-            None: None,
-        }
-
-        for spec in obs_specs:
-            defaults = {
-                'display_name': spec['display_name'],
-                'capabilities': spec['capabilities'],
-                'host': spec['host'],
-                'username': spec.get('username', ''),
-                'extra_config': spec.get('extra_config', {}),
-                'priority_tier': spec.get('priority_tier', 'primary'),
-                'is_active': True,
-                'last_health_check': now,
-                'last_health_status': True,
-            }
-            cluster = cluster_lookup.get(spec.get('cluster_key'))
-            if cluster is not None:
-                defaults['cluster'] = cluster
-            if 'topology_mode' in spec:
-                defaults['topology_mode'] = spec['topology_mode']
-            obj, _ = ObservabilityIntegration.objects.update_or_create(
-                organisation=org,
-                provider=spec['provider'],
-                cluster=cluster,
-                priority_tier=defaults['priority_tier'],
-                defaults=defaults,
-            )
-            obj.set_password(SEED_DEMO_PLACEHOLDER)
-            obj.save()
-
-            # Hydrate the IntegrationScope (Batch 48) — env/region/ns
-            # dimensions so the composed filter has non-empty pills
-            # to render on the multi-row panel.
-            scope_spec = spec.get('scope') or {}
-            scope, _ = IntegrationScope.objects.get_or_create(integration=obj)
-            scope.environment = scope_spec.get('environment', '')
-            scope.region = scope_spec.get('region', '')
-            scope.namespace = scope_spec.get('namespace', '')
-            scope.cluster = cluster
-            scope.save()
-
-        # --- SCM / CI-CD providers (3 rows) ---
-        scm_specs = [
-            {
-                'provider_type': 'github',
-                'name': 'GitHub · acme-corp',
-                'category': 'devops',
-                'base_url': 'https://api.github.com',
-                'capabilities': ['scm', 'cicd', 'deployments', 'issues'],
-                'token_hint': 'ghp_…demo',
-            },
-            {
-                'provider_type': 'gitlab',
-                'name': 'GitLab Self-Hosted · acme.cloud',
-                'category': 'devops',
-                'base_url': 'https://gitlab.acme.cloud',
-                'capabilities': ['scm', 'cicd', 'deployments'],
-                'token_hint': 'glpat…demo',
-            },
-            {
-                'provider_type': 'jenkins',
-                'name': 'Jenkins · platform-ci',
-                'category': 'cicd',
-                'base_url': 'https://ci.acme.cloud',
-                'capabilities': ['cicd'],
-                'token_hint': '11a…demo',
-            },
-        ]
-        for spec in scm_specs:
-            ProviderIntegration.objects.update_or_create(
-                organisation=org,
-                provider_type=spec['provider_type'],
-                defaults={
-                    'name': spec['name'],
-                    'category': spec['category'],
-                    'base_url': spec['base_url'],
-                    'capabilities': spec['capabilities'],
-                    'credentials': {'access_token': SEED_DEMO_PLACEHOLDER},
-                    'token_hint': spec['token_hint'],
-                    'verification_status': 'verified',
-                    'last_verified_at': now,
-                    'is_active': True,
-                },
-            )
-
-        # --- Per-service bindings ---
-        # Each application service gets an SCM binding (repo) and a
-        # CI/CD binding (pipeline). Infra services (postgres, redis)
-        # stay unbound — that matches the "you'd only wire code to a
-        # repo, not a database" reality.
-        github = ProviderIntegration.objects.get(organisation=org, provider_type='github')
-        gitlab = ProviderIntegration.objects.get(organisation=org, provider_type='gitlab')
-        jenkins = ProviderIntegration.objects.get(organisation=org, provider_type='jenkins')
-
-        # (service_key, repo_name, repo_id, cicd_integration, pipeline_id, pipeline_name)
-        binding_specs = [
-            ('backend-api', 'acme-corp/backend-api', 'acme-corp/backend-api',
-             gitlab, '842', 'backend-api :: build+deploy'),
-            ('payment-worker', 'acme-corp/payment-worker', 'acme-corp/payment-worker',
-             jenkins, 'job/payment-worker/build', 'payment-worker · build'),
-            ('web-frontend', 'acme-corp/web-frontend', 'acme-corp/web-frontend',
-             gitlab, '843', 'web-frontend :: build+deploy'),
-        ]
-        for svc_key, repo_name, repo_id, cicd_int, pipeline_id, pipeline_name in binding_specs:
-            svc = services.get(svc_key)
-            if not svc:
+    def _upsert_integrations(self, org: Organisations, projects: dict[str, dict]) -> None:
+        """One row per store an environment really had connected, so the
+        Integrations page shows what the analyses read. A row is a type
+        and a name: no host, no user name, no password, no token. Nothing
+        is called through it: the registry, the health checks and the
+        syncs all leave demo organisations out."""
+        specs = seed_files.load_integrations()
+        for key, rows in specs.items():
+            if key not in projects:
                 continue
-
-            SCMBinding.objects.update_or_create(
-                project_service=svc,
-                defaults={
-                    'integration': github,
-                    'repository_id': repo_id,
-                    'repository_name': repo_name,
-                    'repository_url': f'https://github.com/{repo_name}',
-                    'default_branch': 'main',
-                    'webhook_configured': True,
-                    'last_sync_at': now,
-                },
-            )
-
-            CICDBinding.objects.update_or_create(
-                project_service=svc,
-                integration=cicd_int,
-                pipeline_id=pipeline_id,
-                defaults={
-                    'binding_type': 'build',
-                    'pipeline_name': pipeline_name,
-                    'pipeline_url': (
-                        f'{cicd_int.base_url}/-/pipelines/{pipeline_id}'
-                        if cicd_int.provider_type == 'gitlab'
-                        else f'{cicd_int.base_url}/{pipeline_id}'
-                    ),
-                    'auto_trigger': True,
-                    'trigger_branches': ['main'],
-                    'webhook_configured': True,
-                },
-            )
-
-    # ── Clusters (Item #17-19, Q1.4) ──────────────────────────────────
-
-    def _upsert_clusters(
-        self,
-        org: Organisations,
-        projects: dict[str, Project],
-    ) -> dict[str, Cluster]:
-        """Create two demo clusters + wire the checkout project to prod.
-
-        Multi-cluster is one of the recent-launch storytelling angles
-        (Batches 17-19, 25). Without seeded clusters the multi-cluster
-        picker, per-cluster dashboard filter, and cluster-aware routing
-        all show empty states — the demo undersells the feature.
-        """
-        cluster_specs = [
-            {
-                'name': 'prod-eks',
-                'description': 'Production EKS cluster in AWS us-east-1. '
-                               'Runs the checkout stack + payment workers.',
-                'provider': 'eks',
-                'region': 'us-east-1',
-                'kubernetes_context': 'arn:aws:eks:us-east-1:123456789012:cluster/prod-eks',
-            },
-            {
-                'name': 'staging-gke',
-                'description': 'Staging GKE cluster in GCP europe-west1. '
-                               'Mirrors production topology for load tests.',
-                'provider': 'gke',
-                'region': 'europe-west1',
-                'kubernetes_context': 'gke_acme-cloud_europe-west1_staging',
-            },
-        ]
-        clusters: dict[str, Cluster] = {}
-        for spec in cluster_specs:
-            cluster, _ = Cluster.objects.update_or_create(
-                organisation=org,
-                name=spec['name'],
-                defaults={
-                    'description': spec['description'],
-                    'provider': spec['provider'],
-                    'region': spec['region'],
-                    'kubernetes_context': spec['kubernetes_context'],
-                    'is_active': True,
-                },
-            )
-            clusters[spec['name']] = cluster
-
-        # Wire the checkout project to prod-eks so the cluster picker
-        # actually filters something. Platform project stays unassigned
-        # to demonstrate the fallback path.
-        checkout = projects.get(PROJECT_CHECKOUT)
-        if checkout is not None:
-            checkout.cluster = clusters['prod-eks']
-            checkout.save(update_fields=['cluster'])
-
-        return clusters
-
-    # ── Environments + Deployments (Batches 48-52) ────────────────────
-
-    def _upsert_project_topology(
-        self,
-        projects: dict[str, Project],
-        clusters: dict[str, Cluster],
-    ) -> None:
-        """Seed envs + multi-deployment topology so the Deployments tab
-        (Batch 52) and multi-row Observability panel (Batch 53) have
-        interesting content instead of empty states.
-
-        Direct ORM ``Project.objects.update_or_create`` upstream skips
-        the serializer's ``create_default_environments`` call, so we
-        materialise envs here explicitly. The env post_save signal
-        (Batches 48-49) auto-creates one deployment per active env; we
-        then layer extra deployments on the checkout project to
-        demonstrate multi-region + namespace-scoped shapes.
-
-        Idempotent — safe to re-run.
-        """
-        from Projects.models import ProjectEnvironment
-
-        # Envs for both projects — matches the story arc scenes that
-        # reference production / staging / development.
-        env_specs = [
-            ('production', 'Production', True),
-            ('staging',    'Staging',    True),
-            ('development','Development',True),
-        ]
-        # Wipe legacy env=None deployments (leftovers from the pre-
-        # env-signal flow when a project had a cluster but no envs).
-        # They stack awkwardly next to the per-env rows below.
-        for proj in projects.values():
-            ProjectDeployment.objects.filter(
-                project=proj, environment__isnull=True,
-            ).delete()
-
-        for proj in projects.values():
-            for name, display, active in env_specs:
-                ProjectEnvironment.objects.get_or_create(
-                    project=proj,
-                    name=name,
-                    defaults={
-                        'display_name': display,
-                        'is_active': active,
-                        'log_label_value': name,
-                    },
+            cluster = projects[key]['cluster']
+            for spec in rows.get('observability', []):
+                ObservabilityIntegration.objects.create(
+                    organisation=org, cluster=cluster, provider=spec['provider'],
+                    display_name=spec['display_name'], capabilities=list(spec['capabilities']),
+                    topology_mode='kubernetes', is_active=True,
+                    host='', username='', password='', extra_config={},
                 )
-            # If the project was created before we added envs, the signal
-            # never fired — kick per-env deployment creation now.
-            for env in proj.environments.filter(is_active=True):
-                ProjectDeployment.objects.get_or_create(
-                    project=proj, environment=env, cluster=proj.cluster,
-                    region='', namespace='',
-                    defaults={'is_active': True},
+            for spec in rows.get('delivery', []):
+                integration = ProviderIntegration(
+                    organisation=org, provider_type=spec['provider_type'], name=spec['name'],
+                    category=spec['category'], base_url=None, credentials={}, token_hint='',
+                    is_active=True,
                 )
-
-        # Multi-deployment topology for the checkout project: primary
-        # prod on prod-eks/us-east-1 (auto-created above), plus a
-        # namespace-scoped copy for the payments squad, plus a
-        # secondary-region copy on staging-gke/europe-west1.
-        checkout = projects.get(PROJECT_CHECKOUT)
-        if checkout is not None:
-            prod_env = checkout.environments.filter(name='production').first()
-            staging_env = checkout.environments.filter(name='staging').first()
-
-            if prod_env and clusters.get('prod-eks'):
-                ProjectDeployment.objects.get_or_create(
-                    project=checkout,
-                    environment=prod_env,
-                    cluster=clusters['prod-eks'],
-                    region='us-east-1',
-                    namespace='payments',
-                    defaults={'is_active': True},
-                )
-            if staging_env and clusters.get('staging-gke'):
-                ProjectDeployment.objects.get_or_create(
-                    project=checkout,
-                    environment=staging_env,
-                    cluster=clusters['staging-gke'],
-                    region='europe-west1',
-                    namespace='',
-                    defaults={'is_active': True},
-                )
+                integration.capabilities = integration.get_default_capabilities()
+                integration.save()
 
     # ── OTLP ingest key (Item #10) ────────────────────────────────────
 
@@ -1371,125 +402,51 @@ class Command(BaseCommand):
         renders a real row instead of the empty state.
 
         The plaintext key is thrown away — only the hash is stored
-        (GitHub PAT model). Callers who want a working plaintext for
-        collector-config screenshots can regenerate in the UI. This
-        seeded key exists solely to make the settings page look alive.
+        (GitHub PAT model).
         """
         # Idempotent by name — if a key already exists, leave it alone
         # (its hash is stable across rebuilds).
-        if IngestKey.objects.filter(organisation=org, name='prod-eks-otel-collector').exists():
+        if IngestKey.objects.filter(organisation=org, name=DEMO_INGEST_KEY_NAME).exists():
             return
         plaintext = IngestKey.generate_key()
         key = IngestKey(
             organisation=org,
-            name='prod-eks-otel-collector',
+            name=DEMO_INGEST_KEY_NAME,
             is_active=True,
         )
         key.set_key(plaintext)
         key.save()
 
-    # ── Incident notification channels (Items #22, #23) ───────────────
+    # ── AI provider, Sentinel ─────────────────────────────────────────
 
-    def _upsert_incident_channels(self, org: Organisations) -> None:
-        """Seed one Slack + one PagerDuty + one OpsGenie channel so
-        Settings → Incident Channels + the post-RCA dispatch story
-        both show real rows.
-
-        Credentials are the sentinel placeholder — encrypted at rest
-        exactly like a real value, but the dispatcher's ``send()``
-        short-circuits when it detects the placeholder so nothing
-        actually hits Slack/PagerDuty from the demo host.
+    def _upsert_ai_settings(self, org: Organisations) -> None:
+        """Claude as the primary provider, and no monthly budget: the
+        seed holds no spend, so a budget gauge would show an invented cap
+        over an empty figure. An earlier seed wrote $100; it is cleared.
         """
-        channel_specs = [
-            {
-                'name': 'SRE Slack (#incidents)',
-                'kind': 'slack',
-                'webhook_url': f'https://hooks.slack.com/services/{SEED_DEMO_PLACEHOLDER}',
-                'api_key': '',
-                'extra_config': {'channel': '#incidents'},
-                'trigger_events': ['batch_analyzed'],
-                'min_severity': 'MEDIUM',
-            },
-            {
-                'name': 'Prod PagerDuty',
-                'kind': 'pagerduty',
-                'webhook_url': '',
-                'api_key': SEED_DEMO_PLACEHOLDER,
-                'extra_config': {},
-                # PagerDuty is the "paging" surface — filter aggressively
-                # so we don't burn oncall on every scheduled batch.
-                'trigger_events': ['alert_triggered', 'critical_issue'],
-                'min_severity': 'HIGH',
-            },
-            {
-                'name': 'OpsGenie · platform team',
-                'kind': 'opsgenie',
-                'webhook_url': '',
-                'api_key': SEED_DEMO_PLACEHOLDER,
-                'extra_config': {'region': 'us'},
-                'trigger_events': ['alert_triggered'],
-                'min_severity': 'HIGH',
-            },
-        ]
-        for spec in channel_specs:
-            channel, _ = IncidentNotificationChannel.objects.update_or_create(
-                organisation=org,
-                name=spec['name'],
-                defaults={
-                    'kind': spec['kind'],
-                    'extra_config': spec['extra_config'],
-                    'trigger_events': spec['trigger_events'],
-                    'min_severity': spec['min_severity'],
-                    'is_active': True,
-                },
-            )
-            # Encrypted setters — round-trip via the model's own helpers
-            # so the ciphertext format matches what production writes.
-            if spec['webhook_url']:
-                channel.set_webhook_url(spec['webhook_url'])
-            if spec['api_key']:
-                channel.set_api_key(spec['api_key'])
-            channel.save()
-
-    # ── AI cost budget (Batch 26, Q3.3) ───────────────────────────────
-
-    def _upsert_ai_budget(self, org: Organisations) -> None:
-        """Seed a modest monthly budget so Settings → AI Providers
-        shows a real gauge instead of "no budget set". Some AITokenUsage
-        rows get written by the story-arc batches — those + this cap
-        drive the current-spend and warn-threshold indicators.
-        """
-        # Anchor to whichever AI provider actually exists (0011 seeds
-        # gemini/ollama/claude/openai/deepseek). If none exists on a
-        # fresh install, leave the settings row unpopulated — the
-        # budget still works without a default provider selected.
-        default_provider = AIModelProvider.objects.filter(
-            name=DEMO_AI_PROVIDER,
-        ).first() or AIModelProvider.objects.filter(is_active=True).first()
+        # If the catalogue has no claude row, leave the provider unset.
+        default_provider = AIModelProvider.objects.filter(name=DEMO_AI_PROVIDER).first()
 
         OrganisationAISettings.objects.update_or_create(
             organisation=org,
             defaults={
                 'default_provider': default_provider,
-                'monthly_budget_usd': Decimal('100.00'),
+                'fallback_provider': None,
+                'monthly_budget_usd': None,
                 'budget_warn_pct': 80,
                 'use_custom_keys': False,
             },
         )
 
     def _upsert_sentinel_config(self, org: Organisations) -> None:
-        """Active mode, so the skipped batches match Settings → Sentinel.
-
-        Active mode is also the default now; this keeps the demo right even if
-        a reseed meets a row someone switched to shadow mode, where Sentinel
-        never skips the AI and contradicts the "Skipped" batches of the story.
-        """
+        """Active mode, the default. Kept right even if a reseed meets a
+        row someone switched to shadow mode."""
         SentinelConfig.objects.update_or_create(
             organisation=org, defaults={'active_mode': True},
         )
 
     def _upsert_ai_key(self, org: Organisations) -> None:
-        """Give the demo org a Gemini key row so Gemini shows as available.
+        """Give the demo org a Claude key row so Claude shows as available.
 
         The chat model picker and Settings → AI list only providers the org
         holds a decryptable key for. The demo used to rely on a real key
@@ -1514,98 +471,17 @@ class Command(BaseCommand):
                 'is_active': True,
             },
         )
-
-    # ── Alert events (Items #13, #14) ─────────────────────────────────
-
-    def _seed_alert_events(
-        self,
-        org: Organisations,
-        batches_by_component: dict[str, AIAnalyzedBatch],
-    ) -> None:
-        """Back-fill a handful of alert events so Settings → Alerts
-        (or wherever the alert list lives) and the "this batch was
-        triggered by …" link on the batch detail page both look real.
-
-        Links each alert to the batch that "triggered" it via the
-        ``triggered_batch`` FK — that's the wiring the on-demand
-        pipeline uses in production.
-        """
-        now = timezone.now()
-
-        alert_specs = [
-            {
-                'source': 'alertmanager',
-                'external_id': 'AM-8f31c9e2',
-                'alertname': 'RedisPoolExhaustion',
-                'state': 'firing',
-                'severity': 'critical',
-                'service': 'redis-cache',
-                'environment': 'production',
-                'summary': 'Redis connection pool at 100% utilisation for 4 minutes. '
-                           'Downstream: payment-worker seeing ConnectionRefusedError.',
-                'batch_component': 'redis-cache',
-                'received_offset_hours': 4,
-            },
-            {
-                'source': 'grafana',
-                'external_id': 'GRF-7a2e1d',
-                'alertname': 'BackendMemoryClimb',
-                'state': 'resolved',
-                'severity': 'warning',
-                'service': 'backend-api',
-                'environment': 'production',
-                'summary': 'backend-api memory usage climbed from 55% to 88% over 3h — '
-                           'linear trajectory suggests unbounded accumulation.',
-                'batch_component': 'backend-api',
-                'received_offset_hours': 48,
-            },
-            {
-                'source': 'datadog',
-                'external_id': 'DD-monitor-33421',
-                'alertname': 'PostgresSlowQueries',
-                'state': 'firing',
-                'severity': 'high',
-                'service': 'postgres-primary',
-                'environment': 'production',
-                'summary': 'p95 query latency > 500ms sustained for 10min on '
-                           'checkout schema — suspect missing index or table bloat.',
-                'batch_component': 'postgres-primary',
-                'received_offset_hours': 12,
-            },
-        ]
-        for spec in alert_specs:
-            batch = batches_by_component.get(spec['batch_component'])
-            AlertEvent.objects.create(
-                organisation=org,
-                source=spec['source'],
-                external_id=spec['external_id'],
-                alertname=spec['alertname'],
-                state=spec['state'],
-                severity=spec['severity'],
-                service=spec['service'],
-                environment=spec['environment'],
-                summary=spec['summary'],
-                raw_payload={'demo': True, 'seeded': True},
-                triggered_batch=batch,
-                processed_at=now - timedelta(hours=spec['received_offset_hours']),
-            )
-            if batch is not None:
-                AIAnalyzedBatch.objects.filter(pk=batch.pk).update(trigger=AIAnalyzedBatch.TRIGGER_ALERT)
+        # The placeholder row of the provider an earlier seed used.
+        OrganisationAPIKey.objects.filter(organisation=org).exclude(provider=provider).delete()
 
     # ── Wipe / rebuild ─────────────────────────────────────────────────
 
     def _wipe_dynamic_content(self, org: Organisations) -> None:
-        """Drop every mutable row scoped to the demo org so the rebuild
-        starts from a clean slate. Projects, services, clusters, and
-        the user survive so their IDs and FKs remain stable for
-        downstream links.
-
-        The IncidentNotificationChannel / IngestKey / AI budget rows
-        are managed by the ``_upsert_*`` helpers (update_or_create)
-        rather than wiped here — they carry keyed identifiers we want
-        to keep stable across rebuilds. AlertEvent is wiped though
-        because each rebuild produces a fresh set tied to the new
-        batches.
+        """Drop every content row scoped to the demo org so the rebuild
+        starts from a clean slate, including what earlier versions of
+        this command created and this one no longer does (alert events,
+        pipelines, code changes, AI usage rows). Projects, services,
+        clusters and users are handled by the ``_upsert_*`` helpers.
         """
         Notification.objects.filter(user__organisation=org).delete()
         ProjectSubscription.objects.filter(user__organisation=org).delete()
@@ -1624,525 +500,276 @@ class Command(BaseCommand):
         Deployment.objects.filter(code_change__organisation=org).delete()
         CodeChange.objects.filter(organisation=org).delete()
         Pipeline.objects.filter(organisation=org).delete()
+        # Scheduler outcomes written before demo organisations were left out
+        # of scheduled runs ("Skipped: no log location", every minute).
+        DataRunStatus.objects.filter(project__organisation=org).delete()
 
-    def _build_story_arc(
-        self,
-        org: Organisations,
-        projects: dict[str, Project],
-        services: dict[str, ProjectService],
-    ) -> None:
-        now = timezone.now()
-        issues_by_component: dict[str, Issue] = {}
-        # Track the last batch per component so alert events can point
-        # at the right ``triggered_batch`` in the wiring below.
-        batches_by_component: dict[str, AIAnalyzedBatch] = {}
-        batches_by_scene: dict[int, AIAnalyzedBatch] = {}
-        critical_issues: list[Issue] = []
+    # ── Analyses ───────────────────────────────────────────────────────
 
-        for scene_index, scene in enumerate(STORY_ARC):
-            scene_time = now - timedelta(days=scene.days_ago, hours=2)
-            # A scene of today stays today: in the two hours after midnight
-            # UTC it landed on yesterday, and the dashboard showed no issue
-            # for today (and its test failed at that hour).
-            if scene.days_ago == 0 and scene_time.date() != now.date():
-                scene_time = now - timedelta(minutes=2)
-            # Route to the project that owns the affected service. Infra
-            # scenes (postgres, redis) end up under acme-platform; app
-            # scenes stay in acme-checkout. Prevents acme-platform from
-            # looking dead.
-            project_name = COMPONENT_TO_PROJECT.get(
-                scene.issue_component or 'backend-api', PROJECT_CHECKOUT
-            )
-            project = projects[project_name]
-            service = services.get(scene.issue_component or 'backend-api')
+    def _load_analyses(self, org, seeds, projects, team) -> dict[str, AIAnalyzedBatch]:
+        """One Investigation and one AIAnalyzedBatch per seed file, as
+        captured. Returns the batches by seed id."""
+        batches: dict[str, AIAnalyzedBatch] = {}
+        for name, doc in seeds:
+            target = projects[doc['project']['key']]
+            captured, inv_doc = doc['batch'], doc['investigation']
+            model_used = doc['model']['used']
 
-            pipeline = None
-            code_change = None
-            if scene.deploy_sha and scene.deploy_message:
-                pipeline = self._make_pipeline(org, project, scene, scene_time)
-                code_change = self._make_code_change(
-                    org, project, scene, scene_time, pipeline,
-                    author=DEMO_AUTHORS[scene_index % len(DEMO_AUTHORS)],
-                )
-                # Deployment row so the Deployments panel + service-
-                # health map have real data to plot. One deploy per
-                # code change; environment matches the scene.
-                self._make_deployment(scene, scene_time, pipeline, code_change)
-
-            batch = self._make_batch(
-                org, project, scene, scene_time, scene_index,
-                pipeline=pipeline,
-                code_change=code_change,
-            )
-            batches_by_scene[scene_index] = batch
-            self._make_token_usage(org, batch, scene_time, scene)
-            self._make_traces(org, batch.data.get('traces'))
-
-            if scene.issue_type:
-                issue = self._make_issue(
-                    org, project, batch, service, scene, scene_time,
-                    code_change=code_change,
-                )
-                issues_by_component[scene.issue_component] = issue
-                # Alert wiring — keep the latest batch per component so
-                # the alert-event seed below can link the "triggered_batch"
-                # FK to something real.
-                if scene.issue_component:
-                    batches_by_component[scene.issue_component] = batch
-                if scene.issue_severity == 'CRITICAL' and scene.issue_status == 'OPEN':
-                    critical_issues.append(issue)
-
-        # Pre-seed three chat sessions on top of the surviving issues —
-        # the centerpiece, the memory leak, and the database error.
-        self._seed_chat_sessions(org, projects, services, issues_by_component)
-
-        # Notifications on the CRITICAL open issues so the bell icon
-        # has an unread badge for a demo visitor to click into.
-        self._seed_notifications(org, critical_issues)
-
-        # Back-dated audit trail so Settings → Audit Log isn't blank.
-        self._seed_audit_log(org)
-
-        # Alert events (Items #13, #14) — links back to the story-arc
-        # batches so the alert list + batch-detail "triggered by" panel
-        # both look wired up.
-        self._seed_alert_events(org, batches_by_component)
-
-        # Past investigations, so the Investigate page shows what a run
-        # looks like (the demo itself cannot start one: it is read-only).
-        self._seed_investigations(org, projects, batches_by_scene)
-
-    def _seed_investigations(
-        self,
-        org: Organisations,
-        projects: dict[str, Project],
-        batches_by_scene: dict[int, AIAnalyzedBatch],
-    ) -> None:
-        user = User.objects.filter(organisation=org, is_demo=True).first()
-        specs = [
-            # (scene, hint) — scenes no alert event points at.
-            (9, 'Frontend build warnings since the dependency bump. Anything that will break in prod?'),
-            (6, 'Sanity check after the afternoon deploy, before the traffic peak.'),
-        ]
-        for scene_index, hint in specs:
-            batch = batches_by_scene.get(scene_index)
-            if batch is None or batch.project is None:
-                continue
-            window = (batch.data.get('statistics') or {}).get('time_range') or {}
-            start = parse_datetime(window['start']) if window.get('start') else batch.timestamp - timedelta(minutes=30)
-            end = parse_datetime(window['end']) if window.get('end') else batch.timestamp
-            stats = batch.data.get('statistics') or {}
             inv = Investigation.objects.create(
-                organisation=org, requested_by=user, project=batch.project,
-                environment=batch.project.environments.filter(name=batch.environment).first(),
-                window_start=start, window_end=end, hint=hint, status=Investigation.STATUS_DONE,
-                counts={
-                    'logs': stats.get('total_logs', batch.logs_analyzed), 'metrics': stats.get('total_metrics', 0),
-                    'traces': (batch.data.get('traces') or {}).get('span_count', 0),
-                    'code_changes': stats.get('total_code_changes', 0), 'cicd': stats.get('total_cicd_logs', 0),
-                },
-                started_at=end + timedelta(minutes=1), finished_at=end + timedelta(minutes=2),
+                organisation=org, requested_by=team.get(inv_doc.get('requested_by')),
+                project=target['project'], environment=target['environment'],
+                services=inv_doc.get('services') or [],
+                window_start=parse_time(inv_doc['window_start']), window_end=parse_time(inv_doc['window_end']),
+                hint=inv_doc.get('hint') or '', notify_routing=bool(inv_doc.get('notify_routing')),
+                status=inv_doc['status'], counts=inv_doc.get('counts') or {},
+                error_code=inv_doc.get('error_code') or '', error=inv_doc.get('error') or '',
+                started_at=_time(inv_doc.get('started_at')), finished_at=_time(inv_doc.get('finished_at')),
             )
-            Investigation.objects.filter(pk=inv.pk).update(created_at=end + timedelta(minutes=1))
-            AIAnalyzedBatch.objects.filter(pk=batch.pk).update(
-                trigger=AIAnalyzedBatch.TRIGGER_MANUAL, investigation=inv,
-                sentinel_decision='manual', sentinel_triggers=[])
+            # auto_now_add ignores the value on create.
+            Investigation.objects.filter(pk=inv.pk).update(created_at=parse_time(inv_doc['created_at']))
 
-        # One that found nothing: the window had no data for that scope.
-        checkout = projects.get(PROJECT_CHECKOUT)
-        if checkout is not None:
-            end = timezone.now() - timedelta(hours=9)
-            inv = Investigation.objects.create(
-                organisation=org, requested_by=user, project=checkout,
-                environment=checkout.environments.filter(name='staging').first(),
-                window_start=end - timedelta(hours=1), window_end=end,
-                hint='Did the 02:00 batch job touch staging?', status=Investigation.STATUS_NO_DATA,
-                counts={'logs': 0, 'metrics': 0, 'traces': 0, 'code_changes': 0, 'cicd': 0},
-                started_at=end + timedelta(minutes=3), finished_at=end + timedelta(minutes=3),
+            data = dict(captured['data'])
+            # The log lines are a sample of what the analysis read (see
+            # "Log trim" in the seed README): the page says how many.
+            data['logs_kept'] = doc['trim']['logs_kept']
+            data['logs_total'] = doc['trim']['logs_total']
+            batch = AIAnalyzedBatch.objects.create(
+                batch_id=captured['batch_id'],
+                timestamp=parse_time(captured['timestamp']),
+                project=target['project'], organisation=org,
+                environment=target['environment'].name, deployment=target['deployment'],
+                investigation=inv, trigger=captured['trigger'],
+                sentinel_decision=captured['sentinel_decision'],
+                sentinel_triggers=captured.get('sentinel_triggers') or [],
+                ai_skipped=bool(captured.get('ai_skipped')),
+                issue_count=captured.get('issue_count') or 0,
+                data=data,
+                logs_analyzed=captured.get('logs_analyzed') or 0,
+                indices_covered=captured.get('indices_covered') or [],
+                # A size estimate of the batch text, as captured. Not model usage.
+                token_count=captured.get('token_count') or 0,
+                analysis_text=captured.get('analysis_text'),
+                analyzed_at=_time(captured.get('analyzed_at')),
+                # The batch row stored the provider name; the page shows
+                # the model that answered.
+                model_name=model_used,
+                analysis_history=[dict(entry, model_name=model_used)
+                                  for entry in captured.get('analysis_history') or []],
+                logs_raw_count=captured.get('logs_raw_count'),
+                logs_after_severity_filter=captured.get('logs_after_severity_filter'),
+                logs_unique_patterns=captured.get('logs_unique_patterns'),
+                logs_sent_to_ai=captured.get('logs_sent_to_ai'),
             )
-            Investigation.objects.filter(pk=inv.pk).update(created_at=end + timedelta(minutes=3))
+            AIAnalyzedBatch.objects.filter(pk=batch.pk).update(created_at=parse_time(captured['created_at']))
+            batch.refresh_from_db()
+            batches[name] = batch
+        return batches
 
-    # ── Builders ───────────────────────────────────────────────────────
+    # ── Issues ─────────────────────────────────────────────────────────
 
-    @staticmethod
-    def _make_pipeline(
-        org: Organisations, project: Project, scene: Scene, scene_time: datetime,
-    ) -> Pipeline:
-        """Lightweight Pipeline + a single passing build Job, run by the
-        CI the deploying service is bound to, on that service's repo."""
-        pipeline = Pipeline.objects.create(
-            organisation=org,
-            pipeline_id=f'{scene.deploy_sha}-{scene.days_ago}',
-            cicd_provider=SERVICE_CI_PROVIDER[_deploy_service(scene)],
-            external_project_id=_deploy_repo(scene),
-            status='success',
-            branch=_deploy_branch(scene),
-            environment=scene.environment,
-            provider_metadata={
-                'commit_sha': scene.deploy_sha,
-                'message': scene.deploy_message,
-            },
-        )
-        Pipeline.objects.filter(pk=pipeline.pk).update(
-            created_at=scene_time - timedelta(minutes=10),
-        )
-        pipeline.refresh_from_db()
-        Job.objects.create(
-            pipeline=pipeline,
-            job_id=f'{scene.deploy_sha}-build',
-            name='build-and-test',
-            status='success',
-            error_summary='',
-        )
-        return pipeline
+    def _load_issues(self, org, seeds, delta, projects, batches, team) -> list[Issue]:
+        """One Issue per issue of the seed files, with one occurrence per
+        analysis that raised it.
 
-    @staticmethod
-    def _make_code_change(
-        org: Organisations,
-        project: Project,
-        scene: Scene,
-        scene_time: datetime,
-        pipeline: Pipeline,
-        author: tuple[str, str],
-    ) -> CodeChange:
-        author_name, author_email = author
-        return CodeChange.objects.create(
-            organisation=org,
-            provider='github',
-            project_id=_deploy_repo(scene),
-            commit_sha=scene.deploy_sha,
-            commit_message=scene.deploy_message,
-            author_name=author_name,
-            author_email=author_email,
-            timestamp=scene_time,
-            branch=_deploy_branch(scene),
-            pipeline=pipeline,
-            files_changed=2,
-            additions=18,
-            deletions=4,
-            diff_summary={
-                'files': [
-                    {
-                        'path': (
-                            'backend/payment_webhooks.py'
-                            if 'backend' in scene.deploy_message else
-                            'frontend/src/components/Checkout.jsx'
-                        ),
-                        'additions': 18,
-                        'deletions': 4,
-                    },
-                ],
-            },
-            diff_fetched=True,
-        )
+        The row is written as its last analysis left it. Three values
+        follow the seeded set instead of the run (the replaced values
+        are in ``demo_seed/replaced-values.json``): ``occurrence_count``
+        is the number of seeded analyses that raised the issue,
+        ``created_at`` when the first of them wrote it, ``last_seen_at``
+        when the last one did.
 
-    @staticmethod
-    def _make_batch(
-        org: Organisations,
-        project: Project,
-        scene: Scene,
-        scene_time: datetime,
-        scene_index: int,
-        pipeline: Pipeline | None = None,
-        code_change: 'CodeChange | None' = None,
-    ) -> AIAnalyzedBatch:
-        # Rich per-batch data so Detail.jsx tabs (Logs, CI/CD Logs,
-        # Metrics, Correlations) all have something to render. This is
-        # what visitors drill into after seeing a batch on /dash/data.
-        pipeline_id_str = str(pipeline.pipeline_id) if pipeline else ''
-        logs = _synthetic_logs(scene, scene_time, project.name)
-        cicd_logs = _synthetic_cicd_logs(scene, scene_time, pipeline_id_str)
-        # Batch 49 wiring — pin each batch to its owning deployment so
-        # the composed filter (Batch 54) matches it correctly. Prefer
-        # the base per-env deployment for this scene (region='', ns='')
-        # since the story arc scenes don't model region/namespace shape.
-        deployment = ProjectDeployment.objects.filter(
-            project=project,
-            environment__name=scene.environment,
-            region='',
-            namespace='',
-        ).first()
-        batch = AIAnalyzedBatch.objects.create(
-            batch_id=f'demo-{scene_index:02d}-{scene.days_ago}-{scene.environment}',
-            timestamp=scene_time,
-            project=project,
-            organisation=org,
-            environment=scene.environment,
-            deployment=deployment,
-            sentinel_decision='quiet' if scene.quiet else 'alert',
-            sentinel_triggers=scene.sentinel_triggers,
-            ai_skipped=scene.quiet,
-            issue_count=(1 if scene.issue_type else 0),
-            logs_analyzed=len(logs) + len(cicd_logs),
-            token_count=(0 if scene.quiet else 1850),
-            analysis_text=_analysis_text(scene),
-            analyzed_at=None if scene.quiet else scene_time + timedelta(minutes=4),
-            model_name=None if scene.quiet else _demo_ai_model(),
-            data={
-                'environment': scene.environment,
-                'logs_count': len(logs),
-                'centerpiece': scene.is_centerpiece,
-                'logs': logs,
-                'cicd_logs': cicd_logs,
-                'metrics': _synthetic_metrics(scene, scene_time),
-                'correlation_results': _synthetic_correlations(scene),
-                # Trace snapshot — same shape as
-                # ai_model.trace_context.build_trace_context writes at
-                # ingest. Frontend BatchTraces reads this via
-                # batch.data.traces (Option A consolidation, Batch 38).
-                'traces': _synthetic_traces(scene, scene_time, scene_index),
-                # code_changes snapshot — same shape the production
-                # batch pipeline writes. Required for the timeline's
-                # unified event stream (deploy lane) + engine-backed
-                # causal arrows (Batch 42). Prior code seeded the
-                # CodeChange DB row but never mirrored it into batch.data
-                # so the deploy lane was silently empty on the demo.
-                'code_changes': (
-                    [{
-                        'sha': code_change.commit_sha,
-                        'timestamp': (scene_time - timedelta(minutes=8)).isoformat(),
-                        'author': code_change.author_name,
-                        'message': scene.deploy_message or '',
-                        'branch': _deploy_branch(scene),
-                        'stats': {'files': 3, 'additions': 42, 'deletions': 8},
-                        'files': [
-                            {'path': 'api/payment_webhooks.py', 'diff': ''},
-                        ],
-                    }] if code_change else []
-                ),
-            },
-        )
-        # auto_now_add ignores the value on create; date the row to its window.
-        AIAnalyzedBatch.objects.filter(pk=batch.pk).update(
-            created_at=scene_time + timedelta(minutes=1),
-        )
-        batch.refresh_from_db()
-        return batch
-
-    @staticmethod
-    def _make_traces(org: Organisations, snapshot: dict | None) -> None:
-        """Store the traces a batch snapshot links to.
-
-        BatchTraces, the issue badges and the timeline all link to
-        /dash/traces/<trace_id>; without these rows each link was a 404.
-        Each trace gets a web-frontend root span with the snapshot spans
-        as its children.
+        The resolution notes come from ``demo_seed/resolutions.json``.
+        They are the team's notes, stored in the resolution fields with
+        a team member as ``resolved_by``; the AI's own text is untouched.
         """
-        if not snapshot:
-            return
-        by_trace: dict[str, list[dict]] = {}
-        for span in snapshot['top_slow'] + snapshot['top_errors']:
-            by_trace.setdefault(span['trace_id'], []).append(span)
+        docs = dict(seeds)
+        resolutions = seed_files.load_resolutions()
+        issues: list[Issue] = []
+        for entry in seed_files.merge_issues(seeds):
+            sightings = entry['sightings']
+            first, last = sightings[0], sightings[-1]
+            row, last_doc = last['issue'], docs[last['seed']]
+            project = projects[last_doc['project']['key']]['project']
 
-        for trace_id, spans in by_trace.items():
-            is_error = any(sp.get('status_message') for sp in spans)
-            start = datetime.fromisoformat(spans[0]['start_time'])
-            root_id = hashlib.sha256(f'{trace_id}-root'.encode()).hexdigest()[:16]
-            cursor = start + timedelta(milliseconds=15)
-            children = []
-            for sp in spans:
-                duration = sp.get('duration_ms') or 180
-                failed = bool(sp.get('status_message'))
-                children.append(Span(
-                    span_id=sp['span_id'],
-                    parent_span_id=root_id,
-                    service_name=sp['service_name'],
-                    operation_name=sp['operation_name'],
-                    kind='CLIENT' if failed else 'SERVER',
-                    start_time=cursor,
-                    end_time=cursor + timedelta(milliseconds=duration),
-                    duration_ms=duration,
-                    status_code='ERROR' if failed else 'OK',
-                    status_message=sp.get('status_message', ''),
-                    events=[{
-                        'time': cursor.isoformat(),
-                        'name': 'exception',
-                        'attributes': {'exception.message': sp['status_message']},
-                    }] if failed else [],
-                ))
-                cursor += timedelta(milliseconds=duration)
-            end = cursor + timedelta(milliseconds=15)
-            total_ms = int((end - start).total_seconds() * 1000)
-            root = Span(
-                span_id=root_id,
-                service_name='web-frontend',
-                operation_name='POST /checkout' if is_error else 'GET /checkout',
-                kind='SERVER',
-                start_time=start,
-                end_time=end,
-                duration_ms=total_ms,
-                status_code='ERROR' if is_error else 'OK',
-                status_message='HTTP 500' if is_error else '',
-                attributes={'http.status_code': 500 if is_error else 200},
+            issue = Issue(
+                batch=batches[last['seed']], project=project, organisation=org,
+                severity=row['severity'], description=row['description'],
+                recommendation=row.get('recommendation'), root_cause=row.get('root_cause'),
+                reasoning=row.get('reasoning'), confidence=row.get('confidence') or '',
+                issue_type=row['issue_type'], scope=row['scope'], component=row.get('component') or '',
+                affected_services=row.get('affected_services') or [],
+                environment=row.get('environment') or '',
+                # Created open: saving a resolved issue queues an embedding
+                # of it, which is a call to an AI provider.
+                status='OPEN',
+                error_class=row.get('error_class') or '', error_target=row.get('error_target') or '',
+                correlation_details=row.get('correlation_details') or {},
             )
-            trace = Trace.objects.create(
-                trace_id=trace_id,
-                organisation=org,
-                root_service_name=root.service_name,
-                root_operation=root.operation_name,
-                start_time=start,
-                end_time=end,
-                duration_ms=total_ms,
-                span_count=len(children) + 1,
-                error_span_count=sum(1 for sp in [root, *children] if sp.status_code == 'ERROR'),
-                status_code='ERROR' if is_error else 'OK',
+            issue.fingerprint = Issue.generate_fingerprint(
+                issue.issue_type, issue.scope, project.name, issue.component, issue.environment,
+                issue.error_class, issue.error_target,
             )
-            for sp in [root, *children]:
-                sp.trace = trace
-            Span.objects.bulk_create([root, *children])
+            issue.save()
+
+            # save() derives the correlation fields from the issue text;
+            # the captured ones are what the analysis pipeline wrote.
+            values = {
+                'created_at': parse_time(seed_files.first_seen(first, docs[first['seed']])),
+                'last_seen_at': parse_time(row['last_seen_at']),
+                'occurrence_count': len(sightings),
+                'has_commit_correlation': bool(row.get('has_commit_correlation')),
+                'has_metric_correlation': bool(row.get('has_metric_correlation')),
+                'has_cicd_correlation': bool(row.get('has_cicd_correlation')),
+                'linked_commits': row.get('linked_commits') or [],
+                'metric_correlation_type': row.get('metric_correlation_type') or '',
+                'metric_anomaly_type': row.get('metric_anomaly_type') or '',
+                'correlation_confidence': row.get('correlation_confidence') or '',
+                'correlation_details': row.get('correlation_details') or {},
+            }
+            resolution = resolutions.get(entry['capture_ref'])
+            if resolution and not resolution.get('keep_open'):
+                values.update(
+                    status='RESOLVED',
+                    resolved_at=seed_files.shift_iso(resolution['resolved_at'], delta),
+                    resolved_by=team.get(last_doc['investigation'].get('requested_by')),
+                    resolution_root_cause=resolution['resolution_root_cause'],
+                    resolution_fix=resolution['resolution_fix'],
+                )
+            Issue.objects.filter(pk=issue.pk).update(**values)
+
+            # The batch's issue list reads through occurrences, not
+            # Issue.batch: each analysis lists the issue at the severity
+            # and type it reported.
+            for sighting in sightings:
+                occurrence = IssueOccurrence.objects.create(
+                    issue=issue, batch=batches[sighting['seed']],
+                    severity=sighting['issue']['severity'], issue_type=sighting['issue']['issue_type'],
+                )
+                IssueOccurrence.objects.filter(pk=occurrence.pk).update(
+                    seen_at=parse_time(sighting['issue']['last_seen_at']))
+            issue.refresh_from_db()
+            issues.append(issue)
+        return issues
+
+    # ── Traces ─────────────────────────────────────────────────────────
 
     @staticmethod
-    def _make_token_usage(
-        org: Organisations, batch: AIAnalyzedBatch, scene_time: datetime, scene: Scene,
-    ) -> None:
-        if scene.quiet:
-            return  # Skipped batches don't consume tokens.
-        # Realistic-ish numbers — keep cost > $0 so the hero widget shows
-        # a value rather than $0.
-        AITokenUsage.objects.create(
-            organisation=org,
-            batch=batch,
-            model_name=_demo_ai_model(),
-            tokens_input=1500,
-            tokens_output=350,
-            tokens_total=1850,
-            cost_usd=Decimal('0.012'),
-            usage_type='batch_analysis',
-        )
-
-    @staticmethod
-    def _make_issue(
-        org: Organisations,
-        project: Project,
-        batch: AIAnalyzedBatch,
-        service: ProjectService | None,
-        scene: Scene,
-        scene_time: datetime,
-        code_change: CodeChange | None,
-    ) -> Issue:
-        # Stable fingerprint so re-running the seed does not violate the
-        # partial unique constraint on (fingerprint, project) for OPEN
-        # / MUTED issues.
-        fp_seed = f'demo-{scene.issue_type}-{scene.issue_component}-{scene.environment}-{scene.days_ago}'
-        fingerprint = 'demo:' + hashlib.sha256(fp_seed.encode()).hexdigest()[:24]
-
-        reasoning_text = Issue._serialize_reasoning(scene.issue_reasoning)
-        resolved_at = scene_time + timedelta(hours=18) if scene.issue_status == 'RESOLVED' else None
-        muted_until = scene_time + timedelta(days=7) if scene.issue_status == 'MUTED' else None
-
-        # Pre-set the correlation fields so the dashboard's correlation
-        # insights card has data to show without having to run the
-        # correlation engine on synthetic logs.
-        linked_commits = []
-        if code_change:
-            linked_commits = [
-                {
-                    'sha': code_change.commit_sha,
-                    'message': code_change.commit_message[:80],
-                    'author': code_change.author_name,
-                    'timestamp': code_change.timestamp.isoformat(),
-                }
-            ]
-
-        issue = Issue.objects.create(
-            batch=batch,
-            project=project,
-            organisation=org,
-            issue_type=scene.issue_type,
-            scope='SERVICE',
-            component=scene.issue_component or '',
-            environment=scene.environment,
-            severity=scene.issue_severity or 'WARNING',
-            description=scene.issue_description,
-            root_cause=scene.issue_root_cause,
-            recommendation=scene.issue_recommendation,
-            reasoning=reasoning_text,
-            confidence=scene.issue_confidence,
-            fingerprint=fingerprint,
-            status=scene.issue_status,
-            resolved_at=resolved_at,
-            muted_until=muted_until,
-            error_class=scene.issue_type,
-            error_target=scene.issue_component or '',
-            has_commit_correlation=bool(linked_commits),
-            linked_commits=linked_commits,
-            correlation_confidence='HIGH' if scene.is_centerpiece else 'MEDIUM',
-        )
-        # Hard-set created_at so the issue dates back to the scene time
-        # rather than "now" — Django auto_now_add ignores explicit values
-        # on create, so update separately.
-        # save() derives the correlation fields from the issue text on
-        # create; the real pipeline then overwrites them from the engine
-        # (ai_model.tasks._populate_issue_correlations). Do the same here.
-        metric_type = {'MEMORY_HIGH': 'memory', 'CPU_HIGH': 'cpu'}.get(scene.issue_type, '')
-        Issue.objects.filter(pk=issue.pk).update(
-            created_at=scene_time,
-            has_commit_correlation=bool(linked_commits),
-            linked_commits=linked_commits,
-            has_metric_correlation=bool(metric_type),
-            metric_correlation_type=metric_type,
-        )
-        # The batch's issue list reads through occurrences, not Issue.batch,
-        # so without this row the batch page shows "0 issues detected".
-        occurrence = IssueOccurrence.objects.create(
-            issue=issue, batch=batch, severity=issue.severity,
-        )
-        IssueOccurrence.objects.filter(pk=occurrence.pk).update(seen_at=scene_time)
-        issue.refresh_from_db()
-        return issue
+    def _load_traces(org: Organisations, seeds) -> None:
+        """Store the trace rows the seed files hold. No span is made up:
+        a trace id an analysis cites that has no row in its file stays
+        without one, and the pages show that id as text."""
+        seen: set[str] = set()
+        for _, doc in seeds:
+            for item in (doc.get('traces') or {}).get('items') or []:
+                if item['trace_id'] in seen:
+                    continue
+                seen.add(item['trace_id'])
+                # A span id that SerOps' redaction masked when the capture
+                # was taken (16 digits, taken for a card number) no longer
+                # names its span: that trace is left out, not patched.
+                if any(not _SPAN_ID.fullmatch(span.get('span_id') or '') for span in item.get('spans') or []):
+                    continue
+                trace = Trace.objects.create(
+                    trace_id=item['trace_id'], organisation=org,
+                    root_service_name=item.get('root_service_name') or '',
+                    root_operation=(item.get('root_operation') or '')[:255],
+                    start_time=parse_time(item['start_time']), end_time=parse_time(item['end_time']),
+                    duration_ms=item.get('duration_ms') or 0,
+                    span_count=item.get('span_count') or 0,
+                    error_span_count=item.get('error_span_count') or 0,
+                    status_code=item.get('status_code') or 'UNSET',
+                )
+                Trace.objects.filter(pk=trace.pk).update(created_at=parse_time(item['start_time']))
+                Span.objects.bulk_create([
+                    Span(
+                        trace=trace, span_id=span['span_id'],
+                        parent_span_id=span.get('parent_span_id') or '',
+                        service_name=span.get('service_name') or '',
+                        operation_name=(span.get('operation_name') or '')[:255],
+                        kind=span.get('kind') or 'INTERNAL',
+                        start_time=parse_time(span['start_time']), end_time=parse_time(span['end_time']),
+                        duration_ms=span.get('duration_ms') or 0,
+                        status_code=span.get('status_code') or 'UNSET',
+                        status_message=(span.get('status_message') or '')[:500],
+                        attributes=span.get('attributes') or {},
+                        events=span.get('events') or [],
+                        # As the OTLP receiver reads them from the attributes.
+                        environment=str(first_present(
+                            span.get('attributes') or {}, ENVIRONMENT_ALIASES, default='') or '').strip().lower()[:64],
+                        project_name=str(first_present(
+                            span.get('attributes') or {}, PROJECT_NAME_ALIASES, default='') or '').strip()[:255],
+                    )
+                    for span in item.get('spans') or []
+                ])
 
     # ── Chat sessions ─────────────────────────────────────────────────
 
     @staticmethod
-    def _make_deployment(
-        scene: Scene,
-        scene_time: datetime,
-        pipeline: Pipeline,
-        code_change: CodeChange,
-    ) -> Deployment:
-        """One Deployment per successful build so the Deployments panel
-        (and Recent Deployments feed on the dashboard) render real
-        rows. `status` follows the scene — critical open issues get
-        'failed' so a visitor sees the causal link.
-        """
-        is_failed = scene.issue_severity == 'CRITICAL' and scene.issue_status == 'OPEN'
-        return Deployment.objects.create(
-            code_change=code_change,
-            pipeline=pipeline,
-            environment=scene.environment,
-            deployed_at=scene_time,
-            status='failed' if is_failed else 'success',
-            notes=scene.deploy_message or '',
-        )
+    def _load_chats(org: Organisations, user: User, batches: dict[str, AIAnalyzedBatch]) -> None:
+        """Load ``demo_seed/chat/*.json`` when there are any (format in
+        ``demo_seed_loader.load_chats``). A session belongs to the demo
+        user, so it shows in the visitor's chat history."""
+        for chat in seed_files.load_chats():
+            batch = batches.get(chat.get('batch'))
+            if batch is None:
+                continue
+            exchanges = seed_files.chat_exchanges(chat)
+            base = batch.analyzed_at or batch.timestamp
+            session = ChatSession.objects.create(
+                chat_id=uuid.uuid4(),
+                user=user,
+                title=chat.get('title') or '',
+                batch_id=batch.batch_id,
+                project_id=str(batch.project_id) if batch.project_id else None,
+                # is_active=False is how a deleted session is stored; the
+                # history list hides those, so seeded sessions stay active.
+                is_active=True,
+            )
+            times = [base + timedelta(seconds=offset) for _, _, offset in exchanges] or [base]
+            for (question, answer, _), at in zip(exchanges, times):
+                message = ChatMessage.objects.create(
+                    chat_session=session, message=question, response=answer,
+                    metadata={'ai_model': chat.get('model') or ''},
+                )
+                ChatMessage.objects.filter(pk=message.pk).update(timestamp=at)
+            ChatSession.objects.filter(pk=session.pk).update(created_at=times[0], last_message_at=times[-1])
 
-    def _seed_notifications(self, org: Organisations, critical_issues: list) -> None:
-        """Drop one unread notification per open CRITICAL issue so the
-        bell icon has an unread badge on load. Also seed one 'digest'
-        entry so the "read" tab isn't empty.
+    # ── Notifications, audit log ──────────────────────────────────────
+
+    def _seed_notifications(self, org: Organisations, user: User, issues: list[Issue]) -> None:
+        """One unread notification per open CRITICAL issue so the bell
+        icon has an unread badge on load, and one read digest whose
+        figures are counted from the issues just loaded.
         """
-        user = User.objects.get(email=DEMO_USER_EMAIL)
-        for issue in critical_issues:
+        still_open = [i for i in issues if i.status == 'OPEN']
+        resolved = [i for i in issues if i.status == 'RESOLVED']
+        for issue in still_open:
+            if issue.severity != 'CRITICAL':
+                continue
             Notification.objects.create(
                 user=user,
                 subject=f'[CRITICAL] {issue.issue_type} on {issue.component}',
                 message=issue.description[:200] if issue.description else '',
                 notification_type='critical_issue',
-                batch_id=(issue.batch.batch_id if issue.batch else ''),
+                batch_id=issue.batch.batch_id,
                 issue=issue,
                 is_read=False,
             )
-        # A read digest so the notification list has both states.
+        project_names = sorted({i.project.name for i in issues})
         Notification.objects.create(
             user=user,
-            subject='Weekly digest — 2 issues resolved, 3 open',
-            message='This week your team resolved the payment-webhook memory leak on backend-api and the Vite peer-dependency warning in development, and muted the flaky staging test. Two criticals remain open, on redis-cache and backend-api, with a warning on postgres-primary.',
+            subject=f'Digest: {len(resolved)} issues resolved, {len(still_open)} open',
+            message=(
+                f'The analyses shown here raised {len(issues)} issues across {", ".join(project_names)}. '
+                f'{len(resolved)} are resolved and {len(still_open)} are open'
+                + (': ' + ', '.join(sorted(i.component for i in still_open)) if still_open else '') + '.'
+            ),
             notification_type='digest',
             is_read=True,
         )
 
-        # Project subscriptions — subscribe the demo user to both
-        # projects so the Notification Preferences page shows real
-        # rows instead of an empty state.
+        # Subscribe the demo user to every project so the Notification
+        # Preferences page shows rows instead of an empty state.
         for project in Project.objects.filter(organisation=org):
             ProjectSubscription.objects.update_or_create(
                 user=user,
@@ -2168,163 +795,24 @@ class Command(BaseCommand):
         )
 
     def _seed_audit_log(self, org: Organisations) -> None:
-        """Back-dated audit entries so Settings → Audit Log has history.
-        Purely presentational — nothing here powers real security
-        decisions on the demo host.
+        """The audit entry each seeded investigation left when it was
+        started, with the details the product records for one
+        (Data/investigation_views.py). Nothing else is written: the demo
+        has no other recorded action.
         """
-        user = User.objects.get(email=DEMO_USER_EMAIL)
-        now = timezone.now()
-        entries = [
-            (7, 'TEAM_INVITE', {'target_email': DEMO_AUTHORS[0][1], 'role': 'user'}),
-            (5, 'SETTINGS_CHANGE', {'setting': 'notifications.slack_enabled', 'from': False, 'to': True}),
-            (4, 'SERVICE_CREATE', {'service': 'backend-api'}),
-            (3, 'AI_MODEL_CHANGE', {'from': 'claude-sonnet-5', 'to': _demo_ai_model()}),
-            (2, 'SETTINGS_CHANGE', {'setting': 'sentinel.active_mode', 'from': False, 'to': True}),
-            (1, 'LOGIN', {}),
-            (0, 'LOGIN', {}),
-        ]
-        for days, action, details in entries:
+        for inv in Investigation.objects.filter(organisation=org).select_related('requested_by'):
             entry = AuditLog.objects.create(
                 organisation=org,
-                user=user,
-                action=action,
-                details=details,
-                ip_address='198.51.100.42',
-                user_agent='Mozilla/5.0 (demo)',
+                user=inv.requested_by,
+                action='INVESTIGATION_RUN',
+                details={
+                    'investigation_id': inv.id, 'project_id': inv.project_id,
+                    'window_start': inv.window_start.isoformat(), 'window_end': inv.window_end.isoformat(),
+                },
             )
             # created_at is auto_now_add — override in a second pass.
-            AuditLog.objects.filter(pk=entry.pk).update(
-                created_at=now - timedelta(days=days, hours=1),
-            )
+            AuditLog.objects.filter(pk=entry.pk).update(created_at=inv.created_at)
 
-    def _seed_chat_sessions(
-        self,
-        org: Organisations,
-        projects: dict[str, Project],
-        services: dict[str, ProjectService],
-        issues_by_component: dict[str, Issue],
-    ) -> None:
-        user = User.objects.get(email=DEMO_USER_EMAIL)
-        scripts = self._chat_scripts(issues_by_component)
-        for title, batch_id, project_id, exchanges in scripts:
-            session = ChatSession.objects.create(
-                chat_id=uuid.uuid4(),
-                user=user,
-                title=title,
-                batch_id=batch_id,
-                project_id=str(project_id) if project_id else None,
-                # is_active=False is how a deleted session is stored; the
-                # history list hides those, so seeded sessions stay active.
-                is_active=True,
-            )
-            for question, answer in exchanges:
-                ChatMessage.objects.create(
-                    chat_session=session,
-                    message=question,
-                    response=answer,
-                    metadata={'demo': True, 'ai_model': _demo_ai_model()},
-                )
 
-    @staticmethod
-    def _chat_scripts(
-        issues_by_component: dict[str, Issue],
-    ) -> list[tuple[str, str | None, int | None, list[tuple[str, str]]]]:
-        """Return three pre-canned investigations as (title, batch_id,
-        project_id, [(question, answer), ...]) tuples."""
-        redis_issue = issues_by_component.get('redis-cache')
-        backend_leak = issues_by_component.get('backend-api')
-        return [
-            (
-                'Why is Redis refusing connections?',
-                redis_issue.batch.batch_id if redis_issue else None,
-                redis_issue.project_id if redis_issue else None,
-                [
-                    (
-                        'Why is payment-worker getting connection refused on Redis?',
-                        (
-                            'The v2.3.3 deploy 4 hours ago shrank the Redis '
-                            'connection pool from 50 to 20 ("perf(infra): '
-                            'shrink redis pool 50→20 to save memory", '
-                            'commit a3f1d8c0). With current production load '
-                            'the 20-connection pool saturates within ~4 '
-                            'minutes; once exhausted, workers see '
-                            'ConnectionRefusedError until a connection is '
-                            'released.\n\nConfidence: HIGH — the deploy '
-                            'time, the metric anomaly, and the error logs '
-                            'all align within a 6-minute window.'
-                        ),
-                    ),
-                    (
-                        'Could it be the upstream payment provider instead?',
-                        (
-                            'Nothing in the window points there: no error '
-                            'names the payment provider, and every failure '
-                            'is a refused connection to redis:6379 inside '
-                            'the cluster, starting minutes after the pool '
-                            'was shrunk. The fault is on our side.'
-                        ),
-                    ),
-                    (
-                        'What\'s the quickest fix?',
-                        (
-                            'Revert the pool size to 50. Longer term, '
-                            'add a Prometheus '
-                            'alert on redis_pool_used > 80 % so this '
-                            'fails loud rather than silently degrading '
-                            'into a queue backup.'
-                        ),
-                    ),
-                ],
-            ),
-            (
-                'What happened to backend-api memory two days ago?',
-                backend_leak.batch.batch_id if backend_leak else None,
-                backend_leak.project_id if backend_leak else None,
-                [
-                    (
-                        'Backend memory climbed from 55% to 88% over 3 hours — was it the deploy?',
-                        (
-                            'Yes. v2.3.2 ("feat(backend): batch payment-webhook '
-                            'acks", commit b2c4d8e3) introduced a pandas '
-                            'DataFrame in payment_webhooks.py that accumulates '
-                            'rows without bound. Under steady webhook traffic '
-                            'memory grows linearly until the worker is OOM-killed.'
-                        ),
-                    ),
-                    (
-                        'Was this caught by alerting?',
-                        (
-                            'No — there was no Prometheus rule for backend '
-                            'memory at the time. SerOps surfaced it via the '
-                            'next scheduled batch because the metric anomaly '
-                            'tripped Sentinel\'s z-score threshold even '
-                            'without a configured alert. This is exactly the '
-                            '"alert-agnostic" detection promise.'
-                        ),
-                    ),
-                ],
-            ),
-            (
-                'Walk me through how SerOps decided on the root cause',
-                redis_issue.batch.batch_id if redis_issue else None,
-                redis_issue.project_id if redis_issue else None,
-                [
-                    (
-                        'Show me your reasoning for the Redis incident',
-                        (
-                            'Step 1 — The payment-worker logs in the window show '
-                            'repeated `ConnectionRefusedError` to redis:6379.\n\n'
-                            'Step 2 — The window\'s deploys include v2.3.3, '
-                            'minutes before the first error; its diff shrinks '
-                            'the Redis pool from 50 to 20.\n\n'
-                            'Step 3 — The redis_pool_used metric reaches 100% '
-                            'within 4 minutes of the deploy, matching the '
-                            'onset of the errors.\n\n'
-                            'Step 4 — No error names the payment provider; '
-                            'every failure is a refused connection to Redis '
-                            'inside the cluster, so the cause is on our side.'
-                        ),
-                    ),
-                ],
-            ),
-        ]
+def _time(value):
+    return parse_time(value) if value else None

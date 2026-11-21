@@ -139,7 +139,7 @@ const AIBudgetCard = () => {
                                         {t('ai.budgetSpent', 'Spent this month')}
                                     </span>
                                     <span className="fw-semibold">
-                                        {formatUsd(spendNum)} <span className="text-muted">/ {formatUsd(budgetNum)}</span>
+                                        {formatUsd(spendNum)} <span className="text-muted">/ {formatUsd(budgetNum)}</span>{' '}
                                         <Badge bg={barVariant === 'primary' ? 'secondary' : barVariant} className="ms-2">
                                             {pct.toFixed(1)}%
                                         </Badge>

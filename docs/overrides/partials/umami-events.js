@@ -1,0 +1,26 @@
+// Events for the docs, sent to our own Umami (no cookie, no third party).
+// Only event names are sent: never the search text or a copied command.
+(function () {
+  function track(name) { try { if (window.umami) window.umami.track(name); } catch (e) {} }
+  var lastSearch = 0;
+  document.addEventListener("input", function (e) {
+    var el = e.target;
+    if (!el || !el.matches || !el.matches(".md-search__input") || !el.value) return;
+    // One event per search, not one per keystroke.
+    var now = Date.now();
+    if (now - lastSearch > 30000) { lastSearch = now; track("docs_search"); }
+  }, true);
+  document.addEventListener("click", function (e) {
+    var t = e.target && e.target.closest ? e.target : null;
+    if (!t) return;
+    // Material's copy button: .md-code__button[data-md-type="copy"] today,
+    // .md-clipboard in older versions; both carry data-clipboard-target.
+    if (t.closest("[data-clipboard-target], .md-clipboard") && /\/getting-started\/quick-start/.test(location.pathname)) return track("quickstart_copy");
+    var a = t.closest("a[href]");
+    if (!a) return;
+    var url;
+    try { url = new URL(a.getAttribute("href"), location.href); } catch (err) { return; }
+    if (url.hostname === "app.serops.ai") track("demo_click");
+    else if (url.hostname === "github.com" && /^\/getserops(\/|$)/.test(url.pathname)) track("github_click");
+  }, true);
+})();

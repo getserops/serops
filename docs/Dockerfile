@@ -16,6 +16,9 @@ COPY . .
 # --strict so a broken link fails the image build rather than shipping. CI
 # checks the same thing on pull requests; this is the backstop for anything
 # that reaches main another way.
+# Umami website id (public, shown in the page source). Empty: no tracker.
+ARG UMAMI_WEBSITE_ID=""
+ENV UMAMI_WEBSITE_ID=$UMAMI_WEBSITE_ID
 RUN mkdocs build --strict
 
 # Stage 2: Serve with nginx

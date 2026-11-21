@@ -300,7 +300,12 @@ class HostDiscoveryView(APIView):
         
         if not project:
             return Response({'hosts': [], 'message': 'No project found'})
-        
+
+        # The demo account never makes the server query a store (audit
+        # 2026-11-20, item 2): DemoUserMiddleware lets every GET through.
+        if getattr(request.user, 'is_demo', False):
+            return Response({'hosts': [], 'message': 'Live data is not queried on the demo.'})
+
         try:
             provider = IntegrationRegistry.get_metric_provider_for_org(user_org)
             logger.info(f"Using metric provider: {provider.__class__.__name__}")
@@ -548,6 +553,10 @@ class NodeMemoryRawView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            # Demo account: no store query (audit 2026-11-20, item 2).
+            if getattr(request.user, 'is_demo', False):
+                return Response({'data': [], 'warning': 'Live data is not queried on the demo.'}, status=200)
+
             # Per-org metric provider (respects org's configured backend)
             try:
                 provider = IntegrationRegistry.get_metric_provider_for_org(user_org)
@@ -661,6 +670,9 @@ class BatchDetailView(OrgFilterMixin, APIView):
             
             # Prepare detailed response
             response_data = serializer.data
+            # Each span of the trace snapshot says whether its trace can be opened.
+            from .link_targets import flag_batch_traces
+            response_data['data'] = flag_batch_traces(batch, response_data.get('data'))
             response_data.update({
                 'analysis': batch.get_analysis_results(),
                 'metrics_summary': {
@@ -1541,6 +1553,10 @@ class NodeCPURawView(APIView):
             from django.utils import timezone
             from datetime import timedelta
 
+            # Demo account: no store query (audit 2026-11-20, item 2).
+            if getattr(request.user, 'is_demo', False):
+                return Response({'warning': 'Live data is not queried on the demo.'}, status=200)
+
             # Per-org metric provider
             try:
                 provider = IntegrationRegistry.get_metric_provider_for_org(user_org)
@@ -1756,6 +1772,8 @@ class BatchTimelineView(OrgFilterMixin, APIView):
         # match what the correlation engine + AI narrative say
         # (Batch 42, no more source-of-truth drift).
         causal_pairs = build_causal_pairs(batch, events)
+        from .link_targets import flag_timeline_events
+        flag_timeline_events(batch, events)
         return Response({
             'batch_id': batch_id,
             'event_count': len(events),

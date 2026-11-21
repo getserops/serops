@@ -1,10 +1,10 @@
 ---
 seo_title: "Prometheus: correlate metrics with incidents"
-description: "Connect Prometheus to SerOps so PromQL metrics are correlated with errors, deployments and code changes during analysis."
+description: "Connect Prometheus to SerOps so CPU, memory and Kubernetes state metrics are correlated with errors, deployments and code changes during analysis."
 ---
 # Prometheus
 
-Prometheus is an open-source monitoring and alerting toolkit designed for reliability and scalability. SerOps uses it as a metric provider, querying time-series data via PromQL to fetch performance metrics for correlation with CI/CD events.
+Prometheus is an open-source monitoring and alerting toolkit designed for reliability and scalability. SerOps uses it as a metric provider, querying a fixed set of series via PromQL: CPU and memory per node and container, CPU throttling, kube-state-metrics and JVM garbage collection (each is described below). It runs no query of your own and does not read request-rate, error-rate or latency metrics; see [what SerOps reads](../user-guide/metrics.md#what-serops-reads).
 
 | | |
 |---|---|
@@ -366,6 +366,111 @@ kubectl -n serops exec deploy/serops-backend -- python manage.py check_ingest --
 ```
 
 The report shows what tags SerOps sees in your host discovery — flags any missing `service_name` / `organisation_name` / `project_name`.
+
+### Metrics your applications push over OTLP
+
+`prometheus.relabel` and `metric_relabel_configs` only label what Prometheus
+or Alloy **scrape**. Metrics an application pushes over OTLP (for example the
+OpenTelemetry Java agent, through an OpenTelemetry Collector, into Mimir or a
+Prometheus with its OTLP receiver on) never pass through them, so they arrive
+without `organisation_name`, `project_name`, `environment` and
+`service_name`, and SerOps does not find them. The OTLP path turns
+`service.name` into `job` only.
+
+Add the labels in the collector, with the
+[transform processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/transformprocessor/README.md)
+(OTTL statements in the `datapoint` and `resource` contexts):
+
+```yaml
+processors:
+  transform/serops:
+    error_mode: ignore
+    metric_statements:
+      - set(datapoint.attributes["service_name"], resource.attributes["service.name"])
+      - set(datapoint.attributes["namespace"], resource.attributes["k8s.namespace.name"])
+      - set(datapoint.attributes["organisation_name"], "<YOUR-ORG>") where resource.attributes["k8s.namespace.name"] == "ledger"
+      - set(datapoint.attributes["project_name"], "<YOUR-PROJECT>") where resource.attributes["k8s.namespace.name"] == "ledger"
+      - set(datapoint.attributes["environment"], "production") where resource.attributes["k8s.namespace.name"] == "ledger"
+
+service:
+  pipelines:
+    metrics:
+      processors: [transform/serops]   # add to the processors you already have
+```
+
+**Restart the collector after this change.** The labels apply only once the
+collector runs the new configuration, and many Helm charts (the OpenTelemetry
+demo's among them) do not restart the collector when only its configuration
+changes. On Kubernetes: `kubectl -n <namespace> rollout restart
+daemonset/<collector>` (or `deployment/<collector>`), then check that new
+series carry `project_name`. Series written before the restart keep their old
+labels.
+
+The same statements in Grafana Alloy go in
+[`otelcol.processor.transform`](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.transform/):
+
+```alloy
+otelcol.processor.transform "serops" {
+  error_mode = "ignore"
+  metric_statements {
+    context    = "datapoint"
+    statements = [
+      `set(datapoint.attributes["service_name"], resource.attributes["service.name"])`,
+      `set(datapoint.attributes["namespace"], resource.attributes["k8s.namespace.name"])`,
+      `set(datapoint.attributes["organisation_name"], "<YOUR-ORG>") where resource.attributes["k8s.namespace.name"] == "ledger"`,
+      `set(datapoint.attributes["project_name"], "<YOUR-PROJECT>") where resource.attributes["k8s.namespace.name"] == "ledger"`,
+      `set(datapoint.attributes["environment"], "production") where resource.attributes["k8s.namespace.name"] == "ledger"`,
+    ]
+  }
+  output {
+    metrics = [otelcol.exporter.otlphttp.mimir.input]
+  }
+}
+```
+
+`k8s.namespace.name` is set by the collector's `k8sattributes` processor (the
+`kubernetesAttributes` preset of the collector Helm chart). Replace `ledger`
+with the namespace your services run in. Checked on 18 Nov 2026 with
+OpenTelemetry Collector Contrib 0.140.0 and Alloy 1.11.3: a JVM histogram
+pushed with `service.name=ad` and `k8s.namespace.name=ledger` reached
+Prometheus 3.5 with all five labels.
+
+### JVM garbage collection
+
+When a store holds JVM garbage-collection metrics, SerOps reads, per service,
+the share of wall time its worst JVM spent in garbage collection and its
+collections per minute. It reads the first of these that answers:
+
+| Metric | Exported by |
+|--------|-------------|
+| `jvm_gc_duration_seconds` | OpenTelemetry Java agent 2.x |
+| `process_runtime_jvm_gc_duration_seconds`, `process_runtime_jvm_gc_duration_milliseconds` | older OpenTelemetry Java agents |
+| `jvm_gc_collection_seconds` | Prometheus `simpleclient_hotspot` |
+| `jvm_gc_pause_seconds` | Micrometer |
+
+The figure includes pauses, plus concurrent collector phases where the agent
+does not separate them; series labelled as concurrent (an action, collector
+or cause label containing "concurrent") are left out. A JVM above **10 %**
+is flagged to the AI. The default collector, G1, aims for about 8 % (the
+`GCTimeRatio` default of 12, see the
+[Java GC tuning guide](https://docs.oracle.com/en/java/javase/21/gctuning/garbage-first-garbage-collector-tuning.html)),
+so a JVM past 10 % spends more time collecting than its collector is tuned
+for. Under the threshold the analysis gets one line saying so; without JVM
+metrics, nothing.
+
+The series need the project's labels like any other. When they have none
+(pushed over OTLP without the step above), SerOps also looks for them by the
+project's namespace and service names, only when the series carry a
+`namespace` label and the project declares a namespace (log rules or
+deployments); otherwise they are not read.
+
+**VictoriaMetrics:** the names above are the Prometheus-style ones. Metrics
+sent to VictoriaMetrics' own OpenTelemetry endpoint keep their OpenTelemetry
+names (`jvm.gc.duration_sum`), and SerOps does not find them. Send them with
+the collector's `prometheusremotewrite` exporter, or start VictoriaMetrics
+with `-opentelemetry.usePrometheusNaming`, which converts OpenTelemetry names
+and labels to the Prometheus form
+([VictoriaMetrics: OpenTelemetry](https://docs.victoriametrics.com/victoriametrics/integrations/opentelemetry/)).
 
 ### What Kubernetes did: kube-state-metrics
 

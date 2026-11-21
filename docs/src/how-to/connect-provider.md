@@ -35,7 +35,7 @@ Integrations store your SCM credentials once and let you reuse them across all p
     | **GitLab** | Personal Access Token | `api` |
     | **GitHub** | Personal Access Token | `repo`, `read:org` |
     | **Azure DevOps** | Personal Access Token | `Code (Read)`, `Build (Read)` |
-    | **Bitbucket** | App Password | `repository:read`, `pipeline:read` |
+    | **Bitbucket** | Access token (repository or workspace), pasted in the **App Password** field | `repository:read`, `pipeline:read` |
 
 4. Enter a descriptive **Name** (e.g., "Company GitLab")
 5. Paste your access token

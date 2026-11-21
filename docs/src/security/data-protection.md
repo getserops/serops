@@ -46,6 +46,46 @@ text.
 
 ---
 
+## What SerOps stores
+
+SerOps reads your logs, metrics and traces from the stores you already run.
+It is not a second telemetry store, but it does keep what each analysis read,
+in its own PostgreSQL on your infrastructure.
+
+**With each analysis**
+
+| Kept | Detail |
+|---|---|
+| Log lines | The warning and error lines of the analysis window, up to 5,000 per analysis |
+| Metric points | The CPU and memory points of the window, and a summary of them |
+| Code changes | Commit message, author name and e-mail address, and previews of the diffs |
+| CI/CD job logs | The job logs read for the window |
+| Trace summaries | The slowest and the failing operations of the window |
+| The result | The analysis and the issues it raised |
+
+**Stored log lines are kept as read.** Masking applies to the copy that is
+sent to the AI model, not to the lines stored in your database. Trace
+summaries and alert payloads are the exception: they are masked before they
+are stored. Chat messages and answers are stored as typed; they too are masked
+on the way to the model.
+
+**Spans.** Spans you send to SerOps's own OTLP endpoint are stored in full,
+with their attributes and events, and are not masked in storage.
+
+**How long**
+
+| Data | Default |
+|---|---|
+| Analyses, with their log lines, issues and the rest of the table above | Kept until you delete them. Automatic cleanup is **off** by default; switched on, it deletes analyses older than the period you choose, from 7 days to 1 year (30 days if you do not change it) |
+| Raw metric points on an analysis | Dropped after 30 days; the summary stays with the analysis |
+| Spans, chat conversations, code changes, pipelines and deployments | No retention period: kept until the organisation is deleted |
+
+Automatic cleanup and its period are set in
+[Data Retention](../admin/data-retention.md).
+
+
+---
+
 ## What SerOps reads from your repositories
 
 SerOps never clones, indexes or stores your repository. It reads **what changed**, nothing else:

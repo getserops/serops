@@ -22,7 +22,7 @@ Complete reference for all environment variables consumed by SerOps.
 | `DJANGO_SECRET_KEY` | Yes | -- | Django secret key for cryptographic signing. Must be unique per deployment and at least 32 characters; SerOps refuses to start otherwise. |
 | `SEROPS_ENCRYPTION_KEY` | Yes | -- | Encrypts the credentials stored in the database. 32 random bytes in URL-safe base64: `openssl rand -base64 32 \| tr '+/' '-_'`. SerOps refuses to start without it. Back it up: without it stored credentials cannot be read. |
 | `SEROPS_ENCRYPTION_KEY_PREVIOUS` | No | -- | While changing the key: the old one, or several separated by commas. See [Upgrading](upgrading.md#changing-the-encryption-key). |
-| `SSO_TRUST_MISSING_EMAIL_VERIFIED` | No | `login.microsoftonline.com` | Comma-separated host names of identity providers that leave `email_verified` out of their claims. Any other provider must return `email_verified: true`. |
+| `SSO_TRUST_MISSING_EMAIL_VERIFIED` | No | `login.microsoftonline.com` | Comma-separated host names of identity providers that leave `email_verified` out of their claims. Any other provider must return `email_verified: true`. On these hosts a multi-tenant discovery URL (`/common/`, `/organizations/`, `/consumers/`) is refused. |
 | `ALLOWED_HOSTS` | Yes | -- | Comma-separated list of allowed hostnames (e.g., `serops.yourdomain.com,backend`) |
 | `CORS_ALLOWED_ORIGINS` | Yes | -- | Comma-separated CORS origins (e.g., `https://serops.yourdomain.com`) |
 
@@ -34,6 +34,7 @@ Complete reference for all environment variables consumed by SerOps.
 |----------|----------|---------|-------------|
 | `REGISTRATION_ENABLED` | No | unset (automatic) | Whether anonymous visitors can create a **new organisation** via `POST /api/auth/register`. **Unset:** open until the first real organisation exists (first sign-up or `createsuperuser`), then closed — a single-company install closes itself once set up. **`True`:** always open, for an instance hosting several teams. **`False`:** always closed. When closed, registrations return `403 registration_disabled`; existing users can still log in, and invitations to join an existing organisation always work. |
 | `DJANGO_ADMIN_ENABLED` | No | `False` | Exposes the Django admin at `/api/admin/` (staff accounts only; failed logins are limited to 10 per 10 minutes per client). Off by default: SerOps itself never needs it, and superusers sign in to the app normally. |
+| `SEROPS_API_DOCS` | No | `False` | Serves the interactive API reference (Swagger UI) at `/api/docs/`. Off by default outside `DEBUG`: it lists every endpoint to anyone who can reach the instance. |
 | `TRUSTED_PROXY_COUNT` | No | `1` | How many reverse proxies sit in front of the backend. Login rate limits identify a client by the address the trusted proxy adds to `X-Forwarded-For`, so a client can't dodge them with a fake header. `1` fits the bundled Caddy (Compose) and ingress-nginx (Helm); raise it if, for example, a cloud load balancer sits in front of those. |
 | `DEMO_ONLY_LOGIN` | No | `false` | For a public demo host only. `true` hides the password and SSO form and refuses password login, SSO and password reset server-side; the only way in is the "Try the live demo" button for the user seeded by `seed_demo_org`. Registration is closed too. |
 | `BETA_INVITE_CODE` | No | -- | If set, register requests must include a matching invite code to succeed. Leave unset in normal deployments. |
@@ -51,11 +52,38 @@ The backend writes `django.log` and `user_actions.log` in `/app/logs` (the `back
 
 ---
 
+## Query trail (debugging and benchmarks)
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SEROPS_QUERY_TRAIL_DIR` | No | -- (off) | **Off by default, for debugging and benchmarks.** When set to a directory, SerOps writes every request an investigation or an analysis sends to a log, metric, trace or code store, with the store's answer, one JSON line per request (`investigation-<id>.jsonl`, `<batch_id>.jsonl`). The answers are written **raw, not redacted**: they hold whatever your stores return, log lines included. Request headers are never recorded, and URL credentials and credential-like query values are removed. Nothing cleans the directory up. Leave it unset on a production install. Helm: `django.queryTrailDir`. |
+
+## Usage counting (off; for a public demo instance)
+
+SerOps ships no tracking and sends no usage data to anyone, us included.
+These two settings exist for an operator who runs a public demo and wants
+to count its page views with a tool they host themselves (the demo at
+app.serops.ai uses a self-hosted Umami). Leave them unset and the web app
+loads nothing and sends nothing; `GET /api/client-config/` answers
+`{"usage": null}`.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SEROPS_USAGE_SCRIPT_PATH` | empty | Path of an Umami-compatible tracker script on the instance's own origin, for example `/_stats/script.js`. Your reverse proxy must serve that path and the tracker's `api/send` next to it. A URL on another host is ignored: the app's Content-Security-Policy stays `script-src 'self'`. |
+| `SEROPS_USAGE_WEBSITE_ID` | empty | The website id (a UUID) in that tool. |
+
+Both must be set. What the browser then reports: the name of the page shown
+(`/dash/data/details/:id`, never the id), the events `demo_signin`,
+`analysis_opened`, `chat_opened`, `github_click`, `docs_click` and `outbound_click`
+(a link that leaves the app: the kind of destination, never its address), the browser's
+language and screen size, and the site a first visit came from. No record
+id, no query string, no search or chat text. Do Not Track is respected.
+
 ## Image Registry
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SEROPS_VERSION` | No | `1.4.0` | Version tag for SerOps Docker images (backend + frontend) |
+| `SEROPS_VERSION` | No | `1.5.0` | Version tag for SerOps Docker images (backend + frontend) |
 
 ---
 
@@ -120,7 +148,7 @@ DB_PASSWORD=s3cur3-pa$$word
 |----------|----------|---------|-------------|
 | `CELERY_BROKER_URL` | No | `redis://redis:6379/0` | Redis URL for the Celery message broker |
 | `CELERY_RESULT_BACKEND` | No | `redis://redis:6379/0` | Redis URL for Celery task results |
-| `REDIS_URL` | No | value of `CELERY_BROKER_URL` | Redis URL for the distributed lock backend used by the batch scheduler. Falls back to `CELERY_BROKER_URL` when unset. |
+| `REDIS_URL` | No | value of `CELERY_BROKER_URL` | Redis URL for the shared cache (login throttles, the AI circuit breaker and rate limiter, SAML request tracking) and the batch scheduler's lock. Falls back to `CELERY_BROKER_URL` when unset. `redis://`, `rediss://` (TLS) and `unix://` are accepted; outside `DEBUG`, any other scheme stops the backend at start, and with neither variable set it starts with a warning and keeps the cache per process. |
 
 ---
 

@@ -1,0 +1,65 @@
+{
+ "schema": "serops-demo-chat/1",
+ "title": "Studio: payments rejects charges",
+ "batch": "studio-L4-r1",
+ "model": "claude-sonnet-5-5",
+ "produced": {
+  "how": "Asked on 19 Nov 2026 through SerOps's own chat endpoint on a local instance loaded with this seed, with the model named above. Questions and answers are verbatim. Token counts are the usage the provider returned, as SerOps recorded it (the intent-classification call of a turn is included in that turn); cost is SerOps's figure at the public price of 2 USD per million input tokens and 10 USD per million output tokens.",
+  "time_placement": "offset_seconds places the first question five minutes after the end of the analysis and keeps the order and the real answer times; the questions were sent one right after the other by a script. asked_at is when each question was really asked.",
+  "past_incident_memory": "off",
+  "tokens_input": 277673,
+  "tokens_output": 6279,
+  "cost_usd": "0.618136",
+  "title": "The title is a label written for the demo's chat list. In the product a session is titled with the first 50 characters of its first question, which is the same for all three."
+ },
+ "messages": [
+  {
+   "role": "user",
+   "text": "What changed right before this started?",
+   "offset_seconds": 300
+  },
+  {
+   "role": "assistant",
+   "text": "**Short answer:** The data shows a payments restart and a deploy right before the errors, but it can't tell us which one caused them, because none of the three commits has a message or a file list.\n\n**Timeline (UTC, 2026-11-17)**\n\n| Time | Event |\n|---|---|\n| 22:51:24 | Commit `c8051f39` deployed to production (no message, 0 files shown) |\n| 23:00:10 | Commit `2f1cb388` deployed to production (no message, 0 files shown) |\n| ~23:00:22–23:00:40 | **payments** service restarted (\"payments starting\", Flask, debug off) |\n| 23:01:13 | Commit `0e35e16b` deployed to production (no message, 0 files shown) |\n| ~23:01:25–23:01:41 | **catalog** service restarted |\n| 23:04:07 | First `IdempotencyConflict` in the logs I have |\n| 23:05:38 | Latest error, still ongoing at roughly one per 1–5 seconds |\n\n**What the logs show**\n- Every payments error is the same: `IdempotencyConflict: key ord-… already used with a different payload (mode=strict); charge rejected`.\n- Each failure has a different order key, so this isn't one stuck request being retried. Many separate checkouts are hitting it.\n- Web `/checkout` calls to `payments.studio:8080/charge` get HTTP 409 back, so customers see failed checkouts.\n- The log window starts at 23:04:07, so the very first error may be earlier than what I can see.\n\n**Most likely suspects (inference, not confirmed)**\n1. **`2f1cb388` (23:00:10)**, which was followed by the payments restart about 12–30 seconds later. This is the best fit for a payments behavior change.\n2. **`0e35e16b` (23:01:13)**, which may have changed the checkout/web side (for example how the charge payload or idempotency key is built) and could be sending different payloads under the same key. The catalog restart right after it could belong to the same deploy.\n3. `c8051f39` is less likely, since it was deployed about 13 minutes before the first logged error. It can't be ruled out.\n\nThe error text says the same key is being reused with a different payload under strict mode. That points to one of two things:\n- A client change that builds the payload differently on a retry, for example a changed amount, items or currency under the same key.\n- Payments having become stricter, with `mode=strict` newly enabled or defaulted after the restart.\n\n**How to confirm**\n- Pull the actual diffs for the three commits (`git show 0e35e16b 2f1cb388`), since the tool reported 0 files for each.\n- Check whether `mode=strict` is a new config or a changed default in the payments deploy.\n- Look at the first request and the conflicting request for one key, for example `ord-mwmqa7jz-5345`, and compare their payloads.\n- Check logs between 23:00 and 23:04 for the first 409 to pin down the start time.\n\n**Mitigation to consider:** If the timing matches, roll back `0e35e16b` first, then `2f1cb388`, and watch whether the 409s stop. Don't loosen idempotency checking as a workaround, because that risks double charges.",
+   "offset_seconds": 310,
+   "asked_at": "2026-11-19T22:40:24.664546+00:00",
+   "seconds": 9.5,
+   "model_calls": 1,
+   "tokens_input": 5641,
+   "tokens_output": 1060,
+   "cost_usd": "0.021882"
+  },
+  {
+   "role": "user",
+   "text": "Which services were affected, and what is the evidence for each?",
+   "offset_seconds": 311
+  },
+  {
+   "role": "assistant",
+   "text": "**Short answer:** Two services have direct evidence of impact, **payments** (the source of the errors) and **web** (the customer-facing symptom). **Catalog** shows a metrics anomaly but no errors. The other services show nothing abnormal.\n\n| Service | Status | Evidence |\n|---|---|---|\n| **payments** | Affected (primary) | About 49 `IdempotencyConflict ... already used with a different payload (mode=strict); charge rejected` errors between 23:04:07 and 23:05:38. Each has a different order key, so this is many separate checkouts, not one retried request. A rollout happened at 23:00:30. CPU jumped from ~0.58% to 11.2% (23:00:49) and 29.7% (23:01:04), peaking at ~0.185 cores. It has decayed to 2.27% but is still about 4x baseline. Memory is normal (~14%), and there are no restarts, throttling or stuck pods. |\n| **web** | Affected (downstream) | `GET /checkout failed: ... payments.studio:8080/charge -> HTTP 409 {\"error\":\"idempotency conflict\"}` at 23:05:39. This is the only web log line, but it shows customers getting failed checkouts. Web's own CPU (~5–6%) and memory (~20–21%) are flat, so web itself isn't unhealthy. It is passing on payments' rejections. |\n| **catalog** | Metrics anomaly, no errors | Rollout at 23:01:30. CPU went from ~10.5% to 23.3% (23:01:49) and 35.1% (23:02:04), and is still ~21.9% at 23:05:34, about 2x baseline. Memory total briefly rose to 576 MiB (603979776 bytes) during the rollout, then returned to normal. There are no catalog errors in the logs, so I can't link it to the 409s. It may be a separate effect of its own deploy. |\n| **pricing, notifier, loadgen** | No evidence of impact | CPU and memory are flat or drifting slightly down (pricing ~5.9→5.4%, notifier 0.50→0.31%, loadgen 2.41→2.28%), with no errors or lifecycle events. The notifier decline is minor, but it is worth a glance in case fewer orders are completing. |\n\n**Caveats**\n- The log window starts at 23:04:07, so I can't see whether payments errors began earlier. The CPU spike at 23:00:49–23:01:04 lines up with the payments restart, not with the first logged error, so it doesn't prove the conflicts started then.\n- `memory_usage_percent` periodically jumps to ~57–60% for web, payments and catalog. That also happens before the incident, and free memory halves for a single sample, so I treat it as a metric artifact, not a real problem.\n- A one-sample `deps` memory reading of 0 at 23:00:34 looks like a collection glitch.\n- Some `peak_pod_cpu_cores` and `peak_pod_memory_percent` values are masked in the data, so those series have a few gaps.\n- The three commits have no messages or file lists, so I can't attribute the impact to a specific change from this data alone.\n\n**Suggested next step:** Compare the payloads of the first and second requests for one conflicting key (for example `ord-mwmqa7jz-5345`) and check whether catalog's elevated CPU is tied to its own deploy, since I can't confirm either from this data.",
+   "offset_seconds": 333,
+   "asked_at": "2026-11-19T22:40:34.144479+00:00",
+   "seconds": 24.3,
+   "model_calls": 2,
+   "tokens_input": 135436,
+   "tokens_output": 2675,
+   "cost_usd": "0.297622"
+  },
+  {
+   "role": "user",
+   "text": "What should I do now, and how do I check that it worked?",
+   "offset_seconds": 334
+  },
+  {
+   "role": "assistant",
+   "text": "**Short answer:** Find out which side changed (payments or the client sending the charge), roll back the most likely culprit, and confirm that new checkouts stop getting 409s. Don't loosen idempotency checking.\n\n**A correction to my earlier suggestion**\n\nMatching deploy times to rollouts suggests the commits map to services like this (inference from timing, not confirmed):\n\n| Commit | Deployed | Likely service (rollout) |\n|---|---|---|\n| `c8051f39` | 22:51:24 | web (22:51:45) |\n| `2f1cb388` | 23:00:10 | payments (23:00:30) |\n| `0e35e16b` | 23:01:13 | catalog (23:01:30) |\n\nSo `0e35e16b` is probably the catalog deploy, not a checkout change. I would not roll it back first, as I suggested before. The best candidate is `2f1cb388` (payments), with `c8051f39` (web) as the second candidate.\n\n**What to do now**\n\n1. **Check the active diff and config (about 5 minutes).** Run `git show 2f1cb388 c8051f39`, since the tool showed 0 files for both. Look for a new or changed `mode=strict` setting, or changes to how the charge payload or idempotency key is built.\n2. **Compare one conflicting key.** Take the first and second requests for `ord-mwmqa7jz-5345` and diff their payloads (amount, items, currency, customer). Whichever side changed tells you what to roll back.\n3. **Roll back the confirmed culprit.** If you can't confirm in a few minutes, customers are failing checkout, so roll back payments to the pre-`2f1cb388` version first. For example: `kubectl rollout undo deployment/payments`. This is reversible and is the likeliest fit. If that doesn't help, roll back web (`c8051f39`) next.\n4. **Don't purge the idempotency store, and don't relax strict mode.** Either could cause double charges. Keys already used with a different payload will keep conflicting, so customers whose orders failed will need to retry with a fresh cart or key.\n\n**How to check that it worked**\n\nBaseline: about 49 `IdempotencyConflict` errors between 23:04:07 and 23:05:38, roughly one every 2 seconds, and web `/checkout` returning HTTP 409.\n\n- **Payments logs:** no new `IdempotencyConflict ... (mode=strict)` lines for orders created after the rollback. Old keys retried by customers may still conflict, so judge by new order keys. For example: `kubectl logs deploy/payments --since=5m | grep -c IdempotencyConflict` should reach 0 for new keys.\n- **Web logs:** `GET /checkout` calls to `payments.studio:8080/charge` return 2xx instead of 409. Place a test checkout yourself.\n- **Metrics:** payments CPU, currently about 2.3%, should settle toward its ~0.6% baseline. This is a weak signal, since it was already decaying.\n- **Hold for 10–15 minutes** with no new conflicts before calling it fixed. Also confirm that no charge was duplicated (check payment records for repeated orders).\n\n**If it doesn't work**\n\n- If 409s continue after rolling back payments, roll back web (`c8051f39`). If they still continue, the cause is probably in the request payloads, and step 2 should show it.\n- Catalog CPU, about 21.9% against a baseline of 10.5%, is probably a separate effect of its own deploy. I have no evidence linking it to the 409s, so treat it as a lower-priority follow-up.\n\n**Limits:** The logs start at 23:04:07, so I can't tell when the conflicts actually began. The commits have no messages or file lists, so the culprit is still a hypothesis until you see the diffs and payloads.",
+   "offset_seconds": 354,
+   "asked_at": "2026-11-19T22:40:58.425039+00:00",
+   "seconds": 20.7,
+   "model_calls": 2,
+   "tokens_input": 136596,
+   "tokens_output": 2544,
+   "cost_usd": "0.298632"
+  }
+ ]
+}

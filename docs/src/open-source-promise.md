@@ -31,7 +31,7 @@ Everything SerOps does as of **v1.2.4**, the last release before this page:
 
 **Root cause analysis**
 
-- Scheduled AI analysis of logs, metrics, traces, deployments and code
+- Scheduled AI analysis of logs, infrastructure metrics, traces, deployments and code
   changes per project and environment (every 15 minutes by default), and on
   incoming alerts
 - Issues detected without any alert, with deduplication, mute, resolve,

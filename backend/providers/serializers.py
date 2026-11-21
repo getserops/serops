@@ -196,6 +196,9 @@ class ProviderIntegrationListSerializer(serializers.ModelSerializer):
             'display_url',
             'is_verified',
             'is_active',
+            # The integrations page shows "added 3 days ago"; without this
+            # it showed "Unknown" and a tooltip reading "Invalid Date".
+            'created_at',
         ]
 
 

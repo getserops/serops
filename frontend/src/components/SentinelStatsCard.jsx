@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaShieldAlt, FaBell, FaVolumeMute, FaStar, FaEyeSlash, FaDollarSign, FaUser, FaFlask } from 'react-icons/fa';
+import { isDemoUser } from '../utils/demo';
 import './Dashboard.css';
 
 const SentinelStatsCard = ({ data, loading }) => {
@@ -156,7 +157,10 @@ const SentinelStatsCard = ({ data, loading }) => {
                                     <FaEyeSlash style={{ marginRight: 4, fontSize: '0.7rem' }} />
                                     {ai_skipped} batches skipped
                                 </span>
-                                {estimated_tokens_saved > 0 && (
+                                {/* Tokens saved is the average tokens of an analysis times
+                                    the batches skipped. In the demo that average is only a
+                                    size estimate, so the figure is not shown there. */}
+                                {estimated_tokens_saved > 0 && !isDemoUser() && (
                                     <span className="corr-tag">
                                         ~{formatTokens(estimated_tokens_saved)} tokens saved
                                     </span>

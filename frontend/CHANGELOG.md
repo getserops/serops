@@ -10,6 +10,52 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-21
+
+### Added
+
+- Analyses list: a Trigger column (Scheduled, Alert received, Investigation) and a separate Sentinel column (Signals found, Periodic check, AI skipped: nothing new, First analysis, Shadow mode; "Not consulted" for investigations), with the reasons as a tooltip. A scheduled run that Sentinel let through used to show as "ALERT".
+- Analysis page: the subtitle and the Response card show the trigger, the card has a Sentinel row, and Sentinel's reasons show as words, not codes.
+- Alerts & routing → Delivery Channels: a notice lists the alerts of the last week that matched no service and were not analysed, with the labels tried.
+- Overview, Issues and Analyses keep the environment and cluster filters in the address. When the address carries any filter it decides alone; the stored choice fills only an address with none. Issues and Analyses follow the global environment filter instead of a page-local one.
+- Settings → Integrations, Elasticsearch and OpenSearch forms: a **Verify TLS certificate** checkbox, checked by default.
+- Investigations: a finished investigation with no traces says latency is not observable.
+- Check my data and the project's Data tab show the new `errors_unreadable` and `logs_not_tagged` messages (English and French).
+- Analyses list: a failed analysis shows "AI provider account reached its spending limit" for `SPEND_LIMIT`.
+- Usage counting for an operator's public demo instance, off by default. The app asks `/api/client-config/` once; unless the operator set `SEROPS_USAGE_SCRIPT_PATH` and `SEROPS_USAGE_WEBSITE_ID`, it loads nothing and sends nothing. When set, a same-origin Umami-compatible script reports page names only (`/dash/data/details/:id`, never the id; no query string, no text) and a few events (`demo_signin`, `analysis_opened`, `chat_opened`, and for links that leave the app `github_click`, `docs_click` or `outbound_click`); Do Not Track is respected. SerOps itself still sends no usage data to anyone.
+- The analysis page says "Showing N of M log lines" above the log table when the API reports that it kept fewer log lines than the analysis read (`data.logs_kept` and `data.logs_total` on the batch). Nothing is shown when the counts are absent or equal.
+- AI Chat: tables, headings and lists in an answer render as tables, headings and lists (they showed as lines of bars, `#` signs and dashes). A wide table scrolls inside the message. The demo's Chat page lists the stored conversations to read.
+
+### Changed
+
+- Overview: System Health says "Open issues now"; MTTR shows its window and sample size, and "Not enough data" for a small sample instead of "Stable"; the tiles count open issues ("AI recommendations / On open issues", "Open critical"); the Service Health Map legend uses 85 and 60 like System Health; Top Failing Services lists by open issues, worst health first; the correlation card says "Commit links" and "Most correlated components"; the Sentinel card shows shadow and manual analyses and how many the AI analysed. Every panel states its time window.
+- The environment picker offers "development" instead of "dev", which matched nothing.
+- Analyses list: the model name moves from the "Analyzed" badge to its tooltip; below 1440 px the Trigger and Sentinel chips may wrap onto two lines.
+- CI/CD binding form: the field asks for `owner/repo` for GitHub Actions and `group/project or project ID` for GitLab CI.
+- The demo sign-in page says "example incidents", not "real incidents" (English and French).
+- The built-in sample incident's reasoning steps cite only what an analysis reads.
+- Public demo: the banner on every signed-in page says that these are analyses SerOps got right, selected from benchmark runs on test environments and shown under the name Acme Cloud, that two of them are healthy windows, and links to the benchmark page for the misses. Its "Self-host SerOps" link is translated (English and French).
+- Public demo: the Sentinel card no longer shows "tokens saved". The figure is the average tokens of an analysis times the batches skipped, and in the demo that average is only a size estimate. Unchanged for every other organisation.
+- Public demo: the analysis page no longer shows a token figure (no token count was recorded with the demo's analyses; the figure was a size estimate), and integration cards no longer show an age, a service count or the buttons that add, edit, delete or test a connection. Unchanged for every other organisation.
+- Public demo: the Overview hides the mean-time-to-resolve tile (its figure would come from the test schedule of the seeded runs), Settings → Integrations hides "Add Integration", and the Team page hides the invite button, the Actions column and the text about inviting or removing people. The server refuses those actions in the demo. Unchanged for every other organisation.
+- Dependencies: the image is built on Node 26.13.1 (was 22.12); Vite 8 with `@vitejs/plugin-react` 6 and Vitest 4; framer-motion 14; react-icons 5.7 (the CloudWatch tile uses `FaAws`); bootstrap 5.3.9; rollup-plugin-visualizer 7.1; `@iconify/react` removed (unused).
+
+### Security
+
+- Eight `console.error` calls in the data and project services pass ids as arguments instead of inside the format string.
+
+### Fixed
+
+- The Actions column stays inside the Analyses table at 1440 px after the Sentinel column was added.
+- An analysis address with an unknown id shows "Analysis not found" with a way back, instead of an empty page under the id.
+- The analysis header says Resolved or Muted when its issues are, instead of "Acknowledged" next to an issue marked Resolved.
+- An analysis that found nothing says so in the Root cause card, which used to be left with only its heading.
+- Settings → Integrations: the card shows the instance's own address (a self-hosted GitLab showed gitlab.com) and when it was added (it showed "Unknown").
+- Settings → AI: providers are described by the API they speak, not by a Python class name; the monthly spend and its percentage no longer run together when read as text.
+- A reference with nothing to open is plain text instead of a link that leads to an empty page: a trace id whose trace was not stored (`trace_stored: false` on the span; analysis traces, timeline and its chart, the issue list's trace badge, the chat's trace card, the evidence chips) and a commit the analysis holds no code change for (`in_batch: false`; issue panel and evidence chips). Payloads without these fields link as before.
+- One word for one thing in titles: "analysis" replaces "batch" in the Analyses page, its table, the timeline and traces pages, the browser title and the notification type (English and French).
+- Analysis pages: the "By service" heading of the metrics table and the note above the log table line up with the first column.
+
 ## [1.4.0] - 2026-11-15
 
 The Enterprise panels for SAML, SCIM and audit streaming, and the Enterprise notices shown in their place without a license. Same version as the backend and the chart.

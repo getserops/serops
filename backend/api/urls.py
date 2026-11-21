@@ -17,6 +17,16 @@ def health_check(request):
         return JsonResponse({'status': 'error', 'detail': 'database unavailable'}, status=503)
 
 
+def client_config_endpoint(request):
+    """Unauthenticated settings the web app needs before login.
+
+    Today one thing: whether this instance counts page views (a public
+    demo), which is off unless the operator set it. Never a secret.
+    """
+    from api.client_config import client_config
+    return JsonResponse(client_config())
+
+
 def version_endpoint(request):
     """Unauthenticated version endpoint (Batch 43, SemVer discipline).
 
@@ -48,15 +58,20 @@ from Projects.views import SCMWebhookReceiverView
 from Data.alert_webhooks import AlertWebhookView
 from Data.self_metrics import MetricsView
 
-schema_view = get_schema_view(
-   openapi.Info(
-      title="Serops Log Retrieval API",
+API_INFO = openapi.Info(
+      title="SerOps API",
       default_version='v1',
-      description="API documentation for Serops Log Retrieval system",
-      terms_of_service="https://www.google.com/policies/terms/",
-      contact=openapi.Contact(email="contact@serops.ai"),
-      license=openapi.License(name="BSD License"),
-   ),
+      description="The SerOps REST API. Served only when DEBUG or SEROPS_API_DOCS is set.",
+      terms_of_service="https://serops.ai/terms",
+      contact=openapi.Contact(email="support@serops.ai"),
+      license=openapi.License(
+         name="AGPL-3.0 (Community); SerOps Commercial License (ee/)",
+         url="https://github.com/getserops/serops/blob/main/LICENSE",
+      ),
+)
+
+schema_view = get_schema_view(
+   API_INFO,
    public=True,
    permission_classes=[permissions.AllowAny],
 )
@@ -85,6 +100,7 @@ admin.site.login = _throttled_admin_login
 api_urlpatterns = [
     path('health/', health_check, name='health-check'),
     path('version/', version_endpoint, name='version'),
+    path('client-config/', client_config_endpoint, name='client-config'),
     path('auth/', include('Users.urls')),
     path('organisation/', include('Organisations.urls')),
     path('chat/', include('ai_model.urls')),
@@ -115,9 +131,12 @@ api_urlpatterns = [
     # leaked secret only affects one tenant.
     path('webhooks/alerts/<str:source>/<int:org_id>/', AlertWebhookView.as_view(), name='alert-webhook'),
 
-    # Swagger URLs
-    path('docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
 ]
+
+# Swagger UI: only in DEBUG or with SEROPS_API_DOCS=true (see settings).
+if settings.SEROPS_API_DOCS:
+    api_urlpatterns.append(
+        path('docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'))
 
 if settings.DJANGO_ADMIN_ENABLED:
     api_urlpatterns.append(path('admin/', admin.site.urls))

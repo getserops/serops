@@ -814,7 +814,12 @@ class SCMBindingViewSet(ProjectScoped, viewsets.ModelViewSet):
         CICDBinding creation for unified providers (GitLab, GitHub, etc.)
         """
         binding = self.get_object()
-        
+
+        # Calls the SCM provider with the stored token: never for the
+        # read-only demo account (audit 2026-11-20, item 2).
+        if getattr(request.user, 'is_demo', False):
+            return Response({'can_auto_link': False, 'message': 'Live data is not queried on the demo.', 'suggestions': []})
+
         try:
             from providers.services import AutoLinkService
             

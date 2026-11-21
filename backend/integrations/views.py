@@ -130,7 +130,7 @@ class ObservabilityIntegrationViewSet(viewsets.ModelViewSet):
         # don't want the demo box making outbound requests to
         # fabricated hostnames anyway.
         from .serializers import _DEMO_PLACEHOLDER
-        if integration.get_password() == _DEMO_PLACEHOLDER:
+        if integration.organisation.is_demo or integration.get_password() == _DEMO_PLACEHOLDER:
             results = [{
                 'provider': integration.provider,
                 'provider_type': cap,
@@ -253,9 +253,11 @@ class ObservabilityIntegrationViewSet(viewsets.ModelViewSet):
             )
 
         # Short-circuit for demo integrations so we don't try to reach
-        # placeholder hostnames from the demo box.
+        # placeholder hostnames from the demo box. The demo account never
+        # reaches a log store at all (audit 2026-11-20, item 2).
         from .serializers import _DEMO_PLACEHOLDER
-        if integration.get_password() == _DEMO_PLACEHOLDER:
+        if (integration.organisation.is_demo or getattr(request.user, 'is_demo', False)
+                or integration.get_password() == _DEMO_PLACEHOLDER):
             from datetime import datetime, timezone as _tz
             return Response({
                 'integration_id': integration.id,

@@ -109,3 +109,5 @@ Accounts that sign in with SSO keep the email of their identity provider. An add
 ## OpenID Connect Sign-In
 
 Each sign-in is bound to the browser that started it with a short-lived HttpOnly cookie, and uses a `nonce` and PKCE (S256). Your identity provider must return `email_verified: true`. Providers that leave the claim out can be trusted by their host name with `SSO_TRUST_MISSING_EMAIL_VERIFIED` (default: `login.microsoftonline.com`, for Microsoft Entra ID).
+
+For those trusted hosts the discovery URL must name your own tenant (`https://login.microsoftonline.com/<tenant-id>/v2.0/.well-known/openid-configuration`): the multi-tenant `/common/`, `/organizations/` and `/consumers/` endpoints accept any Microsoft account and are refused when you save the settings and at sign-in. SerOps also checks that the ID token comes from the issuer your provider's metadata names, has not expired, and that the userinfo answer is about the same user (`sub`) as the ID token.

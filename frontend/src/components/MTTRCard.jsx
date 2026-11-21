@@ -2,9 +2,13 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaClock, FaArrowTrendDown, FaArrowTrendUp, FaMinus } from 'react-icons/fa6';
 import './Dashboard.css';
+import { isDemoUser } from '../utils/demo';
 
 const MTTRCard = ({ data, loading }) => {
     const { t } = useTranslation();
+    // Not shown in the public demo: its issues were resolved on our own
+    // test schedule, so the figure says nothing about a real team.
+    if (isDemoUser()) return null;
     if (loading) {
         return (
             <div className="metric-card">

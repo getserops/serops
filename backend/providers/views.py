@@ -16,8 +16,6 @@ from rest_framework.permissions import AllowAny
 from rest_framework.decorators import permission_classes, api_view
 from django.conf import settings
 from django.urls import path, include
-from rest_framework import permissions
-from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from Utils.elastic_search import get_elasticsearch_client, index_logs
@@ -27,19 +25,6 @@ import logging
 
 
 logger = logging.getLogger(__name__)
-
-schema_view = get_schema_view(
-    openapi.Info(
-        title="GitLab Log Retrieval API",
-        default_version='v1',
-        description="API for retrieving and managing GitLab logs",
-        terms_of_service="https://www.yourapp.com/terms/",
-        contact=openapi.Contact(email="contact@yourapp.com"),
-        license=openapi.License(name="Your License"),
-    ),
-    public=True,
-    permission_classes=(permissions.AllowAny,),  # Changed to AllowAny for easier testing
-)
 
 def _visible_gitlab_projects(user):
     """The organisation's legacy repositories, without those linked only to
@@ -811,6 +796,11 @@ class PipelineLogsView(APIView):
         }
     )
     def get(self, request, project_id, pipeline_id):
+        # Calls GitLab with the stored token and records the jobs: never for
+        # the read-only demo account (audit 2026-11-20, item 2).
+        if getattr(request.user, 'is_demo', False):
+            from Users.views import DEMO_ONLY_RESPONSE
+            return Response(DEMO_ONLY_RESPONSE, status=status.HTTP_403_FORBIDDEN)
         try:
             # Get the project and verify access permissions
             project = _visible_gitlab_projects(request.user).get(pk=project_id)
@@ -1543,6 +1533,12 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
         """
         integration = self.get_object()
 
+        # Seeded content, and the read-only demo account: no provider call
+        # (audit 2026-11-20, item 2).
+        if getattr(integration.organisation, 'is_demo', False) or getattr(request.user, 'is_demo', False):
+            # Seeded content: no address, no credential, nothing to call.
+            return Response({'results': [], 'page': 1, 'per_page': 0, 'total': 0, 'demo': True})
+
         if not integration.is_verified:
             return Response(
                 {
@@ -1613,6 +1609,16 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
 
     # ── health-check (single integration) ────────────────────────
 
+    @staticmethod
+    def _without_owner_identity(request, result):
+        """The token owner's email stays with integration.manage holders: a
+        health check is allowed with integration.use (audit 2026-11-20, item 2)."""
+        from Middlewares.rbac import has_permission
+        details = result.get('details') if isinstance(result, dict) else None
+        if isinstance(details, dict) and 'email' in details and not has_permission(request.user, 'integration.manage'):
+            result = {**result, 'details': {k: v for k, v in details.items() if k != 'email'}}
+        return result
+
     @action(detail=True, methods=['post'], url_path='health-check')
     def health_check(self, request, pk=None):
         """
@@ -1623,7 +1629,7 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
         integration = self.get_object()
         try:
             from .services import IntegrationHealthService
-            health = IntegrationHealthService(integration).check_health()
+            health = self._without_owner_identity(request, IntegrationHealthService(integration).check_health())
             if health['healthy']:
                 return Response(health)
             return Response(health, status=status.HTTP_400_BAD_REQUEST)
@@ -1636,10 +1642,15 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
 
     # ── health-check-all (parallel fan-out) ──────────────────────
 
-    @action(detail=False, methods=['get'], url_path='health-check-all')
+    @action(detail=False, methods=['post'], url_path='health-check-all')
     def health_check_all(self, request):
         """
         Check health of all integrations for the user's org **in parallel**.
+
+        POST with integration.use, like the single health check: it calls
+        every provider with the stored credentials and records the result.
+        It was a GET open to viewers and the demo user (audit 2026-11-20,
+        item 2).
 
         Uses ThreadPoolExecutor to fan out external API calls so that N
         integrations complete in ~max(latency) instead of sum(latency).
@@ -1647,9 +1658,10 @@ class ProviderIntegrationViewSet(viewsets.ModelViewSet):
         try:
             from .services import IntegrationHealthService
 
-            results = IntegrationHealthService.check_all_for_org(
-                request.user.organisation
-            )
+            results = [
+                self._without_owner_identity(request, r)
+                for r in IntegrationHealthService.check_all_for_org(request.user.organisation)
+            ]
             healthy_count = sum(1 for r in results if r['healthy'])
             return Response({
                 'total': len(results),

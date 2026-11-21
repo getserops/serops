@@ -28,6 +28,17 @@
   <style>{% include "partials/custom.css" %}</style>
   {#- The header's GitHub stars/version widget calls the GitHub API. -#}
   <link rel="preconnect" href="https://api.github.com" crossorigin>
+  {#- Page and event counts with our own Umami (stats.serops.ai): no cookie,
+      no third party, Do Not Track respected. Present only when the site is
+      built with UMAMI_WEBSITE_ID (mkdocs.yml, extra.umami_website_id); a
+      build from the public repository loads nothing. The query string is
+      kept: campaign links carry utm_* parameters there. The #anchor is
+      dropped: the theme rewrites it while a page is scrolled, and each
+      rewrite was counted as another page view. -#}
+  {%- if config.extra.umami_website_id %}
+  <script defer src="https://stats.serops.ai/script.js" data-website-id="{{ config.extra.umami_website_id }}" data-domains="serops.ai" data-do-not-track="true" data-exclude-hash="true"></script>
+  <script>{% include "partials/umami-events.js" %}</script>
+  {%- endif %}
   {#- Redirect stubs set `robots: noindex, follow` in their front matter. -#}
   {%- if page and page.meta and page.meta.robots %}
   <meta name="robots" content="{{ page.meta.robots }}">

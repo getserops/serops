@@ -20,7 +20,7 @@ Four sources are supported:
 
 The alert itself is part of the evidence: its title, summary and, for
 Sentry, the exception, release and stack frames go into the analysis
-alongside the logs, metrics and traces of the window. An alert alone is
+alongside the logs, CPU and memory metrics and traces of the window. An alert alone is
 enough for an analysis, so a team that only has Sentry still gets one.
 
 Only a firing alert starts an analysis. A resolved one (Alertmanager and

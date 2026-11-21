@@ -568,8 +568,10 @@ class K8sCpuFetchTest(SimpleTestCase):
     def test_vm_mode_still_uses_the_node_exporter_expression(self):
         """Regression guard: VM behaviour must be untouched."""
         p, _ = self._fetch('vm')
-        self.assertEqual(len(p.expr_calls), 1)
-        self.assertIn('mode="idle"', p.expr_calls[0])
+        # One CPU expression; the JVM garbage-collection queries are the others.
+        cpu = [e for e in p.expr_calls if 'jvm_gc' not in e]
+        self.assertEqual(len(cpu), 1)
+        self.assertIn('mode="idle"', cpu[0])
         self.assertNotIn('node_cpu_seconds_total', p.range_calls)
 
 

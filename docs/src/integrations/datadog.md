@@ -75,7 +75,7 @@ SerOps automatically maps Prometheus-style metric names to Datadog metrics:
 | `node_cpu_seconds_total` | `system.cpu.user` |
 
 !!! note "Unmapped Metrics"
-    Metrics that do not appear in the mapping table above are passed through to Datadog using their original name.
+    The adapter passes a name that is not in the mapping table through to Datadog unchanged, but SerOps itself only asks for the CPU and memory names in that table: there is no setting to make it query another metric. See [what SerOps reads](../user-guide/metrics.md#what-serops-reads).
 
 ## Kubernetes setup
 
@@ -132,7 +132,7 @@ kubectl label namespace <project-namespace> project_name=<YOUR-PROJECT> environm
     project from **Check my data** (it offers `kube_namespace` and
     `kube_app_part_of` as project rules).
 
-**APM tip**: if your DD agents send traces, the same tagging flows through, so SerOps can correlate them with logs and metrics. See [Distributed Traces](traces.md).
+**APM tip**: if your DD agents send traces, the same tagging flows through, so SerOps can correlate them with logs and with CPU and memory metrics. See [Distributed Traces](traces.md).
 
 ## Health Check
 

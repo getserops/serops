@@ -13,6 +13,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useChatIssues } from "../hooks/useChatIssues";
 import { renderFormattedText } from "../utils/textFormatters";
+import { tracePath } from "../utils/linkTargets";
 import SensitiveDataWarningModal from "./SensitiveDataWarningModal";
 import SimilarIssues from "./SimilarIssues";
 import "./ChatIssues.css";
@@ -32,6 +33,18 @@ const getCommitUrl = (commit) => {
     return `https://github.com/${commit.project_id}/commit/${commit.sha}`;
   }
   return null;
+};
+
+/**
+ * A span's operation, linked to its trace. Plain text when the trace was
+ * not stored: there is no page to open.
+ */
+const TraceOperation = ({ span, title }) => {
+  const to = tracePath(span);
+  const label = span.operation_name || '?';
+  return to
+    ? <a href={to} className="text-decoration-none" title={title}>{label}</a>
+    : <span title={title}>{label}</span>;
 };
 
 /**
@@ -175,11 +188,7 @@ const CorrelationSection = ({ issueContext }) => {
                   <FaExclamationCircle size={9} className="me-1 text-danger" />
                   <span className="text-muted">{span.service_name || '?'}</span>
                   {' :: '}
-                  <a
-                    href={`/dash/traces/${span.trace_id}`}
-                    className="text-decoration-none"
-                    title={span.status_message || span.operation_name}
-                  >{span.operation_name || '?'}</a>
+                  <TraceOperation span={span} title={span.status_message || span.operation_name} />
                 </div>
               ))}
               {(relatedTraces.top_slow || []).slice(0, 2).map((span, idx) => (
@@ -187,11 +196,7 @@ const CorrelationSection = ({ issueContext }) => {
                   <span className="text-muted">{span.duration_ms}ms</span>{' '}
                   <span className="text-muted">{span.service_name || '?'}</span>
                   {' :: '}
-                  <a
-                    href={`/dash/traces/${span.trace_id}`}
-                    className="text-decoration-none"
-                    title={span.operation_name}
-                  >{span.operation_name || '?'}</a>
+                  <TraceOperation span={span} title={span.operation_name} />
                 </div>
               ))}
             </Card.Body>
@@ -551,6 +556,21 @@ const ChatIssues = () => {
               >
                 {t('chat.demoSelfHost')} →
               </a>
+              {chatHistory.length > 0 && (
+                <div className="chat-demo-saved">
+                  <span>{t('chat.demoSaved')}</span>
+                  {chatHistory.map((session) => (
+                    <button
+                      key={session.chat_id}
+                      type="button"
+                      className="chat-demo-saved-item"
+                      onClick={() => loadChatFromHistory(session)}
+                    >
+                      {session.title}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <>

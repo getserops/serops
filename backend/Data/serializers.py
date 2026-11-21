@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .issue_order import root_cause_first
+from .link_targets import batch_commit_shas, commit_in_batch, flag_trace_items
 from .models import AIAnalyzedBatch, Issue, IssueOccurrence
 
 class IssueSerializer(serializers.ModelSerializer):
@@ -72,7 +73,8 @@ class IssueSerializer(serializers.ModelSerializer):
             first_commit = obj.linked_commits[0] if obj.linked_commits else {}
             sha = first_commit.get('sha', '')[:8] if isinstance(first_commit, dict) else str(first_commit)[:8]
             if sha:
-                entry = {'type': 'commit', 'value': sha}
+                entry = {'type': 'commit', 'value': sha,
+                         'in_batch': commit_in_batch(sha, batch_commit_shas(getattr(obj, 'batch', None)))}
                 if obj.correlation_confidence:
                     entry['confidence'] = obj.correlation_confidence
                 summary.append(entry)
@@ -153,8 +155,12 @@ class IssueSerializer(serializers.ModelSerializer):
             ]
             return matching or items   # fall back to full set
 
-        top_slow = _filter_to_service(traces.get('top_slow') or [])[:3]
-        top_errors = _filter_to_service(traces.get('top_errors') or [])[:3]
+        # trace_stored: whether the trace can be opened (Data/link_targets.py).
+        top_slow, top_errors = flag_trace_items(
+            batch.organisation_id,
+            _filter_to_service(traces.get('top_slow') or [])[:3],
+            _filter_to_service(traces.get('top_errors') or [])[:3],
+        )
 
         return {
             'trace_count': int(traces.get('trace_count') or 0),
@@ -163,6 +169,19 @@ class IssueSerializer(serializers.ModelSerializer):
             'top_slow': top_slow,
             'top_errors': top_errors,
         }
+
+    def to_representation(self, obj):
+        data = super().to_representation(obj)
+        # in_batch: whether the batch's code changes page has this commit
+        # (Data/link_targets.py). The stored list is not modified.
+        commits = data.get('linked_commits')
+        if isinstance(commits, list) and commits:
+            shas = batch_commit_shas(getattr(obj, 'batch', None))
+            data['linked_commits'] = [
+                dict(c, in_batch=commit_in_batch(c.get('sha'), shas)) if isinstance(c, dict) else c
+                for c in commits
+            ]
+        return data
 
     def get_informed_by(self, obj):
         """Compact digest of the resolved issues that fed this batch's prompt.

@@ -11,6 +11,7 @@ import {
 import { ClusterProvider } from "./context/ClusterContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PageTitle from "./components/PageTitle";
+import UsageAnalytics from "./components/UsageAnalytics";
 import { applyTheme, applyDensity } from "./utils/theme";
 import { enterpriseSettingsPages } from "./utils/edition";
 
@@ -113,6 +114,7 @@ function App() {
         <ClusterProvider>
         <ErrorBoundary>
         <PageTitle />
+        <UsageAnalytics />
         <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Authentication routes */}

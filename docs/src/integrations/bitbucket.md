@@ -9,7 +9,7 @@ Connect Bitbucket repositories to SerOps for code change tracking and pipeline m
 ## Prerequisites
 
 - Bitbucket Cloud or Bitbucket Server/Data Center
-- App Password with repository read access
+- A Bitbucket **access token** (repository or workspace) with repository read access
 - (Optional) Webhook configuration access
 
 ---
@@ -20,20 +20,31 @@ Configuration is managed in **Integrations**.
 
 ### Bitbucket Cloud
 
-1. In Bitbucket: **Personal Settings → App passwords**
-2. Create an App Password with permissions:
+!!! warning "Use an access token, not an app password"
+    SerOps sends the Bitbucket credential as a Bearer token. Bitbucket
+    accepts that from an access token, not from an app password, so an
+    app password fails the connection test. The SerOps form still labels
+    the field **App Password**: paste the access token there.
+
+1. In Bitbucket, create an access token:
+   - for one repository: **Repository settings → Access tokens**;
+   - for several repositories: a workspace access token, in the
+     workspace settings.
+
+   Give it these scopes:
    - `Repositories: Read`
    - `Pipelines: Read` (for CI/CD)
    - `Webhooks: Read and write` (optional, for auto-setup)
-3. In SerOps: **Integrations**
-4. Click **+ Add Integration** and select **Bitbucket**
-5. Enter:
+2. In SerOps: **Integrations**
+3. Click **Add Integration** and select **Bitbucket**
+4. Enter:
    - **Name**: Identifier (e.g., "Team Bitbucket")
    - **Bitbucket URL**: Leave blank for bitbucket.org
-   - **Username**: Your Bitbucket username (not email)
-   - **App Password**: The app password created above
-6. Click **Test Connection** to verify
-7. Click **Save**
+   - **Username**: required by the form, not used to sign in; your
+     Bitbucket username is fine
+   - **App Password**: the access token created above
+5. Click **Test Connection** to verify
+6. Click **Create Integration**
 
 ### Bitbucket Server / Data Center
 
@@ -113,7 +124,7 @@ SerOps will prompt for workspace when listing repositories.
 
 | Issue | Solution |
 |-------|----------|
-| "Invalid credentials" | Ensure username (not email) and app password are correct |
+| "Invalid credentials" | Use an access token, not an app password (see the warning under Setup), and check its scopes |
 | "Repository not found" | Check workspace/repo path format |
 | "Rate limit exceeded" | Use team-level credentials or wait |
 | "SSL error" (Server) | Add Bitbucket Server CA to trust store |

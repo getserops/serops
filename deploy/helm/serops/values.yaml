@@ -1,4 +1,4 @@
-# SerOps Helm chart values — v1.4.0
+# SerOps Helm chart values — v1.5.0
 #
 # All defaults are safe for a small production deployment (~5 users,
 # 100 batches/day). Scale replicas + resources for larger tenants.
@@ -51,9 +51,11 @@ backend:
   service:
     type: ClusterIP
     port: 8000
-  # Environment variables — merged with configmap + secret below.
+  # Environment variables for every pod that runs the backend image: the
+  # API, the Celery workers and beat, and the migration job (since chart
+  # 0.2.1; before, the API pods only). Merged with the configmap + secret.
   env: {}
-  # Add extra env vars from another ConfigMap / Secret (helm-common pattern).
+  # Extra env sources (ConfigMap / Secret), for the same pods.
   envFrom: []
   resources:
     requests:
@@ -151,8 +153,10 @@ frontend:
 celeryWorker:
   replicaCount: 2
   image:
-    # Same image as backend; different command.
-    repository: ghcr.io/getserops/backend
+    # Same image as the backend; different command. Empty repository and tag
+    # follow backend.image (chart 0.2.2): pin backend.image.tag and the
+    # worker runs the same release. Set these only to run something else.
+    repository: ""
     tag: ""
     pullPolicy: IfNotPresent
   # Queues this worker consumes. The chart always adds the four the backend
@@ -188,7 +192,8 @@ celeryBeat:
   # double-fire scheduled tasks.
   replicaCount: 1
   image:
-    repository: ghcr.io/getserops/backend
+    # Empty repository and tag follow backend.image (chart 0.2.2).
+    repository: ""
     tag: ""
     pullPolicy: IfNotPresent
   resources:
@@ -475,6 +480,13 @@ django:
   # the SSO redirect URI and links in emails. Empty: the first ingress host,
   # https when ingress.tls is set.
   publicUrl: ""
+  # Off by default, for debugging and benchmarks. Records every query SerOps
+  # sends to a log, metric, trace or code store during an investigation or an
+  # analysis, with the store's answer, one JSON line per request, under this
+  # directory (e.g. "/tmp/serops-query-trail", the pod's scratch volume).
+  # The answers are written RAW, NOT REDACTED (log lines included); request
+  # headers are never recorded. Leave it empty on a production install.
+  queryTrailDir: ""
 
 # ============================================================================
 # ServiceMonitor — for the Prometheus Operator

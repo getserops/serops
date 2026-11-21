@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { trackEvent } from "../utils/usageAnalytics";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import AuthService from "../services/auth.service";
@@ -181,6 +182,7 @@ const Login = () => {
       const { token, user } = response.data;
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
+      trackEvent("demo_signin");
       // Reset the composed deployment filter — a returning user might
       // have a cluster / env / region / namespace saved in localStorage
       // from their own org that doesn't match the demo org's shape, in

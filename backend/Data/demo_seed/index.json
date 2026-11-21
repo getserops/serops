@@ -1,0 +1,1456 @@
+{
+ "ai_usage": {
+  "note": "batch.token_count is SerOps' own size estimate of the batch text (characters / 4), not model usage: no cost may be computed from it",
+  "reason": "not recorded in the capture; estate database deleted",
+  "value": null
+ },
+ "files": [
+  {
+   "anchor": "2026-11-19T00:04:39.980321Z",
+   "batch_id": "fleet-batch-20261119000439-9d63",
+   "bytes": 33629,
+   "estate": "fleet",
+   "file": "fleet-K7-r1.json.gz",
+   "healthy_window": false,
+   "incident": "K7",
+   "issues": [
+    {
+     "capture_ref": "fleet-issue-10",
+     "component": "fleet-redis",
+     "created_at": "2026-11-19T00:01:47.342128Z",
+     "created_at_precedes_batch": true,
+     "differs_from_capture": [],
+     "issue_type": "SERVICE_UNAVAILABLE",
+     "last_seen_at": "2026-11-19T00:05:21.263725Z",
+     "occurrence_count": 2,
+     "severity": "CRITICAL",
+     "status": "OPEN"
+    }
+   ],
+   "issues_differ_from_capture": {},
+   "model_used": "claude-sonnet-5-5",
+   "project": "Fleet",
+   "renamed": {
+    "host": 604,
+    "organisation": 300,
+    "path_prefix": 9,
+    "person": 3,
+    "third_party": 600
+   },
+   "round": "r1",
+   "sentinel_decision": "manual",
+   "sha256": "51f888aa4f07c60535b47ac3f25f4fc647b8c6268aad656984e763318e92a5b8",
+   "token_count": 189843,
+   "traces": {
+    "available": false,
+    "cited_found": 0,
+    "cited_missing": 11,
+    "cited_trace_ids": 11,
+    "items": 0,
+    "reason": "the analysis read traces from an external store (external) that the capture could not save: no span rows exist for the trace ids it cites",
+    "snapshot_source": "external",
+    "store": null
+   },
+   "trigger": "manual",
+   "trim": {
+    "cicd_logs_kept": 1,
+    "cicd_logs_total": 1,
+    "evidence_lines_found": 4,
+    "evidence_lines_kept": 4,
+    "evidence_references": 7,
+    "evidence_references_located_in_change_events": 2,
+    "evidence_references_located_in_logs": 5,
+    "evidence_references_not_located": [],
+    "first_and_last_kept": true,
+    "logs_kept": 300,
+    "logs_total": 3441,
+    "max_lines": 300,
+    "over_limit": false,
+    "related_lines_found": 62,
+    "related_lines_kept": 62,
+    "related_references": 92,
+    "related_references_located": 69
+   },
+   "uncompressed_bytes": 554186
+  },
+  {
+   "anchor": "2026-11-18T23:16:41.664435Z",
+   "batch_id": "fleet-batch-20261118231641-5110",
+   "bytes": 35066,
+   "estate": "fleet",
+   "file": "fleet-K3-r1.json.gz",
+   "healthy_window": false,
+   "incident": "K3",
+   "issues": [
+    {
+     "capture_ref": "fleet-issue-4",
+     "component": "fleet-db",
+     "created_at": "2026-11-18T23:15:13.817940Z",
+     "created_at_precedes_batch": true,
+     "differs_from_capture": [],
+     "issue_type": "DATABASE_ERROR",
+     "last_seen_at": "2026-11-18T23:17:14.035855Z",
+     "occurrence_count": 2,
+     "severity": "CRITICAL",
+     "status": "OPEN"
+    }
+   ],
+   "issues_differ_from_capture": {},
+   "model_used": "claude-sonnet-5-5",
+   "project": "Fleet",
+   "renamed": {
+    "host": 600,
+    "organisation": 300,
+    "path_prefix": 3,
+    "person": 2,
+    "third_party": 600
+   },
+   "round": "r1",
+   "sentinel_decision": "manual",
+   "sha256": "a4d1672fc7f073caa32ab84662a5b295d195eab77d6b3fd66d322521eb89e6b9",
+   "token_count": 23959,
+   "traces": {
+    "available": false,
+    "cited_found": 0,
+    "cited_missing": 11,
+    "cited_trace_ids": 11,
+    "items": 0,
+    "reason": "the analysis read traces from an external store (external) that the capture could not save: no span rows exist for the trace ids it cites",
+    "snapshot_source": "external",
+    "store": null
+   },
+   "trigger": "manual",
+   "trim": {
+    "cicd_logs_kept": 1,
+    "cicd_logs_total": 1,
+    "evidence_lines_found": 7,
+    "evidence_lines_kept": 7,
+    "evidence_references": 10,
+    "evidence_references_located_in_change_events": 2,
+    "evidence_references_located_in_logs": 8,
+    "evidence_references_not_located": [],
+    "first_and_last_kept": true,
+    "logs_kept": 300,
+    "logs_total": 472,
+    "max_lines": 300,
+    "over_limit": false,
+    "related_lines_found": 48,
+    "related_lines_kept": 48,
+    "related_references": 67,
+    "related_references_located": 57
+   },
+   "uncompressed_bytes": 556254
+  },
+  {
+   "anchor": "2026-11-19T01:58:31.196777Z",
+   "batch_id": "fleet-batch-20261119015831-a028",
+   "bytes": 34661,
+   "estate": "fleet",
+   "file": "fleet-K3-r2.json.gz",
+   "healthy_window": false,
+   "incident": "K3",
+   "issues": [
+    {
+     "capture_ref": "fleet-issue-4",
+     "component": "fleet-db",
+     "created_at": "2026-11-18T23:15:13.817940Z",
+     "created_at_precedes_batch": true,
+     "differs_from_capture": [],
+     "issue_type": "DATABASE_ERROR",
+     "last_seen_at": "2026-11-19T01:59:04.499832Z",
+     "occurrence_count": 11,
+     "severity": "CRITICAL",
+     "status": "OPEN"
+    }
+   ],
+   "issues_differ_from_capture": {},
+   "model_used": "claude-sonnet-5-5",
+   "project": "Fleet",
+   "renamed": {
+    "host": 600,
+    "host_alias": 8,
+    "organisation": 300,
+    "path_prefix": 4,
+    "person": 4,
+    "third_party": 600
+   },
+   "round": "r2",
+   "sentinel_decision": "manual",
+   "sha256": "21399e13005a72d9d1a6f28dd65e98f6db7d03ca477f6d10f576bf86e736e44c",
+   "token_count": 22596,
+   "traces": {
+    "available": false,
+    "cited_found": 0,
+    "cited_missing": 8,
+    "cited_trace_ids": 8,
+    "items": 0,
+    "reason": "the analysis read traces from an external store (external) that the capture could not save: no span rows exist for the trace ids it cites",
+    "snapshot_source": "external",
+    "store": null
+   },
+   "trigger": "manual",
+   "trim": {
+    "cicd_logs_kept": 1,
+    "cicd_logs_total": 1,
+    "evidence_lines_found": 5,
+    "evidence_lines_kept": 5,
+    "evidence_references": 10,
+    "evidence_references_located_in_change_events": 1,
+    "evidence_references_located_in_logs": 8,
+    "evidence_references_not_located": [
+     "analysis_result[0].correlated_issues[0].evidence_sources.logs[4]"
+    ],
+    "first_and_last_kept": true,
+    "logs_kept": 300,
+    "logs_total": 449,
+    "max_lines": 300,
+    "over_limit": false,
+    "related_lines_found": 60,
+    "related_lines_kept": 60,
+    "related_references": 77,
+    "related_references_located": 71
+   },
+   "uncompressed_bytes": 555686
+  },
+  {
+   "anchor": "2026-11-18T23:40:54.358758Z",
+   "batch_id": "fleet-batch-20261118234054-5c9c",
+   "bytes": 7541,
+   "estate": "fleet",
+   "file": "fleet-K5-r1.json.gz",
+   "healthy_window": true,
+   "incident": "K5",
+   "issues": [],
+   "issues_differ_from_capture": {},
+   "model_used": "claude-sonnet-5-5",
+   "project": "Fleet",
+   "renamed": {
+    "host": 2,
+    "organisation": 1,
+    "path_prefix": 4,
+    "person": 4,
+    "third_party": 3
+   },
+   "round": "r1",
+   "sentinel_decision": "manual",
+   "sha256": "e7430ceb90ac6336c0041091eaaf89ae69716f0e5dcd5d4b2b2619de7c1d8deb",
+   "token_count": 90,
+   "traces": {
+    "available": false,
+    "cited_found": 0,
+    "cited_missing": 5,
+    "cited_trace_ids": 5,
+    "items": 0,
+    "reason": "the analysis read traces from an external store (external) that the capture could not save: no span rows exist for the trace ids it cites",
+    "snapshot_source": "external",
+    "store": null
+   },
+   "trigger": "manual",
+   "trim": {
+    "cicd_logs_kept": 1,
+    "cicd_logs_total": 1,
+    "evidence_lines_found": 0,
+    "evidence_lines_kept": 0,
+    "evidence_references": 0,
+    "evidence_references_located_in_change_events": 0,
+    "evidence_references_located_in_logs": 0,
+    "evidence_references_not_located": [],
+    "first_and_last_kept": true,
+    "logs_kept": 1,
+    "logs_total": 1,
+    "max_lines": 300,
+    "over_limit": false,
+    "related_lines_found": 0,
+    "related_lines_kept": 0,
+    "related_references": 3,
+    "related_references_located": 0
+   },
+   "uncompressed_bytes": 62977
+  },
+  {
+   "anchor": "2026-11-18T22:21:41.910696Z",
+   "batch_id": "shopfront-batch-20261118222141-545e",
+   "bytes": 31033,
+   "estate": "shopfront",
+   "file": "shopfront-I1-r1.json.gz",
+   "healthy_window": false,
+   "incident": "I1",
+   "issues": [
+    {
+     "capture_ref": "shopfront-issue-1",
+     "component": "checkoutservice",
+     "created_at": "2026-11-18T22:17:55.095789Z",
+     "created_at_precedes_batch": true,
+     "differs_from_capture": [],
+     "issue_type": "POD_CRASH",
+     "last_seen_at": "2026-11-18T22:22:17.728944Z",
+     "occurrence_count": 2,
+     "severity": "CRITICAL",
+     "status": "OPEN"
+    }
+   ],
+   "issues_differ_from_capture": {},
+   "model_used": "claude-sonnet-5-5",
+   "project": "Shopfront",
+   "renamed": {
+    "host": 20,
+    "organisation": 20,
+    "person": 2
+   },
+   "round": "r1",
+   "sentinel_decision": "manual",
+   "sha256": "c416b6c2cfd656327f13b7512674abcafea5f6ff6f009ef3aff8aa38c9b38398",
+   "token_count": 2114,
+   "traces": {
+    "available": false,
+    "cited_found": 0,
+    "cited_missing": 0,
+    "cited_trace_ids": 0,
+    "items": 0,
+    "reason": "the estate sent no traces: the analysis has no trace snapshot and the capture no trace store",
+    "snapshot_source": null,
+    "store": null
+   },
+   "trigger": "manual",
+   "trim": {
+    "cicd_logs_kept": 0,
+    "cicd_logs_total": 0,
+    "evidence_lines_found": 20,
+    "evidence_lines_kept": 20,
+    "evidence_references": 24,
+    "evidence_references_located_in_change_events": 0,
+    "evidence_references_located_in_logs": 24,
+    "evidence_references_not_located": [],
+    "first_and_last_kept": true,
+    "logs_kept": 20,
+    "logs_total": 20,
+    "max_lines": 300,
+    "over_limit": false,
+    "related_lines_found": 20,
+    "related_lines_kept": 20,
+    "related_references": 37,
+    "related_references_located": 29
+   },
+   "uncompressed_bytes": 469551
+  },
+  {
+   "anchor": "2026-11-19T00:56:52.575913Z",
+   "batch_id": "shopfront-batch-20261119005652-8520",
+   "bytes": 30092,
+   "estate": "shopfront",
+   "file": "shopfront-I1-r2.json.gz",
+   "healthy_window": false,
+   "incident": "I1",
+   "issues": [
+    {
+     "capture_ref": "shopfront-issue-12",
+     "component": "checkoutservice",
+     "created_at": "2026-11-19T00:57:21.232162Z",
+     "created_at_precedes_batch": false,
+     "differs_from_capture": [],
+     "issue_type": "POD_CRASH",
+     "last_seen_at": "2026-11-19T00:57:21.232205Z",
+     "occurrence_count": 1,
+     "severity": "CRITICAL",
+     "status": "OPEN"
+    }
+   ],
+   "issues_differ_from_capture": {},
+   "model_used": "claude-sonnet-5-5",
+   "project": "Shopfront",
+   "renamed": {
+    "host": 26,
+    "organisation": 26,
+    "person": 2,
+    "third_party": 12
+   },
+   "round": "r2",
+   "sentinel_decision": "manual",
+   "sha256": "fd52555c619f450cc2d74e65e7f61949dd4725ed93873085808f9355c9cb48a4",
+   "token_count": 2796,
+   "traces": {
+    "available": false,
+    "cited_found": 0,
+    "cited_missing": 0,
+    "cited_trace_ids": 0,
+    "items": 0,
+    "reason": "the estate sent no traces: the analysis has no trace snapshot and the capture no trace store",
+    "snapshot_source": null,
+    "store": null
+   },
+   "trigger": "manual",
+   "trim": {
+    "cicd_logs_kept": 0,
+    "cicd_logs_total": 0,
+    "evidence_lines_found": 4,
+    "evidence_lines_kept": 4,
+    "evidence_references": 6,
+    "evidence_references_located_in_change_events": 0,
+    "evidence_references_located_in_logs": 6,
+    "evidence_references_not_located": [],
+    "first_and_last_kept": true,
+    "logs_kept": 26,
+    "logs_total": 26,
+    "max_lines": 300,
+    "over_limit": false,
+    "related_lines_found": 26,
+    "related_lines_kept": 26,
+    "related_references": 42,
+    "related_references_located": 35
+   },
+   "uncompressed_bytes": 466915
+  },
+  {
+   "anchor": "2026-11-18T23:12:06.667292Z",
+   "batch_id": "shopfront-batch-20261118231206-7af5",
+   "bytes": 43790,
+   "estate": "shopfront",
+   "file": "shopfront-I5-r1.json.gz",
+   "healthy_window": false,
+   "incident": "I5",
+   "issues": [
+    {
+     "capture_ref": "shopfront-issue-3",
+     "component": "frontend",
+     "created_at": "2026-11-18T22:33:23.996777Z",
+     "created_at_precedes_batch": true,
+     "differs_from_capture": [],
+     "issue_type": "CPU_HIGH",
+     "last_seen_at": "2026-11-18T23:12:39.871437Z",
+     "occurrence_count": 2,
+     "severity": "WARNING",
+     "status": "OPEN"
+    },
+    {
+     "capture_ref": "shopfront-issue-7",
+     "component": "paymentservice",
+     "created_at": "2026-11-18T23:12:39.928550Z",
+     "created_at_precedes_batch": false,
+     "differs_from_capture": [],
+     "issue_type": "API_ERROR",
+     "last_seen_at": "2026-11-18T23:12:39.928589Z",
+     "occurrence_count": 1,
+     "severity": "INFO",
+     "status": "OPEN"
+    }
+   ],
+   "issues_differ_from_capture": {},
+   "model_used": "claude-sonnet-5-5",
+   "project": "Shopfront",
+   "renamed": {
+    "host": 161,
+    "organisation": 161,
+    "person": 1,
+    "third_party": 42
+   },
+   "round": "r1",
+   "sentinel_decision": "manual",
+   "sha256": "67fa762f747f5c64a117545991b56b40f6ea33e4d44ba8908731f16873153f1d",
+   "token_count": 14428,
+   "traces": {
+    "available": false,
+    "cited_found": 0,
+    "cited_missing": 0,
+    "cited_trace_ids": 0,
+    "items": 0,
+    "reason": "the estate sent no traces: the analysis has no trace snapshot and the capture no trace store",
+    "snapshot_source": null,
+    "store": null
+   },
+   "trigger": "manual",
+   "trim": {
+    "cicd_logs_kept": 0,
+    "cicd_logs_total": 0,
+    "evidence_lines_found": 5,
+    "evidence_lines_kept": 5,
+    "evidence_references": 6,
+    "evidence_references_located_in_change_events": 0,
+    "evidence_references_located_in_logs": 6,
+    "evidence_references_not_located": [],
+    "first_and_last_kept": true,
+    "logs_kept": 161,
+    "logs_total": 161,
+    "max_lines": 300,
+    "over_limit": false,
+    "related_lines_found": 60,
+    "related_lines_kept": 60,
+    "related_references": 67,
+    "related_references_located": 65
+   },
+   "uncompressed_bytes": 636814
+  },
+  {
+   "anchor": "2026-11-18T23:54:29.680258Z",
+   "batch_id": "shopfront-batch-20261118235429-97bc",
+   "bytes": 38870,
+   "estate": "shopfront",
+   "file": "shopfront-I8-r1.json.gz",
+   "healthy_window": false,
+   "incident": "I8",
+   "issues": [
+    {
+     "capture_ref": "shopfront-issue-10",
+     "component": "shippingservice",
+     "created_at": "2026-11-18T23:51:13.295312Z",
+     "created_at_precedes_batch": true,
+     "differs_from_capture": [],
+     "issue_type": "POD_CRASH",
+     "last_seen_at": "2026-11-18T23:54:59.157017Z",
+     "occurrence_count": 2,
+     "severity": "CRITICAL",
+     "status": "OPEN"
+    }
+   ],
+   "issues_differ_from_capture": {},
+   "model_used": "claude-sonnet-5-5",
+   "project": "Shopfront",
+   "renamed": {
+    "host": 162,
+    "organisation": 162,
+    "person": 2,
+    "third_party": 4
+   },
+   "round": "r1",
+   "sentinel_decision": "manual",
+   "sha256": "3d919c3c2d3cc08093dc502986fb5c8f32397bc234ab26bc8b254f5c1737e9be",
+   "token_count": 18347,
+   "traces": {
+    "available": false,
+    "cited_found": 0,
+    "cited_missing": 0,
+    "cited_trace_ids": 0,
+    "items": 0,
+    "reason": "the estate sent no traces: the analysis has no trace snapshot and the capture no trace store",
+    "snapshot_source": null,
+    "store": null
+   },
+   "trigger": "manual",
+   "trim": {
+    "cicd_logs_kept": 0,
+    "cicd_logs_total": 0,
+    "evidence_lines_found": 2,
+    "evidence_lines_kept": 2,
+    "evidence_references": 3,
+    "evidence_references_located_in_change_events": 0,
+    "evidence_references_located_in_logs": 3,
+    "evidence_references_not_located": [],
+    "first_and_last_kept": true,
+    "logs_kept": 162,
+    "logs_total": 162,
+    "max_lines": 300,
+    "over_limit": false,
+    "related_lines_found": 61,
+    "related_lines_kept": 61,
+    "related_references": 69,
+    "related_references_located": 63
+   },
+   "uncompressed_bytes": 656560
+  },
+  {
+   "anchor": "2026-11-19T03:23:03.102081Z",
+   "batch_id": "shopfront-batch-20261119032303-a77c",
+   "bytes": 28205,
+   "estate": "shopfront",
+   "file": "shopfront-I12-r2.json.gz",
+   "healthy_window": false,
+   "incident": "I12",
+   "issues": [
+    {
+     "capture_ref": "shopfront-issue-7",
+     "component": "paymentservice",
+     "created_at": "2026-11-18T23:12:39.928550Z",
+     "created_at_precedes_batch": true,
+     "differs_from_capture": [
+      "attached_batch_id",
+      "attached_batch_timestamp",
+      "description",
+      "last_seen_at",
+      "occurrence_count",
+      "reasoning",
+      "recommendation",
+      "root_cause"
+     ],
+     "issue_type": "DEPLOY_FAILED",
+     "last_seen_at": "2026-11-19T03:23:29.560000Z",
+     "occurrence_count": 8,
+     "severity": "WARNING",
+     "status": "OPEN"
+    }
+   ],
+   "issues_differ_from_capture": {
+    "shopfront-issue-7": [
+     "attached_batch_id",
+     "attached_batch_timestamp",
+     "description",
+     "last_seen_at",
+     "occurrence_count",
+     "reasoning",
+     "recommendation",
+     "root_cause"
+    ]
+   },
+   "model_used": "claude-sonnet-5-5",
+   "project": "Shopfront",
+   "renamed": {
+    "host": 2,
+    "organisation": 2,
+    "person": 3,
+    "third_party": 34
+   },
+   "round": "r2",
+   "sentinel_decision": "manual",
+   "sha256": "2b2bb43fadf79f45ddfe1424d0ce3f339415dbf8626e083e2cf5ac67c8040fb8",
+   "token_count": 155,
+   "traces": {
+    "available": false,
+    "cited_found": 0,
+    "cited_missing": 0,
+    "cited_trace_ids": 0,
+    "items": 0,
+    "reason": "the estate sent no traces: the analysis has no trace snapshot and the capture no trace store",
+    "snapshot_source": null,
+    "store": null
+   },
+   "trigger": "manual",
+   "trim": {
+    "cicd_logs_kept": 0,
+    "cicd_logs_total": 0,
+    "evidence_lines_found": 1,
+    "evidence_lines_kept": 1,
+    "evidence_references": 2,
+    "evidence_references_located_in_change_events": 0,
+    "evidence_references_located_in_logs": 1,
+    "evidence_references_not_located": [
+     "analysis_result[0].correlated_issues[0].occurrences.timestamps[0]"
+    ],
+    "first_and_last_kept": true,
+    "logs_kept": 2,
+    "logs_total": 2,
+    "max_lines": 300,
+    "over_limit": false,
+    "related_lines_found": 2,
+    "related_lines_kept": 2,
+    "related_references": 14,
+    "related_references_located": 2
+   },
+   "uncompressed_bytes": 436143
+  },
+  {
+   "anchor": "2026-11-18T23:05:43.464258Z",
+   "batch_id": "studio-batch-20261118230543-2658",
+   "bytes": 33370,
+   "estate": "studio",
+   "file": "studio-L4-r1.json.gz",
+   "healthy_window": false,
+   "incident": "L4",
+   "issues": [
+    {
+     "capture_ref": "studio-issue-4",
+     "component": "payments",
+     "created_at": "2026-11-18T23:06:12.889088Z",
+     "created_at_precedes_batch": false,
+     "differs_from_capture": [],
+     "issue_type": "API_ERROR",
+     "last_seen_at": "2026-11-18T23:06:12.889131Z",
+     "occurrence_count": 1,
+     "severity": "CRITICAL",
+     "status": "OPEN"
+    }
+   ],
+   "issues_differ_from_capture": {},
+   "model_used": "claude-sonnet-5-5",
+   "project": "Studio",
+   "renamed": {
+    "host": 300,
+    "host_alias": 6,
+    "ip": 5,
+    "organisation": 149,
+    "person": 1,
+    "third_party": 12
+   },
+   "round": "r1",
+   "sentinel_decision": "manual",
+   "sha256": "ab47e0fe8c19dbd9afe4c52827876601b1dac7428686a5d5c7c67f1dd6228c73",
+   "token_count": 6103,
+   "traces": {
+    "available": true,
+    "cited_found": 0,
+    "cited_missing": 7,
+    "cited_trace_ids": 7,
+    "items": 25,
+    "reason": "rows come from the capture file serops-traces.json.gz, which the capture tool capped per service; 0 of the 7 trace ids the analysis cites are in it",
+    "snapshot_source": "otlp",
+    "store": "serops-traces",
+    "store_first_start": "2026-11-18T23:07:06.398000Z",
+    "store_last_start": "2026-11-18T23:11:21.930000Z",
+    "store_span_count": 4038,
+    "store_trace_count": 722,
+    "store_traces_all_after_window": true,
+    "store_truncated": true
+   },
+   "trigger": "manual",
+   "trim": {
+    "cicd_logs_kept": 0,
+    "cicd_logs_total": 0,
+    "evidence_lines_found": 3,
+    "evidence_lines_kept": 3,
+    "evidence_references": 5,
+    "evidence_references_located_in_change_events": 0,
+    "evidence_references_located_in_logs": 5,
+    "evidence_references_not_located": [],
+    "first_and_last_kept": true,
+    "logs_kept": 149,
+    "logs_total": 149,
+    "max_lines": 300,
+    "over_limit": false,
+    "related_lines_found": 61,
+    "related_lines_kept": 61,
+    "related_references": 75,
+    "related_references_located": 69
+   },
+   "uncompressed_bytes": 542208
+  },
+  {
+   "anchor": "2026-11-19T01:26:39.527791Z",
+   "batch_id": "studio-batch-20261119012639-8641",
+   "bytes": 34182,
+   "estate": "studio",
+   "file": "studio-L4-r2.json.gz",
+   "healthy_window": false,
+   "incident": "L4",
+   "issues": [
+    {
+     "capture_ref": "studio-issue-4",
+     "component": "payments",
+     "created_at": "2026-11-18T23:06:12.889088Z",
+     "created_at_precedes_batch": true,
+     "differs_from_capture": [],
+     "issue_type": "API_ERROR",
+     "last_seen_at": "2026-11-19T01:27:11.531647Z",
+     "occurrence_count": 6,
+     "severity": "CRITICAL",
+     "status": "OPEN"
+    }
+   ],
+   "issues_differ_from_capture": {},
+   "model_used": "claude-sonnet-5-5",
+   "project": "Studio",
+   "renamed": {
+    "host": 330,
+    "host_alias": 6,
+    "ip": 6,
+    "organisation": 164,
+    "person": 1,
+    "third_party": 12
+   },
+   "round": "r2",
+   "sentinel_decision": "manual",
+   "sha256": "d577bd03ce702803c37d439624eb1035c6330241c8e19f49208c5e13623c3f5d",
+   "token_count": 6715,
+   "traces": {
+    "available": true,
+    "cited_found": 0,
+    "cited_missing": 6,
+    "cited_trace_ids": 6,
+    "items": 25,
+    "reason": "rows come from the capture file serops-traces.json.gz, which the capture tool capped per service; 0 of the 6 trace ids the analysis cites are in it",
+    "snapshot_source": "otlp",
+    "store": "serops-traces",
+    "store_first_start": "2026-11-19T01:28:05.854000Z",
+    "store_last_start": "2026-11-19T01:32:28.786000Z",
+    "store_span_count": 4036,
+    "store_trace_count": 724,
+    "store_traces_all_after_window": true,
+    "store_truncated": true
+   },
+   "trigger": "manual",
+   "trim": {
+    "cicd_logs_kept": 0,
+    "cicd_logs_total": 0,
+    "evidence_lines_found": 3,
+    "evidence_lines_kept": 3,
+    "evidence_references": 4,
+    "evidence_references_located_in_change_events": 0,
+    "evidence_references_located_in_logs": 4,
+    "evidence_references_not_located": [],
+    "first_and_last_kept": true,
+    "logs_kept": 164,
+    "logs_total": 164,
+    "max_lines": 300,
+    "over_limit": false,
+    "related_lines_found": 61,
+    "related_lines_kept": 61,
+    "related_references": 71,
+    "related_references_located": 69
+   },
+   "uncompressed_bytes": 559748
+  },
+  {
+   "anchor": "2026-11-19T00:28:58.752121Z",
+   "batch_id": "studio-batch-20261119002858-a7b5",
+   "bytes": 39243,
+   "estate": "studio",
+   "file": "studio-L10-r1.json.gz",
+   "healthy_window": false,
+   "incident": "L10",
+   "issues": [
+    {
+     "capture_ref": "studio-issue-6",
+     "component": "pricing",
+     "created_at": "2026-11-19T00:29:31.163383Z",
+     "created_at_precedes_batch": false,
+     "differs_from_capture": [
+      "attached_batch_id",
+      "attached_batch_timestamp",
+      "correlation_confidence",
+      "description",
+      "error_target",
+      "last_seen_at",
+      "occurrence_count",
+      "reasoning",
+      "recommendation",
+      "root_cause"
+     ],
+     "issue_type": "POTENTIAL_BUG",
+     "last_seen_at": "2026-11-19T00:29:31.163423Z",
+     "occurrence_count": 1,
+     "severity": "CRITICAL",
+     "status": "OPEN"
+    }
+   ],
+   "issues_differ_from_capture": {
+    "studio-issue-6": [
+     "attached_batch_id",
+     "attached_batch_timestamp",
+     "correlation_confidence",
+     "description",
+     "error_target",
+     "last_seen_at",
+     "occurrence_count",
+     "reasoning",
+     "recommendation",
+     "root_cause"
+    ]
+   },
+   "model_used": "claude-sonnet-5-5",
+   "project": "Studio",
+   "renamed": {
+    "host": 605,
+    "host_alias": 8,
+    "ip": 4,
+    "organisation": 300,
+    "person": 1,
+    "third_party": 10
+   },
+   "round": "r1",
+   "sentinel_decision": "manual",
+   "sha256": "bbd088bca054816352e3d293acba69dd926603a509d6647a44055fe6646ba2b6",
+   "token_count": 212725,
+   "traces": {
+    "available": true,
+    "cited_found": 0,
+    "cited_missing": 5,
+    "cited_trace_ids": 5,
+    "items": 25,
+    "reason": "rows come from the capture file serops-traces.json.gz, which the capture tool capped per service; 0 of the 5 trace ids the analysis cites are in it",
+    "snapshot_source": "otlp",
+    "store": "serops-traces",
+    "store_first_start": "2026-11-19T00:30:31.123000Z",
+    "store_last_start": "2026-11-19T00:34:43.996000Z",
+    "store_span_count": 4042,
+    "store_trace_count": 722,
+    "store_traces_all_after_window": true,
+    "store_truncated": true
+   },
+   "trigger": "manual",
+   "trim": {
+    "cicd_logs_kept": 0,
+    "cicd_logs_total": 0,
+    "evidence_lines_found": 5,
+    "evidence_lines_kept": 5,
+    "evidence_references": 7,
+    "evidence_references_located_in_change_events": 0,
+    "evidence_references_located_in_logs": 7,
+    "evidence_references_not_located": [],
+    "first_and_last_kept": true,
+    "logs_kept": 300,
+    "logs_total": 2071,
+    "max_lines": 300,
+    "over_limit": false,
+    "related_lines_found": 61,
+    "related_lines_kept": 61,
+    "related_references": 80,
+    "related_references_located": 76
+   },
+   "uncompressed_bytes": 864892
+  },
+  {
+   "anchor": "2026-11-18T23:46:53.912825Z",
+   "batch_id": "studio-batch-20261118234653-ad62",
+   "bytes": 25040,
+   "estate": "studio",
+   "file": "studio-L7-r1.json.gz",
+   "healthy_window": false,
+   "incident": "L7",
+   "issues": [
+    {
+     "capture_ref": "studio-issue-5",
+     "component": "notifier",
+     "created_at": "2026-11-18T23:46:13.014447Z",
+     "created_at_precedes_batch": true,
+     "differs_from_capture": [],
+     "issue_type": "POD_CRASH",
+     "last_seen_at": "2026-11-18T23:47:20.879143Z",
+     "occurrence_count": 2,
+     "severity": "WARNING",
+     "status": "OPEN"
+    }
+   ],
+   "issues_differ_from_capture": {},
+   "model_used": "claude-sonnet-5-5",
+   "project": "Studio",
+   "renamed": {
+    "host": 24,
+    "ip": 4,
+    "organisation": 10,
+    "person": 1,
+    "third_party": 6
+   },
+   "round": "r1",
+   "sentinel_decision": "manual",
+   "sha256": "6500ad32fd21ddda82fc57562968145648e5c647dc43a1d23c4774ee11fe6f43",
+   "token_count": 596,
+   "traces": {
+    "available": true,
+    "cited_found": 0,
+    "cited_missing": 3,
+    "cited_trace_ids": 3,
+    "items": 25,
+    "reason": "rows come from the capture file serops-traces.json.gz, which the capture tool capped per service; 0 of the 3 trace ids the analysis cites are in it",
+    "snapshot_source": "otlp",
+    "store": "serops-traces",
+    "store_first_start": "2026-11-18T23:48:15.703000Z",
+    "store_last_start": "2026-11-18T23:52:27.956000Z",
+    "store_span_count": 4041,
+    "store_trace_count": 721,
+    "store_traces_all_after_window": true,
+    "store_truncated": true
+   },
+   "trigger": "manual",
+   "trim": {
+    "cicd_logs_kept": 0,
+    "cicd_logs_total": 0,
+    "evidence_lines_found": 9,
+    "evidence_lines_kept": 9,
+    "evidence_references": 12,
+    "evidence_references_located_in_change_events": 0,
+    "evidence_references_located_in_logs": 12,
+    "evidence_references_not_located": [],
+    "first_and_last_kept": true,
+    "logs_kept": 10,
+    "logs_total": 10,
+    "max_lines": 300,
+    "over_limit": false,
+    "related_lines_found": 7,
+    "related_lines_kept": 7,
+    "related_references": 13,
+    "related_references_located": 7
+   },
+   "uncompressed_bytes": 336696
+  },
+  {
+   "anchor": "2026-11-18T23:33:01.559605Z",
+   "batch_id": "studio-batch-20261118233301-05e8",
+   "bytes": 20447,
+   "estate": "studio",
+   "file": "studio-L6-r1.json.gz",
+   "healthy_window": true,
+   "incident": "L6",
+   "issues": [],
+   "issues_differ_from_capture": {},
+   "model_used": "claude-sonnet-5-5",
+   "project": "Studio",
+   "renamed": {
+    "ip": 5,
+    "person": 1,
+    "third_party": 10
+   },
+   "round": "r1",
+   "sentinel_decision": "manual",
+   "sha256": "665f9d1b5a82db146e096918a2911b73c5213053e6b6d184d4093a5a3a8f3e7c",
+   "token_count": 0,
+   "traces": {
+    "available": true,
+    "cited_found": 0,
+    "cited_missing": 3,
+    "cited_trace_ids": 3,
+    "items": 25,
+    "reason": "rows come from the capture file serops-traces.json.gz, which the capture tool capped per service; 0 of the 3 trace ids the analysis cites are in it",
+    "snapshot_source": "otlp",
+    "store": "serops-traces",
+    "store_first_start": "2026-11-18T23:34:14.092038Z",
+    "store_last_start": "2026-11-18T23:38:25.997000Z",
+    "store_span_count": 4039,
+    "store_trace_count": 723,
+    "store_traces_all_after_window": true,
+    "store_truncated": true
+   },
+   "trigger": "manual",
+   "trim": {
+    "cicd_logs_kept": 0,
+    "cicd_logs_total": 0,
+    "evidence_lines_found": 0,
+    "evidence_lines_kept": 0,
+    "evidence_references": 0,
+    "evidence_references_located_in_change_events": 0,
+    "evidence_references_located_in_logs": 0,
+    "evidence_references_not_located": [],
+    "first_and_last_kept": true,
+    "logs_kept": 0,
+    "logs_total": 0,
+    "max_lines": 300,
+    "over_limit": false,
+    "related_lines_found": 0,
+    "related_lines_kept": 0,
+    "related_references": 1,
+    "related_references_located": 0
+   },
+   "uncompressed_bytes": 306382
+  }
+ ],
+ "max_log_lines": 300,
+ "organisation": {
+  "name": "Acme Cloud",
+  "slug": "acme-cloud"
+ },
+ "schema": "serops-demo-seed/1",
+ "time": {
+  "anchor": "each file's \"anchor\" is its batch timestamp; no time in any file was shifted",
+  "clock_time_only_paths": [
+   "/batch/analysis_history/*/analysis_result/correlated_issues/*/description",
+   "/batch/analysis_history/*/analysis_result/correlated_issues/*/evidence_sources/logs/*",
+   "/batch/analysis_history/*/analysis_result/correlated_issues/*/evidence_sources/metrics/*",
+   "/batch/analysis_history/*/analysis_result/correlated_issues/*/occurrences/timestamps/*",
+   "/batch/analysis_history/*/analysis_result/correlated_issues/*/reasoning/*",
+   "/batch/analysis_history/*/analysis_result/correlated_issues/*/recommended_action",
+   "/batch/analysis_history/*/analysis_result/correlated_issues/*/root_cause",
+   "/batch/analysis_history/*/analysis_result/cpu_analysis/high_usage_periods/*/correlated_logs/*",
+   "/batch/analysis_history/*/analysis_result/cpu_analysis/high_usage_periods/*/end_time",
+   "/batch/analysis_history/*/analysis_result/cpu_analysis/high_usage_periods/*/start_time",
+   "/batch/analysis_history/*/analysis_result/cpu_analysis/recommendation",
+   "/batch/analysis_history/*/analysis_result/memory_analysis/high_usage_periods/*/correlated_logs/*",
+   "/batch/analysis_history/*/analysis_result/memory_analysis/high_usage_periods/*/end_time",
+   "/batch/analysis_history/*/analysis_result/memory_analysis/high_usage_periods/*/start_time",
+   "/batch/analysis_history/*/analysis_result/recommendations/*/action",
+   "/batch/analysis_history/*/analysis_result/summary/time_range/end",
+   "/batch/analysis_history/*/analysis_result/summary/time_range/start",
+   "/batch/analysis_history/*/analyzed_at",
+   "/batch/analysis_text",
+   "/batch/data/analysis_result/correlated_issues/*/description",
+   "/batch/data/analysis_result/correlated_issues/*/evidence_sources/logs/*",
+   "/batch/data/analysis_result/correlated_issues/*/evidence_sources/metrics/*",
+   "/batch/data/analysis_result/correlated_issues/*/occurrences/timestamps/*",
+   "/batch/data/analysis_result/correlated_issues/*/reasoning/*",
+   "/batch/data/analysis_result/correlated_issues/*/recommended_action",
+   "/batch/data/analysis_result/correlated_issues/*/root_cause",
+   "/batch/data/analysis_result/cpu_analysis/high_usage_periods/*/correlated_logs/*",
+   "/batch/data/analysis_result/cpu_analysis/high_usage_periods/*/end_time",
+   "/batch/data/analysis_result/cpu_analysis/high_usage_periods/*/start_time",
+   "/batch/data/analysis_result/cpu_analysis/recommendation",
+   "/batch/data/analysis_result/memory_analysis/high_usage_periods/*/correlated_logs/*",
+   "/batch/data/analysis_result/memory_analysis/high_usage_periods/*/end_time",
+   "/batch/data/analysis_result/memory_analysis/high_usage_periods/*/start_time",
+   "/batch/data/analysis_result/recommendations/*/action",
+   "/batch/data/analysis_result/summary/time_range/end",
+   "/batch/data/analysis_result/summary/time_range/start",
+   "/batch/data/change_events/*/message",
+   "/batch/data/change_events/*/timestamp",
+   "/batch/data/cicd_logs/*/commit_message",
+   "/batch/data/cicd_logs/*/timestamp",
+   "/batch/data/code_changes/*/deployed_at",
+   "/batch/data/code_changes/*/message",
+   "/batch/data/code_changes/*/timestamp",
+   "/batch/data/correlation_results/correlations/metric_spike_to_errors/*/sample_logs/*/message",
+   "/batch/data/correlation_results/correlations/metric_spike_to_errors/*/sample_logs/*/timestamp",
+   "/batch/data/correlation_results/correlations/metric_spike_to_errors/*/spike_start",
+   "/batch/data/correlation_results/correlations/slow_span_during_metric_spike/*/anomaly_start",
+   "/batch/data/correlation_results/summary/primary_correlation/details/sample_logs/*/message",
+   "/batch/data/correlation_results/summary/primary_correlation/details/sample_logs/*/timestamp",
+   "/batch/data/correlation_results/summary/primary_correlation/details/spike_start",
+   "/batch/data/logs/*/_source/@timestamp",
+   "/batch/data/logs/*/_source/message",
+   "/batch/data/metrics/container_lifecycle/changes/*/at",
+   "/batch/data/metrics_summary/container_lifecycle/changes/*/at",
+   "/batch/data/metrics_summary/memory/anomalies/*/correlation_window/end",
+   "/batch/data/metrics_summary/memory/anomalies/*/correlation_window/start",
+   "/batch/data/metrics_summary/memory/anomalies/*/end_time",
+   "/batch/data/metrics_summary/memory/anomalies/*/start_time",
+   "/batch/data/metrics_summary/peak_pod/memory_anomalies/*/correlation_window/end",
+   "/batch/data/metrics_summary/peak_pod/memory_anomalies/*/correlation_window/start",
+   "/batch/data/metrics_summary/peak_pod/memory_anomalies/*/end_time",
+   "/batch/data/metrics_summary/peak_pod/memory_anomalies/*/start_time",
+   "/batch/data/metrics_summary/time_range/end",
+   "/batch/data/metrics_summary/time_range/start",
+   "/batch/data/statistics/time_range/end",
+   "/batch/data/statistics/time_range/start",
+   "/batch/data/traces/top_errors/*/start_time",
+   "/batch/data/traces/top_slow/*/start_time",
+   "/injection/inject/at",
+   "/injection/inject/log/*/commit",
+   "/injection/inject/started",
+   "/injection/pre_registered_key/row",
+   "/injection/revert/at",
+   "/injection/revert/log/*/commit",
+   "/injection/revert/started",
+   "/investigation/created_at",
+   "/investigation/finished_at",
+   "/investigation/started_at",
+   "/investigation/window_end",
+   "/investigation/window_start",
+   "/issues/*/description",
+   "/issues/*/reasoning",
+   "/issues/*/recommendation",
+   "/issues/*/root_cause",
+   "/issues_at_capture/*/description",
+   "/issues_at_capture/*/reasoning",
+   "/issues_at_capture/*/recommendation",
+   "/issues_at_capture/*/root_cause"
+  ],
+  "delta_rule": "use a whole number of days: the texts at clock_time_only_paths name times of day with no date (\"at 23:59:34\"), which only stay true for a whole-day delta",
+  "formats": {
+   "clf": "DD/Mon/YYYY:HH:MM:SS inside text",
+   "compact": "%Y%m%d%H%M%S inside a batch id (<project>-batch-<time>-<hex>)",
+   "date": "YYYY-MM-DD or YYYY.MM.DD with no time of day (shift by the whole days of the delta)",
+   "epoch_ms_number": "JSON number, epoch milliseconds",
+   "epoch_ms_text": "13-digit epoch milliseconds as text or inside text or an id",
+   "epoch_ns_number": "JSON number, epoch nanoseconds",
+   "epoch_ns_text": "19-digit epoch nanoseconds as text or inside text or an id",
+   "epoch_s_number": "JSON number, epoch seconds",
+   "epoch_s_text": "10-digit epoch seconds as text or inside text",
+   "epoch_us_number": "JSON number, epoch microseconds",
+   "epoch_us_text": "16-digit epoch microseconds as text or inside text",
+   "human": "D Mon YYYY HH:MM:SS inside text (Redis log style)",
+   "iso": "YYYY-MM-DD(T| )HH:MM:SS, any fraction and zone suffix kept; whole value or inside text",
+   "slash": "YYYY/MM/DD HH:MM:SS inside text"
+  },
+  "how_to_shift": "delta = wanted anchor - file anchor; move every value at the paths below by that one delta (build_seed.shift_times does it and keeps each format)",
+  "path_syntax": "JSON pointer from the file root; * is any list index; ~1 is a / inside a key; /#key means the time is inside the dict keys at that path",
+  "paths": {
+   "/anchor": [
+    "iso"
+   ],
+   "/batch/analysis_history/*/analysis_result/correlated_issues/*/evidence_sources/logs/*": [
+    "iso"
+   ],
+   "/batch/analysis_history/*/analysis_result/correlated_issues/*/evidence_sources/metrics/*": [
+    "iso"
+   ],
+   "/batch/analysis_history/*/analysis_result/correlated_issues/*/occurrences/timestamps/*": [
+    "iso"
+   ],
+   "/batch/analysis_history/*/analysis_result/cpu_analysis/high_usage_periods/*/correlated_logs/*": [
+    "iso"
+   ],
+   "/batch/analysis_history/*/analysis_result/cpu_analysis/high_usage_periods/*/end_time": [
+    "iso"
+   ],
+   "/batch/analysis_history/*/analysis_result/cpu_analysis/high_usage_periods/*/start_time": [
+    "iso"
+   ],
+   "/batch/analysis_history/*/analysis_result/memory_analysis/high_usage_periods/*/correlated_logs/*": [
+    "iso"
+   ],
+   "/batch/analysis_history/*/analysis_result/memory_analysis/high_usage_periods/*/end_time": [
+    "iso"
+   ],
+   "/batch/analysis_history/*/analysis_result/memory_analysis/high_usage_periods/*/start_time": [
+    "iso"
+   ],
+   "/batch/analysis_history/*/analysis_result/recommendations/*/action": [
+    "iso"
+   ],
+   "/batch/analysis_history/*/analysis_result/summary/time_range/end": [
+    "iso"
+   ],
+   "/batch/analysis_history/*/analysis_result/summary/time_range/start": [
+    "iso"
+   ],
+   "/batch/analysis_history/*/analyzed_at": [
+    "iso"
+   ],
+   "/batch/analyzed_at": [
+    "iso"
+   ],
+   "/batch/batch_id": [
+    "compact"
+   ],
+   "/batch/created_at": [
+    "iso"
+   ],
+   "/batch/data/analysis_result/correlated_issues/*/evidence_sources/logs/*": [
+    "iso"
+   ],
+   "/batch/data/analysis_result/correlated_issues/*/evidence_sources/metrics/*": [
+    "iso"
+   ],
+   "/batch/data/analysis_result/correlated_issues/*/occurrences/timestamps/*": [
+    "iso"
+   ],
+   "/batch/data/analysis_result/cpu_analysis/high_usage_periods/*/correlated_logs/*": [
+    "iso"
+   ],
+   "/batch/data/analysis_result/cpu_analysis/high_usage_periods/*/end_time": [
+    "iso"
+   ],
+   "/batch/data/analysis_result/cpu_analysis/high_usage_periods/*/start_time": [
+    "iso"
+   ],
+   "/batch/data/analysis_result/memory_analysis/high_usage_periods/*/correlated_logs/*": [
+    "iso"
+   ],
+   "/batch/data/analysis_result/memory_analysis/high_usage_periods/*/end_time": [
+    "iso"
+   ],
+   "/batch/data/analysis_result/memory_analysis/high_usage_periods/*/start_time": [
+    "iso"
+   ],
+   "/batch/data/analysis_result/recommendations/*/action": [
+    "iso"
+   ],
+   "/batch/data/analysis_result/summary/time_range/end": [
+    "iso"
+   ],
+   "/batch/data/analysis_result/summary/time_range/start": [
+    "iso"
+   ],
+   "/batch/data/change_events/*/message": [
+    "epoch_s_text",
+    "human",
+    "iso"
+   ],
+   "/batch/data/change_events/*/timestamp": [
+    "iso"
+   ],
+   "/batch/data/cicd_logs/*/timestamp": [
+    "iso"
+   ],
+   "/batch/data/code_changes/*/deployed_at": [
+    "iso"
+   ],
+   "/batch/data/code_changes/*/timestamp": [
+    "iso"
+   ],
+   "/batch/data/correlation_results/correlations/metric_spike_to_errors/*/sample_logs/*/message": [
+    "iso"
+   ],
+   "/batch/data/correlation_results/correlations/metric_spike_to_errors/*/sample_logs/*/timestamp": [
+    "iso"
+   ],
+   "/batch/data/correlation_results/correlations/metric_spike_to_errors/*/spike_start": [
+    "iso"
+   ],
+   "/batch/data/correlation_results/correlations/slow_span_during_metric_spike/*/anomaly_start": [
+    "iso"
+   ],
+   "/batch/data/correlation_results/correlations/span_error_to_log_error/*/sample_log_message": [
+    "iso"
+   ],
+   "/batch/data/correlation_results/summary/primary_correlation/details/sample_log_message": [
+    "iso"
+   ],
+   "/batch/data/correlation_results/summary/primary_correlation/details/sample_logs/*/message": [
+    "iso"
+   ],
+   "/batch/data/correlation_results/summary/primary_correlation/details/sample_logs/*/timestamp": [
+    "iso"
+   ],
+   "/batch/data/correlation_results/summary/primary_correlation/details/spike_start": [
+    "iso"
+   ],
+   "/batch/data/logs/*/_id": [
+    "epoch_ns_text"
+   ],
+   "/batch/data/logs/*/_source/@timestamp": [
+    "iso"
+   ],
+   "/batch/data/logs/*/_source/Body.value": [
+    "iso"
+   ],
+   "/batch/data/logs/*/_source/log": [
+    "iso"
+   ],
+   "/batch/data/logs/*/_source/message": [
+    "iso"
+   ],
+   "/batch/data/logs/*/_source/time": [
+    "epoch_ms_number",
+    "iso"
+   ],
+   "/batch/data/metrics/container_lifecycle/changes/*/at": [
+    "iso"
+   ],
+   "/batch/data/metrics/cpu/*/time": [
+    "iso"
+   ],
+   "/batch/data/metrics/cpu_usage_percent/*/time": [
+    "iso"
+   ],
+   "/batch/data/metrics/memory_available/*/time": [
+    "iso"
+   ],
+   "/batch/data/metrics/memory_free/*/time": [
+    "iso"
+   ],
+   "/batch/data/metrics/memory_total/*/time": [
+    "iso"
+   ],
+   "/batch/data/metrics/memory_usage_percent/*/time": [
+    "iso"
+   ],
+   "/batch/data/metrics/peak_pod_cpu_cores/*/time": [
+    "iso"
+   ],
+   "/batch/data/metrics/peak_pod_memory_percent/*/time": [
+    "iso"
+   ],
+   "/batch/data/metrics_summary/container_lifecycle/changes/*/at": [
+    "iso"
+   ],
+   "/batch/data/metrics_summary/memory/anomalies/*/correlation_window/end": [
+    "iso"
+   ],
+   "/batch/data/metrics_summary/memory/anomalies/*/correlation_window/start": [
+    "iso"
+   ],
+   "/batch/data/metrics_summary/memory/anomalies/*/end_time": [
+    "iso"
+   ],
+   "/batch/data/metrics_summary/memory/anomalies/*/start_time": [
+    "iso"
+   ],
+   "/batch/data/metrics_summary/peak_pod/memory_anomalies/*/correlation_window/end": [
+    "iso"
+   ],
+   "/batch/data/metrics_summary/peak_pod/memory_anomalies/*/correlation_window/start": [
+    "iso"
+   ],
+   "/batch/data/metrics_summary/peak_pod/memory_anomalies/*/end_time": [
+    "iso"
+   ],
+   "/batch/data/metrics_summary/peak_pod/memory_anomalies/*/start_time": [
+    "iso"
+   ],
+   "/batch/data/metrics_summary/time_range/end": [
+    "iso"
+   ],
+   "/batch/data/metrics_summary/time_range/start": [
+    "iso"
+   ],
+   "/batch/data/statistics/time_range/end": [
+    "iso"
+   ],
+   "/batch/data/statistics/time_range/start": [
+    "iso"
+   ],
+   "/batch/data/traces/top_errors/*/start_time": [
+    "iso"
+   ],
+   "/batch/data/traces/top_slow/*/start_time": [
+    "iso"
+   ],
+   "/batch/timestamp": [
+    "iso"
+   ],
+   "/injection/fault_reverted": [
+    "iso"
+   ],
+   "/injection/fault_started": [
+    "iso"
+   ],
+   "/injection/inject/at": [
+    "iso"
+   ],
+   "/injection/inject/started": [
+    "iso"
+   ],
+   "/injection/revert/at": [
+    "iso"
+   ],
+   "/injection/revert/started": [
+    "iso"
+   ],
+   "/investigation/created_at": [
+    "iso"
+   ],
+   "/investigation/finished_at": [
+    "iso"
+   ],
+   "/investigation/started_at": [
+    "iso"
+   ],
+   "/investigation/window_end": [
+    "iso"
+   ],
+   "/investigation/window_start": [
+    "iso"
+   ],
+   "/issues/*/created_at": [
+    "iso"
+   ],
+   "/issues/*/last_seen_at": [
+    "iso"
+   ],
+   "/issues_at_capture/*/attached_batch_id": [
+    "compact"
+   ],
+   "/issues_at_capture/*/attached_batch_timestamp": [
+    "iso"
+   ],
+   "/issues_at_capture/*/created_at": [
+    "iso"
+   ],
+   "/issues_at_capture/*/last_seen_at": [
+    "iso"
+   ],
+   "/model/settings_updated_at": [
+    "iso"
+   ],
+   "/source/capture_window/end": [
+    "iso"
+   ],
+   "/source/capture_window/start": [
+    "iso"
+   ],
+   "/source/captured_at": [
+    "iso"
+   ],
+   "/source/serops/built_at": [
+    "iso"
+   ],
+   "/traces/items/*/end_time": [
+    "iso"
+   ],
+   "/traces/items/*/spans/*/end_time": [
+    "iso"
+   ],
+   "/traces/items/*/spans/*/start_time": [
+    "iso"
+   ],
+   "/traces/items/*/start_time": [
+    "iso"
+   ],
+   "/traces/store_first_start": [
+    "iso"
+   ],
+   "/traces/store_last_start": [
+    "iso"
+   ],
+   "/traces/store_window/end": [
+    "iso"
+   ],
+   "/traces/store_window/start": [
+    "iso"
+   ]
+  }
+ }
+}

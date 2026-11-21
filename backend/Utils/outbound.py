@@ -20,8 +20,11 @@ Policy, for both helpers below:
 
 from urllib.parse import urljoin, urlparse
 
+import time
+
 import requests
 
+from Utils import query_trail
 from Utils.url_validator import validate_outbound_url
 
 _REDIRECT_CODES = (301, 302, 303, 307, 308)
@@ -64,13 +67,41 @@ class GuardedSession(requests.Session):
 
     def send(self, request, **kwargs):
         check_url(request.url, self._validator)
-        return super().send(request, **kwargs)
+        if not query_trail.active():
+            return super().send(request, **kwargs)
+        started = time.monotonic()
+        try:
+            response = super().send(request, **kwargs)
+        except Exception as exc:
+            _trail(request.method, request.url, request.body, None, exc, started)
+            raise
+        _trail(request.method, request.url, request.body, response, None, started)
+        return response
 
     def get_redirect_target(self, resp):
         target = super().get_redirect_target(resp)
         if target and _origin(urljoin(resp.url, target)) != _origin(resp.url):
             return None
         return target
+
+
+def _trail(method, url, body, response, error, started):
+    """Record the exchange in the query trail when one is active
+    (``Utils.query_trail``; off unless SEROPS_QUERY_TRAIL_DIR is set)."""
+    if not query_trail.active():
+        return
+    status, answer = None, None
+    if response is not None:
+        # The URL as sent, query parameters included (guarded_request gets
+        # them as ``params=``).
+        url = getattr(getattr(response, 'request', None), 'url', None) or url
+        status = getattr(response, 'status_code', None)
+        try:
+            answer = response.content
+        except Exception as exc:                        # noqa: BLE001
+            error = error or exc
+    query_trail.record(query_trail.host_of(url), method, url, request_body=body,
+                       status=status, response_body=answer, error=error, started=started)
 
 
 def guarded_request(method, url, *, validator=validate_outbound_url, **kwargs):
@@ -83,7 +114,13 @@ def guarded_request(method, url, *, validator=validate_outbound_url, **kwargs):
     kwargs['allow_redirects'] = False
     for _ in range(MAX_REDIRECTS + 1):
         check_url(url, validator)
-        response = requests.request(method=method, url=url, **kwargs)
+        started = time.monotonic()
+        try:
+            response = requests.request(method=method, url=url, **kwargs)
+        except Exception as exc:
+            _trail(method, url, kwargs.get('json', kwargs.get('data')), None, exc, started)
+            raise
+        _trail(method, url, kwargs.get('json', kwargs.get('data')), response, None, started)
         code = getattr(response, 'status_code', None)
         if not isinstance(code, int) or code not in _REDIRECT_CODES:
             return response

@@ -1,10 +1,12 @@
 ---
 seo_title: "Quick start: self-host SerOps with Docker Compose"
-description: "Install SerOps on your own Docker host in about 10 minutes: clone, set three secrets, docker compose up, create the first user."
+description: "Install SerOps on your own Docker host in about 10 minutes: clone, set four secrets, docker compose up, create the first user."
 ---
 # Quick Start (Self-Hosted)
 
-Deploy SerOps on your own Docker host in about 10 minutes.
+Deploy SerOps on your own Docker host in about 10 minutes (Steps 1 to 5).
+The first analysis also needs an observability stack that already holds
+your logs (Steps 6 to 8).
 
 ## What this ships
 
@@ -58,18 +60,24 @@ cd serops/deploy/quick-start
 cp .env.example .env
 ```
 
-Open `.env` and set the required values:
+Open `.env` and set the four required values. They are empty in
+`.env.example`:
 
 | Variable | How to generate |
 |---|---|
 | `DJANGO_SECRET_KEY` | `python3 -c "import secrets; print(secrets.token_urlsafe(64))"` |
+| `SEROPS_ENCRYPTION_KEY` | `openssl rand -base64 32 \| tr '+/' '-_'` |
 | `POSTGRES_PASSWORD` | `openssl rand -hex 24` |
 | `REDIS_PASSWORD` | `openssl rand -hex 24` |
 
+`SEROPS_ENCRYPTION_KEY` encrypts the credentials SerOps stores (AI keys,
+integration tokens). Keep a copy with your backups: without it, those
+credentials cannot be read after a restore.
+
 !!! info "AI provider keys do not go in `.env`"
     SerOps reads AI keys from the database, per organisation — never
-    from the environment. You will add yours in **Settings → AI Providers →
-    API Keys** at [Step 5](#step-5-add-an-ai-provider-key), after the
+    from the environment. You will add yours in **Settings → AI Providers**
+    at [Step 5](#step-5-add-an-ai-provider-key), after the
     stack is running.
 
     This is deliberate: on a multi-tenant self-host a shared env-var
@@ -93,11 +101,13 @@ serves `https://localhost` with a certificate from its own local
 authority, so your browser shows a certificate warning the first time —
 accept it to continue. `http://localhost` redirects there.
 
-!!! warning "Replace every `change-me-…` value"
-    The `.env.example` file ships with placeholder text
-    (`change-me-…`). Compose refuses to start if a required password is
-    missing, and the backend refuses to start while any secret still
-    contains `change-me` — its log names the variables to fix.
+!!! warning "Set all four values before the first start"
+    Compose refuses to start while `POSTGRES_PASSWORD` or
+    `REDIS_PASSWORD` is empty. The backend refuses to start while
+    `DJANGO_SECRET_KEY` or `SEROPS_ENCRYPTION_KEY` is empty or still a
+    placeholder such as `change-me`: the other containers come up, the
+    backend restarts in a loop, and its log names the value to fix
+    (`docker compose logs backend`).
 
     Use the hex commands above: the Redis password is embedded in a
     `redis://` URL, and a `/` (common in base64 output) breaks it.
@@ -120,12 +130,16 @@ only inside the internal `serops` Docker network.
 
 The backend applies database migrations itself on every start, so the
 schema is ready once `serops-backend` reports `healthy`
-(`docker compose ps`). Create the first admin account — it gets its own
-organisation:
+(`docker compose ps`; about 30 seconds after the images are pulled).
+Create the first admin account:
 
 ```bash
 docker compose exec backend python manage.py createsuperuser
 ```
+
+It asks for an email address, a username and a password. The account
+gets its own organisation, named after the part of the email address
+before the `@` (`admin@example.com` gives "Admin's Organisation").
 
 Once this organisation exists, the public sign-up page closes
 automatically: invite teammates from **Settings → Users** instead (a
@@ -135,13 +149,22 @@ in `.env`.
 
 ## Step 5: Add an AI provider key
 
-Sign in with the superuser you just created. The
+Open `https://<SEROPS_DOMAIN>` and sign in with the email address and
+password you just entered. The
 [Onboarding Wizard](onboarding.md) starts automatically on first login
 and walks you through the remaining steps; you can also do them
 manually.
 
-Go to **Settings → AI Providers**, pick your provider, and paste the
-key. Keys are stored per organisation and encrypted at rest.
+Go to **Settings → AI Providers**. Under **Manage Providers**, paste
+the key in your provider's row and confirm it with the check button.
+Then choose that provider as the primary one and click **Save
+Settings**. Keys are stored per organisation and encrypted at rest.
+
+The onboarding wizard's **Configure AI provider** button opens the same
+form in a dialog. If you use **Settings → AI Providers** instead, the
+wizard's **Getting Started** panel in the bottom-right corner can cover
+the key fields: minimize it with the **←** button at its top right (the
+**×** button dismisses the wizard).
 
 Supported: Anthropic (Claude), Google (Gemini), OpenAI, DeepSeek, and
 [Ollama](../how-to/on-prem-ai-ollama.md) for fully on-prem inference
@@ -153,6 +176,11 @@ Go to **Integrations** and connect at least one of the
 supported observability providers so SerOps has real logs and metrics
 to analyse. See [Integrations Overview](../integrations/overview.md)
 for the full list and per-provider setup guides.
+
+SerOps does not ship a log stack: this step needs one that already
+holds your logs. To see what an analysis looks like before you connect
+anything, open the wizard's **See a sample incident** link, or the
+[live demo](https://app.serops.ai).
 
 ## Step 7: Tag your telemetry
 
@@ -177,6 +205,13 @@ Common aliases are accepted automatically — OpenTelemetry's
 `service.name`, Datadog's `service` / `env`, Kubernetes' `app` label,
 and `level` / `severity` / `status` for the level field.
 
+!!! note "Grafana Loki: the level must be in the line"
+    On Loki, SerOps selects error and warning lines by their text, not by
+    a label. A level that exists only as a `log_level` label is not
+    read: the line itself must contain it, for example `ERROR ...` or a
+    JSON line with `"level":"error"`. The other four fields are stream
+    labels.
+
 [**Configure Data Collection**](../how-to/configure-data-collection.md)
 has copy-pasteable configuration for each shipper, plus the equivalent
 label and tag setup for metrics.
@@ -185,6 +220,12 @@ label and tag setup for metrics.
 
 With a key, a provider, and tagged telemetry in place, create a project
 and link a service. [First Project](first-project.md) walks through it.
+
+When you add the first service, SerOps starts a first analysis right
+away. It reads the project's first environment, which is
+**development** when you keep the form's defaults; the other
+environments are analysed on the next scheduled run (every 15 minutes by
+default).
 
 ---
 
@@ -276,7 +317,8 @@ If you already run nginx / Traefik / a cloud load balancer, remove the
 `caddy` service from `docker-compose.yml` and point your ingress at:
 
 - `serops-frontend:3000` for everything by default
-- `serops-backend:8000` for `/api/*` and `/images/*`
+- `serops-backend:8000` for `/api/*` (uploaded images such as avatars
+  and logos are served under `/api` too)
 
 See [`config/caddy/Caddyfile`](https://github.com/getserops/serops/blob/main/deploy/quick-start/config/caddy/Caddyfile)
 for the exact routing rules.
@@ -285,13 +327,18 @@ for the exact routing rules.
 
 **Backend keeps restarting**
 
-Almost always a database credential mismatch. Check the logs:
+Check the logs first:
 
 ```bash
 docker compose logs backend | tail -50
 ```
 
-Verify `POSTGRES_PASSWORD` in `.env` matches what the postgres
+On a first install, the usual cause is an empty or invalid
+`SEROPS_ENCRYPTION_KEY` (or `DJANGO_SECRET_KEY`): the log says
+`SEROPS_ENCRYPTION_KEY must be set` and gives the command to generate
+one. Set it in `.env` and run `docker compose up -d` again.
+
+After that, the usual cause is a database credential mismatch. Verify `POSTGRES_PASSWORD` in `.env` matches what the postgres
 container was initialised with. If you started with a wrong password
 and want to reset:
 

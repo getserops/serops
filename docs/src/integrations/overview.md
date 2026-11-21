@@ -17,7 +17,7 @@ Source Code Management providers connect your repositories for code change track
 | **GitLab** | Personal Access Token (`api` scope) | Commits, MRs, pipelines, deployments, webhooks | [Setup](gitlab.md) |
 | **GitHub** | Fine-grained token, read-only | Commits, PRs, Actions, deployments, webhooks | [Setup](github.md) |
 | **Azure DevOps** | Personal Access Token | Commits, PRs, pipelines, deployments | [Setup](azure-devops.md) |
-| **Bitbucket** | OAuth2 / App Password | Commits, PRs, pipelines | [Setup](bitbucket.md) |
+| **Bitbucket** | Access token (repository or workspace) | Commits, PRs, pipelines | [Setup](bitbucket.md) |
 
 ### CI/CD Providers
 
@@ -33,7 +33,7 @@ Build and deployment pipeline providers for tracking deployments and CI/CD logs.
 
 ### Observability Providers
 
-Log, metric, and trace providers for fetching application data for AI analysis.
+Log, metric, and trace providers: the logs and traces of your applications, and the CPU and memory of what runs them, fetched for AI analysis.
 
 | Provider | Type | Auth Method | Query Language | Guide |
 |----------|------|-------------|----------------|-------|

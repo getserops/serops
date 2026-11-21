@@ -68,6 +68,47 @@ class SecuritySettingsView(APIView):
         return Response({'success': True, 'message': 'Security settings updated'})
 
 
+# Audit log: date filters and CSV cells (audit 2026-11-20, item 14).
+_CSV_FORMULA_PREFIXES = ('=', '+', '-', '@', '\t', '\r')
+
+
+def _csv_safe(value):
+    """A cell a spreadsheet will not run: text starting like a formula gets a
+    leading quote. Audit details hold user-typed text (names, search terms)."""
+    text = '' if value is None else str(value)
+    return "'" + text if text.startswith(_CSV_FORMULA_PREFIXES) else text
+
+
+def _audit_date_filters(params):
+    """(created_at__gte, created_at__lte) from date_from/date_to, or ValueError.
+
+    Accepts YYYY-MM-DD (what the settings page sends; midnight UTC, as the
+    raw string meant before) and ISO 8601 date-times. Anything else used to
+    reach the database and fail with a 500.
+    """
+    from datetime import datetime, time as _time, timezone as _dt_timezone
+    from django.utils.dateparse import parse_date, parse_datetime
+
+    out = {}
+    for name, lookup in (('date_from', 'created_at__gte'), ('date_to', 'created_at__lte')):
+        raw = (params.get(name) or '').strip()
+        if not raw:
+            continue
+        try:
+            value = parse_datetime(raw)
+            if value is None:
+                day = parse_date(raw)
+                value = datetime.combine(day, _time.min) if day else None
+        except ValueError:
+            value = None
+        if value is None:
+            raise ValueError(f'{name} must be a date (YYYY-MM-DD) or an ISO 8601 date-time.')
+        if timezone.is_naive(value):
+            value = timezone.make_aware(value, _dt_timezone.utc)
+        out[lookup] = value
+    return out
+
+
 class AuditLogView(APIView):
     """View and filter audit logs"""
     permission_classes = [IsAuthenticated, Requires(GET='team.manage')]
@@ -87,13 +128,10 @@ class AuditLogView(APIView):
         if user_id:
             logs = logs.filter(user_id=user_id)
         
-        date_from = request.query_params.get('date_from')
-        if date_from:
-            logs = logs.filter(created_at__gte=date_from)
-        
-        date_to = request.query_params.get('date_to')
-        if date_to:
-            logs = logs.filter(created_at__lte=date_to)
+        try:
+            logs = logs.filter(**_audit_date_filters(request.query_params))
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=400)
         
         search = request.query_params.get('search')
         if search:
@@ -151,13 +189,10 @@ class AuditLogExportView(APIView):
         if user_id:
             logs = logs.filter(user_id=user_id)
 
-        date_from = request.query_params.get('date_from')
-        if date_from:
-            logs = logs.filter(created_at__gte=date_from)
-
-        date_to = request.query_params.get('date_to')
-        if date_to:
-            logs = logs.filter(created_at__lte=date_to)
+        try:
+            logs = logs.filter(**_audit_date_filters(request.query_params))
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=400)
 
         # Limit export size
         logs = logs[:10000]
@@ -172,10 +207,10 @@ class AuditLogExportView(APIView):
         for log in logs:
             writer.writerow([
                 log.created_at.isoformat(),
-                log.get_action_display(),
-                log.user.email if log.user else 'System',
-                str(log.details),
-                log.ip_address or '',
+                _csv_safe(log.get_action_display()),
+                _csv_safe(log.user.email if log.user else 'System'),
+                _csv_safe(log.details),
+                _csv_safe(log.ip_address or ''),
             ])
         
         # Log the export

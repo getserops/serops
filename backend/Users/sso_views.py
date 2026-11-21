@@ -95,6 +95,26 @@ def _email_verified(user_info, discovery_url):
     return claim is True or str(claim).lower() == 'true'
 
 
+# Entra ID's multi-tenant endpoints accept any Microsoft account. With the
+# host trusted to omit email_verified (above), a stranger's account could
+# claim an address of the organisation (audit 2026-11-20, item 4).
+_MULTI_TENANT_SEGMENTS = frozenset({'common', 'organizations', 'consumers'})
+
+
+def multi_tenant_discovery_problem(discovery_url):
+    """An error message when the discovery URL is a multi-tenant endpoint on a
+    host trusted to omit email_verified, else None."""
+    parts = urlsplit(discovery_url or '')
+    if (parts.hostname or '').lower() not in settings.SSO_TRUST_MISSING_EMAIL_VERIFIED:
+        return None
+    tenant = parts.path.strip('/').split('/', 1)[0].lower()
+    if tenant not in _MULTI_TENANT_SEGMENTS:
+        return None
+    return (f"The /{tenant}/ endpoint accepts any Microsoft account, and this provider does not say "
+            "whether an email is verified. Use your own tenant's discovery URL: "
+            "https://login.microsoftonline.com/<tenant-id>/v2.0/.well-known/openid-configuration")
+
+
 def _email_domain(email):
     return email.rsplit('@', 1)[-1].strip().lower() if '@' in email else ''
 
@@ -220,6 +240,8 @@ class SSOConfigView(APIView):
                     validate_outbound_url(discovery_url)
                 except ValueError as exc:
                     return Response({"error": f"sso_discovery_url: {exc}"}, status=400)
+            if problem := multi_tenant_discovery_problem(discovery_url):
+                return Response({"error": f"sso_discovery_url: {problem}"}, status=400)
             sec_settings.sso_discovery_url = discovery_url
             # Only update secret if provided
             if data.get('sso_client_secret'):
@@ -338,6 +360,13 @@ class SSOInitView(APIView):
                     status=502,
                 )
 
+        if problem := multi_tenant_discovery_problem(sec_settings.sso_discovery_url):
+            logger.warning("SSO init refused for org %s: %s", org_id, problem)
+            return Response(
+                {"error": "Could not start the sign-in. Ask your administrator to check the SSO settings."},
+                status=502,
+            )
+
         # A random value in the state makes each flow distinct; the cookie
         # below ties it, the nonce and the PKCE verifier to this browser.
         state = signing.dumps({'org_id': org_id, 'flow': secrets.token_urlsafe(16)})
@@ -403,6 +432,9 @@ class SSOCallbackView(APIView):
         sec_settings = _sso_settings_for(org_id, 'oidc')
         if not sec_settings:
             return failed
+        if problem := multi_tenant_discovery_problem(sec_settings.sso_discovery_url):
+            logger.warning("SSO callback refused for org %s: %s", org_id, problem)
+            return failed
 
         try:
             sso = _sso_service(sec_settings)
@@ -411,6 +443,9 @@ class SSOCallbackView(APIView):
                 logger.warning("SSO callback: ID token does not match the flow for org %s", org_id)
                 return failed
             user_info = sso.get_user_info(token)
+            if not sso.user_info_matches(token, user_info):
+                logger.warning("SSO callback: userinfo sub differs from the ID token's for org %s", org_id)
+                return failed
         except Exception:
             logger.exception("SSO callback: token exchange failed for org %s", org_id)
             return failed
@@ -557,6 +592,8 @@ class SSOExchangeView(APIView):
     """
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth_sso_exchange'
 
     def post(self, request):
         token = request.COOKIES.get(SSO_HANDOFF_COOKIE)
@@ -566,13 +603,18 @@ class SSOExchangeView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Look the token up so we can return the user's identity, then
-        # rotate the handoff cookie out regardless of outcome.
-        from knox.settings import CONSTANTS
-        token_obj = AuthToken.objects.filter(
-            token_key=token[:CONSTANTS.TOKEN_KEY_LENGTH]
-        ).first()
-        if not token_obj:
+        # Checked exactly as an API request's token is (Users/authentication.py):
+        # full digest, expiry, active user. Only the 8-character key prefix
+        # was compared, so any value starting with a live token's key passed,
+        # expired tokens included (audit 2026-11-20, item 9). The hand-off
+        # cookie is cleared whatever the outcome.
+        from rest_framework.exceptions import AuthenticationFailed
+        from .authentication import OptimizedTokenAuthentication
+        try:
+            user, _token_obj = OptimizedTokenAuthentication().authenticate_credentials(token.encode())
+        except (AuthenticationFailed, UnicodeError):
+            user = None
+        if user is None:
             response = Response(
                 {"error": "Invalid SSO handoff"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -580,7 +622,6 @@ class SSOExchangeView(APIView):
             response.delete_cookie(SSO_HANDOFF_COOKIE, path='/api/auth/sso/exchange')
             return response
 
-        user = token_obj.user
         from .serializers import UserSerializer
         response = Response({'token': token, 'user': UserSerializer(user).data})
         response.delete_cookie(SSO_HANDOFF_COOKIE, path='/api/auth/sso/exchange')

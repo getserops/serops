@@ -302,14 +302,18 @@ const getBatchTimeline = async (batchId, maxEvents = 200) => {
   }
 };
 
-const getBatchDetails = async (batchId) => {
+// The batch, and whether the server said it does not exist (404), so a page
+// can tell "no such analysis" from "could not load".
+const getBatchDetailsResult = async (batchId) => {
   try {
-    return await fetchBatch(batchId);
+    return { batch: await fetchBatch(batchId), notFound: false };
   } catch (error) {
-    console.error("Erreur lors de la récupération du batch %s:", batchId, error);
-    return null;
+    console.error("Error fetching batch %s:", batchId, error);
+    return { batch: null, notFound: error?.response?.status === 404 };
   }
 };
+
+const getBatchDetails = async (batchId) => (await getBatchDetailsResult(batchId)).batch;
 
 const getIssues = async (params = {}) => {
   try {
@@ -805,6 +809,7 @@ const reopenIssue = async (issueId) => {
 export default {
   getBatchLogs,
   getBatchDetails,
+  getBatchDetailsResult,
   getBatchTimeline,
   getIssues,
   getIssuesByBatch,

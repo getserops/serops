@@ -1,6 +1,6 @@
 site_name: SerOps Documentation
 site_description: >-
-  SerOps documentation: install, connect your logs, metrics, traces and
+  SerOps documentation: install, connect your logs, infrastructure metrics, traces and
   CI/CD, and get AI root cause analysis on your own infrastructure.
 site_url: https://serops.ai/docs/
 repo_url: https://github.com/getserops/serops
@@ -198,6 +198,7 @@ nav:
     - Authentication & SSO: security/authentication.md
     - Data Protection: security/data-protection.md
     - Compliance & Audit: security/compliance.md
+    - Support and Security: security/support.md
   - Enterprise:
     - SAML 2.0 Single Sign-On: enterprise/saml.md
     - SCIM 2.0 Provisioning: enterprise/scim.md
@@ -237,3 +238,6 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/getserops
   generator: false
+  # Umami website id for serops.ai/docs. Empty by default: the docs then load
+  # no tracker. Set at image build time (docs/Dockerfile, UMAMI_WEBSITE_ID).
+  umami_website_id: !ENV [UMAMI_WEBSITE_ID, ""]

@@ -14,7 +14,7 @@ Traces are used to:
 
 - Enrich AI Root Cause Analysis with the exact request path across
   services when an incident occurs.
-- Correlate logs, metrics, and spans on a unified timeline in the
+- Correlate logs, CPU and memory metrics, and spans on a unified timeline in the
   Incident view.
 - Pinpoint slow spans, high-error services, and cross-service latency
   in the Traces dashboard.

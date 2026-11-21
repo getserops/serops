@@ -25,7 +25,7 @@ const BatchIssues = () => {
           if (issues?.error?.includes("parsing analysis_text")) {
             const newError = {
               message: "Invalid JSON format in batch analysis",
-              batch: issues.batchId || "Unknown batch",
+              batch: issues.batchId || "Unknown analysis",
               solution: "Check Elasticsearch index mapping and data format",
             };
             setIssuesData([newError]);

@@ -26,7 +26,7 @@ backend:
   variables:
     POSTGRES_DB: test_serops
     POSTGRES_USER: postgres
-    POSTGRES_PASSWORD: testpass
+    POSTGRES_PASSWORD: testpass  # secret-scan: allow (throwaway CI database)
     DJANGO_SETTINGS_MODULE: api.test_settings
     DJANGO_SECRET_KEY: ci-test-secret-key-not-for-production
     DEBUG: 'True'
@@ -34,7 +34,7 @@ backend:
     TEST_DB_PORT: '5432'
     TEST_DB_NAME: test_serops
     TEST_DB_USER: postgres
-    TEST_DB_PASSWORD: testpass
+    TEST_DB_PASSWORD: testpass  # secret-scan: allow (throwaway CI database)
     REDIS_URL: redis://redis:6379/0
     CELERY_BROKER_URL: redis://redis:6379/0
     CELERY_RESULT_BACKEND: redis://redis:6379/0
@@ -159,6 +159,21 @@ ui-quality:
       changes: [frontend/**/*, backend/**/*, deploy/quick-start/**/*]
     - if: $CI_COMMIT_BRANCH == "main"
       changes: [frontend/**/*, backend/**/*, deploy/quick-start/**/*]
+
+# ---------------------------------------------------------------------------
+# Secret scan — literal passwords in any tracked file
+# ---------------------------------------------------------------------------
+# Not path-scoped: a secret can arrive in any file. backend/Utils/secret_scan.py
+# is standard library only and prints file, line and rule, never the value.
+# The same script runs as a pre-commit hook (backend/.pre-commit-config.yaml).
+secret-scan:
+  stage: test
+  image: python:3.12   # has git, which --all needs
+  script:
+    - python3 backend/Utils/secret_scan.py --all
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
 
 # ---------------------------------------------------------------------------
 # Docs — MkDocs

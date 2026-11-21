@@ -91,16 +91,43 @@ def validate_public_url(url: str) -> str:
     return url
 
 
-def _is_disallowed_ip(ip):
-    """Return True for private / loopback / link-local / reserved / multicast.
+_NAT64 = ipaddress.ip_network('64:ff9b::/96')
 
-    ``ipaddress`` covers most of what we care about via the ``is_*``
-    properties. We deliberately reject *all* non-globally-routable
-    space rather than a curated denylist — anything that isn't a
-    public unicast address has no business being a webhook target.
+
+def _embedded_ipv4(ip):
+    """The IPv4 address an IPv6 address carries, or None.
+
+    IPv4-mapped (``::ffff:a.b.c.d``), 6to4 (``2002::/16``) and the NAT64
+    well-known prefix (``64:ff9b::/96``). ``ipaddress`` calls the NAT64
+    prefix global, so ``64:ff9b::a9fe:a9fe`` reached 169.254.169.254
+    through a NAT64 gateway while passing ``is_global`` (audit 2026-11-20,
+    item 3).
     """
+    if getattr(ip, 'version', 4) != 6:
+        return None
+    mapped = ip.ipv4_mapped or ip.sixtofour
+    if mapped is not None:
+        return mapped
+    if ip in _NAT64:
+        return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    return None
+
+
+def _is_disallowed_ip(ip):
+    """Return True for anything that is not a public unicast address.
+
+    ``is_global`` is the rule: shared address space (100.64.0.0/10, which
+    holds Alibaba's metadata service at 100.100.100.200), 192.0.0.0/24 and
+    the benchmarking range 198.18.0.0/15 are neither private nor reserved,
+    so the older list of ``is_*`` checks let them through. The address an
+    IPv6 address wraps is checked too.
+    """
+    inner = _embedded_ipv4(ip)
+    if inner is not None and _is_disallowed_ip(inner):
+        return True
     return (
-        ip.is_private
+        not ip.is_global
+        or ip.is_private
         or ip.is_loopback
         or ip.is_link_local
         or ip.is_reserved
@@ -134,9 +161,9 @@ def _is_metadata_ip(ip) -> bool:
     IPv4-mapped and 6to4 IPv6 forms are unwrapped first so
     ``::ffff:169.254.169.254`` is the same address as ``169.254.169.254``.
     """
-    mapped = getattr(ip, 'ipv4_mapped', None) or getattr(ip, 'sixtofour', None)
-    if mapped is not None:
-        ip = mapped
+    inner = _embedded_ipv4(ip)
+    if inner is not None:
+        ip = inner
     return ip.is_link_local or ip in _CLOUD_METADATA_IPS
 
 

@@ -32,14 +32,15 @@ By the end you'll have:
 
 1. Log in.
 2. Click **Projects** in the left sidebar.
-3. Click **+ New Project**.
+3. Click **New Project**.
 4. Fill in:
     - **Name** — short and stable (`checkout-api`, `payments-platform`).
       Used in prompts + notifications.
     - **Description** — optional but recommended. The AI reads this
       and uses it when reasoning about incidents ("the checkout API
       handles Stripe webhooks..."). A one-liner is fine.
-5. Click **Create**.
+    - **Environments** — in the same form; see Step 2.
+5. Click **Create Project**.
 
 ---
 
@@ -48,22 +49,27 @@ By the end you'll have:
 The batch pipeline uses environments to answer "which env is this
 incident from." Without this, all logs land in a single bucket.
 
-1. On your new project, click ⚙️ **Settings**.
-2. Open the **Environments** tab.
-3. Enable the environments you actually deploy to:
-   - ✅ Production
-   - ⬜ Staging (if applicable)
-   - ⬜ Development (if applicable)
-4. Adjust **branch patterns** so SerOps can auto-tag which env a
-   commit belongs to:
+The environments are part of the **New Project** form. To change them
+later, click the edit button on the project's row in **Projects**.
 
-    | Environment | Typical branch pattern |
+1. Keep the environments you actually deploy to. The form starts with
+   **Development** and **Production** selected and **Staging** not
+   selected; you can add a custom one (`qa`, `uat`).
+2. Adjust **branch patterns** so SerOps can auto-tag which env a
+   commit belongs to. The defaults:
+
+    | Environment | Default branch patterns |
     |---|---|
-    | Production | `main`, `master`, `release/*` |
-    | Staging | `develop`, `staging` |
-    | Development | `feature/*`, `dev/*` |
+    | Production | `main`, `master` |
+    | Staging | `staging`, `release/*` |
+    | Development | `develop`, `dev`, `feature/*` |
 
-   The default patterns work for most GitHub-Flow / GitLab-Flow repos.
+!!! note "The first analysis reads the first environment"
+    The first analysis, started as soon as you add the first service,
+    reads the project's first environment: **Development** if you keep
+    the defaults. If your logs come only from production, clear
+    Development here, or wait for the next scheduled run (every 15
+    minutes by default), which covers every environment.
 
 ---
 
@@ -75,9 +81,15 @@ is **logs + SCM + CI/CD** but any subset works (see
 what's available).
 
 1. Go to **Integrations**.
-2. Click **+ Add Integration** and pick a provider.
-3. Fill the connection form and click **Save**.
-4. Click **Verify** to confirm the credentials work.
+2. For source control or CI/CD, click **Add Integration**, pick a
+   provider, fill the form, click **Test Connection**, then **Create
+   Integration**.
+3. For logs, metrics or traces, open the **Log Providers**, **Metric
+   Providers** or traces tab and click **Add
+   … provider** (for example **Add log provider**). Fill the form and
+   click **Create**. To check the connection, open the integration again
+   with its edit button and click **Test**; the form has no test button
+   before the first save.
 
 Recommended first integrations:
 
@@ -99,15 +111,20 @@ per-provider setup.
 Services are the "unit of ownership" — one microservice, one API, one
 worker fleet.
 
-1. Back on the project page, click **+ New Service**.
-2. Pick the binding type:
-   - **Source Control (SCM)** — one repo per service. Enables
-     code-change correlation.
-   - **CI/CD** — one pipeline per service (a service can have many).
-     Enables deploy-timestamp correlation + failed-job analysis.
-3. Choose the provider and pick a repository / project from the
-   dropdown. If nothing shows up, re-verify the integration.
+1. Open the project: in **Projects**, click **Services** on its row.
+   Then click **Add new Service**.
+2. Pick the service type:
+   - **Application** — code you build. The next steps connect its
+     repository (code-change correlation) and, optionally, its CI/CD
+     pipelines (deploy timestamps and failed-job analysis).
+   - **Infrastructure** — a database, cache, queue or other component.
+   - **Custom** — any service without a repository: only a name and a
+     description. Use it when you have no source control connected.
+3. For an Application, choose the provider and pick a repository from
+   the dropdown. If nothing shows up, test the integration again.
 4. Follow the wizard.
+
+The service name must match the `service_name` in your logs.
 
 You can add multiple services per project. The AI reasons about the
 whole project as one system.
@@ -136,7 +153,7 @@ If the webhook fires but nothing appears in SerOps, check
 
 ## Step 6 — Wait for the first batch
 
-SerOps aggregates logs, metrics, distributed traces, code changes, and CI/CD
+SerOps aggregates logs, CPU and memory metrics, distributed traces, code changes, and CI/CD
 outputs into a **batch** at a configurable interval (default: every few
 minutes; see **Settings > Data Management**).
 

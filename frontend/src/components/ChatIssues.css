@@ -259,6 +259,29 @@
     text-decoration: underline;
 }
 
+.chat-demo-saved {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.chat-demo-saved-item {
+    padding: 2px var(--space-3);
+    background: #fff;
+    border: 1px solid #fde68a;
+    border-radius: var(--radius-md);
+    color: #92400e;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.chat-demo-saved-item:hover {
+    background: #fffbeb;
+}
+
 .chat-error-alert {
     margin-bottom: var(--space-3);
     padding: var(--space-3);
@@ -790,3 +813,114 @@
   .chat-textarea::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 :is(html, :root[data-theme]) .chat-container-modern { max-width: none; }
+
+/* ============ MARKDOWN TABLES IN ANSWERS ============ */
+
+.message-content .chat-table-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+    margin: var(--space-3) 0;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    white-space: normal;
+}
+
+.message-content .chat-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+    line-height: 1.45;
+    color: var(--text-primary);
+}
+
+.message-content .chat-table th,
+.message-content .chat-table td {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--border-default);
+    min-width: 7rem;
+    overflow-wrap: anywhere;
+}
+
+.message-content .chat-table th {
+    background: var(--bg-sunken);
+    font-weight: var(--font-semibold);
+    white-space: nowrap;
+}
+
+.message-content .chat-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.message-content .chat-table th + th,
+.message-content .chat-table td + td {
+    border-left: 1px solid var(--border-default);
+}
+
+.message-content .chat-table .chat-table-align-center {
+    text-align: center;
+}
+
+.message-content .chat-table .chat-table-align-right {
+    text-align: right;
+}
+
+.message-content .chat-table .chat-table-align-left {
+    text-align: left;
+}
+
+/* Markdown headings in an answer (`#` to `####`). Sized for a chat bubble:
+   the largest is only a little above the body text. */
+.message-content .chat-heading {
+    margin: 14px 0 6px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--text-primary);
+}
+
+.message-content .chat-heading:first-child {
+    margin-top: 0;
+}
+
+.message-content .chat-heading-1 { font-size: 1.2em; }
+.message-content .chat-heading-2 { font-size: 1.1em; }
+.message-content .chat-heading-3 { font-size: 1em; }
+.message-content .chat-heading-4 {
+    font-size: 0.92em;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary);
+}
+
+/* Markdown lists in chat answers (utils/textFormatters.js, formatBlocks).
+   Compact: an answer is read in a bubble, not on a page. */
+.message-content .chat-list {
+    margin: 0.35em 0 0.6em;
+    padding-left: 1.4em;
+    list-style-position: outside;
+}
+
+.message-content ul.chat-list { list-style-type: disc; }
+.message-content ol.chat-list { list-style-type: decimal; }
+
+.message-content .chat-list:last-child {
+    margin-bottom: 0;
+}
+
+.message-content .chat-list > li {
+    margin: 0.15em 0;
+    padding-left: 0.15em;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.message-content .chat-list > li::marker {
+    color: var(--text-secondary);
+}
+
+.message-content .chat-list .chat-list {
+    margin: 0.15em 0 0.25em;
+}
+
+.message-content ul.chat-list ul.chat-list { list-style-type: circle; }

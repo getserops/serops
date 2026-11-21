@@ -323,7 +323,7 @@ def generate_text(request):
                             # Use a fast model for intent classification if possible, or same model
                             intent_response, _ = process_ai_request(intent_prompt, ai_model, request.user.organisation)
                             
-                            logger.info(f"Agentic Intent Analysis: {intent_response}")
+                            logger.info("Agentic intent analysis: %d characters", len(intent_response or ''))
                             
                             # Parse JSON response (robust parsing)
                             try:
@@ -333,7 +333,7 @@ def generate_text(request):
                                 if not isinstance(data_sources_needed, list):
                                     data_sources_needed = []
                             except (json.JSONDecodeError, AttributeError):
-                                logger.warning(f"Failed to parse intent JSON: {intent_response}")
+                                logger.warning("Failed to parse intent JSON (%d characters)", len(intent_response or ''))
                                 data_sources_needed = []
                                 
                         except Exception as e:
@@ -517,7 +517,7 @@ def generate_text(request):
                 # --- AGENTIC WORKFLOW END ---
 
                 result, ai_error = process_ai_request(prompt, ai_model, request.user.organisation)
-                logger.info(f"AI response: {result}")
+                logger.info("AI response: %d characters", len(str(result or '')))
 
                 if result:
                     chat_message = ChatMessage.objects.create(
@@ -588,10 +588,10 @@ def generate_text(request):
                 analysis_prompt = get_batch_analysis_prompt(
                     DataSourceContext(batch_data=batch_data, logs=all_logs)
                 )
-                logger.info(f"Generated analysis prompt for AI: {analysis_prompt}")
+                logger.info("Generated analysis prompt for AI: %d characters", len(analysis_prompt or ''))
 
                 result, ai_error = process_ai_request(analysis_prompt, ai_model, request.user.organisation, usage_type="manual_analysis")
-                logger.info(f"AI analysis result: {result}")
+                logger.info("AI analysis result: %d characters", len(str(result or '')))
 
                 if result:
                     return JsonResponse({

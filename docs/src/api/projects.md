@@ -252,7 +252,7 @@ Refreshes recent pipeline runs, job status, and deployment events for this bindi
 ### Health Check (All Bindings)
 
 ```
-GET /api/providers/integrations/health-check-all/
+POST /api/providers/integrations/health-check-all/
 ```
 
 Runs a connectivity check against all configured integration bindings and returns their status.

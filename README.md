@@ -1,11 +1,11 @@
 # SerOps
 
-**AGPL-3.0 AI Root Cause Analysis platform** — logs · metrics · distributed traces · deploys · code changes.
+**AGPL-3.0 AI Root Cause Analysis platform** — logs · infrastructure metrics · distributed traces · deploys · code changes.
 
 Runs on Kubernetes (Helm) or Docker Compose and analyses workloads wherever they run — Kubernetes-aware (pods, restarts, OOMKills) but not Kubernetes-only. Complements your existing observability stack rather than replacing it:
 
 - **Logs** — Elasticsearch, OpenSearch, Loki, Splunk, Datadog, AWS CloudWatch, Google Cloud Logging, Azure Log Analytics
-- **Metrics** — Prometheus, VictoriaMetrics, Grafana Mimir, Datadog, AWS CloudWatch, Google Cloud Monitoring, Azure Monitor
+- **Metrics** — Prometheus, VictoriaMetrics, Grafana Mimir, Datadog, AWS CloudWatch, Google Cloud Monitoring, Azure Monitor. SerOps reads CPU and memory from each; from Prometheus, Mimir and VictoriaMetrics also CPU throttling, kube-state-metrics (restarts, rollouts, replicas) and JVM garbage collection. It does not query request-rate, error-rate or latency metrics: errors and slowness are read from logs and traces ([details](https://serops.ai/docs/user-guide/metrics/#what-serops-reads)).
 - **Traces** — built-in OTLP receiver, Jaeger, Zipkin, Grafana Tempo, Datadog APM
 - **Code & CI/CD** — GitHub, GitLab, Bitbucket, Azure DevOps, Jenkins; deployments from Argo CD and Flux
 

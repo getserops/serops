@@ -55,8 +55,14 @@ const RecentDeploymentsCard = ({ data, loading }) => {
                 </div>
                 <div className="deployments-empty">
                     <FaRocket className="empty-icon" />
-                    <p>{t('dashboard.noCicdServices')}</p>
-                    <span>{t('dashboard.addCicdServices')}</span>
+                    {isDemoUser() ? (
+                        <p>{t('dashboard.demoNoPipelineHistory')}</p>
+                    ) : (
+                        <>
+                            <p>{t('dashboard.noCicdServices')}</p>
+                            <span>{t('dashboard.addCicdServices')}</span>
+                        </>
+                    )}
                 </div>
             </div>
         );

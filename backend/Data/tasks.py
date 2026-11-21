@@ -1654,7 +1654,12 @@ def create_batches_for_all_projects(self):
     # Elasticsearch index — so on a Loki, Datadog or CloudWatch install a
     # project created in the UI was never analysed (found by the journey
     # suite, launch plan 9.9).
-    projects = Project.objects.select_related('organisation')
+    #
+    # Demo organisations are left out: their log stores are seeded
+    # placeholders (hosts that do not exist), so every tick tried to reach
+    # them, failed, and wrote a fresh "Skipped: no log location" row that the
+    # demo's Data page showed with the current time.
+    projects = Project.objects.select_related('organisation').exclude(organisation__is_demo=True)
     logger.info(f"Found {len(projects)} projects in database")
 
     # ── Group projects by organisation ──
@@ -2521,6 +2526,9 @@ def run_investigation(self, investigation_id):
     """Collect and analyse one Investigation's scope and window.
 
     A thin wrapper: the batch pipeline does the work and records progress
-    and the outcome on the Investigation itself.
+    and the outcome on the Investigation itself. With SEROPS_QUERY_TRAIL_DIR
+    set, every store request it makes is recorded (Utils.query_trail).
     """
-    return create_log_batch_with_project_name(investigation_id=investigation_id)
+    from Utils import query_trail
+    with query_trail.recording(f'investigation-{investigation_id}'):
+        return create_log_batch_with_project_name(investigation_id=investigation_id)

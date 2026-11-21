@@ -6,6 +6,7 @@ number of callbacks, so an attacker could make a victim load the attacker's own
 callback URL and sign the victim in to the attacker's account. There was no
 nonce and no PKCE either.
 """
+import time
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
@@ -18,7 +19,7 @@ from Data.models import AuditLog
 from Organisations.models import Organisations
 from Users.models import SecuritySettings, User
 from Users.services.sso import SSOService
-from Users.sso_views import SSO_FLOW_COOKIE, SSO_FLOW_SALT, _email_verified
+from Users.sso_views import SSO_FLOW_COOKIE, SSO_FLOW_SALT, _email_verified, multi_tenant_discovery_problem
 
 
 def start_flow(client, org_id, nonce='the-nonce', verifier='the-verifier'):
@@ -119,7 +120,8 @@ class InitTest(FlowTestCase):
 class ServiceTest(SimpleTestCase):
     def _service(self):
         sso = SSOService('client', 'secret', 'https://idp.example.com/d', 'https://app/cb')
-        sso.metadata = {'authorization_endpoint': 'https://idp.example.com/auth'}
+        sso.metadata = {'authorization_endpoint': 'https://idp.example.com/auth',
+                        'issuer': 'https://idp.example.com'}
         return sso
 
     def test_authorization_url_carries_nonce_and_pkce(self):
@@ -130,7 +132,43 @@ class ServiceTest(SimpleTestCase):
         self.assertNotEqual(query['code_challenge'], ['v' * 64])
 
     def _id_token(self, **claims):
+        # A real provider always sends iss and exp; tests that check them
+        # override these defaults (audit 2026-11-20, item 4).
+        claims.setdefault('iss', 'https://idp.example.com')
+        claims.setdefault('exp', int(time.time()) + 300)
+        claims = {k: v for k, v in claims.items() if v is not None}
         return {'id_token': jwt.encode(claims, 'k' * 32, algorithm='HS256')}
+
+    def test_expired_or_missing_exp_does_not_match(self):
+        sso = self._service()
+        self.assertFalse(sso.id_token_matches(self._id_token(nonce='n', aud='client', exp=int(time.time()) - 3600), 'n'))
+        self.assertFalse(sso.id_token_matches(self._id_token(nonce='n', aud='client', exp=None), 'n'))
+        # Within the clock-skew allowance it still matches.
+        self.assertTrue(sso.id_token_matches(self._id_token(nonce='n', aud='client', exp=int(time.time()) - 30), 'n'))
+
+    def test_wrong_or_missing_issuer_does_not_match(self):
+        sso = self._service()
+        self.assertFalse(sso.id_token_matches(self._id_token(nonce='n', aud='client', iss='https://evil.example.com'), 'n'))
+        self.assertFalse(sso.id_token_matches(self._id_token(nonce='n', aud='client', iss=None), 'n'))
+        sso.metadata.pop('issuer')
+        self.assertFalse(sso.id_token_matches(self._id_token(nonce='n', aud='client'), 'n'))
+
+    def test_entra_tenant_template_is_filled_from_tid(self):
+        sso = self._service()
+        sso.metadata['issuer'] = 'https://login.microsoftonline.com/{tenantid}/v2.0'
+        tid = '11111111-2222-3333-4444-555555555555'
+        good = f'https://login.microsoftonline.com/{tid}/v2.0'
+        self.assertTrue(sso.id_token_matches(self._id_token(nonce='n', aud='client', iss=good, tid=tid), 'n'))
+        self.assertFalse(sso.id_token_matches(self._id_token(nonce='n', aud='client', iss=good, tid='other'), 'n'))
+        self.assertFalse(sso.id_token_matches(self._id_token(nonce='n', aud='client', iss=good), 'n'))
+
+    def test_userinfo_must_be_about_the_id_token_subject(self):
+        sso = self._service()
+        token = self._id_token(nonce='n', aud='client', sub='user-1')
+        self.assertTrue(sso.user_info_matches(token, {'sub': 'user-1', 'email': 'a@b.c'}))
+        self.assertFalse(sso.user_info_matches(token, {'sub': 'user-2'}))
+        self.assertFalse(sso.user_info_matches(token, {'email': 'a@b.c'}))
+        self.assertFalse(sso.user_info_matches(self._id_token(nonce='n', aud='client'), {'sub': ''}))
 
     def test_id_token_for_this_flow_matches(self):
         self.assertTrue(self._service().id_token_matches(self._id_token(nonce='n', aud='client'), 'n'))
@@ -164,3 +202,52 @@ class EmailVerifiedTest(SimpleTestCase):
 
     def test_missing_claim_is_accepted_from_a_provider_that_omits_it(self):
         self.assertTrue(_email_verified({}, self.ENTRA))
+
+
+class MultiTenantDiscoveryTest(FlowTestCase):
+    """Entra's /common/, /organizations/ and /consumers/ endpoints are refused
+    on the host trusted to omit email_verified (audit 2026-11-20, item 4)."""
+    ENTRA = 'https://login.microsoftonline.com/{}/v2.0/.well-known/openid-configuration'
+
+    def test_problem_detection(self):
+        for tenant in ('common', 'organizations', 'consumers', 'Common'):
+            with self.subTest(tenant=tenant):
+                self.assertIsNotNone(multi_tenant_discovery_problem(self.ENTRA.format(tenant)))
+        for url in (self.ENTRA.format('11111111-2222-3333-4444-555555555555'), self.ENTRA.format('contoso.onmicrosoft.com'),
+                    'https://accounts.google.com/.well-known/openid-configuration',
+                    'https://idp.example.com/common/.well-known/openid-configuration', '', None):
+            with self.subTest(url=url):
+                self.assertIsNone(multi_tenant_discovery_problem(url))
+
+    def test_refused_on_save(self):
+        self.client.force_authenticate(self.user)
+        r = self.client.put('/api/auth/sso/config', {'sso_provider': 'oidc', 'sso_enabled': True,
+                            'sso_discovery_url': self.ENTRA.format('common')}, format='json')
+        self.assertEqual(r.status_code, 400, r.content)
+        self.assertIn('/common/', r.json()['error'])
+        self.settings.refresh_from_db()
+        self.assertEqual(self.settings.sso_discovery_url, 'https://idp.example.com/.well-known/openid-configuration')
+
+    def _store(self, url):
+        SecuritySettings.objects.filter(pk=self.settings.pk).update(sso_discovery_url=url)
+
+    @patch('Users.sso_views.SSOService')
+    def test_refused_at_sign_in_start(self, MockSSO):
+        self._store(self.ENTRA.format('organizations'))
+        r = self.client.post('/api/auth/sso/init', {'email': self.user.email}, format='json')
+        self.assertEqual(r.status_code, 502)
+        MockSSO.return_value.get_authorization_url.assert_not_called()
+
+    @patch('Users.sso_views.SSOService')
+    def test_refused_in_the_callback(self, MockSSO):
+        sso = self._idp(MockSSO)
+        state = start_flow(self.client, self.org.id)
+        self._store(self.ENTRA.format('common'))
+        self.assertFailed(self._callback(state))
+        sso.exchange_code_for_token.assert_not_called()
+
+    @patch('Users.sso_views.SSOService')
+    def test_userinfo_for_another_subject_fails_the_callback(self, MockSSO):
+        sso = self._idp(MockSSO)
+        sso.user_info_matches.return_value = False
+        self.assertFailed(self._callback(start_flow(self.client, self.org.id)))

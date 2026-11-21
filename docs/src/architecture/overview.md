@@ -4,7 +4,7 @@ description: "How SerOps works: collectors, batches, Sentinel, the AI pipeline, 
 ---
 # System Overview
 
-SerOps is an open-source AI root cause analysis platform. It connects to your existing observability, SCM, and CI/CD tools — correlating logs, metrics, distributed traces, code changes, and deployments across multiple environments to automatically detect issues and explain their root cause. This page covers the high-level system architecture, core concepts, and the standards that guide development.
+SerOps is an open-source AI root cause analysis platform. It connects to your existing observability, SCM, and CI/CD tools — correlating logs, infrastructure metrics, distributed traces, code changes, and deployments across multiple environments to automatically detect issues and explain their root cause. This page covers the high-level system architecture, core concepts, and the standards that guide development.
 
 ---
 
@@ -12,7 +12,7 @@ SerOps is an open-source AI root cause analysis platform. It connects to your ex
 
 ### High-Level Overview
 
-SerOps aggregates logs, metrics, distributed traces, and CI/CD data to provide intelligent insights using pluggable AI models (Claude, Gemini, DeepSeek, and any OpenAI-compatible provider).
+SerOps aggregates logs, infrastructure metrics (CPU, memory, Kubernetes state), distributed traces, and CI/CD data to provide intelligent insights using pluggable AI models (Claude, Gemini, DeepSeek, and any OpenAI-compatible provider).
 
 ```mermaid
 graph TB

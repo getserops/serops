@@ -1,9 +1,9 @@
 ---
-description: "SerOps is open-source AI root cause analysis: it correlates logs, metrics, traces, deploys and code changes to explain why an incident happened. Self-hosted."
+description: "SerOps is open-source AI root cause analysis: it correlates logs, infrastructure metrics, traces, deploys and code changes to explain why an incident happened. Self-hosted."
 ---
 # SerOps documentation
 
-**SerOps** is open-source AI root cause analysis, self-hosted on your own infrastructure. It connects to your existing observability, SCM, and CI/CD tools — correlating logs, metrics, distributed traces, code changes, and deployments to automatically detect issues and explain their root cause.
+**SerOps** is open-source AI root cause analysis, self-hosted on your own infrastructure. It connects to your existing observability, SCM, and CI/CD tools — correlating logs, infrastructure metrics, distributed traces, code changes, and deployments to automatically detect issues and explain their root cause.
 
 <div class="grid cards" markdown>
 
@@ -27,7 +27,7 @@ description: "SerOps is open-source AI root cause analysis: it correlates logs, 
 
     ---
 
-    Pluggable AI models analyze your logs alongside metrics, distributed traces, and code changes to pinpoint root causes and recommend fixes.
+    Pluggable AI models analyze your logs alongside CPU and memory metrics, distributed traces, and code changes to pinpoint root causes and recommend fixes.
 
     [:octicons-arrow-right-24: AI Chat](user-guide/ai-chat.md)
 
@@ -100,7 +100,7 @@ keeps analysis affordable and limits what reaches a third party:
 | **Metric Correlation** | Detects infrastructure anomalies (CPU, memory) that coincide with application errors |
 | **Trace Correlation** | Attributes latency to a specific service hop from span durations, including incidents that produce no error log at all |
 | **Multi-Environment** | Separate analysis for development, staging, and production with branch pattern matching |
-| **AI Chat** | Conversational AI for investigating issues with full context from logs, metrics, traces, and code |
+| **AI Chat** | Conversational AI for investigating issues with full context from logs, CPU and memory metrics, traces, and code |
 | **Model Comparison** | Re-analyse batches with different AI models and compare results side-by-side |
 | **PII Redaction** | Regex-based masking of credentials and personal data in batch analysis context, with known gaps listed in [Data Protection](security/data-protection.md#current-limits) |
 | **Notifications** | Slack, Teams, PagerDuty, OpsGenie and email, with routing rules, quiet hours, digests and escalation |

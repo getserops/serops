@@ -90,6 +90,9 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "serops.fullname" . }}-config
+            {{- with $.Values.backend.envFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           env:
             - name: DJANGO_SECRET_KEY
               valueFrom:
@@ -117,6 +120,13 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.broker.existingSecret | default (printf "%s-secrets" (include "serops.fullname" .)) }}
                   key: broker-url
+            {{- /* backend.env reaches every pod that runs the backend image:
+                   the API, the Celery workers and beat, and the migration
+                   job. It used to reach the API pods only. */}}
+            {{- range $k, $v := $.Values.backend.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
           resources:
             {{- toYaml .Values.migrations.resources | nindent 12 }}
 {{- end }}

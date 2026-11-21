@@ -68,6 +68,7 @@ import "./settings/SettingsLayout.css";
 import ChoiceGroup from "./settings/ChoiceGroup";
 import IntegrationsSectionHeader from "./settings/IntegrationsSectionHeader";
 import { usePermissions } from "../utils/permissions";
+import { isDemoUser } from "../utils/demo";
 
 // Provider configuration with specific credential fields and token URLs
 const PROVIDERS = {
@@ -173,7 +174,7 @@ const URL_REGEX = /^https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9
 
 // Helper to format relative time
 const formatTimeAgo = (dateString) => {
-    if (!dateString) return "Unknown";
+    if (!dateString) return "";
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now - date;
@@ -228,6 +229,7 @@ const SettingsIntegrations = () => {
     // Integrations hold provider credentials: only admins add, edit or
     // delete them (the API enforces this). Users can still sync.
     const canManage = usePermissions()("integration.manage");
+    const demo = isDemoUser();
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [verifying, setVerifying] = useState({});
@@ -723,7 +725,7 @@ const SettingsIntegrations = () => {
                         title={t(`globalIntegrations.tabs.${activeTab}`)}
                         count={filteredIntegrations.length}
                         description={t(`globalIntegrations.${activeTab}Desc`)}
-                        action={canManage && (
+                        action={canManage && !demo && (
                             <Button variant="primary" onClick={openAdd}>
                                 <FaPlus aria-hidden="true" />{t("globalIntegrations.addIntegration", "Add Integration")}
                             </Button>
@@ -744,6 +746,13 @@ const SettingsIntegrations = () => {
                                 const isVer = verifying[int.id];
                                 const verified = int.verification_status === "verified" || int.is_active;
                                 const usage = integrationUsage[int.id] || {};
+                                // The instance's own address when it has one (a
+                                // self-hosted GitLab used to show gitlab.com:
+                                // the list carries display_url, not base_url).
+                                // The demo lists the integrations its analyses
+                                // read, with no address: not the provider's
+                                // public one either.
+                                const hostUrl = demo ? "" : (int.base_url || int.display_url || prov.url);
 
                                 return (
                                     <Col key={int.id} xs={12} lg={6} xxl={4} className="mb-4">
@@ -762,21 +771,24 @@ const SettingsIntegrations = () => {
                                                             <h5 className="mb-0 fw-semibold">{int.name}</h5>
                                                             <div className="d-flex align-items-center flex-wrap gap-2 text-muted small">
                                                                 {/* Providers without a URL (Jenkins) have nothing to link to. */}
-                                                                {(int.base_url || prov.url) && (
+                                                                {hostUrl && (
                                                                     <>
                                                                         <a
-                                                                            href={int.base_url || prov.url}
+                                                                            href={hostUrl}
                                                                             target="_blank"
                                                                             rel="noopener noreferrer"
                                                                             className="text-muted text-decoration-none"
                                                                         >
-                                                                            {(int.base_url || prov.url).replace(/^https?:\/\//, '')}
+                                                                            {hostUrl.replace(/^https?:\/\//, '')}
                                                                             <FaExternalLinkAlt size={10} className="ms-1" aria-hidden="true" />
                                                                         </a>
-                                                                        <span aria-hidden="true">•</span>
+                                                                        {int.created_at && !demo && <span aria-hidden="true">•</span>}
                                                                     </>
                                                                 )}
-                                                                <OverlayTrigger
+                                                                {/* The demo's rows are written by the nightly seed: their age,
+                                                                    their service count and the buttons that change or
+                                                                    test a connection say nothing true there. */}
+                                                                {int.created_at && !demo && <OverlayTrigger
                                                                     placement="top"
                                                                     overlay={<Tooltip>Created: {new Date(int.created_at).toLocaleString()}</Tooltip>}
                                                                 >
@@ -784,7 +796,7 @@ const SettingsIntegrations = () => {
                                                                         <FaClock size={10} />
                                                                         {formatTimeAgo(int.created_at)}
                                                                     </span>
-                                                                </OverlayTrigger>
+                                                                </OverlayTrigger>}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -796,7 +808,7 @@ const SettingsIntegrations = () => {
                                                             {verified ? <FaCheck size={10} /> : <FaSync size={10} />}
                                                             {verified ? "Active" : "Pending"}
                                                         </Badge>
-                                                        <Dropdown align="end">
+                                                        {!demo && <Dropdown align="end">
                                                             <Dropdown.Toggle
                                                                 variant="link"
                                                                 className="text-muted p-1"
@@ -825,7 +837,7 @@ const SettingsIntegrations = () => {
                                                                 </Dropdown.Item>
                                                                 )}
                                                             </Dropdown.Menu>
-                                                        </Dropdown>
+                                                        </Dropdown>}
                                                     </div>
                                                 </div>
 
@@ -855,7 +867,7 @@ const SettingsIntegrations = () => {
                                                 )}
 
                                                 {/* Usage Stats Bar */}
-                                                <div className="bg-light rounded-3 p-3 mb-3">
+                                                {!demo && <div className="bg-light rounded-3 p-3 mb-3">
                                                     <div className="d-flex justify-content-between align-items-center">
                                                         <div className="d-flex align-items-center gap-3">
                                                             <div className="text-center">
@@ -884,10 +896,10 @@ const SettingsIntegrations = () => {
                                                             </a>
                                                         )}
                                                     </div>
-                                                </div>
+                                                </div>}
 
                                                 {/* Action Button */}
-                                                <Button
+                                                {!demo && <Button
                                                     variant={verified ? "outline-success" : "outline-primary"}
                                                     className="w-100 rounded-pill"
                                                     onClick={() => handleVerify(int)}
@@ -898,7 +910,7 @@ const SettingsIntegrations = () => {
                                                     ) : (
                                                         <><FaSync size={12} className="me-2" />Verify Connection</>
                                                     )}
-                                                </Button>
+                                                </Button>}
                                             </Card.Body>
                                         </Card>
                                     </Col>
