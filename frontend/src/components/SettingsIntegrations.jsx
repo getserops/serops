@@ -69,6 +69,7 @@ import ChoiceGroup from "./settings/ChoiceGroup";
 import IntegrationsSectionHeader from "./settings/IntegrationsSectionHeader";
 import { usePermissions } from "../utils/permissions";
 import { isDemoUser } from "../utils/demo";
+import { formatAbsolute, formatRelative } from '../utils/dates';
 
 // Provider configuration with specific credential fields and token URLs
 const PROVIDERS = {
@@ -173,21 +174,7 @@ const inCicdTab = (p) => p.caps.includes("cicd") || !!p.receiveOnly;
 const URL_REGEX = /^https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)+[^\s]*$/;
 
 // Helper to format relative time
-const formatTimeAgo = (dateString) => {
-    if (!dateString) return "";
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-};
+const formatTimeAgo = (dateString) => (dateString ? formatRelative(dateString) : "");
 
 // Extract hostname from URL for smart naming
 const extractHostname = (url) => {
@@ -790,7 +777,7 @@ const SettingsIntegrations = () => {
                                                                     test a connection say nothing true there. */}
                                                                 {int.created_at && !demo && <OverlayTrigger
                                                                     placement="top"
-                                                                    overlay={<Tooltip>Created: {new Date(int.created_at).toLocaleString()}</Tooltip>}
+                                                                    overlay={<Tooltip>Created: {formatAbsolute(int.created_at)}</Tooltip>}
                                                                 >
                                                                     <span className="d-flex align-items-center gap-1">
                                                                         <FaClock size={10} />

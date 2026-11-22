@@ -7,6 +7,7 @@ import { FaSearch, FaFileAlt, FaBolt, FaExclamationCircle, FaProjectDiagram, FaM
 import dataService from "../services/data.service";
 import InvestigationService from "../services/investigation.service";
 import { applyTheme } from "../utils/theme";
+import { headline } from "../utils/sentences";
 import { isDemoUser } from "../utils/demo";
 import "./CommandPalette.css";
 
@@ -14,7 +15,7 @@ export const OPEN_EVENT = "serops:open-command-palette";
 
 // Every page reachable from the sidebar, named the same way.
 const PAGES = [
-  ["/dash", "nav.dashboard"],
+  ["/dash", "nav.overview"],
   ["/dash/issues", "nav.issues"],
   ["/dash/data", "nav.data"],
   ["/dash/investigate", "nav.investigate"],
@@ -116,7 +117,7 @@ const CommandPalette = () => {
     add(t("palette.actions"), actions.filter((i) => !q || matches(i.label, q)));
     if (q) {
       add(t("palette.issues"), (issueData?.results || []).map((issue) => ({
-        id: `issue:${issue.id}`, label: issue.description, hint: issue.component, icon: FaExclamationCircle,
+        id: `issue:${issue.id}`, label: headline(issue.description) || issue.description, hint: issue.component, icon: FaExclamationCircle,
         run: () => navigate(`/dash/issues?id=${issue.id}`),
       })));
       add(t("palette.projects"), (scope?.projects || [])

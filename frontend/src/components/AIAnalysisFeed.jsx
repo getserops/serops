@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { FaRobot, FaExclamationCircle, FaExclamationTriangle, FaArrowRight } from 'react-icons/fa';
 import { SAMPLE_PATH } from '../sample/sampleIncident';
 import './AIAnalysisFeed.css';
+import { formatAbsolute, formatRelative } from '../utils/dates';
 
 // Badge text: darker shades of the environment colours, readable on their
 // own 12% tint (the base colours measured under 3:1).
@@ -52,20 +53,7 @@ const AIAnalysisFeed = ({ data, loading }) => {
         );
     }
 
-    const formatTime = (isoString) => {
-        if (!isoString) return '';
-        const date = new Date(isoString);
-        const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
-
-        if (diffMins < 1) return t('dashboard.justNow', 'just now');
-        if (diffMins < 60) return t('dashboard.minutesAgo', '{{count}}m ago', { count: diffMins });
-        const diffHours = Math.floor(diffMins / 60);
-        if (diffHours < 24) return t('dashboard.hoursAgo', '{{count}}h ago', { count: diffHours });
-        const diffDays = Math.floor(diffHours / 24);
-        return t('dashboard.daysAgo', '{{count}}d ago', { count: diffDays });
-    };
+    const formatTime = (isoString) => formatRelative(isoString, { fallback: '' });
 
     const envColors = {
         production: '#ef476f',
@@ -106,7 +94,7 @@ const AIAnalysisFeed = ({ data, loading }) => {
                                 >
                                     {item.environment || 'unknown'}
                                 </span>
-                                <span className="feed-time">{formatTime(item.analyzed_at)}</span>
+                                <span className="feed-time" title={formatAbsolute(item.analyzed_at, { fallback: '' })}>{formatTime(item.analyzed_at)}</span>
                             </div>
 
                             <p className="feed-summary">{item.summary || t('dashboard.noSummary', 'Analysis completed')}</p>

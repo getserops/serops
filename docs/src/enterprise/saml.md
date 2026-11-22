@@ -4,8 +4,8 @@ description: "Sign in to SerOps with SAML 2.0 from Microsoft Entra ID, Okta or K
 ---
 # SAML 2.0 single sign-on
 
-!!! info "SerOps Enterprise"
-    SAML sign-in needs an Enterprise license that lists `saml` (**Settings →
+!!! info "Paid license"
+    SAML sign-in needs a paid license (Business or Enterprise) that lists `saml` (**Settings →
     Enterprise license**). Without one, SAML is inert: no sign-in starts, the
     endpoints below answer as if SAML did not exist, and the settings stay
     saved. **OpenID Connect**, with the same group rules, teams and

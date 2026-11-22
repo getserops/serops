@@ -320,7 +320,7 @@ POST /api/utils/scan-message/
 Content-Type: application/json
 
 {
-  "message": "My API key is sk-live-abc123"
+  "message": "My API key is sk-ant-EXAMPLE-NOT-A-REAL-KEY"
 }
 ```
 
@@ -330,11 +330,13 @@ Response:
   "has_sensitive_data": true,
   "findings": [
     {
-      "pattern_type": "api_key",
-      "sensitivity": "critical",
-      "context": "...API key is sk-l..."
+      "type": "ai_provider_key",
+      "severity": "critical",
+      "preview": "PI key is ***",
+      "length": 29
     }
   ],
+  "total_count": 1,
   "critical_count": 1,
   "high_count": 0
 }

@@ -1,6 +1,6 @@
 ---
 seo_title: "Vendor and security facts"
-description: "For procurement and security reviews: who licenses SerOps, what SerOps can and cannot access, telemetry, release integrity, continuity, support, personal data, and how employees are counted."
+description: "For procurement and security reviews: who licenses SerOps, what SerOps can and cannot access, telemetry, release integrity, continuity, support, personal data, and how installations are counted."
 ---
 # Vendor and security facts
 
@@ -80,10 +80,10 @@ AGPL. See the [open source promise](../open-source-promise.md) and the
 - By email to **support@serops.ai**, during Business Hours: 09:00 to 18:00
   Central European Time, Monday to Friday, excluding public holidays in
   Tunisia ([Terms, section 5](enterprise-terms.md#5-support-and-updates)).
-- Business band: standard terms, best effort, security review from public
-  documentation.
-- Enterprise band: a business-hours response time written into the
-  order.
+- Business: standard terms, a first reply targeted within one working day
+  (a target, not a guarantee), and the standard
+  [security pack](security-pack.md).
+- Enterprise: a response time written into the contract.
 
 ## Personal data
 
@@ -94,18 +94,20 @@ AGPL. See the [open source promise](../open-source-promise.md) and the
   the messages you send us. See the
   [privacy policy](https://serops.ai/privacy).
 
-## How employees are counted
+## How installations are counted
 
-The Business and Enterprise bands are set by Headcount, never by seats
-([Terms, section 2](enterprise-terms.md#2-order-and-subscription)):
+One thing is counted: installations, never seats or employees
+([Terms, section 3](enterprise-terms.md#3-installations)):
 
-- **Headcount** is the total number of employees of the organisation that
-  signs, plus the employees of each affiliate (more than 50% common control)
-  that uses the Enterprise features.
-- You declare it on the order form, and again at each renewal. It is a
-  commercial declaration.
+- An **installation** is one SerOps database together with its
+  high-availability replicas and its disaster-recovery standby.
+- The order states how many production installations the license covers.
+  Development, testing and staging installations need no license of their
+  own: the same key may be used on them.
 - **Nothing is counted in the product.** SerOps does not count or limit
-  users, projects, services or data.
-- A change during a term does not change that term's price; the band is
-  reviewed at renewal. If the number declared was too low, the difference
-  is due for that term.
+  users, employees, projects, services, clusters or data. The number of
+  installations is a commercial declaration.
+- The license covers the organisation named on the invoice and the
+  companies it controls (more than 50% of the voting rights). Running
+  SerOps for clients, embedding it or redistributing it is a separate
+  agreement.

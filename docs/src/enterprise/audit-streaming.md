@@ -4,8 +4,8 @@ description: "Stream every SerOps audit event to your SIEM as it happens: syslog
 ---
 # Audit streaming to a SIEM
 
-!!! info "SerOps Enterprise"
-    Audit streaming needs an Enterprise license that lists `audit_streaming`
+!!! info "Paid license"
+    Audit streaming needs a paid license (Business or Enterprise) that lists `audit_streaming`
     (**Settings → Enterprise license**). Without one nothing is sent; your
     destinations are kept and can still be turned off or removed. The audit
     log itself, its filters and its CSV export are part of every edition:

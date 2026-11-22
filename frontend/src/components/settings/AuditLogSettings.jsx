@@ -13,6 +13,7 @@ import './SettingsLayout.css';
 import PageHeader from '../PageHeader';
 import EnterpriseNotice from './EnterpriseNotice';
 import { hasFeature, useEdition } from '../../utils/edition';
+import { formatAbsolute } from '../../utils/dates';
 
 const ACTION_ICONS = {
     'LOGIN': FaSignInAlt,
@@ -143,16 +144,7 @@ const AuditLogSettings = () => {
     const hasDetails = (details) =>
         details && typeof details === 'object' && Object.keys(details).length > 0;
 
-    const formatDate = (isoDate) => {
-        const date = new Date(isoDate);
-        return date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    };
+    const formatDate = (isoDate) => formatAbsolute(isoDate, { seconds: false });
 
     const summarizeDetails = (details) => {
         // Short one-line summary shown when the row is collapsed.
@@ -259,7 +251,7 @@ const AuditLogSettings = () => {
                             <label className="settings-form-label">{t('auditLog.search')}</label>
                             <div className="input-group">
                                 <span className="input-group-text bg-body border-end-0"><FaSearch className="text-muted" /></span>
-                                <input
+                                <input aria-label={t('auditLog.search')}
                                     type="text"
                                     className="form-control border-start-0 ps-0"
                                     placeholder={t('auditLog.searchPlaceholder')}

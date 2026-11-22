@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from 'react-i18next';
 import ClusterPicker from "./ClusterPicker";
@@ -15,6 +15,7 @@ import ProfileService from "../services/profile.service";
 import NotificationService from "../services/notification.service";
 import NotificationPanel from "./NotificationPanel";
 import { applyTheme, applyDensity } from "../utils/theme";
+import { formatTime } from '../utils/dates';
 
 function Navbar({ isOpen, avatar, toggleSidebar }) {
   const { t } = useTranslation();
@@ -180,6 +181,25 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
   const toggleNotifications = () => {
     setShowNotifications((prev) => !prev);
   };
+  // Closing with Escape or the close button gives the focus back to the
+  // bell; a click elsewhere or opening a notification keeps it where it went.
+  const bellRef = useRef(null);
+  const closeNotifications = useCallback((reason) => {
+    setShowNotifications(false);
+    if ((reason === 'escape' || reason === 'button') && bellRef.current) bellRef.current.focus();
+  }, []);
+  // The panel never stays open above the command palette.
+  useEffect(() => {
+    if (!showNotifications) return undefined;
+    const close = () => setShowNotifications(false);
+    const onKey = (e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') close(); };
+    window.addEventListener(OPEN_PALETTE, close);
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      window.removeEventListener(OPEN_PALETTE, close);
+      window.removeEventListener('keydown', onKey, true);
+    };
+  }, [showNotifications]);
 
   const getFullName = () => {
     if (user) {
@@ -195,17 +215,8 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
     return (fromName || (user.username || user.email || "?")[0]).toUpperCase();
   };
 
-  const getCurrentTime = () => {
-    try {
-      return new Date().toLocaleTimeString(settings.language === 'fr' ? 'fr-FR' : 'en-US', {
-        timeZone: settings.timezone,
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return '--:--';
-    }
-  };
+  // The clock of the zone picked just above, read back from the saved setting.
+  const getCurrentTime = () => formatTime(new Date(), { seconds: false });
 
   return (
     <>
@@ -232,6 +243,9 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
             type="button"
             className="app-topbar-icon"
             onClick={toggleNotifications}
+            ref={bellRef}
+            data-notification-bell
+            aria-haspopup="dialog"
             aria-label={unreadCount > 0 ? t('nav.notificationsUnread', { count: unreadCount }) : t('nav.notifications')}
             aria-expanded={showNotifications}
           >
@@ -399,7 +413,7 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
       <AnimatePresence>
         {showNotifications && (
           <NotificationPanel
-            onClose={() => setShowNotifications(false)}
+            onClose={closeNotifications}
             unreadCount={unreadCount}
             setUnreadCount={setUnreadCount}
           />

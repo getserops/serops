@@ -1,4 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import {
   formatAge,
@@ -229,15 +231,19 @@ describe('Issues component', () => {
     render(<Issues />);
     expect(screen.getByText('System Issues')).toBeTruthy();
     expect(screen.getByText('Description')).toBeTruthy();
-    expect(screen.getByText('Age')).toBeTruthy();
+    expect(screen.getByText('Last seen')).toBeTruthy();
     expect(screen.getByText('Occurrences')).toBeTruthy();
     expect(screen.getByText('Actions')).toBeTruthy();
   });
 
-  it('renders issue rows with the root cause under the description', () => {
+  it('renders issue rows with the headline only: the root cause is in the drawer, not the row', () => {
     render(<Issues />);
     expect(screen.getByText('Test critical issue description')).toBeTruthy();
-    expect(screen.getByText('Connection pool exhausted after the 2.3.4 deploy.')).toBeTruthy();
+    expect(screen.queryByText('Connection pool exhausted after the 2.3.4 deploy.')).toBeNull();
+    // Two lines for the headline, so the row keeps its height.
+    const css = readFileSync(resolve(__dirname, '../Issues.css'), 'utf8');
+    const rule = css.match(/\n\.issue-description-clamp \{[^}]*\}/)[0];
+    expect(rule).toMatch(/-webkit-line-clamp: 2;/);
     // The ID column is off by default (it is in the panel instead).
     expect(screen.queryByText('#1')).toBeNull();
   });
@@ -285,17 +291,26 @@ describe('Issues component', () => {
     expect(screen.getByRole('button', { name: /issues.tiles.critical/ }).getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('renders severity as an uppercase badge', () => {
-    // The severity cell renders <span class="severity-badge severity-badge-critical">CRITICAL</span>.
-    // This test previously looked for lowercase 'critical' inside a
-    // '.severity-compact' wrapper — markup from an earlier design that the
-    // component no longer emits, so it asserted a UI that did not exist.
+  it('an open critical issue shows its severity in red: chip and left accent', () => {
     render(<Issues />);
-    const badges = document.querySelectorAll('.severity-badge');
-    expect(badges.length).toBeGreaterThanOrEqual(1);
-    const critical = [...badges].find(el => el.textContent.trim() === 'CRITICAL');
-    expect(critical).toBeTruthy();
-    expect(critical.className).toContain('severity-badge-critical');
+    const row = screen.getByText('Test critical issue description').closest('tr');
+    const chip = [...row.querySelectorAll('.ds-chip')].find((el) => el.textContent.trim() === 'CRITICAL');
+    expect(chip.className).toContain('ds-chip-err');
+    expect(row.style.getPropertyValue('--severity-color')).toBe('var(--tone-red-text)');
+  });
+
+  it('a muted issue keeps its severity as an outlined neutral chip, with no coloured accent', () => {
+    render(<Issues />);
+    const row = screen.getByText(/Test warning issue description/).closest('tr');
+    const chip = [...row.querySelectorAll('.ds-chip')].find((el) => el.textContent.trim() === 'WARNING');
+    expect(chip.className).toContain('ds-chip-outline');
+    expect(chip.className).not.toMatch(/ds-chip-(warn|err)/);
+    expect(row.style.getPropertyValue('--severity-color')).toBe('var(--border-hover)');
+  });
+
+  it('colours by status too: a resolved critical issue is not red', () => {
+    expect(getSeverityColor('CRITICAL', 'RESOLVED')).toBe('var(--border-hover)');
+    expect(getSeverityColor('CRITICAL', 'ACKNOWLEDGED')).toBe('var(--tone-red-text)');
   });
 
   it('renders count heat indicators', () => {
@@ -336,7 +351,22 @@ describe('Issues component', () => {
     expect(screen.queryByText(/Resolve 1/)).toBeNull();
   });
 
-  it('renders age column with relative time', () => {
+  it('hides the Age column by default and keeps it under Columns', () => {
+    const { container } = render(<Issues />);
+    const headings = Array.from(container.querySelectorAll('thead th')).map((th) => th.textContent.trim());
+    expect(headings.some((h) => h.startsWith('Age'))).toBe(false);
+    expect(headings.some((h) => h.startsWith('Last seen'))).toBe(true);
+  });
+
+  it('shows the Age column to someone who chose it', () => {
+    window.localStorage.getItem.mockImplementation((k) => (k === 'issueColumnVisibility' ? JSON.stringify({ age: true }) : null));
+    const { container } = render(<Issues />);
+    const headings = Array.from(container.querySelectorAll('thead th')).map((th) => th.textContent.trim());
+    expect(headings.some((h) => h.startsWith('Age'))).toBe(true);
+    window.localStorage.getItem.mockReset();
+  });
+
+  it('renders the last-seen column with relative time', () => {
     render(<Issues />);
     // Should show "1 hour ago" or similar (no "about" prefix)
     const ageElements = screen.getAllByText(/ago/i);
@@ -371,3 +401,52 @@ describe('investigateLink', () => {
   });
 });
 
+
+// Review item 2: on the read-only demo the row menu and the bulk bar offer
+// nothing that would write.
+describe('Issues on the read-only demo', () => {
+  beforeEach(() => window.localStorage.getItem.mockImplementation((k) => (k === 'user' ? JSON.stringify({ username: 'demo', is_demo: true }) : null)));
+  afterEach(() => window.localStorage.getItem.mockReset());
+
+  it('row menu: Resolve, Mute and Reopen are off, reading entries stay on', () => {
+    render(<Issues />);
+    fireEvent.click(screen.getByLabelText('Actions for issue 1'));
+    const resolve = screen.getByText('Resolve').closest('.dropdown-item');
+    const mute = screen.getByText('Mute').closest('.dropdown-item');
+    [resolve, mute].forEach((el) => {
+      expect(el.className).toContain('disabled');
+      expect(el.getAttribute('title')).toBe('demo.readOnlyNotice');
+    });
+    expect(screen.getByText('issues.panel.copyLink').closest('.dropdown-item').className).not.toContain('disabled');
+    fireEvent.click(screen.getByLabelText('Actions for issue 2'));
+    expect(screen.getByText('Reopen').closest('.dropdown-item').className).toContain('disabled');
+  });
+
+  it('bulk bar: Resolve, Mute and Reopen are off', () => {
+    render(<Issues />);
+    screen.getAllByRole('checkbox').forEach((box) => { if (!box.checked) fireEvent.click(box); });
+    const bar = document.querySelector('.bulk-toolbar');
+    expect(bar).toBeTruthy();
+    const writes = Array.from(bar.querySelectorAll('button')).filter((b) => /^(Resolve|Mute|Reopen)/.test(b.textContent));
+    expect(writes.length).toBeGreaterThan(0);
+    writes.forEach((b) => {
+      expect(b.disabled).toBe(true);
+      expect(b.getAttribute('title')).toBe('demo.readOnlyNotice');
+    });
+  });
+});
+
+// Review item 8: the Component column cut service names ("check…", "shippi…").
+describe('Issues table: Component column', () => {
+  it('has its own width class and shows the whole name, also in the title', () => {
+    render(<Issues />);
+    const header = screen.getByText('Component').closest('th');
+    expect(header.className).toContain('issue-col-component');
+    expect(header.style.width).toBe('');
+    const chip = screen.getByText('payment-service');
+    expect(chip.getAttribute('title')).toBe('payment-service');
+    const cell = chip.closest('td');
+    expect(cell.className).toContain('issue-cell-component');
+    expect(cell.style.maxWidth).toBe('');
+  });
+});

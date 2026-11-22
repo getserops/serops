@@ -1,3 +1,4 @@
+import { useDemoLock } from '../utils/demoLock';
 import React, { useEffect, useState } from "react";
 import { Camera, Pencil } from "lucide-react";
 import PageHeader from "../components/PageHeader";
@@ -11,6 +12,7 @@ import { isDemoUser } from '../utils/demo';
 
 function Profile() {
   const { t } = useTranslation();
+  const lock = useDemoLock();
   const BACKEND_HOST = import.meta.env.VITE_BASE_URL;
   const [image, setImage] = useState(JSON.parse(localStorage.getItem('user')).avatar);
   const [user, setUser] = useState(null);
@@ -195,7 +197,7 @@ function Profile() {
           isEditing ? (
             <button className="btn btn-primary" type="button" onClick={handleSaveButtonClick}>{t('common.save')}</button>
           ) : (
-            <button className="btn btn-secondary" type="button" onClick={handleEditButtonClick}>
+            <button className="btn btn-secondary" type="button" onClick={handleEditButtonClick} {...lock}>
               <Pencil size={14} aria-hidden="true" /> {t('common.edit')}
             </button>
           )
@@ -218,8 +220,8 @@ function Profile() {
               ) : (
                 <span aria-hidden="true">{initials}</span>
               )}
-              <label className="profile-avatar-edit" htmlFor="avatar" title={t('profile.changePhoto')}>
-                <input type="file" id="avatar" accept="image/*" className="visually-hidden" onChange={handleAvatarChange} />
+              <label className="profile-avatar-edit" htmlFor="avatar" title={lock.title || t('profile.changePhoto')}>
+                <input type="file" id="avatar" accept="image/*" className="visually-hidden" onChange={handleAvatarChange} disabled={Boolean(lock.disabled)} />
                 <Camera size={14} aria-hidden="true" />
                 <span className="visually-hidden">{t('profile.changePhoto')}</span>
               </label>
@@ -228,7 +230,7 @@ function Profile() {
               <div className="profile-name">{`${formData.first_name || ''} ${formData.last_name || ''}`.trim() || formData.email}</div>
               <div className="profile-email">{formData.email}</div>
               {formData.avatar && (
-                <button type="button" className="btn btn-link btn-sm p-0" onClick={handleAvatarRemove}>
+                <button type="button" className="btn btn-link btn-sm p-0" onClick={handleAvatarRemove} {...lock}>
                   {t('profile.removePhoto')}
                 </button>
               )}
@@ -257,7 +259,7 @@ function Profile() {
             <p className="ds-settings-section-desc">{t('profile.passwordDesc')}</p>
           </div>
           <div className="ds-settings-section-actions">
-            <button className="btn btn-secondary" type="button" onClick={toggle}>{t('profile.updatePassword')}</button>
+            <button className="btn btn-secondary" type="button" onClick={toggle} {...lock}>{t('profile.updatePassword')}</button>
           </div>
         </header>
       </section>

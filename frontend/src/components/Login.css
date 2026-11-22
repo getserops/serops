@@ -37,7 +37,7 @@
     margin-bottom: var(--space-5);
 }
 
-.form-header h2 {
+.form-header :is(h1, h2) {
     font-size: var(--text-3xl);
     font-weight: var(--font-bold);
     color: var(--text-primary);
@@ -478,9 +478,11 @@
   animation: none;
 }
 :is(html, :root[data-theme]) .form-header { margin-bottom: 24px; }
-:is(html, :root[data-theme]) .form-header h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; margin-bottom: 6px; }
+:is(html, :root[data-theme]) .form-header :is(h1, h2) { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; margin-bottom: 6px; }
 :is(html, :root[data-theme]) .form-header p { font-size: 14px; color: var(--text-secondary); }
 :is(html, :root[data-theme]) .login-form { gap: 16px; }
+/* Demo landing: what the demo shows, three lines. */
+.demo-points { margin: 0; padding-left: var(--space-5); display: flex; flex-direction: column; gap: var(--space-2); font-size: 14px; line-height: 1.45; color: var(--text-secondary); text-align: left; }
 :is(html, :root[data-theme]) .form-group { gap: 6px; }
 :is(html, :root[data-theme]) .form-group label { font-size: 13px; font-weight: 500; }
 

@@ -30,6 +30,7 @@ import DataService from '../services/data.service';
 import { tracePath } from '../utils/linkTargets';
 import BatchTimelineChart from './BatchTimelineChart';
 import './BatchTimeline.css';
+import { formatAbsolute, formatRelative } from '../utils/dates';
 
 const KIND_META = {
     log: {
@@ -58,25 +59,7 @@ const severityBadge = (severity) => {
     return <Badge bg={bg} className="ms-2">{severity}</Badge>;
 };
 
-const formatTime = (iso) => {
-    if (!iso) return '—';
-    try {
-        const d = new Date(iso);
-        if (isNaN(d.getTime())) return String(iso);
-        const diff = Math.max(0, Date.now() - d.getTime());
-        const s = Math.floor(diff / 1000);
-        if (s < 60) return `${s}s ago`;
-        const m = Math.floor(s / 60);
-        if (m < 60) return `${m}m ago`;
-        const h = Math.floor(m / 60);
-        if (h < 24) return `${h}h ago`;
-        const days = Math.floor(h / 24);
-        if (days < 7) return `${days}d ago`;
-        return d.toLocaleDateString();
-    } catch {
-        return String(iso);
-    }
-};
+const formatTime = (iso) => formatRelative(iso);
 
 const EventRow = ({ event }) => {
     const meta = KIND_META[event.kind] || KIND_META.log;
@@ -96,7 +79,7 @@ const EventRow = ({ event }) => {
                         )}
                         {severityBadge(event.severity)}
                     </div>
-                    <small className="text-muted" title={event.time ? new Date(event.time).toLocaleString() : ''}><FaClock className="me-1" />{formatTime(event.time)}</small>
+                    <small className="text-muted" title={formatAbsolute(event.time, { fallback: '' })}><FaClock className="me-1" />{formatTime(event.time)}</small>
                 </div>
                 <div className="mt-1">{event.summary || '—'}</div>
                 <EventDetail event={event} />

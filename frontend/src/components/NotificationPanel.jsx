@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useDemoLock } from '../utils/demoLock';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Bell, CheckCheck, CircleCheck, Mail, MailOpen, Trash2, TriangleAlert, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import NotificationService from "../services/notification.service";
 import PageHeader from './PageHeader';
+import { groupEscalations, notificationTitle } from '../utils/notificationTitle';
 import './NotificationPanel.css';
+import { formatAbsolute, formatRelative } from '../utils/dates';
 
 const noop = () => {};
 
@@ -14,6 +17,7 @@ const noop = () => {};
 // to keep in sync.
 const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop, variant = 'popover' }) => {
   const { t } = useTranslation();
+  const lock = useDemoLock();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [filter, setFilter] = useState('all');
@@ -77,7 +81,7 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
   const markAsRead = async (id) => {
     try {
       await NotificationService.markAsRead(id);
-      setNotifications(notifications.map(note =>
+      setNotifications((list) => list.map(note =>
         note.id === id ? { ...note, is_read: true } : note
       ));
 
@@ -92,7 +96,7 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
   const markAsUnread = async (id) => {
     try {
       await NotificationService.markAsUnread(id);
-      setNotifications(notifications.map(note =>
+      setNotifications((list) => list.map(note =>
         note.id === id ? { ...note, is_read: false } : note
       ));
 
@@ -107,7 +111,7 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
   const removeNotification = async (id) => {
     try {
       await NotificationService.deleteNotification(id);
-      setNotifications(notifications.filter(note => note.id !== id));
+      setNotifications((list) => list.filter(note => note.id !== id));
 
       // Update unread count if needed
       const response = await NotificationService.getUnreadCount();
@@ -134,34 +138,30 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
   const markAllAsRead = async () => {
     try {
       await NotificationService.markAllAsRead();
-      setNotifications(notifications.map(note => ({ ...note, is_read: true })));
+      setNotifications((list) => list.map(note => ({ ...note, is_read: true })));
       updateUnread(0);
     } catch (err) {
       handleActionError(err, 'Error marking all as read:');
     }
   };
 
-  const toggleReadStatus = async (id, isRead) => {
-    if (isRead) {
-      await markAsUnread(id);
-    } else {
-      await markAsRead(id);
+  // An entry may stand for several stored notifications (escalation levels
+  // of one issue): the action goes to each of them.
+  const toggleReadStatus = async (ids, isRead) => {
+    for (const id of ids) {
+      if (isRead) await markAsUnread(id);
+      else await markAsRead(id);
     }
   };
-
-  const formatTime = (dateString) => {
-    const now = new Date();
-    const date = new Date(dateString);
-    const diffInSeconds = Math.floor((now - date) / 1000);
-
-    if (diffInSeconds < 60) return t('notifications.panel.time.now');
-    if (diffInSeconds < 3600) return t('notifications.panel.time.minutes', { count: Math.floor(diffInSeconds / 60) });
-    if (diffInSeconds < 86400) return t('notifications.panel.time.hours', { count: Math.floor(diffInSeconds / 3600) });
-    if (diffInSeconds < 604800) return t('notifications.panel.time.days', { count: Math.floor(diffInSeconds / 86400) });
-    return date.toLocaleDateString();
+  const removeEntry = async (ids) => {
+    for (const id of ids) await removeNotification(id);
   };
 
-  const filteredNotifications = notifications.filter(note => {
+  const formatTime = (dateString) => formatRelative(dateString);
+
+  // Escalation levels of one issue show as one entry, at its highest level.
+  const entries = useMemo(() => groupEscalations(notifications), [notifications]);
+  const filteredNotifications = entries.filter(note => {
     if (filter === 'all') return true;
     if (filter === 'unread') return !note.is_read;
     if (filter === 'read') return note.is_read;
@@ -183,11 +183,11 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
 
   const handleNotificationClick = async (notification) => {
     if (!notification.is_read) {
-      await markAsRead(notification.id);
+      for (const id of notification.ids || [notification.id]) await markAsRead(id);
     }
 
     // Close panel
-    onClose();
+    onClose('navigate');
 
     switch (notification.notification_type) {
       case 'critical_issue':
@@ -204,8 +204,33 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
   };
 
   const isPage = variant === 'page';
+  // The popover is a dialog: focus moves into it, Escape and a click outside
+  // close it. A click on the bell is left to the bell (it toggles).
+  const shellRef = useRef(null);
+  useEffect(() => {
+    if (isPage) return undefined;
+    if (shellRef.current) shellRef.current.focus({ preventScroll: true });
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose('escape'); }
+    };
+    const onDown = (e) => {
+      const el = shellRef.current;
+      if (!el || el.contains(e.target)) return;
+      if (e.target.closest && e.target.closest('[data-notification-bell]')) return;
+      onClose('outside');
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onDown);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onDown);
+    };
+  }, [isPage, onClose]);
+  const dialogProps = isPage ? {} : { role: 'dialog', 'aria-label': t('notifications.panel.title'), tabIndex: -1 };
   const shell = (children) => (
     <motion.div
+      ref={shellRef}
+      {...dialogProps}
       initial={{ opacity: 0, y: isPage ? 0 : -8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
@@ -225,7 +250,7 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
         <h3 className="notification-title">{t('notifications.panel.title')}</h3>
         <p className="notification-subtitle">{unreadLine}</p>
       </div>
-      <button onClick={onClose} className="notification-close-btn" aria-label={t('common.close')}>
+      <button type="button" onClick={() => onClose('button')} className="notification-close-btn" aria-label={t('common.close')}>
         <X size={16} aria-hidden="true" />
       </button>
     </div>
@@ -293,11 +318,12 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
               onClick={markAllAsRead}
               disabled={shownUnread === 0}
               className="btn btn-sm ds-btn-ghost"
+              {...lock}
             >
               <CheckCheck size={14} aria-hidden="true" /> {t('notifications.panel.markAllRead')}
             </button>
             {notifications.length > 0 && (
-              <button type="button" onClick={removeAllNotifications} className="btn btn-sm ds-btn-ghost">
+              <button type="button" onClick={removeAllNotifications} className="btn btn-sm ds-btn-ghost" {...lock}>
                 <Trash2 size={14} aria-hidden="true" /> {t('notifications.panel.clearAll')}
               </button>
             )}
@@ -330,11 +356,11 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
                     >
                       <span className="notification-item-title">
                         {!note.is_read && <span className="notification-unread-dot" aria-label={t('notifications.panel.tabs.unread')} />}
-                        {note.subject}
+                        <span className="notification-item-title-text" title={note.subject}>{notificationTitle(note, t)}</span>
                       </span>
-                      <span className="notification-item-message">{note.message}</span>
+                      <span className="notification-item-message" title={note.message}>{note.message}</span>
                       <span className="notification-item-footer">
-                        <span className="notification-time">{formatTime(note.created_at)}</span>
+                        <span className="notification-time" title={formatAbsolute(note.created_at)}>{formatTime(note.created_at)}</span>
                         {tone !== 'neutral' && (
                           <span className={`badge ds-chip ds-chip-${tone}`}>{getCategoryName(note.notification_type)}</span>
                         )}
@@ -343,19 +369,21 @@ const NotificationPanel = ({ onClose = noop, unreadCount, setUnreadCount = noop,
                     <div className="notification-item-actions">
                       <button
                         type="button"
-                        onClick={() => toggleReadStatus(note.id, note.is_read)}
+                        onClick={() => toggleReadStatus(note.ids, note.is_read)}
                         className="notification-icon-btn"
                         title={note.is_read ? t('notifications.panel.tooltips.markUnread') : t('notifications.panel.tooltips.markRead')}
                         aria-label={note.is_read ? t('notifications.panel.tooltips.markUnread') : t('notifications.panel.tooltips.markRead')}
+                        {...lock}
                       >
                         {note.is_read ? <MailOpen size={15} aria-hidden="true" /> : <Mail size={15} aria-hidden="true" />}
                       </button>
                       <button
                         type="button"
-                        onClick={() => removeNotification(note.id)}
+                        onClick={() => removeEntry(note.ids)}
                         className="notification-icon-btn"
                         title={t('notifications.panel.tooltips.delete')}
                         aria-label={t('notifications.panel.tooltips.delete')}
+                        {...lock}
                       >
                         <X size={15} aria-hidden="true" />
                       </button>

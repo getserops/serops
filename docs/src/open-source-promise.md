@@ -1,10 +1,10 @@
 ---
 seo_title: "Our open source promise"
-description: "Every feature in SerOps Community stays in Community, under AGPL-3.0, forever. What Community includes, and what Enterprise adds."
+description: "Every feature in SerOps Community stays in Community, under AGPL-3.0, forever. What Community includes, and what a paid license adds."
 ---
 # Our open source promise
 
-**Effective 21 October 2026, updated 13 November 2026.** Every change to this page is public: see its
+**Effective 21 October 2026, updated 22 November 2026.** Every change to this page is public: see its
 [history](https://github.com/getserops/serops/commits/main/docs/src/open-source-promise.md).
 [Version française ci-dessous](#notre-engagement-open-source).
 
@@ -17,13 +17,14 @@ SerOps comes in three forms:
 - **Community**: the complete product, open source under the
   [AGPL-3.0](license.md), self-hosted, free.
 - **Cloud** (planned for 2027): the same product, run by us.
-- **Enterprise**: Community plus governance features for large
-  organisations, under a commercial license, self-hosted with a license key or
-  in a higher Cloud tier. The first Enterprise features, custom roles and
-  per-project access, shipped in 1.3.0 (11 November 2026).
+- **Business and Enterprise** (paid licenses): Community plus the paid
+  features below, under a commercial license, self-hosted with a license
+  key. The first paid features, custom roles and per-project access, shipped
+  in 1.3.0 (11 November 2026). Prices are on the
+  [pricing page](https://serops.ai/pricing).
 
-Enterprise only ever **adds**. Nothing below will be removed from Community,
-restricted, or moved to Enterprise.
+A paid license only ever **adds**. Nothing below will be removed from
+Community, restricted, or moved to a paid license.
 
 ## What stays in Community, forever
 
@@ -103,9 +104,10 @@ Everything SerOps does as of **v1.2.4**, the last release before this page:
   proving that an audit export was not altered. They protect one install,
   so they belong here.
 
-## What Enterprise adds
+## What a paid license adds { #what-enterprise-adds }
 
-New features only, for the governance needs of large organisations:
+New features only, for the governance needs of large organisations (Business
+and Enterprise include the same features):
 
 - Custom roles and per-project access (from 1.3.0)
 - SAML 2.0 single sign-on (from 1.4.0)
@@ -118,19 +120,19 @@ New features only, for the governance needs of large organisations:
 
 ## How we decide
 
-A new feature is **Enterprise only if it serves the governance needs of a
+A new feature is **paid only if it serves the governance needs of a
 large organisation**: central identity, compliance, administration at scale.
 If it serves security, reliability, or the root cause analysis itself, it is
 **Community**.
 
 ## Questions
 
-**Will features ever move from Community to Enterprise?** No.
+**Will features ever move from Community to a paid license?** No.
 
-**What happens if an Enterprise license expires?** Enterprise features switch
+**What happens if a paid license expires?** The paid features switch
 off. No data is deleted and every Community feature keeps working.
 
-**Does Enterprise code phone home?** No. License keys are checked offline;
+**Does the paid code phone home?** No. License keys are checked offline;
 SerOps sends nothing to us. See [license](license.md#enterprise-code-ee-directories).
 
 **Why write this down?** Earlier, our website said "every feature, no lite
@@ -155,14 +157,15 @@ SerOps existe sous trois formes :
 - **Community** : le produit complet, open source sous
   [AGPL-3.0](license.md), auto-hébergé, gratuit.
 - **Cloud** (prévu en 2027) : le même produit, opéré par nous.
-- **Enterprise** : Community plus des fonctionnalités de gouvernance pour les
-  grandes organisations, sous licence commerciale, auto-hébergé avec une clé
-  de licence ou dans une offre Cloud supérieure. Les premières
-  fonctionnalités Enterprise, rôles personnalisés et accès par projet,
-  sont disponibles depuis la 1.3.0 (11 novembre 2026).
+- **Business et Enterprise** (licences payantes) : Community plus les
+  fonctionnalités payantes ci-dessous, sous licence commerciale, auto-hébergé
+  avec une clé de licence. Les premières fonctionnalités payantes, rôles
+  personnalisés et accès par projet, sont disponibles depuis la 1.3.0
+  (11 novembre 2026). Les prix sont sur la
+  [page Tarifs](https://serops.ai/pricing).
 
-Enterprise ne fait qu'**ajouter**. Rien de ce qui suit ne sera retiré de
-Community, restreint, ou déplacé vers Enterprise.
+Une licence payante ne fait qu'**ajouter**. Rien de ce qui suit ne sera
+retiré de Community, restreint, ou déplacé vers une licence payante.
 
 ### Ce qui reste dans Community, pour toujours
 
@@ -223,10 +226,11 @@ avant cette page :
   qu'un export d'audit n'a pas été modifié. Ils protègent une installation,
   ils ont donc leur place ici.
 
-### Ce qu'Enterprise ajoute
+### Ce qu'une licence payante ajoute
 
 Uniquement de nouvelles fonctionnalités, pour les besoins de gouvernance des
-grandes organisations :
+grandes organisations (Business et Enterprise comprennent les mêmes
+fonctionnalités) :
 
 - Rôles personnalisés et accès par projet (à partir de 1.3.0)
 - SSO SAML 2.0 (à partir de 1.4.0)
@@ -239,21 +243,21 @@ grandes organisations :
 
 ### Comment nous décidons
 
-Une nouvelle fonctionnalité est **Enterprise uniquement si elle répond aux
+Une nouvelle fonctionnalité est **payante uniquement si elle répond aux
 besoins de gouvernance d'une grande organisation** : identité centralisée,
 conformité, administration à grande échelle. Si elle sert la sécurité, la
 fiabilité ou l'analyse des causes elle-même, elle est **Community**.
 
 ### Questions
 
-**Des fonctionnalités passeront-elles un jour de Community à Enterprise ?**
-Non.
+**Des fonctionnalités passeront-elles un jour de Community à une licence
+payante ?** Non.
 
-**Que se passe-t-il quand une licence Enterprise expire ?** Les
-fonctionnalités Enterprise se désactivent. Aucune donnée n'est supprimée et
+**Que se passe-t-il quand une licence payante expire ?** Les
+fonctionnalités payantes se désactivent. Aucune donnée n'est supprimée et
 toutes les fonctionnalités Community continuent de fonctionner.
 
-**Le code Enterprise contacte-t-il nos serveurs ?** Non. Les clés de licence
+**Le code payant contacte-t-il nos serveurs ?** Non. Les clés de licence
 sont vérifiées hors ligne ; SerOps ne nous envoie rien.
 
 **Pourquoi l'écrire ?** Notre site disait auparavant « toutes les

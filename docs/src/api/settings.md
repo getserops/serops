@@ -97,7 +97,7 @@ PATCH /api/settings/ai/providers/{id}/
 
 ```json
 {
-  "api_key": "sk-ant-new-value",
+  "api_key": "sk-ant-EXAMPLE-NOT-A-REAL-KEY",
   "is_default": true
 }
 ```
@@ -560,7 +560,7 @@ POST /api/utils/scan-message/
 
 ```json
 {
-  "message": "Check this API key: sk-live-abc123"
+  "message": "Check this API key: sk-ant-EXAMPLE-NOT-A-REAL-KEY"
 }
 ```
 

@@ -154,7 +154,7 @@ const UserPreferencesSettings = () => {
                         <small>{t('preferences.channels.emailHint')}</small>
                     </div>
                     <label className="settings-toggle-switch">
-                        <input
+                        <input aria-label={t('preferences.channels.email')}
                             type="checkbox"
                             checked={preferences.email_enabled}
                             onChange={(e) => handlePreferenceChange('email_enabled', e.target.checked)}
@@ -169,7 +169,7 @@ const UserPreferencesSettings = () => {
                         <small>{t('preferences.channels.inAppHint')}</small>
                     </div>
                     <label className="settings-toggle-switch">
-                        <input
+                        <input aria-label={t('preferences.channels.inApp')}
                             type="checkbox"
                             checked={preferences.in_app_enabled}
                             onChange={(e) => handlePreferenceChange('in_app_enabled', e.target.checked)}
@@ -190,7 +190,7 @@ const UserPreferencesSettings = () => {
                         <small>{t('preferences.severity.criticalHint')}</small>
                     </div>
                     <label className="settings-toggle-switch">
-                        <input
+                        <input aria-label={t('preferences.severity.critical')}
                             type="checkbox"
                             checked={preferences.notify_critical}
                             onChange={(e) => handlePreferenceChange('notify_critical', e.target.checked)}
@@ -205,7 +205,7 @@ const UserPreferencesSettings = () => {
                         <small>{t('preferences.severity.warningsHint')}</small>
                     </div>
                     <label className="settings-toggle-switch">
-                        <input
+                        <input aria-label={t('preferences.severity.warnings')}
                             type="checkbox"
                             checked={preferences.notify_warning}
                             onChange={(e) => handlePreferenceChange('notify_warning', e.target.checked)}
@@ -220,7 +220,7 @@ const UserPreferencesSettings = () => {
                         <small>{t('preferences.severity.infoHint')}</small>
                     </div>
                     <label className="settings-toggle-switch">
-                        <input
+                        <input aria-label={t('preferences.severity.info')}
                             type="checkbox"
                             checked={preferences.notify_info}
                             onChange={(e) => handlePreferenceChange('notify_info', e.target.checked)}
@@ -240,7 +240,7 @@ const UserPreferencesSettings = () => {
                         <label className="settings-form-label">
                             <FaClock className="me-2" />{t('preferences.delivery.digestFrequency')}
                         </label>
-                        <Form.Select
+                        <Form.Select aria-label={t('preferences.delivery.digestFrequency')}
                             value={preferences.digest_frequency}
                             onChange={(e) => handlePreferenceChange('digest_frequency', e.target.value)}
                         >
@@ -268,7 +268,7 @@ const UserPreferencesSettings = () => {
                         <small>{t('preferences.quietHours.enableHint')}</small>
                     </div>
                     <label className="settings-toggle-switch">
-                        <input
+                        <input aria-label={t('preferences.quietHours.enable')}
                             type="checkbox"
                             checked={preferences.quiet_hours_enabled}
                             onChange={(e) => handlePreferenceChange('quiet_hours_enabled', e.target.checked)}
@@ -283,7 +283,7 @@ const UserPreferencesSettings = () => {
                             <div className="col-md-4">
                                 <div className="form-group">
                                     <label className="settings-form-label">{t('preferences.quietHours.startTime')}</label>
-                                    <Form.Control
+                                    <Form.Control aria-label={t('preferences.quietHours.startTime')}
                                         type="time"
                                         value={preferences.quiet_hours_start || '22:00'}
                                         onChange={(e) => handlePreferenceChange('quiet_hours_start', e.target.value)}
@@ -293,7 +293,7 @@ const UserPreferencesSettings = () => {
                             <div className="col-md-4">
                                 <div className="form-group">
                                     <label className="settings-form-label">{t('preferences.quietHours.endTime')}</label>
-                                    <Form.Control
+                                    <Form.Control aria-label={t('preferences.quietHours.endTime')}
                                         type="time"
                                         value={preferences.quiet_hours_end || '08:00'}
                                         onChange={(e) => handlePreferenceChange('quiet_hours_end', e.target.value)}
@@ -303,7 +303,7 @@ const UserPreferencesSettings = () => {
                             <div className="col-md-4">
                                 <div className="form-group">
                                     <label className="settings-form-label">{t('preferences.quietHours.timezone')}</label>
-                                    <Form.Select
+                                    <Form.Select aria-label={t('preferences.quietHours.timezone')}
                                         value={preferences.timezone}
                                         onChange={(e) => handlePreferenceChange('timezone', e.target.value)}
                                     >
@@ -329,7 +329,7 @@ const UserPreferencesSettings = () => {
                             <FaProjectDiagram className="me-2" />{t('preferences.subscriptions.subscribeTo')}
                         </label>
                         <div className="input-group">
-                            <Form.Select
+                            <Form.Select aria-label={t('preferences.subscriptions.subscribeTo')}
                                 value={selectedProject}
                                 onChange={(e) => setSelectedProject(e.target.value)}
                             >

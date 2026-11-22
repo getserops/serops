@@ -1,3 +1,4 @@
+import { useDemoLock } from "../utils/demoLock";
 import PageHeader from "./PageHeader";
 import React, { useState, useEffect } from "react";
 import {
@@ -15,9 +16,11 @@ import { useTranslation } from "react-i18next";
 import { ProjectService } from "../services/project.service";
 import { can, canOnProject } from "../utils/permissions";
 import { demoNoticeOr, isDemoRefusal } from "../utils/demoRefusal";
+import { formatDate } from '../utils/dates';
 
 const Project = () => {
   const { t } = useTranslation();
+  const lock = useDemoLock();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -307,7 +310,7 @@ const Project = () => {
         subtitle={t('projects.subtitle')}
         // Viewers were offered it and got a 403 (journey suite, B6).
         actions={can("project.write") && (
-          <Button variant="primary" onClick={handleOpenModal}>
+          <Button variant="primary" onClick={handleOpenModal} {...lock}>
             <FaPlus size={14} aria-hidden="true" />
             <span>{t('projects.newProject')}</span>
           </Button>
@@ -341,7 +344,7 @@ const Project = () => {
                           {project.description || "-"}
                         </td>
                         <td className="text-muted" data-label={t('projects.createdDate')}>
-                          {new Date(project.created_at).toLocaleDateString()}
+                          {formatDate(project.created_at)}
                         </td>
                         <td className="text-end pe-4">
                           <Button
@@ -369,6 +372,8 @@ const Project = () => {
                             className="rounded-pill px-2 me-2"
                             onClick={() => handleEditProject(project)}
                             title={t('common.edit')}
+                            aria-label={t('common.edit')}
+                            {...lock}
                           >
                             <FaEdit size={12} />
                           </Button>
@@ -381,6 +386,8 @@ const Project = () => {
                             className="rounded-pill px-2"
                             onClick={() => handleDeleteProject(project)}
                             title={t('common.delete')}
+                            aria-label={t('common.delete')}
+                            {...lock}
                           >
                             <FaTrash size={12} />
                           </Button>

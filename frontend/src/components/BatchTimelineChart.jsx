@@ -31,6 +31,7 @@ import { useNavigate } from 'react-router-dom';
 import { tracePath } from '../utils/linkTargets';
 import { Form } from 'react-bootstrap';
 import { FaSearchPlus, FaSearchMinus, FaExpand } from 'react-icons/fa';
+import { formatAbsolute } from '../utils/dates';
 
 // Fixed order — determines lane stacking top-to-bottom.
 const LANE_ORDER = ['deploy', 'cicd', 'metric_anomaly', 'span_error', 'log'];
@@ -371,7 +372,7 @@ const BatchTimelineChart = ({
                                     // .active outline button painted the label in the lane
                                     // colour on a grey fill, which was unreadable.
                                     background: on ? `${LANE_META[k]?.colour || '#6c757d'}1f` : 'transparent',
-                                    borderColor: on ? LANE_META[k]?.colour : '#dee2e6',
+                                    borderColor: on ? LANE_META[k]?.colour : 'var(--border-default)',
                                     color: on ? 'var(--text-primary)' : 'var(--text-tertiary)',
                                     fontWeight: on ? 600 : 400,
                                     padding: '2px 10px',
@@ -381,7 +382,7 @@ const BatchTimelineChart = ({
                             >
                                 <span aria-hidden="true" style={{
                                     width: 8, height: 8, borderRadius: '50%',
-                                    background: on ? LANE_META[k]?.colour : '#ced4da',
+                                    background: on ? LANE_META[k]?.colour : 'var(--border-hover)',
                                 }} />
                                 {LANE_META[k]?.label || k}
                             </button>
@@ -423,8 +424,8 @@ const BatchTimelineChart = ({
                 onMouseLeave={handleMouseUp}
                 style={{
                     display: 'block',
-                    background: 'var(--bs-body-bg, #fff)',
-                    border: '1px solid var(--bs-border-color, #dee2e6)',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-default)',
                     borderRadius: 6,
                     cursor: dragging ? 'grabbing' : 'grab',
                     userSelect: 'none',
@@ -440,14 +441,14 @@ const BatchTimelineChart = ({
                             y={laneY(kind) - LANE_HEIGHT / 2}
                             width={plotWidth}
                             height={LANE_HEIGHT}
-                            fill={activeLanes.indexOf(kind) % 2 ? '#f8f9fa' : '#ffffff'}
+                            style={{ fill: activeLanes.indexOf(kind) % 2 ? 'var(--bg-sunken)' : 'var(--bg-card)' }}
                         />
                         <line
                             x1={MARGIN_LEFT}
                             x2={MARGIN_LEFT + plotWidth}
                             y1={laneY(kind) + LANE_HEIGHT / 2}
                             y2={laneY(kind) + LANE_HEIGHT / 2}
-                            stroke="#e9ecef"
+                            style={{ stroke: 'var(--border-default)' }}
                         />
                         <text
                             x={MARGIN_LEFT - 8}
@@ -569,13 +570,12 @@ const BatchTimelineChart = ({
                             cy={y}
                             r={r}
                             fill={fill}
-                            stroke="#fff"
                             strokeWidth="1.5"
                             opacity={visible ? 1 : 0.18}
                             onMouseEnter={visible ? () => setHover({ event, x, y }) : undefined}
                             onMouseLeave={visible ? () => setHover(null) : undefined}
                             onClick={visible ? () => handleMarkerClick(event) : undefined}
-                            style={{ cursor: (visible && tracePath(event?.detail)) ? 'pointer' : 'default' }}
+                            style={{ stroke: 'var(--bg-card)', cursor: (visible && tracePath(event?.detail)) ? 'pointer' : 'default' }}
                         >
                             <title>{`${event.kind} · ${event.summary || ''}`}</title>
                         </circle>
@@ -589,7 +589,7 @@ const BatchTimelineChart = ({
                         x2={MARGIN_LEFT + plotWidth}
                         y1={chartHeight - AXIS_HEIGHT}
                         y2={chartHeight - AXIS_HEIGHT}
-                        stroke="#adb5bd"
+                        style={{ stroke: 'var(--border-hover)' }}
                     />
                     {ticks.map((t, i) => {
                         const x = timeToPx(t);
@@ -599,14 +599,14 @@ const BatchTimelineChart = ({
                                     x1={x} x2={x}
                                     y1={chartHeight - AXIS_HEIGHT}
                                     y2={chartHeight - AXIS_HEIGHT + 5}
-                                    stroke="#6c757d"
+                                    style={{ stroke: 'var(--text-tertiary)' }}
                                 />
                                 <text
                                     x={x}
                                     y={chartHeight - AXIS_HEIGHT + 18}
                                     textAnchor={i === ticks.length - 1 ? 'end' : 'middle'}
                                     fontSize="11"
-                                    fill="#6c757d"
+                                    style={{ fill: 'var(--text-tertiary)' }}
                                 >
                                     {formatTick(t, spanMs)}
                                 </text>
@@ -656,7 +656,7 @@ const BatchTimelineChart = ({
                             </div>
                             <div className="small mt-1">{hover.event.summary || '—'}</div>
                             <div className="small text-muted mt-1">
-                                {new Date(hover.event._epoch).toLocaleString()}
+                                {formatAbsolute(hover.event._epoch)}
                             </div>
                         </>
                     )}

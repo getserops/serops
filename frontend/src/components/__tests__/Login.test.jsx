@@ -80,6 +80,14 @@ describe('Login', () => {
     renderAt();
     expect(await screen.findByText('login.demoOnlyTitle')).toBeInTheDocument();
     expect(screen.getByText('login.tryDemo')).toBeInTheDocument();
+    // The landing text: one h1, the pitch, three points; the tab is named;
+    // the footer is the company name only.
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('login.demoOnlyTitle');
+    expect(screen.getByText('login.demoOnlyText')).toBeInTheDocument();
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual(
+      ['login.demoOnlyPoint1', 'login.demoOnlyPoint2', 'login.demoOnlyPoint3']);
+    expect(document.title).toBe('login.demoOnlyPageName · SerOps');
+    expect(screen.queryByText(/login\.allRightsReserved/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText('login.emailAddress')).not.toBeInTheDocument();
     expect(screen.queryByText('login.loginWithSSO')).not.toBeInTheDocument();
   });

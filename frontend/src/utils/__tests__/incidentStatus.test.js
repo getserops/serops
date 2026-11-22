@@ -10,8 +10,9 @@ describe('incidentStatus', () => {
   it('is open while any issue is open and unacknowledged', () => {
     const s = incidentStatus([{ status: 'RESOLVED' }, { status: 'OPEN' }], 'CRITICAL');
     expect(s.kind).toBe('open');
-    expect(s.klass).toBe('ds-chip-err');
-    expect(incidentStatus([{ id: 1 }]).klass).toBe('ds-chip-warn');
+    // Open is the brand tone whatever the severity: never red or amber.
+    expect(s.klass).toBe('ds-chip-brand');
+    expect(incidentStatus([{ id: 1 }]).klass).toBe('ds-chip-brand');
   });
 
   it('is acknowledged only when open issues are all acknowledged', () => {

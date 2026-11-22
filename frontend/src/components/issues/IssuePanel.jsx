@@ -1,3 +1,4 @@
+import { useDemoLock } from "../../utils/demoLock";
 import React, { useState } from "react";
 import { Offcanvas } from "react-bootstrap";
 import { Link } from "react-router-dom";
@@ -5,6 +6,9 @@ import { useTranslation } from "react-i18next";
 import { FaCheck, FaVolumeMute, FaRedo, FaBell, FaComments, FaLink, FaSearch, FaFileAlt } from "react-icons/fa";
 import { isDemoUser } from "../../utils/demo";
 import { commitPath } from "../../utils/linkTargets";
+import { headline } from "../../utils/sentences";
+import { statusChipClass, severityChipClass } from "../../utils/tones";
+import { formatAbsolute } from '../../utils/dates';
 
 const MINUTE = 60 * 1000;
 
@@ -24,15 +28,13 @@ export function investigateLink(issue) {
   return `/dash/investigate?${q.toString()}`;
 }
 
-const when = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
+// A detail view: the exact time, with the zone.
+const when = (iso) => formatAbsolute(iso);
 
 export function StatusChip({ status, t }) {
   const s = (status || "").toUpperCase();
-  // One status scale everywhere: open = warning, acknowledged = in
-  // progress, resolved = healthy, muted = neutral, regressed = critical.
-  const TONES = { OPEN: "ds-chip-warn", ACKNOWLEDGED: "ds-chip-info", RESOLVED: "ds-chip-ok", REGRESSED: "ds-chip-err" };
-  const tone = TONES[s] || "ds-chip-neutral";
-  return <span className={`ds-chip ds-dot ${tone}`}>{t(`issues.statusLabel.${s.toLowerCase() || "unknown"}`, { defaultValue: status || "—" })}</span>;
+  // One status scale everywhere (utils/tones.js).
+  return <span className={statusChipClass(s)}>{t(`issues.statusLabel.${s.toLowerCase() || "unknown"}`, { defaultValue: status || "—" })}</span>;
 }
 
 /**
@@ -42,6 +44,7 @@ export function StatusChip({ status, t }) {
 const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge, onAskAI, onCopyLink }) => {
   const { t } = useTranslation();
   const demo = isDemoUser();
+  const lock = useDemoLock();
   // Resolve form: the AI's root cause and fix, to confirm or correct.
   const [resolving, setResolving] = useState(false);
   const [rootCause, setRootCause] = useState("");
@@ -66,6 +69,10 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
     .map((r) => (typeof r === "string" ? r.replace(/^\s*\d+[.)]\s*/, "").trim() : JSON.stringify(r)))
     .filter(Boolean);
   const open = issue.status === "OPEN";
+  // The title is the headline; the whole description shows once, below it,
+  // when the headline is only a part of it.
+  const title = headline(issue.description) || issue.description;
+  const summary = issue.description && issue.description.trim() !== title ? issue.description : null;
   const affected = Array.isArray(issue.affected_services) ? issue.affected_services : [];
 
   return (
@@ -73,12 +80,12 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
       <Offcanvas.Header closeButton closeLabel={t("common.close")}>
         <div className="issue-panel-head">
           <div className="issue-panel-chips">
-            <span className={`severity-badge severity-badge-${(issue.severity || "unknown").toLowerCase()}`}>{(issue.severity || "N/A").toUpperCase()}</span>
+            <span className={severityChipClass(issue.severity, issue.status)}>{(issue.severity || "N/A").toUpperCase()}</span>
             <StatusChip status={issue.status} t={t} />
             {issue.acknowledged_at && <span className="ds-chip ds-chip-info">{t("issues.panel.acknowledged")}</span>}
             <span className="ds-mono issue-panel-id">#{issue.id}</span>
           </div>
-          <Offcanvas.Title as="h2" id="issue-panel-title" className="issue-panel-title">{issue.description}</Offcanvas.Title>
+          <Offcanvas.Title as="h2" id="issue-panel-title" className="issue-panel-title" title={issue.description}>{title}</Offcanvas.Title>
           <div className="issue-panel-meta">
             {issue.component && <span className="ds-mono">{issue.component}</span>}
             {affected.length > 0 && <span>{t("issues.panel.alsoAffects", { services: affected.join(", ") })}</span>}
@@ -95,6 +102,11 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
           {issue.confidence && <div><dt>{t("issues.panel.confidence")}</dt><dd>{issue.confidence_display || issue.confidence}</dd></div>}
         </dl>
 
+        {summary && (
+          <section className="issue-panel-section">
+            <p>{summary}</p>
+          </section>
+        )}
         <section className="issue-panel-section">
           {teamCause ? (
             <>
@@ -194,21 +206,21 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
       <div className="issue-panel-footer">
         {open && (
           <>
-            <button type="button" className="ds-btn ds-btn-primary ds-btn-sm" onClick={startResolve}>
+            <button type="button" className="ds-btn ds-btn-primary ds-btn-sm" onClick={startResolve} {...lock}>
               <FaCheck aria-hidden="true" /> {t("issues.panel.resolve")}
             </button>
-            <button type="button" className="ds-btn ds-btn-secondary ds-btn-sm" onClick={() => onMute(issue.id)}>
+            <button type="button" className="ds-btn ds-btn-secondary ds-btn-sm" onClick={() => onMute(issue.id)} {...lock}>
               <FaVolumeMute aria-hidden="true" /> {t("issues.panel.mute")}
             </button>
             {!issue.acknowledged_at && (
-              <button type="button" className="ds-btn ds-btn-secondary ds-btn-sm" onClick={() => onAcknowledge(issue)}>
+              <button type="button" className="ds-btn ds-btn-secondary ds-btn-sm" onClick={() => onAcknowledge(issue)} {...lock}>
                 <FaBell aria-hidden="true" /> {t("issues.panel.acknowledge")}
               </button>
             )}
           </>
         )}
         {!open && (
-          <button type="button" className="ds-btn ds-btn-secondary ds-btn-sm" onClick={() => onReopen(issue.id)}>
+          <button type="button" className="ds-btn ds-btn-secondary ds-btn-sm" onClick={() => onReopen(issue.id)} {...lock}>
             <FaRedo aria-hidden="true" /> {t("issues.panel.reopen")}
           </button>
         )}

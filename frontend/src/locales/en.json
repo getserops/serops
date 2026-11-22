@@ -12,10 +12,12 @@
     "noNotifications": "No notifications",
     "markAllRead": "Mark all as read",
     "investigate": "Investigate",
+    "traces": "Traces",
     "primary": "Primary navigation",
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
     "closeSidebar": "Close sidebar",
+    "skipToContent": "Skip to content",
     "overview": "Overview",
     "analyses": "Analyses",
     "groupMonitor": "Monitor",
@@ -79,7 +81,6 @@
     "success": "success",
     "noPipelinesYet": "No pipelines yet",
     "healthTitle": "System Health",
-    "mttr": "Mean Time To Resolve",
     "trend": {
       "improving": "Improving",
       "degrading": "Degrading",
@@ -153,10 +154,10 @@
     "openCritical": "Open critical",
     "healthWindow": "Open issues now",
     "worstHealthFirst": "Worst health first",
+    "openIssuesLabel": "Open issues",
     "openIssues_one": "{{count}} open issue",
     "openIssues_other": "{{count}} open issues",
     "commitLinks": "Commit links",
-    "mttrSample": "n = {{count}}",
     "notEnoughData": "Not enough data",
     "window": {
       "openNow": "Open issues now",
@@ -225,7 +226,7 @@
     "lastSeen": "Last Seen",
     "occurrences": "Occurrences",
     "viewAll": "View All",
-    "systemIssues": "System Issues",
+    "systemIssues": "Issues",
     "batchIssues": "Batch {{batchId}} Issues",
     "trackAnomalies": "Track and manage identified system anomalies",
     "batchId": "Batch ID",
@@ -325,7 +326,7 @@
   },
   "chat": {
     "title": "AI Chat",
-    "aiAssistant": "AI Assistant",
+    "aiAssistant": "AI Chat",
     "placeholder": "Ask about your logs or describe an issue...",
     "send": "Send",
     "thinking": "Thinking...",
@@ -555,7 +556,7 @@
   },
   "clusters": {
     "menuLabel": "Clusters",
-    "title": "Kubernetes Clusters",
+    "title": "Clusters",
     "subtitle": "Register the K8s clusters your workloads run in. Each cluster can have its own scoped Prometheus / Loki / trace source, so multi-cluster orgs get correct per-cluster routing.",
     "new": "New cluster",
     "edit": "Edit cluster",
@@ -675,8 +676,12 @@
     "ssoFailed": "Failed to initiate SSO login",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
-    "demoOnlyTitle": "Explore the live demo",
-    "demoOnlyText": "A read-only SerOps workspace with example incidents, root causes and timelines. No account needed.",
+    "demoOnlyTitle": "See how SerOps finds the root cause",
+    "demoOnlyText": "SerOps reads logs, metrics, traces and deploys, and says what broke, why, and what to do.",
+    "demoOnlyPageName": "Live demo",
+    "demoOnlyPoint1": "Example incidents, each with its root cause, the evidence and the fix",
+    "demoOnlyPoint2": "A timeline that ties the errors to the deploy or commit behind them",
+    "demoOnlyPoint3": "Read-only and no account needed: nothing you do here is saved",
     "tryDemo": "Try the live demo",
     "selfHost": "Self-host your own SerOps →",
     "ssoSignInFailed": "SSO sign-in failed. Check with your administrator that your account belongs to this organisation.",
@@ -791,7 +796,7 @@
       "subtitle": "Manage security and access settings"
     },
     "data": {
-      "title": "Data Management",
+      "title": "Data retention",
       "subtitle": "Configure data retention and export settings"
     },
     "ai": {
@@ -803,10 +808,10 @@
       "subtitle": "Invite people, change their roles, remove them"
     },
     "delivery": {
-      "title": "Delivery Channels"
+      "title": "Delivery channels"
     },
     "routing": {
-      "title": "Routing Rules"
+      "title": "Routing rules"
     }
   },
   "team": {
@@ -862,7 +867,7 @@
   },
   "ai": {
     "noKeyNeeded": "No key needed",
-    "title": "AI Settings",
+    "title": "AI Providers",
     "subtitle": "Configure and manage your AI model providers",
     "loading": "Loading AI settings...",
     "loadFailed": "Failed to load AI settings",
@@ -924,7 +929,7 @@
     "showKey": "Show key"
   },
   "preferences": {
-    "title": "My Notification Preferences",
+    "title": "Notification preferences",
     "subtitle": "Configure how and when you receive notifications",
     "channels": {
       "title": "Notification Channels",
@@ -1007,7 +1012,7 @@
     }
   },
   "security": {
-    "title": "Security Settings",
+    "title": "Security",
     "subtitle": "Configure session management and single sign-on",
     "loading": "Loading security settings...",
     "loadFailed": "Failed to load security settings",
@@ -1102,7 +1107,7 @@
     "saveFailed": "Failed to update batch interval"
   },
   "dataRetention": {
-    "title": "Data Retention",
+    "title": "Data retention",
     "subtitle": "Manage storage, cleanup policies, and data lifecycle",
     "dataUsage": "Data Usage Overview",
     "dataUsageDesc": "Current record counts across your organisation",
@@ -1242,8 +1247,8 @@
   "traces": {
     "settings": {
       "copyKey": "Copy key",
-      "menuLabel": "Distributed Traces",
-      "title": "OTLP Ingest Keys",
+      "menuLabel": "Trace ingest keys",
+      "title": "Trace ingest keys",
       "subtitle": "Bearer tokens that authorise OpenTelemetry Collectors to send traces to SerOps. Each key is scoped to your organisation.",
       "newKey": "New Ingest Key",
       "name": "Name",
@@ -1276,7 +1281,7 @@
       "viewReceived": "View received traces"
     },
     "dashboard": {
-      "title": "Distributed Traces",
+      "title": "Traces",
       "refresh": "Refresh",
       "service": "Service",
       "allServices": "All services",
@@ -1379,6 +1384,11 @@
     "panel": {
       "title": "Notifications",
       "unread": "{{total}} unread",
+      "escalationTitle": "Escalation level {{level}}: {{issue}} in {{project}}",
+      "issueOnTitle": "{{severity}}: {{issue}} on {{target}}",
+      "issueInTitle": "{{severity}}: {{issue}} in {{target}}",
+      "issueTitle": "{{severity}}: {{issue}}",
+      "severities": { "CRITICAL": "Critical", "HIGH": "High", "WARNING": "Warning", "MEDIUM": "Medium", "LOW": "Low", "INFO": "Info" },
       "loading": "Loading notifications...",
       "error": "Error: {{message}}",
       "tabs": {
@@ -1417,7 +1427,7 @@
     }
   },
   "sentinel": {
-    "title": "Sentinel Intelligence",
+    "title": "Sentinel",
     "subtitle": "Control AI gating to skip analysis for quiet batches and save costs",
     "activeGating": {
       "title": "Active Gating Mode",

@@ -21,6 +21,7 @@ import {
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
 import ClusterService from '../../services/cluster.service';
+import WorkloadsByCluster from '../WorkloadsByCluster';
 import './SettingsLayout.css';
 
 const PROVIDER_CHOICES = [
@@ -208,6 +209,9 @@ const ClusterSettings = () => {
                     </tbody>
                 </Table>
             )}
+
+            {/* What SerOps watches per cluster (two clusters or more). */}
+            <WorkloadsByCluster />
 
             {/* Create / Edit modal */}
             <Modal show={showForm} onHide={() => setShowForm(false)} centered>

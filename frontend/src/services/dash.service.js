@@ -188,19 +188,6 @@ const DashboardService = {
     }
   },
 
-  async getMTTRStats(days = 30, environment) {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/analytics/mttr/`, {
-        params: withEnv({ days }, environment),
-        headers: getAuthHeaders()
-      });
-      return response.data;
-    } catch (error) {
-      console.error("Error fetching MTTR stats:", error);
-      return { overall_mttr_hours: 0, by_severity: {}, trend: 'UNKNOWN', sample_size: 0 };
-    }
-  },
-
   async getServiceHealthMap(days = 7, environment) {
     try {
       const response = await axios.get(`${API_BASE_URL}/analytics/service-health/`, {

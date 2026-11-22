@@ -1525,12 +1525,10 @@
     background-color: #1a2436;
 }
 
+/* Live demo: a line of the page, not a second banner under the demo banner. */
 .settings-readonly-notice {
-    margin-bottom: 16px;
-    padding: 10px 16px;
-    border-radius: 8px;
-    background: hsl(40, 80%, 94%);
-    color: hsl(40, 90%, 24%);
+    margin-bottom: var(--space-4);
+    color: var(--text-secondary);
     font-size: 0.875rem;
 }
 
@@ -1561,13 +1559,12 @@
 }
 :is(html, :root[data-theme]) .settings-card-title { color: var(--text-primary); font-size: 16px; font-weight: 600; }
 :is(html, :root[data-theme]) .settings-readonly-notice {
-  background: var(--tone-amber-soft);
-  color: var(--tone-amber-text);
+  background: transparent;
+  color: var(--text-secondary);
   border: 0;
-  border-radius: 10px;
-  padding: 10px 14px;
+  padding: 0;
   font-size: 14px;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
 }
 :is(html, :root[data-theme]) .provider-card,
 :is(html, :root[data-theme]) .settings-toggle-item { background: var(--bg-sunken); border: 1px solid var(--border-default); }
@@ -1649,3 +1646,6 @@
     color: var(--text-primary);
 }
 .integrations-section-desc { margin: 2px 0 0; font-size: 13px; color: var(--text-secondary); }
+
+/* A statistics card at the top of a settings page (Sentinel). */
+.settings-stats-panel { margin-bottom: var(--space-6); }

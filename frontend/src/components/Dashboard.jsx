@@ -4,26 +4,22 @@ import { useTranslation } from "react-i18next";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
 import DashboardService from "../services/dash.service";
+import dataService from "../services/data.service";
 import { useCluster } from "../context/ClusterContext";
 import useFilterUrlSync from "../hooks/useFilterUrlSync";
 import { useQuery } from "@tanstack/react-query";
-import { FaChartPie, FaExclamationTriangle, FaBolt } from "react-icons/fa";
+import { FaExclamationTriangle, FaExclamationCircle } from "react-icons/fa";
 import { useMediaQuery } from "@mui/material";
 import { Search } from "lucide-react";
 import PageHeader from "./PageHeader";
 import "./Dashboard.css";
 
 import HealthScoreCard from "./HealthScoreCard";
-import ServiceRankingChart from "./ServiceRankingChart";
 import TrendAnalysisChart from "./TrendAnalysisChart";
-import MTTRCard from "./MTTRCard";
 import RootCausePie from "./RootCausePie";
 import ServiceHealthHeatmap from "./ServiceHealthHeatmap";
 import RecentDeploymentsCard from "./RecentDeploymentsCard";
-import WorkloadsByCluster from "./WorkloadsByCluster";
-import CorrelationInsightsCard from "./CorrelationInsightsCard";
 import AIAnalysisFeed from "./AIAnalysisFeed";
-import SentinelStatsCard from "./SentinelStatsCard";
 import NeedsAttention from "./NeedsAttention";
 import CommandPalette from "./CommandPalette";
 import { OnboardingWizard, OnboardingResumeChip } from "./onboarding";
@@ -65,28 +61,25 @@ const Dashboard = () => {
 
   // Critical metrics: refresh every 60s
   const {
-    data: chartData = [],
-    isLoading: loadingRecs,
-    error: errorRecs
-  } = useQuery({
-    queryKey: ["recommendation-stats", "open", environment, clusterId],
-    queryFn: () => DashboardService.getRecommendationStats(environment, "OPEN"),
-    staleTime: 60 * 1000,
-    refetchInterval: 60 * 1000,
-  });
-
-  const {
     data: severityData = [],
     isLoading: loadingSeverity,
     error: errorSeverity
   } = useQuery({
     queryKey: ["issue-stats", "open", environment, clusterId],
-    queryFn: async () => {
-      const severityStats = await DashboardService.getIssueStats(environment, "OPEN");
-      return severityStats.filter(entry =>
-        entry.name.toUpperCase() === "CRITICAL" ||
-        entry.name.toUpperCase() === "WARNING"
-      );
+    queryFn: () => DashboardService.getIssueStats(environment, "OPEN"),
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+  });
+
+  // Every open issue, whatever its severity (the statistics above only
+  // count critical and warning).
+  const { data: openIssues, isLoading: loadingOpen } = useQuery({
+    queryKey: ["open-issue-count", environment, clusterId],
+    queryFn: () => {
+      const params = { status: "OPEN", page_size: 1 };
+      if (environment && environment !== "all") params.environment = environment;
+      if (clusterId != null) params.cluster = clusterId;
+      return dataService.getIssues(params);
     },
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,
@@ -99,13 +92,6 @@ const Dashboard = () => {
     refetchInterval: 60 * 1000,
   });
 
-  const { data: serviceRanking, isLoading: loadingServices } = useQuery({
-    queryKey: ["service-reliability", environment, clusterId],
-    queryFn: () => DashboardService.getServiceReliability(environment),
-    staleTime: 60 * 1000,
-    refetchInterval: 60 * 1000,
-  });
-
   const { data: trendData, isLoading: loadingTrends } = useQuery({
     queryKey: ["trend-analysis", environment, clusterId],
     queryFn: () => DashboardService.getTrendAnalysis(environment),
@@ -114,15 +100,6 @@ const Dashboard = () => {
   });
 
   // Slower-changing metrics: refresh every 2 minutes
-  const { data: mttrData, isLoading: loadingMTTR } = useQuery({
-    queryKey: ["mttr-stats", environment, clusterId],
-    queryFn: () => DashboardService.getMTTRStats(30, environment),
-    staleTime: 2 * 60 * 1000,
-    refetchInterval: 2 * 60 * 1000,
-    // The demo does not show this tile (see MTTRCard), so it does not ask for it.
-    enabled: !isDemoUser(),
-  });
-
   const { data: serviceHealthData, isLoading: loadingServiceHealth } = useQuery({
     queryKey: ["service-health-map", environment, clusterId],
     queryFn: () => DashboardService.getServiceHealthMap(7, environment),
@@ -144,14 +121,6 @@ const Dashboard = () => {
     refetchInterval: 2 * 60 * 1000,
   });
 
-  // New widgets
-  const { data: correlationData, isLoading: loadingCorrelations } = useQuery({
-    queryKey: ["correlation-insights", environment, clusterId],
-    queryFn: () => DashboardService.getCorrelationInsights(7, environment),
-    staleTime: 2 * 60 * 1000,
-    refetchInterval: 2 * 60 * 1000,
-  });
-
   const { data: analysisFeedData, isLoading: loadingFeed } = useQuery({
     queryKey: ["analysis-feed", environment, clusterId],
     queryFn: () => DashboardService.getAnalysisFeed(5, environment),
@@ -159,18 +128,20 @@ const Dashboard = () => {
     refetchInterval: 60 * 1000,
   });
 
-  const { data: sentinelData, isLoading: loadingSentinel } = useQuery({
-    queryKey: ["sentinel-stats", environment, clusterId],
-    queryFn: () => DashboardService.getSentinelStats(7, environment),
-    staleTime: 2 * 60 * 1000,
-    refetchInterval: 2 * 60 * 1000,
-  });
+  // No empty Recent Deployments panel: the analyses take the width. Hidden
+  // for the demo user when there is nothing to list, and when CI/CD is
+  // connected but no service has a run yet. A workspace with no CI/CD
+  // connected keeps the panel: it carries the hint to add it.
+  const deployServices = deploymentsData?.services || [];
+  let hasDeployments;
+  if (loadingDeployments || deployServices.length === 0) hasDeployments = !isDemoUser();
+  else hasDeployments = deployServices.some((s) => s.latest_pipeline);
 
-  const error = errorRecs || errorSeverity ? t('dashboard.errorLoadingStats') : null;
+  const error = errorSeverity ? t('dashboard.errorLoadingStats') : null;
 
   // Top-row tiles: both count issues that are open now.
-  const totalRecommendations = chartData.reduce((sum, item) => sum + item.value, 0);
-  const criticalCount = severityData.find(s => s.name === "CRITICAL")?.value || 0;
+  const openCount = openIssues?.pagination?.total_issues ?? openIssues?.results?.length ?? 0;
+  const criticalCount = severityData.find(s => (s.name || '').toUpperCase() === "CRITICAL")?.value || 0;
 
   // Skeleton placeholder for metric cards still loading
   const MetricSkeleton = () => (
@@ -181,8 +152,18 @@ const Dashboard = () => {
     </div>
   );
 
+  // The skip link moves the focus, not the address (no "#main-content" left
+  // in a link someone copies).
+  const skipToContent = (e) => {
+    e.preventDefault();
+    const main = document.getElementById('main-content');
+    if (main) main.focus();
+  };
+
   return (
     <div className="dashboard-layout">
+      {/* First stop of the Tab key: past the menu and the top bar. */}
+      <a href="#main-content" className="ds-skip-link" onClick={skipToContent}>{t('nav.skipToContent')}</a>
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
       <div className={`dashboard-main ${isSidebarOpen ? 'expanded' : 'collapsed'}`}>
@@ -193,7 +174,7 @@ const Dashboard = () => {
         <CommandPalette />
 
         {isRootDashboard && (
-          <div className="dashboard-content">
+          <main className="dashboard-content" id="main-content" tabIndex={-1}>
             <PageHeader
               title={t('nav.overview')}
               subtitle={(
@@ -212,36 +193,33 @@ const Dashboard = () => {
             {/* What is broken now, why, and what to do — before the numbers. */}
             <NeedsAttention environment={environment} clusterId={clusterId} />
 
-            {/* Key numbers — each card handles its own loading */}
+            {/* Key numbers: open critical, open issues, system health.
+                Each tile handles its own loading. */}
             <div className="overview-numbers">
-              <HealthScoreCard score={healthData?.health_score || 0} status={healthData?.status} loading={loadingHealth} />
-              <MTTRCard data={mttrData} loading={loadingMTTR} />
-
-              {loadingRecs ? <MetricSkeleton /> : (
-                <div className="metric-card metric-primary">
-                  <div className="metric-icon"><FaBolt /></div>
-                  <div className="metric-content">
-                    <span className="metric-value">{totalRecommendations}</span>
-                    <span className="metric-label">{t('dashboard.aiInsights')}</span>
-                    <span className="panel-window">{t('dashboard.window.openNow')}</span>
-                  </div>
-                  <div className="metric-trend neutral"><FaChartPie /> {t('dashboard.onOpenIssues')}</div>
-                </div>
-              )}
-
               {loadingSeverity ? <MetricSkeleton /> : (
-                <div className="metric-card metric-danger">
-                  <div className="metric-icon"><FaExclamationTriangle /></div>
+                <Link to="/dash/issues?status=OPEN&severity=Critical" className={`metric-card metric-kpi ${criticalCount > 0 ? 'metric-danger' : 'metric-calm'}`}>
+                  <div className="metric-icon" aria-hidden="true"><FaExclamationTriangle /></div>
                   <div className="metric-content">
                     <span className="metric-value">{criticalCount}</span>
                     <span className="metric-label">{t('dashboard.openCritical')}</span>
-                    <span className="panel-window">{t('dashboard.window.openNow')}</span>
                   </div>
                   {criticalCount > 0
                     ? <div className="metric-trend negative">{t('dashboard.needsAttention')}</div>
                     : <div className="metric-trend positive">{t('dashboard.allClear')}</div>}
-                </div>
+                </Link>
               )}
+
+              {loadingOpen ? <MetricSkeleton /> : (
+                <Link to="/dash/issues?status=OPEN" className="metric-card metric-kpi metric-calm">
+                  <div className="metric-icon" aria-hidden="true"><FaExclamationCircle /></div>
+                  <div className="metric-content">
+                    <span className="metric-value">{openCount}</span>
+                    <span className="metric-label">{t('dashboard.openIssuesLabel')}</span>
+                  </div>
+                </Link>
+              )}
+
+              <HealthScoreCard score={healthData?.health_score || 0} status={healthData?.status} loading={loadingHealth} />
             </div>
 
             {error && (
@@ -256,34 +234,30 @@ const Dashboard = () => {
               <div className="overview-main">
                 <AIAnalysisFeed data={analysisFeedData} loading={loadingFeed} />
               </div>
-              <div className="overview-side">
-                <RecentDeploymentsCard data={deploymentsData} loading={loadingDeployments} />
-              </div>
+              {hasDeployments && (
+                <div className="overview-side">
+                  <RecentDeploymentsCard data={deploymentsData} loading={loadingDeployments} />
+                </div>
+              )}
             </div>
 
-            <h2 className="overview-section-title">{t('dashboard.trendsTitle')}</h2>
+            {/* What happened: the 7-day trend beside the causes. */}
             <div className="charts-grid overview-charts">
-              {/* Pairs, so no card sits alone in a half-empty row:
-                  what happened (trend, causes), where (services), and
-                  how SerOps helped (correlations, Sentinel). */}
               <TrendAnalysisChart data={trendData} loading={loadingTrends} />
               <RootCausePie data={rootCauseData} loading={loadingRootCause} />
-              <ServiceRankingChart data={serviceRanking} loading={loadingServices} />
-              <ServiceHealthHeatmap data={serviceHealthData} loading={loadingServiceHealth} />
-              <CorrelationInsightsCard data={correlationData} loading={loadingCorrelations} />
-              <SentinelStatsCard data={sentinelData} loading={loadingSentinel} />
             </div>
 
-            {/* Multi-cluster orgs get a per-cluster workload breakdown
-                (Item #19). Renders nothing when the org has 0-1 clusters. */}
-            <WorkloadsByCluster />
-          </div>
+            {/* Where: one panel, the worst service first. Sentinel figures
+                are on Settings > Sentinel, correlation insights on Analyses,
+                workloads by cluster on Settings > Clusters. */}
+            <ServiceHealthHeatmap data={serviceHealthData} loading={loadingServiceHealth} />
+          </main>
         )}
 
         {!isRootDashboard && (
-          <div className="dashboard-outlet">
+          <main className="dashboard-outlet" id="main-content" tabIndex={-1}>
             <Outlet />
-          </div>
+          </main>
         )}
       </div>
 

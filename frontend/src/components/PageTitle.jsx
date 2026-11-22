@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 const RULES = [
   [/^\/login/, "login.welcomeBack"],
   [/^\/register/, "login.createAccount"],
-  [/^\/dash\/?$/, "nav.dashboard"],
+  [/^\/dash\/?$/, "nav.overview"],
   [/^\/dash\/projects/, "nav.projects"],
   [/^\/dash\/data\/details\/([^/]+)/, "nav.analyses", 1],
   [/^\/dash\/data/, "nav.analyses"],
@@ -23,8 +23,8 @@ const RULES = [
   [/^\/dash\/settings\/teams/, "teams.title"],
   [/^\/dash\/settings\/team/, "settings.team.title"],
   [/^\/dash\/settings\/roles/, "roles.title"],
-  [/^\/dash\/settings\/delivery/, "settings.delivery.title"],
-  [/^\/dash\/settings\/routing-rules/, "settings.routing.title"],
+  [/^\/dash\/settings\/delivery/, "nav.alertsRouting"],
+  [/^\/dash\/settings\/routing-rules/, "nav.alertsRouting"],
   [/^\/dash\/settings\/ai/, "settings.ai.title"],
   [/^\/dash\/settings\/sentinel/, "sentinel.title"],
   [/^\/dash\/settings\/data/, "settings.data.title"],
@@ -33,6 +33,7 @@ const RULES = [
   [/^\/dash\/settings\/clusters/, "clusters.menuLabel"],
   [/^\/dash\/settings\/security/, "settings.security.title"],
   [/^\/dash\/settings\/audit/, "auditLog.title"],
+  [/^\/dash\/settings\/preferences/, "preferences.title"],
   [/^\/dash\/settings/, "nav.settings"],
 ];
 

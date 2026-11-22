@@ -333,6 +333,9 @@
 :is(html, :root[data-theme]) .badge.bg-secondary,
 :is(html, :root[data-theme]) .badge.bg-light,
 :is(html, :root[data-theme]) .badge.bg-dark { background: var(--tone-gray-soft) !important; color: var(--tone-gray-text) !important; }
+/* Outlined: the severity of an issue nobody has to act on any more
+   (resolved, muted). No fill, a hairline, neutral text. */
+:is(html, :root[data-theme]) .ds-chip-outline { background: transparent; border: 1px solid var(--border-hover); padding: 0 7px; color: var(--text-secondary); }
 
 /* -------------------------------------------------------------
    4 · Cards — 12 px radius, hairline border, no shadow

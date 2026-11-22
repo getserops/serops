@@ -124,4 +124,25 @@ describe('Detail', () => {
       expect(document.querySelector(`a[href*="${TRACE}"]`)).toBeNull();
     });
   });
+
+  // Structure review, section 4: the page does not repeat itself.
+  describe('issue list card', () => {
+    const long = 'payment-worker cannot reach Redis. Every checkout write fails with a pool timeout since 10:00.';
+    it('is not shown when the analysis found exactly one issue; title and fix appear once', async () => {
+      await renderBatch(batch({ issue: { description: long, recommendation: 'Raise the pool to 50' } }));
+      expect(screen.queryByText(/issues? detected/)).toBeNull();
+      expect(screen.getAllByText('payment-worker cannot reach Redis.')).toHaveLength(1);
+      expect(screen.getAllByText(/Raise the pool to 50/)).toHaveLength(1);
+    });
+
+    it('lists the headlines when there are several issues, without repeating the first fix', async () => {
+      const b = batch({ issue: { description: long, recommendation: 'Raise the pool to 50' } });
+      b.issues.push({ id: 2, severity: 'WARNING', status: 'RESOLVED', description: 'Cache is cold after the restart', component: 'cache', recommendation: 'Warm it at start' });
+      await renderBatch(b);
+      expect(screen.getByText('2 issues detected')).toBeTruthy();
+      expect(screen.getByText('Cache is cold after the restart')).toBeTruthy();
+      expect(screen.getAllByText(/Raise the pool to 50/)).toHaveLength(1);
+      expect(screen.getByText(/Warm it at start/)).toBeTruthy();
+    });
+  });
 });

@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import { ProjectService } from '../../services/project.service';
 import { can } from '../../utils/permissions';
 import { describeRequestError } from '../../utils/apiError';
+import { formatAbsolute } from '../../utils/dates';
 
 const WINDOWS = [15, 60, 1440];
 
@@ -188,7 +189,7 @@ export default function DataCheckPanel({ projectId, environments = [], onFixed }
                                             {/* one child: stacked rows lay a cell's children side by side */}
                                             <div>
                                                 <div>{envName(run.environment)}</div>
-                                                <div className="form-hint">{new Date(run.ran_at).toLocaleString()}</div>
+                                                <div className="form-hint">{formatAbsolute(run.ran_at)}</div>
                                             </div>
                                         </td>
                                         <td data-label={t('dataCheck.result')}>

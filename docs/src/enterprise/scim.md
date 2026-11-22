@@ -4,8 +4,8 @@ description: "Provision SerOps accounts with SCIM 2.0 from Microsoft Entra ID or
 ---
 # SCIM 2.0 provisioning
 
-!!! info "SerOps Enterprise"
-    SCIM provisioning needs an Enterprise license that lists `scim`
+!!! info "Paid license"
+    SCIM provisioning needs a paid license (Business or Enterprise) that lists `scim`
     (**Settings → Enterprise license**). Without one every SCIM request gets
     `403` and nothing changes; existing tokens can still be revoked. With
     Community, accounts are created at the first SSO sign-in and follow the

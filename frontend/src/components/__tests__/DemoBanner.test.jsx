@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import DemoBanner from '../DemoBanner';
 import en from '../../locales/en.json';
 import fr from '../../locales/fr.json';
@@ -14,7 +14,7 @@ const signIn = (user) => window.localStorage.getItem.mockImplementation(
 );
 
 describe('DemoBanner', () => {
-  beforeEach(() => window.localStorage.getItem.mockReset());
+  beforeEach(() => { window.localStorage.getItem.mockReset(); window.sessionStorage.clear(); });
 
   it('tells a demo user what the demo shows and links to the benchmark page', () => {
     signIn({ username: 'demo', is_demo: true });
@@ -49,5 +49,24 @@ describe('DemoBanner', () => {
     expect(before + link + after).toBe(
       "Données d'exemple : des analyses que SerOps a réussies, issues de nos propres environnements de test. Les échecs sont sur la page du benchmark."
     );
+  });
+
+  it('publishes its height for layouts that fill the screen, and 0px when it is not shown', () => {
+    signIn({ username: 'demo', is_demo: true });
+    const { unmount } = render(<DemoBanner />);
+    expect(document.documentElement.style.getPropertyValue('--demo-banner-h')).toMatch(/^\d+px$/);
+    unmount();
+    expect(document.documentElement.style.getPropertyValue('--demo-banner-h')).toBe('0px');
+  });
+
+  it('can be closed for the session and stays closed on the next page', () => {
+    signIn({ username: 'demo', is_demo: true });
+    const first = render(<DemoBanner />);
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(first.container).toBeEmptyDOMElement();
+    expect(document.documentElement.style.getPropertyValue('--demo-banner-h')).toBe('0px');
+    first.unmount();
+    const second = render(<DemoBanner />);
+    expect(second.container).toBeEmptyDOMElement();
   });
 });

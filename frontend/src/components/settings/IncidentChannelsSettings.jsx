@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import IncidentChannelsService from '../../services/incidentChannels.service';
 import { SettingsService } from '../../services/settings.service';
 import './SettingsLayout.css';
+import { formatAbsolute } from '../../utils/dates';
 
 
 /**
@@ -158,7 +159,7 @@ const UnmatchedAlertsNotice = () => {
             <ul className="mb-0 mt-2 small">
                 {(unmatched.latest || []).map((a) => (
                     <li key={`${a.source}-${a.received_at}-${a.alertname}`}>
-                        {a.alertname} ({a.source}, {new Date(a.received_at).toLocaleString()}): {a.detail}
+                        {a.alertname} ({a.source}, {formatAbsolute(a.received_at)}): {a.detail}
                     </li>
                 ))}
             </ul>
@@ -319,7 +320,7 @@ const IncidentChannelsSettings = () => {
     return (
         <div className="settings-section">
             <PageHeader
-                title={t('incidentChannels.title')}
+                title={t('nav.alertsRouting')}
                 subtitle={t('incidentChannels.subtitle')}
                 actions={
                     <div className="d-flex gap-2">
@@ -386,9 +387,7 @@ const IncidentChannelsSettings = () => {
                                         : <Badge bg="secondary">{t('common.inactive') || 'Inactive'}</Badge>}
                                 </td>
                                 <td data-label={t('incidentChannels.lastSend')} className="small text-muted">
-                                    {c.last_sent_at
-                                        ? new Date(c.last_sent_at).toLocaleString()
-                                        : '—'}
+                                    {formatAbsolute(c.last_sent_at, { seconds: false })}
                                 </td>
                                 <td>
                                     <Button

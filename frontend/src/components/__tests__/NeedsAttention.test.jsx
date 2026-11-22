@@ -55,11 +55,11 @@ describe('NeedsAttention', () => {
     recommendation: "Roll back pricing to the version before the 00:24:45 rollout (the pre-c9cabe46 build) to restore /price. Then inspect pricing's rounding logic (app.py around line 78). Add a test for SKU-1001. Consider cached prices, e.g. for an hour, instead of returning 503.",
   };
 
-  it('uses the first sentence of the description as the headline and keeps the whole text in the tooltip', () => {
+  it('uses the first sentence of the description as the headline, cut at a word boundary when long, and keeps the whole text in the tooltip', () => {
     queryResult.data = { results: [issue(LONG)], pagination: { total_issues: 1 } };
     renderIt();
     const headline = screen.getByText(/^Since the pricing rollout/);
-    expect(headline.textContent).toBe("Since the pricing rollout at 00:24:45, every /price call for SKU-1001 fails with decimal.InvalidOperation ('quantize result has too many digits for current context') in the rounding step.");
+    expect(headline.textContent).toBe('Since the pricing rollout at 00:24:45, every /price call for SKU-1001 fails with decimal.InvalidOperation…');
     expect(headline.className).toBe('attention-issue-title');
     expect(headline.getAttribute('title')).toBe(LONG.description);
     expect(screen.queryByText(/pricing returns HTTP 500/)).toBeNull();

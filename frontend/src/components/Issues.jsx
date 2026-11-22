@@ -1,31 +1,28 @@
+import { useDemoLock } from "../utils/demoLock";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Table, Form, OverlayTrigger, Tooltip, Modal, Button, Badge, Dropdown, InputGroup } from "react-bootstrap";
 import { FaExclamationCircle, FaEye, FaCheck, FaVolumeMute, FaRedo, FaLink, FaChartLine, FaColumns, FaEllipsisV, FaSearch, FaSortUp, FaSortDown, FaSort, FaCheckCircle, FaKeyboard, FaCog, FaProjectDiagram } from "react-icons/fa";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
-import { formatDistanceToNow } from "date-fns";
 import dataService from "../services/data.service";
 import notificationService from "../services/notification.service";
 import InvestigationService from "../services/investigation.service";
 import PageHeader from "./PageHeader";
 import IssuePanel, { StatusChip } from "./issues/IssuePanel";
+import { needsAction, severityTone, severityChipClass } from "../utils/tones";
 import { useCluster } from "../context/ClusterContext";
 import useFilterUrlSync from "../hooks/useFilterUrlSync";
+import { headline } from "../utils/sentences";
 import { tracePath } from "../utils/linkTargets";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import "./Issues.css";
+import { formatAbsolute, formatRelative, formatTime } from '../utils/dates';
 
 // --- Utility helpers (exported for testing) ---
 
 export const formatAge = (dateStr) => {
-  if (!dateStr) return "\u2014";
-  try {
-    const result = formatDistanceToNow(new Date(dateStr), { addSuffix: true });
-    return result.replace(/^about /, '');
-  } catch {
-    return "\u2014";
-  }
+  return formatRelative(dateStr);
 };
 
 const toTitleCase = (str) => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
@@ -53,21 +50,10 @@ export const getCountHeatLevel = (count) => {
   return "normal";
 };
 
-export const getSeverityColor = (severity) => {
-  switch (severity?.toLowerCase()) {
-    case "critical":
-    case "high":
-      return "var(--tone-red-text)";
-    case "medium":
-    case "warning":
-      return "var(--tone-amber-text)";
-    case "low":
-    case "info":
-      return "var(--tone-brand-text)";
-    default:
-      return "var(--border-hover)";
-  }
-};
+// Colour of the row's left accent and of its icon: red or amber while the
+// issue needs action, neutral once it is resolved or muted (utils/tones.js).
+const ROW_COLOR = { err: "var(--tone-red-text)", warn: "var(--tone-amber-text)" };
+export const getSeverityColor = (severity, status) => ROW_COLOR[severityTone(severity, status)] || "var(--border-hover)";
 
 export const getSeverityRowClass = (severity) => {
   switch (severity?.toUpperCase()) {
@@ -101,6 +87,7 @@ export const getComponentChipClass = (scope) => {
 
 const Issues = () => {
   const { t } = useTranslation();
+  const lock = useDemoLock();
   const { batchId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   // Environment and cluster are the global filter (top bar), kept in the URL.
@@ -159,7 +146,9 @@ const Issues = () => {
       type: false,
       component: true,
       description: true,
-      age: true,
+      // Hidden by default: it repeats "Last seen" for most issues, and
+      // Description needs the room. Still under Columns.
+      age: false,
       lastSeen: true,
       correlations: false,
       count: true,
@@ -340,7 +329,7 @@ const Issues = () => {
           if (focusedIndex >= 0 && focusedIndex < len) {
             e.preventDefault();
             const issue = issuesData[focusedIndex];
-            if (issue.status === 'OPEN') handleResolve(issue);
+            if (issue.status === 'OPEN' && !lock.disabled) handleResolve(issue);
           }
           break;
         }
@@ -348,7 +337,7 @@ const Issues = () => {
           if (focusedIndex >= 0 && focusedIndex < len) {
             e.preventDefault();
             const issue = issuesData[focusedIndex];
-            if (issue.status === 'OPEN') handleMuteClick(issue.id);
+            if (issue.status === 'OPEN' && !lock.disabled) handleMuteClick(issue.id);
           }
           break;
         }
@@ -735,7 +724,7 @@ const Issues = () => {
             {batchId ? t('issues.fromBatch') : t('issues.trackAnomalies')}
             <span className="live-dot" title={t('issues.autoRefresh')}>
               {dataUpdatedAt
-                ? t('issues.updatedAt', { time: new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) })
+                ? t('issues.updatedAt', { time: formatTime(dataUpdatedAt, { zone: true }) })
                 : t('issues.autoRefresh')}
             </span>
           </span>
@@ -922,7 +911,7 @@ const Issues = () => {
                     </th>
                   )}
                   {visibleColumns.component && (
-                    <th className="py-3 border-bottom" style={{ width: '130px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('component')}>
+                    <th className="py-3 border-bottom issue-col-component" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('component')}>
                       Component{renderSortIcon('component')}
                     </th>
                   )}
@@ -943,7 +932,7 @@ const Issues = () => {
                   )}
                   {visibleColumns.correlations && <th className="py-3 border-bottom">Correlations</th>}
                   {visibleColumns.count && (
-                    <th className="py-3 border-bottom text-center" style={{ width: '128px', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} onClick={() => handleSort('count')}>
+                    <th className="py-3 border-bottom text-center issue-col-count" style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} onClick={() => handleSort('count')}>
                       Occurrences{renderSortIcon('count')}
                     </th>
                   )}
@@ -962,7 +951,8 @@ const Issues = () => {
               </thead>
               <tbody>
                 {issuesData.map((issue, index) => {
-                  const heatLevel = getCountHeatLevel(issue.occurrence_count);
+                  // A high count is red or amber only while the issue needs action.
+                  const heatLevel = needsAction(issue.status) ? getCountHeatLevel(issue.occurrence_count) : "normal";
                   return (
                     <tr
                       key={issue.id}
@@ -970,7 +960,7 @@ const Issues = () => {
                       // The severity stripe is an inset shadow on the first cell: a
                       // border on the <tr> widened rows past the header and shifted
                       // every column out of line.
-                      style={{ '--severity-color': getSeverityColor(issue.severity) }}
+                      style={{ '--severity-color': getSeverityColor(issue.severity, issue.status) }}
                       tabIndex={0}
                       aria-label={t('issues.openIssue', { id: issue.id, description: issue.description })}
                       onClick={(e) => { if (!e.target.closest('input, button, a, .dropdown')) setPanelIssueId(issue.id); }}
@@ -994,7 +984,7 @@ const Issues = () => {
                         </td>
                       )}
                       {visibleColumns.component && (
-                        <td className="py-3 issue-cell-meta issue-cell-first-meta" style={{ maxWidth: '130px' }}>
+                        <td className="py-3 issue-cell-meta issue-cell-first-meta issue-cell-component">
                           <span
                             className={`issue-component-chip ${getComponentChipClass(issue.scope)}`}
                             title={issue.component || 'INFRASTRUCTURE'}
@@ -1016,29 +1006,26 @@ const Issues = () => {
                           <div className="d-flex align-items-start">
                             <FaExclamationCircle
                               className="me-2 mt-1 flex-shrink-0"
-                              style={{ color: getSeverityColor(issue.severity), fontSize: "1rem" }}
+                              style={{ color: getSeverityColor(issue.severity, issue.status), fontSize: "1rem" }}
                             />
                             <span className="issue-description-cell">
                               <span className="text-dark issue-description-clamp" title={issue.description}>
-                                {issue.description}
+                                {headline(issue.description) || issue.description}
                               </span>
-                              {issue.root_cause && (
-                                <span className="issue-root-cause-line" title={issue.root_cause}>{issue.root_cause}</span>
-                              )}
                             </span>
                           </div>
                         </td>
                       )}
                       {visibleColumns.age && (
                         <td className="py-3 issue-cell-meta">
-                          <OverlayTrigger overlay={<Tooltip>{issue.created_at ? new Date(issue.created_at).toLocaleString() : 'Unknown'}</Tooltip>}>
+                          <OverlayTrigger overlay={<Tooltip>{formatAbsolute(issue.created_at)}</Tooltip>}>
                             <span className="text-muted small">{formatAge(issue.created_at)}</span>
                           </OverlayTrigger>
                         </td>
                       )}
                       {visibleColumns.lastSeen && (
                         <td className="py-3 issue-cell-meta">
-                          <OverlayTrigger overlay={<Tooltip>{issue.last_seen_at ? new Date(issue.last_seen_at).toLocaleString() : 'Unknown'}</Tooltip>}>
+                          <OverlayTrigger overlay={<Tooltip>{formatAbsolute(issue.last_seen_at || issue.created_at)}</Tooltip>}>
                             <span className="text-muted small">{formatAge(issue.last_seen_at || issue.created_at)}</span>
                           </OverlayTrigger>
                         </td>
@@ -1055,7 +1042,7 @@ const Issues = () => {
                       )}
                       {visibleColumns.severity && (
                         <td className="issue-cell-meta">
-                          <span className={`severity-badge severity-badge-${(issue.severity || 'unknown').toLowerCase()}`}>
+                          <span className={severityChipClass(issue.severity, issue.status)}>
                             {(issue.severity || 'N/A').toUpperCase()}
                           </span>
                         </td>
@@ -1087,16 +1074,16 @@ const Issues = () => {
                             </Dropdown.Item>
                             {issue.status === 'OPEN' && (
                               <>
-                                <Dropdown.Item onClick={() => handleResolve(issue)}>
+                                <Dropdown.Item onClick={() => handleResolve(issue)} {...lock}>
                                   <FaCheck className="me-2 text-success" size={12} />Resolve
                                 </Dropdown.Item>
-                                <Dropdown.Item onClick={() => handleMuteClick(issue.id)}>
+                                <Dropdown.Item onClick={() => handleMuteClick(issue.id)} {...lock}>
                                   <FaVolumeMute className="me-2 text-secondary" size={12} />Mute
                                 </Dropdown.Item>
                               </>
                             )}
                             {(issue.status === 'MUTED' || issue.status === 'RESOLVED') && (
-                              <Dropdown.Item onClick={() => handleReopen(issue.id)}>
+                              <Dropdown.Item onClick={() => handleReopen(issue.id)} {...lock}>
                                 <FaRedo className="me-2 text-warning" size={12} />Reopen
                               </Dropdown.Item>
                             )}
@@ -1117,16 +1104,16 @@ const Issues = () => {
             <span className="bulk-count">{selectedIds.size} selected</span>
             {canResolveSelection && (
               <>
-                <Button size="sm" variant="success" onClick={handleBulkResolve}>
+                <Button size="sm" variant="success" onClick={handleBulkResolve} {...lock}>
                   <FaCheck className="me-1" size={12} />Resolve {selectedIds.size}
                 </Button>
-                <Button size="sm" variant="secondary" onClick={handleBulkMuteClick}>
+                <Button size="sm" variant="secondary" onClick={handleBulkMuteClick} {...lock}>
                   <FaVolumeMute className="me-1" size={12} />Mute {selectedIds.size}
                 </Button>
               </>
             )}
             {canReopenSelection && (
-              <Button size="sm" variant="outline-warning" onClick={handleBulkReopen}>
+              <Button size="sm" variant="outline-warning" onClick={handleBulkReopen} {...lock}>
                 <FaRedo className="me-1" size={12} />Reopen {selectedIds.size}
               </Button>
             )}

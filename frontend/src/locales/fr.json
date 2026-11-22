@@ -1,6 +1,6 @@
 {
   "nav": {
-    "dashboard": "Tableau de Bord",
+    "dashboard": "Tableau de bord",
     "projects": "Projets",
     "data": "Données",
     "issues": "Problèmes",
@@ -12,10 +12,12 @@
     "noNotifications": "Aucune notification",
     "markAllRead": "Marquer tout comme lu",
     "investigate": "Investiguer",
+    "traces": "Traces",
     "primary": "Navigation principale",
     "collapseSidebar": "Réduire le menu",
     "expandSidebar": "Développer le menu",
     "closeSidebar": "Fermer le menu",
+    "skipToContent": "Aller au contenu",
     "overview": "Vue d'ensemble",
     "analyses": "Analyses",
     "groupMonitor": "Surveiller",
@@ -31,7 +33,7 @@
     "integrations": "Intégrations"
   },
   "dashboard": {
-    "title": "Tableau de Bord",
+    "title": "Tableau de bord",
     "welcome": "Bon retour",
     "overview": "Aperçu",
     "recentActivity": "Activité Récente",
@@ -78,8 +80,7 @@
     "unknown": "Inconnu",
     "success": "succès",
     "noPipelinesYet": "Pas encore de pipelines",
-    "healthTitle": "Santé du Système",
-    "mttr": "Temps Moyen de Résolution",
+    "healthTitle": "Santé du système",
     "trend": {
       "improving": "En Amélioration",
       "degrading": "En Dégradation",
@@ -136,15 +137,15 @@
     "viewAllAnalyses": "Voir les {{count}} analyses",
     "attention": {
       "title": "À traiter maintenant",
-      "viewOpen_one": "{{count}} incident ouvert",
-      "viewOpen_other": "Les {{count}} incidents ouverts",
+      "viewOpen_one": "{{count}} problème ouvert",
+      "viewOpen_other": "Les {{count}} problèmes ouverts",
       "why": "Pourquoi",
       "whatToDo": "Que faire",
-      "openIssue": "Ouvrir l'incident",
+      "openIssue": "Ouvrir le problème",
       "showMore": "Afficher plus",
       "showLess": "Afficher moins",
-      "allClear": "Tout va bien : aucun incident ouvert",
-      "allClearHint": "Sentinel continue de surveiller logs, métriques, traces et déploiements. Les nouveaux incidents apparaîtront ici en premier."
+      "allClear": "Tout va bien : aucun problème ouvert",
+      "allClearHint": "Sentinel continue de surveiller logs, métriques, traces et déploiements. Les nouveaux problèmes apparaîtront ici en premier."
     },
     "overviewSubtitle": "Ce qui est cassé, pourquoi, et quoi faire.",
     "autoRefresh": "En direct · actualisé chaque minute",
@@ -153,10 +154,10 @@
     "openCritical": "Critiques ouverts",
     "healthWindow": "Problèmes ouverts maintenant",
     "worstHealthFirst": "Santé la plus basse d'abord",
+    "openIssuesLabel": "Problèmes ouverts",
     "openIssues_one": "{{count}} problème ouvert",
     "openIssues_other": "{{count}} problèmes ouverts",
     "commitLinks": "Liens avec un commit",
-    "mttrSample": "n = {{count}}",
     "notEnoughData": "Pas assez de données",
     "window": {
       "openNow": "Problèmes ouverts maintenant",
@@ -225,7 +226,7 @@
     "lastSeen": "Dernière Occurrence",
     "occurrences": "Occurrences",
     "viewAll": "Voir Tout",
-    "systemIssues": "Problèmes Système",
+    "systemIssues": "Problèmes",
     "batchIssues": "Problèmes du Lot {{batchId}}",
     "trackAnomalies": "Suivre et gérer les anomalies système identifiées",
     "batchId": "ID du Lot",
@@ -298,7 +299,7 @@
     "fromBatch": "Problèmes trouvés par cette analyse"
   },
   "addService": {
-    "title": "Ajouter un Nouveau Service",
+    "title": "Ajouter un nouveau service",
     "subtitle": "Sélectionnez le type de service à intégrer à votre projet",
     "customService": "Service Personnalisé",
     "customServiceDesc": "Créer une entrée de service personnalisée",
@@ -325,7 +326,7 @@
   },
   "chat": {
     "title": "Chat IA",
-    "aiAssistant": "Assistant IA",
+    "aiAssistant": "Chat IA",
     "placeholder": "Posez une question sur vos journaux ou décrivez un problème...",
     "send": "Envoyer",
     "thinking": "Réflexion...",
@@ -555,7 +556,7 @@
   },
   "clusters": {
     "menuLabel": "Clusters",
-    "title": "Clusters Kubernetes",
+    "title": "Clusters",
     "subtitle": "Enregistrez les clusters K8s dans lesquels vos workloads s'exécutent. Chaque cluster peut avoir son propre Prometheus / Loki / source de traces, pour un routage per-cluster correct.",
     "new": "Nouveau cluster",
     "edit": "Modifier le cluster",
@@ -613,7 +614,7 @@
     "emptyWindow": "Aucune trace distribuée n'a été enregistrée pour la fenêtre temporelle de ce batch."
   },
   "codeChanges": {
-    "title": "Modifications du Code",
+    "title": "Modifications du code",
     "loading": "Chargement des modifications du code...",
     "branch": "Branche",
     "allBranches": "Toutes les Branches",
@@ -645,11 +646,11 @@
   "login": {
     "brandTitle": "Comprenez pourquoi la production a planté",
     "brandSubtitle": "Analyse de cause racine par IA qui relie les incidents au déploiement exact qui les a causés",
-    "feature1Title": "Corrélation de Déploiement",
+    "feature1Title": "Corrélation de déploiement",
     "feature1Desc": "Relie les erreurs de production au commit et déploiement exact",
-    "feature2Title": "Analyse de Cause Racine par IA",
+    "feature2Title": "Analyse de cause racine par IA",
     "feature2Desc": "Corrèle journaux, métriques CPU et mémoire, et code pour expliquer pourquoi",
-    "feature3Title": "Déduplication Intelligente",
+    "feature3Title": "Déduplication intelligente",
     "feature3Desc": "26+ types d'incidents avec fingerprinting — fini la fatigue d'alertes",
     "welcomeBack": "Connexion",
     "enterCredentials": "Accédez à votre tableau de bord de détection d'incidents",
@@ -675,8 +676,12 @@
     "ssoFailed": "Échec de l'initiation de la connexion SSO",
     "showPassword": "Afficher le mot de passe",
     "hidePassword": "Masquer le mot de passe",
-    "demoOnlyTitle": "Découvrez la démo en direct",
-    "demoOnlyText": "Un espace SerOps en lecture seule avec des incidents d'exemple, causes racines et chronologies. Aucun compte requis.",
+    "demoOnlyTitle": "Voyez comment SerOps trouve la cause racine",
+    "demoOnlyText": "SerOps lit les logs, les métriques, les traces et les déploiements, et dit ce qui a cassé, pourquoi, et quoi faire.",
+    "demoOnlyPageName": "Démo en direct",
+    "demoOnlyPoint1": "Des incidents d'exemple, chacun avec sa cause racine, les preuves et le correctif",
+    "demoOnlyPoint2": "Une chronologie qui relie les erreurs au déploiement ou au commit en cause",
+    "demoOnlyPoint3": "Lecture seule, sans compte : rien de ce que vous faites ici n'est enregistré",
     "tryDemo": "Essayer la démo",
     "selfHost": "Héberger votre propre SerOps →",
     "ssoSignInFailed": "Échec de la connexion SSO. Vérifiez avec votre administrateur que votre compte appartient à cette organisation.",
@@ -712,7 +717,7 @@
     "title": "Paramètres",
     "general": {
       "menuLabel": "Général",
-      "title": "Paramètres Généraux",
+      "title": "Paramètres généraux",
       "subtitle": "Le nom, le logo et le site web de votre organisation.",
       "organisation": {
         "title": "Informations de l'Organisation",
@@ -737,7 +742,7 @@
         "system": "Par Défaut du Système"
       },
       "timezone": {
-        "title": "Fuseau Horaire et Régional",
+        "title": "Fuseau horaire et régional",
         "subtitle": "Définir vos préférences d'heure et de date locales",
         "label": "Fuseau Horaire",
         "currentTime": "Heure actuelle",
@@ -758,7 +763,7 @@
         "warningHint": "Être notifié pour les problèmes d'avertissement pouvant dégrader les performances"
       },
       "email": {
-        "title": "Notifications par Email",
+        "title": "Notifications par email",
         "subtitle": "Recevoir des alertes directement dans votre boîte de réception",
         "enable": "Activer les Alertes par Email",
         "enableHint": "Les notifications seront envoyées à votre adresse email enregistrée"
@@ -791,7 +796,7 @@
       "subtitle": "Gérer les paramètres de sécurité et d'accès"
     },
     "data": {
-      "title": "Gestion des Données",
+      "title": "Rétention des données",
       "subtitle": "Configurer la rétention et l'exportation des données"
     },
     "ai": {
@@ -862,7 +867,7 @@
   },
   "ai": {
     "noKeyNeeded": "Aucune clé requise",
-    "title": "Paramètres IA",
+    "title": "Fournisseurs IA",
     "subtitle": "Configurer et gérer vos fournisseurs de modèles IA",
     "loading": "Chargement des paramètres IA...",
     "loadFailed": "Échec du chargement des paramètres IA",
@@ -924,7 +929,7 @@
     "showKey": "Afficher la clé"
   },
   "security": {
-    "title": "Paramètres de Sécurité",
+    "title": "Sécurité",
     "subtitle": "Configurer la gestion des sessions et l’authentification unique",
     "loading": "Chargement des paramètres de sécurité...",
     "loadFailed": "Échec du chargement des paramètres de sécurité",
@@ -1005,7 +1010,7 @@
     "scimEnterprise": "L'approvisionnement SCIM fait partie de SerOps Enterprise : Entra ID ou Okta créent les comptes, alignent rôles et équipes sur les groupes et désactivent les personnes dès leur départ. Avec Community, les comptes sont créés à la première connexion SSO."
   },
   "batchInterval": {
-    "title": "Intervalle de Génération des Lots",
+    "title": "Intervalle de génération des lots",
     "subtitle": "Fréquence de collecte et d'analyse des journaux et métriques par SerOps",
     "interval": "Intervalle",
     "minutes": "min",
@@ -1019,7 +1024,7 @@
     "saveFailed": "Échec de la mise à jour de l'intervalle de génération"
   },
   "dataRetention": {
-    "title": "Rétention des Données",
+    "title": "Rétention des données",
     "subtitle": "Gérer le stockage, les politiques de nettoyage et le cycle de vie des données",
     "dataUsage": "Aperçu de l'Utilisation des Données",
     "dataUsageDesc": "Nombre d'enregistrements actuels dans votre organisation",
@@ -1124,7 +1129,7 @@
   "auditLog": {
     "streaming": "Envoyer à votre SIEM",
     "streamingEnterprise": "Le streaming d'audit en temps réel (syslog sur TLS, Splunk HEC, Datadog, Elastic ou tout collecteur HTTPS) fait partie de SerOps Enterprise. Le journal d'audit, ses filtres et son export CSV sont inclus dans Community.",
-    "title": "Journal d'Audit",
+    "title": "Journal d'audit",
     "subtitle": "Suivre et examiner toutes les actions importantes dans votre organisation",
     "loading": "Chargement des journaux d'audit...",
     "loadFailed": "Échec du chargement des journaux d'audit",
@@ -1159,8 +1164,8 @@
   "traces": {
     "settings": {
       "copyKey": "Copier la clé",
-      "menuLabel": "Traces distribuées",
-      "title": "Clés d'ingestion OTLP",
+      "menuLabel": "Clés d'ingestion des traces",
+      "title": "Clés d'ingestion des traces",
       "subtitle": "Jetons Bearer autorisant les collecteurs OpenTelemetry à envoyer des traces à SerOps. Chaque clé est limitée à votre organisation.",
       "newKey": "Nouvelle clé",
       "name": "Nom",
@@ -1193,7 +1198,7 @@
       "viewReceived": "Voir les traces reçues"
     },
     "dashboard": {
-      "title": "Traces distribuées",
+      "title": "Traces",
       "refresh": "Actualiser",
       "service": "Service",
       "allServices": "Tous les services",
@@ -1296,6 +1301,11 @@
     "panel": {
       "title": "Notifications",
       "unread": "{{total}} non lues",
+      "escalationTitle": "Escalade niveau {{level}} : {{issue}} dans {{project}}",
+      "issueOnTitle": "{{severity}} : {{issue}} sur {{target}}",
+      "issueInTitle": "{{severity}} : {{issue}} dans {{target}}",
+      "issueTitle": "{{severity}} : {{issue}}",
+      "severities": { "CRITICAL": "Critique", "HIGH": "Élevé", "WARNING": "Avertissement", "MEDIUM": "Moyen", "LOW": "Faible", "INFO": "Info" },
       "loading": "Chargement des notifications...",
       "error": "Erreur: {{message}}",
       "tabs": {
@@ -1334,10 +1344,10 @@
     }
   },
   "preferences": {
-    "title": "Mes Préférences de Notification",
+    "title": "Préférences de notification",
     "subtitle": "Configurer comment et quand vous recevez des notifications",
     "channels": {
-      "title": "Canaux de Notification",
+      "title": "Canaux de notification",
       "subtitle": "Choisissez comment vous souhaitez recevoir les notifications",
       "email": "Notifications par Email",
       "emailHint": "Recevoir des alertes par email",
@@ -1345,7 +1355,7 @@
       "inAppHint": "Voir les alertes dans le centre de notifications"
     },
     "severity": {
-      "title": "Filtres de Sévérité",
+      "title": "Filtres de sévérité",
       "subtitle": "Choisissez les niveaux de sévérité pour lesquels vous souhaitez être notifié",
       "critical": "Problèmes Critiques",
       "criticalHint": "Alertes immédiates pour les problèmes impactant le service",
@@ -1355,7 +1365,7 @@
       "infoHint": "Notifications informatives (verbeux)"
     },
     "delivery": {
-      "title": "Calendrier de Livraison",
+      "title": "Calendrier de livraison",
       "subtitle": "Choisissez quand recevoir les résumés de notifications",
       "digestFrequency": "Fréquence du Résumé",
       "immediate": "Immédiat (Temps réel)",
@@ -1366,7 +1376,7 @@
       "bundledHint": "Les notifications seront regroupées et envoyées aux heures programmées"
     },
     "quietHours": {
-      "title": "Heures Silencieuses",
+      "title": "Heures silencieuses",
       "subtitle": "Suspendre les notifications pendant des heures spécifiques",
       "enable": "Activer les Heures Silencieuses",
       "enableHint": "Les notifications seront retenues jusqu'à la fin des heures silencieuses",
@@ -1375,7 +1385,7 @@
       "timezone": "Fuseau Horaire"
     },
     "subscriptions": {
-      "title": "Abonnements aux Projets",
+      "title": "Abonnements aux projets",
       "subtitle": "Abonnez-vous aux projets dont vous souhaitez recevoir les notifications",
       "subscribeTo": "S'abonner au Projet",
       "selectProject": "Sélectionner un projet...",
@@ -1391,7 +1401,7 @@
   },
   "issueSettings": {
     "dedup": {
-      "title": "Déduplication des Problèmes",
+      "title": "Déduplication des problèmes",
       "subtitle": "Contrôler la gestion des problèmes dupliqués entre les lots",
       "enable": "Activer la Déduplication",
       "enableHint": "Ne pas créer de problèmes dupliqués avec la même empreinte",
@@ -1417,17 +1427,17 @@
     }
   },
   "sentinel": {
-    "title": "Sentinel Intelligence",
+    "title": "Sentinel",
     "subtitle": "Contrôler le filtrage IA pour ignorer l'analyse des lots calmes et réduire les coûts",
     "activeGating": {
-      "title": "Mode de Filtrage Actif",
+      "title": "Mode de filtrage actif",
       "description": "Lorsqu'activé, les lots sans déclencheurs ignorent l'analyse IA"
     },
     "enableActiveMode": "Activer le Mode Actif",
     "activeModeOn": "Actif — les lots calmes ignorent l'analyse IA",
     "activeModeOff": "Mode observation — tous les lots analysés (journalisation uniquement)",
     "thresholds": {
-      "title": "Remplacements de Seuils",
+      "title": "Remplacements de seuils",
       "description": "Ajuster la sensibilité de détection (0 = utiliser les valeurs par défaut)"
     },
     "errorSpikeMultiplier": "Multiplicateur de Pic d'Erreurs",
@@ -1440,7 +1450,7 @@
     "saveFailed": "Échec de l'enregistrement de la configuration Sentinel"
   },
   "billing": {
-    "title": "Facturation et Abonnement",
+    "title": "Facturation et abonnement",
     "subtitle": "Gérer votre plan, facturation et détails d'abonnement",
     "currentPlan": "Plan Actuel",
     "status": "Statut",
@@ -1450,7 +1460,7 @@
     "loadFailed": "Échec du chargement des informations de facturation"
   },
   "metrics": {
-    "title": "Métriques Système",
+    "title": "Métriques système",
     "environment": "Env",
     "host": "Hôte",
     "allEnvironments": "Tous les environnements",

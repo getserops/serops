@@ -1,4 +1,5 @@
 
+import { useDemoLock } from "../utils/demoLock";
 import PageHeader from "./PageHeader";
 import React, { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
@@ -37,6 +38,7 @@ const getTypeBadgeClass = (type) => {
 
 const ServiceProjects = () => {
   const { t } = useTranslation();
+  const lock = useDemoLock();
   const { projectId } = useParams();
 
   // State and handlers from custom hook
@@ -117,7 +119,7 @@ const ServiceProjects = () => {
           title={projectName || t('services.title')}
           subtitle={t('services.subtitle') || 'Manage connected services and deployments'}
           actions={activeTab === 'services' && canOnProject(project, 'project.write') && (
-            <Button variant="primary" onClick={handleOpenModal}>
+            <Button variant="primary" onClick={handleOpenModal} {...lock}>
               <FaPlus size={14} aria-hidden="true" />
               <span>{t('services.addNew')}</span>
             </Button>
@@ -230,6 +232,8 @@ const ServiceProjects = () => {
                                     className="rounded-pill px-2"
                                     onClick={() => handleDelete(service.id)}
                                     title={t('common.delete')}
+                                    aria-label={t('common.delete')}
+                                    {...lock}
                                   >
                                     <FaTrash size={12} />
                                   </Button>

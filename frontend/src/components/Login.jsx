@@ -36,6 +36,11 @@ const Login = () => {
   const notice = useLocation().state?.message;
   const autoDemo = useRef(false);
 
+  // The demo host's sign-in page is the demo's landing page: name the tab so.
+  useEffect(() => {
+    if (demoOnly) document.title = `${t('login.demoOnlyPageName')} · SerOps`;
+  }, [demoOnly, t]);
+
   useEffect(() => {
     // The SSO callback sends the browser back here when sign-in fails.
     if (searchParams.get("sso") === "failed") {
@@ -221,9 +226,14 @@ const Login = () => {
             <div className="login-form">
               <div className="form-header">
                 <BrandMark className="form-logo" />
-                <h2>{t('login.demoOnlyTitle')}</h2>
+                <h1>{t('login.demoOnlyTitle')}</h1>
                 <p>{t('login.demoOnlyText')}</p>
               </div>
+              <ul className="demo-points">
+                <li>{t('login.demoOnlyPoint1')}</li>
+                <li>{t('login.demoOnlyPoint2')}</li>
+                <li>{t('login.demoOnlyPoint3')}</li>
+              </ul>
               {error && (
                 <div className="alert-error">
                   <span>{error}</span>
@@ -421,7 +431,7 @@ const Login = () => {
 
         {/* Footer */}
         <div className="login-footer">
-          <span>&copy; {new Date().getFullYear()} SerOps. {t('login.allRightsReserved')}</span>
+          <span>&copy; {new Date().getFullYear()} SerOps.{demoOnly ? '' : ` ${t('login.allRightsReserved')}`}</span>
         </div>
       </div>
     </div>

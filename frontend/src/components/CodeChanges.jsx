@@ -7,6 +7,7 @@ import PageHeader from "./PageHeader";
 import { useTranslation } from "react-i18next";
 import DataService from "../services/data.service";
 import "./Data.css";
+import { formatAbsolute } from '../utils/dates';
 
 const CodeChanges = () => {
     const { t } = useTranslation();
@@ -44,14 +45,7 @@ const CodeChanges = () => {
         fetchCodeChanges();
     }, [batchId]);
 
-    const formatTimestamp = (timestamp) => {
-        if (!timestamp) return "N/A";
-        try {
-            return new Date(timestamp).toLocaleString();
-        } catch {
-            return timestamp;
-        }
-    };
+    const formatTimestamp = (timestamp) => formatAbsolute(timestamp, { seconds: false, fallback: 'N/A' });
 
     // Get unique branches and authors for filters
     const branches = [t('codeChanges.allBranches'), ...new Set(codeChanges.map(c => c.branch).filter(Boolean))];

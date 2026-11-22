@@ -13,6 +13,7 @@ import { FaProjectDiagram, FaFilter, FaSyncAlt, FaExclamationCircle } from 'reac
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import TracesService from '../services/traces.service';
+import { formatAbsolute, formatRelative } from '../utils/dates';
 
 const EMPTY_FILTERS = {
     service: '',
@@ -94,19 +95,7 @@ const Traces = () => {
     // format everywhere. Replaces the previous per-row 9/13/2026,
     // 7:24:02 PM absolute stamps that clashed with the "3 days ago"
     // style Issues, Batches and Dashboard use.
-    const formatDate = (iso) => {
-        if (!iso) return '—';
-        try {
-            const then = new Date(iso);
-            if (Number.isNaN(then.getTime())) return iso;
-            const diff = Math.max(1, Math.floor((Date.now() - then.getTime()) / 1000));
-            if (diff < 60)    return `${diff}s ago`;
-            if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
-            if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-            if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-            return then.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-        } catch { return iso; }
-    };
+    const formatDate = (iso) => formatRelative(iso);
 
     return (
         <div>
@@ -234,7 +223,7 @@ const Traces = () => {
                                         )}
                                     </td>
                                     <td data-label={t('traces.dashboard.status')}>{statusBadge(tr.status_code)}</td>
-                                    <td data-label={t('traces.dashboard.startedAt')} className="small text-muted">{formatDate(tr.start_time)}</td>
+                                    <td data-label={t('traces.dashboard.startedAt')} className="small text-muted" title={formatAbsolute(tr.start_time)}>{formatDate(tr.start_time)}</td>
                                 </tr>
                             ))}
                         </tbody>

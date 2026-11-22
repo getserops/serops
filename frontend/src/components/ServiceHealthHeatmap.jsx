@@ -3,6 +3,25 @@ import { FaCircle, FaExclamationTriangle, FaCheckCircle, FaTimesCircle, FaMapMar
 import { useTranslation } from 'react-i18next';
 import './Dashboard.css';
 
+const STATUS = {
+    healthy: { Icon: FaCheckCircle, className: 'service-healthy' },
+    degraded: { Icon: FaExclamationTriangle, className: 'service-degraded' },
+    critical: { Icon: FaTimesCircle, className: 'service-critical' },
+};
+const UNKNOWN = { Icon: FaCircle, className: 'service-unknown' };
+
+// Worst first: lowest health, then most open issues, then the name.
+export const worstFirst = (services) => [...services].sort((a, b) =>
+    (a.health_score ?? 100) - (b.health_score ?? 100)
+    || (b.open_issues || 0) - (a.open_issues || 0)
+    || String(a.name).localeCompare(String(b.name)));
+
+/**
+ * Service health: one panel for "which service is worst". Each tile is a
+ * neutral card with a status accent on the left and shows the name, the
+ * health and the open issues. (It replaces the health map of coloured
+ * tiles and the "Top Failing Services" chart.)
+ */
 const ServiceHealthHeatmap = ({ data, loading }) => {
     const { t } = useTranslation();
 
@@ -16,40 +35,6 @@ const ServiceHealthHeatmap = ({ data, loading }) => {
 
     const { services = [], total_services = 0 } = data || {};
 
-    // Get status icon and styling
-    const getStatusInfo = (status) => {
-        switch (status) {
-            case 'healthy':
-                return {
-                    icon: <FaCheckCircle />,
-                    className: 'service-healthy',
-                    bgColor: '#047a5c',
-                    textColor: '#fff'
-                };
-            case 'degraded':
-                return {
-                    icon: <FaExclamationTriangle />,
-                    className: 'service-degraded',
-                    bgColor: '#ffd166',
-                    textColor: '#333'
-                };
-            case 'critical':
-                return {
-                    icon: <FaTimesCircle />,
-                    className: 'service-critical',
-                    bgColor: '#d4123f',
-                    textColor: '#fff'
-                };
-            default:
-                return {
-                    icon: <FaCircle />,
-                    className: 'service-unknown',
-                    bgColor: '#8b96a5',
-                    textColor: '#fff'
-                };
-        }
-    };
-
     if (total_services === 0) {
         return (
             <div className="chart-card service-heatmap">
@@ -58,9 +43,7 @@ const ServiceHealthHeatmap = ({ data, loading }) => {
                     <span className="chart-subtitle">{t('dashboard.window.openNow')}</span>
                 </div>
                 <div className="chart-container">
-                    <p style={{ textAlign: 'center', color: '#8b96a5', padding: '40px' }}>
-                        {t('dashboard.noServiceData')}
-                    </p>
+                    <p className="no-data-message">{t('dashboard.noServiceData')}</p>
                 </div>
             </div>
         );
@@ -70,41 +53,35 @@ const ServiceHealthHeatmap = ({ data, loading }) => {
         <div className="chart-card service-heatmap">
             <div className="chart-header">
                 <h2><FaMapMarkedAlt className="chart-icon" aria-hidden="true" /> {t('dashboard.serviceHealthMap')}</h2>
-                <span className="chart-subtitle">{t('dashboard.servicesMonitored', { count: total_services })} · {t('dashboard.window.openNow')}</span>
+                <span className="chart-subtitle">
+                    {t('dashboard.servicesMonitored', { count: total_services })} · {t('dashboard.window.openNow')} · {t('dashboard.worstHealthFirst')}
+                </span>
             </div>
             <div className="heatmap-container">
-                <div className="heatmap-grid">
-                    {services.slice(0, 12).map((service, index) => {
-                        const statusInfo = getStatusInfo(service.status);
+                <ul className="heatmap-grid">
+                    {worstFirst(services).slice(0, 12).map((service) => {
+                        const { Icon, className } = STATUS[service.status] || UNKNOWN;
                         return (
-                            <div
-                                key={index}
-                                className={`heatmap-tile ${statusInfo.className}`}
-                                style={{
-                                    backgroundColor: statusInfo.bgColor,
-                                    color: statusInfo.textColor
-                                }}
-                                title={`${service.name}\nHealth: ${service.health_score}%\nOpen issues: ${service.open_issues}\nOpen critical: ${service.critical_issues}`}
-                            >
-                                <div className="tile-icon">{statusInfo.icon}</div>
-                                <div className="tile-name">{service.name}</div>
-                                <div className="tile-score">{service.health_score}%</div>
-                            </div>
+                            <li key={service.name} className={`heatmap-tile ${className}`}>
+                                <span className="tile-name" title={service.name}>{service.name}</span>
+                                <span className="tile-score"><Icon aria-hidden="true" /> {service.health_score}%</span>
+                                <span className="tile-issues">{t('dashboard.openIssues', { count: service.open_issues || 0 })}</span>
+                            </li>
                         );
                     })}
-                </div>
+                </ul>
 
                 <div className="heatmap-legend">
-                    <div className="legend-item">
-                        <FaCheckCircle style={{ color: '#06d6a0' }} />
+                    <div className="legend-item service-healthy">
+                        <FaCheckCircle aria-hidden="true" />
                         <span>{t('dashboard.healthy')}</span>
                     </div>
-                    <div className="legend-item">
-                        <FaExclamationTriangle style={{ color: '#ffd166' }} />
+                    <div className="legend-item service-degraded">
+                        <FaExclamationTriangle aria-hidden="true" />
                         <span>{t('dashboard.degraded')}</span>
                     </div>
-                    <div className="legend-item">
-                        <FaTimesCircle style={{ color: '#ef476f' }} />
+                    <div className="legend-item service-critical">
+                        <FaTimesCircle aria-hidden="true" />
                         <span>{t('dashboard.criticalStatus')}</span>
                     </div>
                 </div>

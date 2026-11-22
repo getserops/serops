@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom';
 import { isDemoUser } from '../utils/demo';
 import { deployWindow } from './investigate/window';
 import './RecentDeploymentsCard.css';
+import { formatAbsolute, formatRelative } from '../utils/dates';
 
 // Investigate from five minutes before the deploy to thirty after.
 const investigateLink = (service) => {
@@ -103,21 +104,7 @@ const RecentDeploymentsCard = ({ data, loading }) => {
         }
     };
 
-    const formatTimeAgo = (isoString) => {
-        if (!isoString) return t('dashboard.noDeployments');
-        const date = new Date(isoString);
-        const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
-
-        if (diffMins < 1) return t('dashboard.justNow');
-        if (diffMins < 60) return t('dashboard.timeAgo.minutes', { count: diffMins });
-        if (diffHours < 24) return t('dashboard.timeAgo.hours', { count: diffHours });
-        if (diffDays < 7) return t('dashboard.timeAgo.days', { count: diffDays });
-        return date.toLocaleDateString();
-    };
+    const formatTimeAgo = (isoString) => (isoString ? formatRelative(isoString) : t('dashboard.noDeployments'));
 
     const getSuccessRateClass = (rate) => {
         if (rate === null || rate === undefined) return '';
@@ -168,7 +155,7 @@ const RecentDeploymentsCard = ({ data, loading }) => {
                                         {service.latest_pipeline.branch && (
                                             <span className="branch-name">{service.latest_pipeline.branch}</span>
                                         )}
-                                        <span className="deploy-time">
+                                        <span className="deploy-time" title={formatAbsolute(service.latest_pipeline.created_at, { fallback: '' })}>
                                             {formatTimeAgo(service.latest_pipeline.created_at)}
                                         </span>
                                         {service.project_id && service.latest_pipeline.created_at && !isDemoUser() && (

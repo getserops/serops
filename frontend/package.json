@@ -76,7 +76,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
-    "lint": "eslint src/",
+    "lint": "eslint src/ && node scripts/check-literal-colours.mjs",
+    "lint:colours": "node scripts/check-literal-colours.mjs",
     "lint:fix": "eslint src/ --fix"
   },
   "browserslist": {

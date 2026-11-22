@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { ProjectService } from "../../services/project.service";
 import { IntegrationService } from "../../services/integration.service";
 import { FaSync, FaLink, FaGit, FaGithub, FaGitlab, FaBitbucket, FaCloud, FaPlus, FaTrash, FaCog } from "react-icons/fa";
+import { formatAbsolute } from '../../utils/dates';
 
 const GITOPS_PROVIDERS = ['argocd', 'flux'];
 
@@ -291,7 +292,7 @@ const ServiceDetailsModal = ({
                                                                 <small>{service.scm_binding.webhook_configured ? 'Webhook Active' : 'Webhook Not Configured'}</small>
                                                             </div>
                                                             {service.scm_binding.last_sync_at && (
-                                                                <small className="text-muted">Last sync: {new Date(service.scm_binding.last_sync_at).toLocaleString()}</small>
+                                                                <small className="text-muted">Last sync: {formatAbsolute(service.scm_binding.last_sync_at, { seconds: false })}</small>
                                                             )}
                                                         </div>
                                                         <div className="d-flex gap-2">

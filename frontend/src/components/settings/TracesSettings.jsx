@@ -17,6 +17,7 @@ import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
 import TracesService from '../../services/traces.service';
 import './SettingsLayout.css';
+import { formatAbsolute } from '../../utils/dates';
 
 const TracesSettings = () => {
     const { t } = useTranslation();
@@ -103,10 +104,7 @@ const TracesSettings = () => {
         }
     };
 
-    const formatDate = (iso) => {
-        if (!iso) return '—';
-        try { return new Date(iso).toLocaleString(); } catch { return iso; }
-    };
+    const formatDate = (iso) => formatAbsolute(iso, { seconds: false });
 
     return (
         <div className="settings-section">

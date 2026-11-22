@@ -12,6 +12,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import PageHeader from '../PageHeader';
+import { useTranslation } from 'react-i18next';
 import { Button, Modal, Form, Spinner, Table, Alert, Badge } from 'react-bootstrap';
 import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
 import { toast } from 'react-toastify';
@@ -45,6 +46,7 @@ const csvToList = (s) =>
 const listToCsv = (a) => (a || []).join(', ');
 
 const RoutingRulesSettings = () => {
+    const { t } = useTranslation();
     const [rules, setRules] = useState([]);
     const [channels, setChannels] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -140,7 +142,7 @@ const RoutingRulesSettings = () => {
     return (
         <div className="settings-content">
             <PageHeader
-                title="Routing Rules"
+                title={t('nav.alertsRouting')}
                 subtitle="Rules decide which delivery channels get notified for each incident. Every active rule that matches contributes its targets; a channel that matches multiple rules is contacted once."
                 actions={
                     <Button

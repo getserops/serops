@@ -14,10 +14,12 @@ import {
 import { FaEye, FaSearch, FaBolt } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
 import DataService from "../services/data.service";
+import CorrelationStrip from "./CorrelationStrip";
 import "./Data.css";
 
 import { useQuery } from "@tanstack/react-query";
 import { batchTrigger, sentinelOutcome, sentinelReasonLabels } from "../utils/batchTrigger";
+import { formatAbsolute, formatRelative } from '../utils/dates';
 
 const Data = () => {
   const { t } = useTranslation();
@@ -153,7 +155,9 @@ const Data = () => {
 
         return {
           id: item.batch_id,
-          timestamp: itemDate.toLocaleString(),
+          // Relative in the table, the exact time and zone in the title.
+          timestamp: formatRelative(itemDate),
+          timestampFull: formatAbsolute(itemDate),
           batch: item.batch_id,
           issue_count: item.issue_count || 0,
           issues: item.issue_count || 0,
@@ -514,6 +518,9 @@ const Data = () => {
           subtitle={t('data.pageSubtitle')}
         />
       )}
+      {/* How many issues the AI tied to a commit, a metric spike or a
+          failed pipeline (was a card on the Overview). */}
+      {!isDetailRoute && <CorrelationStrip environment={selectedEnvironment} clusterId={clusterId} />}
       <div className={isDetailRoute ? "data-detail-wrap" : "data-card"}>
         {notification && (
           <div className={`data-notification data-notification-${notification.type}`}>
@@ -730,7 +737,7 @@ const Data = () => {
                               onChange={() => handleSelectBatch(item.id)}
                             />
                           </td>
-                          <td data-label={t('data.timestamp')}>{highlightSearchTerm(item.timestamp)}</td>
+                          <td data-label={t('data.timestamp')} title={item.timestampFull}>{highlightSearchTerm(item.timestamp)}</td>
                           <td data-label={t('data.analysisId', 'Analysis ID')} className="ds-mono" style={{ whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.batch}>
                             {highlightSearchTerm(item.batch)}
                           </td>

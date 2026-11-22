@@ -2,6 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Card, Col, Row, Table, Badge } from "react-bootstrap";
 import { FiAlertTriangle, FiActivity, FiZap, FiGitCommit } from "react-icons/fi";
+import { formatTime } from '../utils/dates';
 
 /**
  * The analysis SerOps already computed for a batch's metrics.
@@ -231,7 +232,7 @@ const MetricsInsights = ({ summary }) => {
                                 <p className="text-muted small">{t("metrics.changesHint")}</p>
                                 {changes.map((c) => (
                                     <div key={`${c.workload}-${c.at}-${c.change}`} className="mb-2 small">
-                                        <span className="text-muted me-2">{new Date(c.at).toLocaleTimeString()}</span>
+                                        <span className="text-muted me-2">{formatTime(c.at, { zone: true })}</span>
                                         <span className="ds-mono fw-semibold">{c.workload}</span>{" "}
                                         <Badge bg={c.change === "rollout" ? "primary" : "secondary"} className="me-2">
                                             {c.change === "rollout" ? t("metrics.changeRollout") : t("metrics.changeScaled")}

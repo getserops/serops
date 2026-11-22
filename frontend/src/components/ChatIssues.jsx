@@ -17,6 +17,7 @@ import { tracePath } from "../utils/linkTargets";
 import SensitiveDataWarningModal from "./SensitiveDataWarningModal";
 import SimilarIssues from "./SimilarIssues";
 import "./ChatIssues.css";
+import { formatDate, formatTime } from '../utils/dates';
 
 /**
  * Generate commit URL based on SCM provider
@@ -484,10 +485,7 @@ const ChatIssues = () => {
                   )}
                 </div>
                 <div className="message-time">
-                  {new Date(msg.timestamp).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {formatTime(msg.timestamp, { seconds: false })}
                 </div>
               </div>
             </div>
@@ -520,10 +518,7 @@ const ChatIssues = () => {
                   )}
                 </div>
                 <div className="message-time">
-                  {new Date(msg.timestamp).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {formatTime(msg.timestamp, { seconds: false })}
                 </div>
               </div>
             </div>
@@ -581,6 +576,7 @@ const ChatIssues = () => {
 
           <div className="chat-input-wrapper">
             <textarea
+              aria-label={isDemo ? t('chat.demoPlaceholder') : t('chat.placeholder')}
               placeholder={isDemo ? t('chat.demoPlaceholder') : t('chat.placeholder')}
               className="chat-textarea"
               value={input}
@@ -627,7 +623,7 @@ const ChatIssues = () => {
                       {session.title || t('chat.untitledSession')}
                     </div>
                     <div className="history-item-meta">
-                      {new Date(session.created_at).toLocaleDateString()}
+                      {formatDate(session.created_at)}
                       <br />
                       {session.message_count} {t('chat.messages')}
                     </div>

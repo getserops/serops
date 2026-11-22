@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import DataService from "../services/data.service";
 import { isSampleBatch } from "../sample/sampleIncident";
 import { PostOnboardingUpsells } from "./onboarding";
+import { headline } from "../utils/sentences";
 import { isDemoUser } from "../utils/demo";
 import notificationService from "../services/notification.service";
 import PostmortemModal from "./PostmortemModal";
@@ -18,7 +19,9 @@ import { projectOf, serviceOf } from "../utils/logFields";
 import { splitCodeNotes } from "../utils/codeNotes";
 import { batchTrigger, sentinelOutcome, sentinelReasonLabels } from "../utils/batchTrigger";
 import { incidentStatus } from "../utils/incidentStatus";
+import { severityChipClass } from "../utils/tones";
 import { commitPath, tracePath, logsTrimmed } from "../utils/linkTargets";
+import { formatAbsolute, formatRelative, zoneLabel } from '../utils/dates';
 
 // Investigate prefilled with this batch's scope and window.
 const rerunLink = (batch) => {
@@ -34,26 +37,8 @@ const rerunLink = (batch) => {
 };
 
 // Small helpers used by the RCA hero
-const relTime = (isoLike) => {
-  if (!isoLike) return null;
-  const then = new Date(isoLike);
-  if (Number.isNaN(then.getTime())) return null;
-  const diff = Math.max(1, Math.floor((Date.now() - then.getTime()) / 1000));
-  if (diff < 60) return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-};
+const relTime = (isoLike) => formatRelative(isoLike, { fallback: null });
 
-// Issue severity → chip tone
-const severityChip = (severity) => {
-  switch ((severity || '').toUpperCase()) {
-    case 'CRITICAL': return 'ds-chip-err';
-    case 'WARNING':  return 'ds-chip-warn';
-    case 'INFO':     return 'ds-chip-info';
-    default:         return 'ds-chip-neutral';
-  }
-};
 
 // Every signal for this batch (deploys, metric anomalies, errors, CI/CD,
 // trace errors) on one time axis, with deploy-to-error arrows.
@@ -178,7 +163,8 @@ const Detail = () => {
         if (logsResponse?.results) {
           const formattedData = logsResponse.results.map((log) => ({
             id: log._id,
-            timestamp: new Date(log._source?.["@timestamp"]).toLocaleString(),
+            // The zone is in the column heading, so it is not repeated on each row.
+            timestamp: formatAbsolute(log._source?.["@timestamp"], { zone: false }),
             logDetails: log._source?.message || "No message available",
             type: log._source?.level?.toLowerCase() || "other",
             index: log._index || "unknown",
@@ -440,10 +426,10 @@ const Detail = () => {
   // ---- Incident view model -------------------------------------------
   const primary = _issuePrimary;
   const _primaryTitle = primary?.description || primary?.error_target || null;
-  const incidentTitle = _cap(
-    _primaryTitle || _analysisSummary || (_looksLikeDictRepr ? null : _rawAnalysisText),
-    180,
-  );
+  // The header shows a headline: the first sentence, cut at a word boundary
+  // when long. The whole text is in its title attribute.
+  const _fullTitle = _primaryTitle || _analysisSummary || (_looksLikeDictRepr ? null : _rawAnalysisText);
+  const incidentTitle = typeof _fullTitle === 'string' ? (headline(_fullTitle) || _fullTitle) : _fullTitle;
   // The narrative only adds something when it differs from the title.
   const narrative = analysisText && analysisText !== incidentTitle ? analysisText : null;
   const evidence = typeof primary?.reasoning === 'string'
@@ -453,14 +439,13 @@ const Detail = () => {
   const CONFIDENCE_FILL = { HIGH: 88, MEDIUM: 60, LOW: 30 };
   const CONFIDENCE_TONE = { HIGH: 'var(--tone-green-text)', MEDIUM: 'var(--tone-amber-text)', LOW: 'var(--text-tertiary)' };
   const correlations = Array.isArray(primary?.correlation_summary) ? primary.correlation_summary : [];
-  const primarySeverity = (primary?.severity || '').toUpperCase();
   const criticalCount = issues.filter((i) => (i.severity || '').toUpperCase() === 'CRITICAL').length;
   const services = [...new Set(issues.flatMap((i) => [i.component, ...(i.affected_services || [])]).filter(Boolean))];
   const environment = batchMeta?.data?.environment || primary?.environment || null;
   const traceCount = batchMeta?.data?.traces?.trace_count || 0;
   const codeCount = batchMeta?.data?.code_changes?.length || 0;
   // Open, Acknowledged, Resolved or Muted: the same word as the issue rows.
-  const _status = incidentStatus(issues, primarySeverity);
+  const _status = incidentStatus(issues);
   const status = { klass: _status.klass, label: t(_status.labelKey) };
   const triggerLabel = t(trigger.label, trigger.fallback);
   const sentinelLabel = sentinelResult
@@ -524,7 +509,7 @@ const Detail = () => {
         badges={batchMeta && (
           <>
             <span className={`ds-chip ds-dot ${status.klass}`}>{status.label}</span>
-            {primary?.severity && <span className={`ds-chip ${severityChip(primary.severity)}`}>{primary.severity}</span>}
+            {primary?.severity && <span className={severityChipClass(primary.severity, primary.status)}>{primary.severity}</span>}
           </>
         )}
         subtitle={batchMeta && (
@@ -532,7 +517,7 @@ const Detail = () => {
             {services.length > 0 && <span className="ds-mono">{services.slice(0, 3).join(', ')}</span>}
             {environment && <span>{environment}</span>}
             <span>{triggerLabel}</span>
-            {batchMeta.analyzed_at && <span>{t('detail.incident.analysedAgo', { when: relTime(batchMeta.analyzed_at) })}</span>}
+            {batchMeta.analyzed_at && <span title={formatAbsolute(batchMeta.analyzed_at)}>{t('detail.incident.analysedAgo', { when: relTime(batchMeta.analyzed_at) })}</span>}
           </span>
         )}
         actions={batchMeta && !isSample && (
@@ -765,14 +750,17 @@ const Detail = () => {
         </div>
       )}
 
-      {/* ============ Detected issues preview ============ */}
-      {issues.length > 0 && (
+      {/* ============ Detected issues preview ============
+          Only when the analysis found several issues. With exactly one, its
+          title, status and severity are the page header and its fix is the
+          "Suggested fix" card, so a card repeating them adds nothing. */}
+      {issues.length > 1 && (
         <div className="ds-card" style={{ marginBottom: '1rem' }}>
           <div className="ds-card-header" style={{ background: 'var(--bg-sunken)' }}>
             <FaBug style={{ color: 'var(--text-tertiary)' }} />
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>
-                {issues.length} issue{issues.length === 1 ? '' : 's'} detected
+                {issues.length} issues detected
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
                 Ranked by severity and evidence strength
@@ -802,15 +790,16 @@ const Detail = () => {
                   borderTop: '1px solid var(--border-default)',
                 }}
               >
-                <span className={`ds-chip ${severityChip(issue.severity)}`} style={{ marginTop: 2 }}>
+                <span className={severityChipClass(issue.severity, issue.status)} style={{ marginTop: 2 }}>
                   {issue.severity}
                 </span>
                 {issue.status && <span style={{ marginTop: 2 }}><StatusChip status={issue.status} t={t} /></span>}
                 <div className="detail-issue-text" style={{ flexGrow: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
-                    {issue.description || issue.error_target || 'Untitled issue'}
+                  <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }} title={issue.description || undefined}>
+                    {headline(issue.description) || issue.error_target || 'Untitled issue'}
                   </div>
-                  {issue.recommendation && (
+                  {/* The first issue's fix is the "Suggested fix" card above: shown once. */}
+                  {issue.recommendation && issue.id !== primary?.id && (
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.5 }}>
                       → {issue.recommendation}
                     </div>
@@ -881,7 +870,7 @@ const Detail = () => {
               <div className="ds-kv"><span>{t('detail.incident.trigger')}</span><span>{triggerLabel}</span></div>
               <div className="ds-kv"><span>{t('detail.incident.sentinel', 'Sentinel')}</span><span>{sentinelLabel}</span></div>
               {batchMeta.model_name && <div className="ds-kv"><span>{t('detail.incident.model')}</span><span className="ds-mono">{batchMeta.model_name}</span></div>}
-              {batchMeta.analyzed_at && <div className="ds-kv"><span>{t('detail.incident.analysed')}</span><span>{relTime(batchMeta.analyzed_at)}</span></div>}
+              {batchMeta.analyzed_at && <div className="ds-kv"><span>{t('detail.incident.analysed')}</span><span>{formatAbsolute(batchMeta.analyzed_at, { seconds: false })}</span></div>}
             </section>
             {!isSample && (
             <section className="ds-section incident-rail-card">
@@ -1130,7 +1119,9 @@ const Detail = () => {
           <thead className="table-primary">
             <tr>
               <th style={{ fontSize: "13px", width: "180px" }}>
-                {t('detail.colTimestamp', 'Timestamp')}
+                {/* The log line often carries its own time in another zone:
+                    say which zone this column is in. */}
+                {t('detail.colTimestamp', 'Timestamp')} ({zoneLabel()})
               </th>
               <th style={{ fontSize: "13px", width: "72px" }}>
                 {t('detail.colLevel', 'Level')}

@@ -207,7 +207,7 @@ const GeneralSettings = () => {
                     <label className="settings-form-label">
                         {t('settings.general.organisation.name')}
                     </label>
-                    <input
+                    <input aria-label={t('settings.general.organisation.name')}
                         type="text"
                         className="form-control"
                         value={settings.orgName}
@@ -224,7 +224,7 @@ const GeneralSettings = () => {
                     <label className="settings-form-label">
                         {t('settings.general.organisation.website')}
                     </label>
-                    <input
+                    <input aria-label={t('settings.general.organisation.website')}
                         type="url"
                         className="form-control"
                         value={settings.website}

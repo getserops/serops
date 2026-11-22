@@ -99,8 +99,9 @@
 .app-topbar-user:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .app-topbar-badge {
     position: absolute;
-    top: 1px;
-    right: -3px;
+    /* On the corner of the button, clear of the bell itself. */
+    top: -5px;
+    right: -8px;
     min-width: 17px;
     height: 17px;
     padding: 0 4px;
@@ -780,31 +781,6 @@
 
 /* ============ PHASE 4: NEW COMPONENTS ============ */
 
-/* MTTR Card Breakdown */
-.mttr-breakdown {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding-top: var(--space-3);
-    border-top: 1px solid var(--border-color);
-    margin-top: var(--space-3);
-}
-
-.mttr-severity {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: var(--text-sm);
-}
-
-.severity-label {
-    font-weight: var(--font-medium);
-}
-
-.severity-value {
-    color: var(--text-secondary);
-}
-
 /* Service Health Heatmap */
 .service-heatmap .heatmap-container {
     padding: var(--space-4);
@@ -850,21 +826,6 @@
 .tile-score {
     font-size: var(--text-lg);
     font-weight: var(--font-bold);
-}
-
-.service-healthy {
-    background-color: #047a5c !important;
-    color: #fff !important;
-}
-
-.service-degraded {
-    background-color: #ffd166 !important;
-    color: #333 !important;
-}
-
-.service-critical {
-    background-color: #d4123f !important;
-    color: #fff !important;
 }
 
 .heatmap-legend {
@@ -950,20 +911,58 @@
     justify-content: center;
     gap: 4px 8px;
     padding: 8px 16px;
-    background: var(--tone-amber-soft);
-    color: var(--tone-amber-text);
+    /* Informational, so the info tone (brand-soft), not amber. */
+    background: var(--tone-brand-soft);
+    color: var(--text-primary);
     font-size: 13px;
     font-weight: 500;
     border-bottom: 1px solid var(--border-default);
 }
-.demo-banner a { color: inherit; font-weight: 600; text-decoration: underline; }
+.demo-banner a { color: var(--text-link); font-weight: 600; text-decoration: underline; }
+/* Closes the banner for the session. */
+.demo-banner-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-left: var(--space-2);
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+.demo-banner-close:hover { background: var(--bg-card); }
+.demo-banner-close:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
 
-/* Soft tones instead of saturated fills (health map, correlation stats) */
-.heatmap-tile { aspect-ratio: auto; min-height: 104px; box-shadow: none; border: 1px solid transparent; border-radius: 10px; }
-.heatmap-tile:hover { transform: none; box-shadow: none; border-color: currentColor; }
-.service-healthy { background-color: var(--tone-green-soft) !important; color: var(--tone-green-text) !important; }
-.service-degraded { background-color: var(--tone-amber-soft) !important; color: var(--tone-amber-text) !important; }
-.service-critical { background-color: var(--tone-red-soft) !important; color: var(--tone-red-text) !important; }
+/* Service health: neutral tiles, the status is a 3px accent on the left and
+   the colour of the health figure. No tinted tile backgrounds. */
+.heatmap-grid { list-style: none; padding: 0; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4); }
+.heatmap-tile {
+    aspect-ratio: auto;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: var(--space-1);
+    min-width: 0;
+    padding: var(--space-3) var(--space-4);
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    box-shadow: inset 3px 0 0 var(--status-accent, var(--border-hover));
+    cursor: default;
+    transition: none;
+}
+.heatmap-tile:hover { transform: none; box-shadow: inset 3px 0 0 var(--status-accent, var(--border-hover)); }
+.heatmap-tile .tile-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; color: var(--text-primary); font-family: var(--font-mono); }
+.heatmap-tile .tile-score { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--status-text, var(--text-secondary)); }
+.heatmap-tile .tile-issues { font-size: var(--text-xs); color: var(--text-secondary); }
+.service-healthy { --status-accent: var(--tone-green-text); --status-text: var(--tone-green-text); }
+.service-degraded { --status-accent: var(--tone-amber-text); --status-text: var(--tone-amber-text); }
+.service-critical { --status-accent: var(--tone-red-solid); --status-text: var(--tone-red-text); }
+.heatmap-legend .legend-item svg { color: var(--status-text, var(--text-secondary)); }
+.heatmap-legend { justify-content: flex-start; border-top-color: var(--border-default); }
 .correlation-rate-badge,
 .corr-stat { background: var(--bg-sunken); border: 1px solid var(--border-default); box-shadow: none; }
 .app-topbar-icon.app-topbar-menu { display: none; }
@@ -986,3 +985,41 @@
 }
 /* Chart legends: readable text; the swatch carries the colour. */
 .dashboard-content .recharts-legend-item-text { color: var(--text-secondary) !important; font-size: 12px; }
+
+/* =============================================================
+   Overview v3: six panels. The first screen (1440 x 900) holds "Needs
+   attention now" and the three key numbers.
+   ============================================================= */
+.overview-numbers { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+a.metric-kpi { color: inherit; text-decoration: none; }
+a.metric-kpi:hover { border-color: var(--border-hover); }
+a.metric-kpi:focus-visible { outline: 2px solid var(--brand-fill); outline-offset: 2px; }
+.metric-kpi { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-2) var(--space-4); }
+.metric-kpi .metric-trend { grid-column: 1 / -1; }
+.metric-kpi.metric-danger .metric-icon { background: var(--tone-red-soft); color: var(--tone-red-text); }
+.metric-kpi.metric-calm .metric-icon { background: var(--tone-gray-soft); color: var(--tone-gray-text); }
+.health-card { background: var(--bg-card); }
+.service-heatmap { margin-top: var(--space-6); }
+@media (max-width: 767px) {
+    .overview-numbers { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Correlation insights as one line above the Analyses list. */
+.correlation-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-5);
+    margin-bottom: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+.correlation-strip strong { color: var(--text-primary); font-weight: var(--font-semibold); }
+.correlation-strip-title { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: var(--font-semibold); color: var(--text-primary); }
+.correlation-strip-title svg { color: var(--text-tertiary); }
+.correlation-strip-facts { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-5); margin: 0; padding: 0; list-style: none; }
+.correlation-strip-window { margin-left: auto; color: var(--text-tertiary); }

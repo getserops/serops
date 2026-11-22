@@ -112,18 +112,7 @@
   overflow-x: hidden;
 }
 
-/* Severity row tints */
-.issue-row-critical {
-  background-color: rgba(229, 57, 53, 0.04);
-}
-
-.issue-row-warning {
-  background-color: rgba(251, 140, 0, 0.04);
-}
-
-.issue-row-info {
-  background-color: rgba(66, 165, 245, 0.04);
-}
+/* No severity tint on a row: the severity is a chip and the 3px accent. */
 
 /* Keyboard focus ring */
 .issue-row-focused {
@@ -132,9 +121,11 @@
 }
 
 /* Description line clamping — single line for scan */
+/* The headline on two lines; the root cause is in the drawer, so the row
+   keeps the height it had with one line and the cause under it. */
 .issue-description-clamp {
   display: -webkit-box;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   line-height: 1.4;
@@ -416,9 +407,9 @@
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  border: 1px solid var(--border-default, #dee2e6);
-  background: white;
-  color: var(--text-secondary, #6c757d);
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  color: var(--text-secondary);
   font-size: 0.875rem;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -430,9 +421,9 @@
 }
 
 .page-btn.active {
-  background: var(--primary, #0d6efd);
+  background: var(--brand-fill);
   color: white;
-  border-color: var(--primary, #0d6efd);
+  border-color: var(--brand-fill);
 }
 
 .page-btn:disabled {
@@ -479,13 +470,6 @@ button.issue-stat-card:focus-visible { outline: 2px solid var(--primary-600, #2f
 .issue-row:focus-visible { outline: 2px solid var(--primary-600, #2f50e4); outline-offset: -2px; }
 .issue-row-open > td { background-color: hsl(230, 100%, 97%) !important; }
 .issue-description-cell { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
-.issue-root-cause-line {
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .issue-component-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle; }
 
 /* ---- Issue panel ---- */
@@ -603,3 +587,11 @@ button.issue-stat-card:focus-visible { outline: none; box-shadow: var(--focus-ri
 .issue-resolve-hint { color: var(--text-tertiary); font-size: 0.75rem; }
 .issue-resolve-actions { display: flex; gap: 8px; margin-top: 6px; }
 .issue-panel-ai-said { font-size: 0.8125rem !important; color: var(--text-tertiary) !important; margin-top: 4px; }
+
+/* Component column: wide enough for a service name ("checkoutservice",
+   "shippingservice") beside the "+2" of the other services. Most of the
+   room comes from the Occurrences column, which had it to spare; a longer
+   name still ends in an ellipsis, with the whole name in the title. */
+.issues-table-wrap th.issue-col-component { width: 182px; }
+.issues-table-wrap td.issue-cell-component { max-width: 182px; }
+.issues-table-wrap th.issue-col-count { width: 112px; }

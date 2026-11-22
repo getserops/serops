@@ -65,3 +65,38 @@ describe('IssuePanel evidence', () => {
     expect(document.querySelector('a[href*="code-changes"]')).toBeNull();
   });
 });
+
+describe('IssuePanel title', () => {
+  const LONG = "Since the pricing rollout at 00:24:45, every /price call for SKU-1001 fails with decimal.InvalidOperation ('quantize result has too many digits for current context') in the rounding step. pricing returns HTTP 500 to catalog.";
+
+  it('shows a headline cut at a word boundary, the whole text in the title attribute and once below', () => {
+    panel({ ...base, description: LONG });
+    const title = screen.getByRole('heading', { level: 2 });
+    expect(title.textContent).toBe('Since the pricing rollout at 00:24:45, every /price call for SKU-1001 fails with decimal.InvalidOperation…');
+    expect(title.textContent.length).toBeLessThanOrEqual(121);
+    expect(title.getAttribute('title')).toBe(LONG);
+    expect(screen.getAllByText(LONG)).toHaveLength(1);
+  });
+
+  it('does not repeat a short description', () => {
+    panel(base);
+    expect(screen.getAllByText('payment-worker cannot reach Redis')).toHaveLength(1);
+  });
+
+  // Colour rules: red means "needs action now".
+  it('a resolved critical issue renders without the red treatment', () => {
+    panel({ ...base, status: 'RESOLVED' });
+    const severity = screen.getByText('CRITICAL');
+    expect(severity.className).toBe('ds-chip ds-chip-outline');
+    expect(document.querySelector('.ds-chip-err')).toBeNull();
+    expect(screen.getByText(/issues.statusLabel.resolved/).className).toContain('ds-chip-ok');
+  });
+
+  it('an open critical issue is red, and its "Open" status is the brand tone, not amber', () => {
+    panel(base);
+    expect(screen.getByText('CRITICAL').className).toBe('ds-chip ds-chip-err');
+    const status = screen.getByText(/issues.statusLabel.open/);
+    expect(status.className).toContain('ds-chip-brand');
+    expect(status.className).not.toContain('ds-chip-warn');
+  });
+});

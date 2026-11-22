@@ -86,6 +86,41 @@ export const splitSentences = (value) => {
 
 export const firstSentence = (value) => splitSentences(value)[0] || '';
 
+// Headline of an issue: its first sentence, and when that is longer than
+// `max` characters, cut at the last word boundary before the limit and ended
+// with "…". The cut never lands inside a word; when it would land inside
+// brackets, double quotes or backticks, it moves back to before they open, so
+// quoted error text is shown whole or not at all. Punctuation left hanging at
+// the cut is dropped.
+export const HEADLINE_MAX = 120;
+const TRAILING = /[\s,;:.\-–—('"`“[{]+$/u;
+const PAIRS = { ')': '(', ']': '[', '}': '{', '”': '“' };
+// Index of an opener that the text never closes, or -1.
+const unclosedAt = (text) => {
+  const stack = [];
+  const toggles = { '"': -1, '`': -1 };
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c in toggles) toggles[c] = toggles[c] === -1 ? i : -1;
+    else if ('([{“'.includes(c)) stack.push([c, i]);
+    else if (PAIRS[c] && stack.length && stack[stack.length - 1][0] === PAIRS[c]) stack.pop();
+  }
+  const open = [...stack.map(([, i]) => i), toggles['"'], toggles['`']].filter((i) => i >= 0);
+  return open.length ? Math.min(...open) : -1;
+};
+export const headline = (value, max = HEADLINE_MAX) => {
+  const sentence = firstSentence(value);
+  if (sentence.length <= max) return sentence;
+  const head = sentence.slice(0, max + 1);
+  const at = head.lastIndexOf(' ');
+  if (at <= 0) return sentence;                       // one unbroken word: leave it to the layout
+  let cut = head.slice(0, at);
+  const open = unclosedAt(cut);
+  if (open > 0) cut = cut.slice(0, open);
+  cut = cut.replace(TRAILING, '');
+  return cut ? `${cut}…` : sentence;
+};
+
 // "What to do" as steps: the lines of a list the text already holds, or else
 // its sentences. A leading list mark ("1.", "2)", "-", "•") is dropped; the
 // list numbers the steps itself.

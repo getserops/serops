@@ -10,6 +10,148 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+### Added
+
+- **Design rules**: `frontend/DESIGN.md` says where the tokens are, which
+  shared classes to use, the colour rules and the date rule.
+- **Guard rail**: `npm run lint` now fails on a new literal colour (`#hex`,
+  `rgb()`, `hsl()`) outside `src/styles/design.css`. The 1,040 literals in 52
+  files that were there are in a baseline
+  (`scripts/literal-colours-baseline.json`): a file may go down, never up.
+  Both pipelines already run `npm run lint`.
+
+### Removed
+
+- The mean-time-to-resolve card and the service ranking chart, with their
+  tests, styles, service call and texts: no page has shown them since the
+  six-panel Overview.
+
+### Changed
+
+- **One name per page**: the menu entry, the page heading and the browser
+  tab now say the same thing, in English and French. Overview (the tab said
+  "Dashboard"), Issues (heading "System Issues"), AI Chat ("AI Assistant"),
+  Traces (the tab showed a raw key), AI Providers, Sentinel, Data retention,
+  Trace ingest keys, Clusters, Security, Notification preferences. Delivery
+  channels and Routing rules are the two tabs of one page, "Alerts &
+  routing"; its heading is no longer English in French.
+- **French wording**: an issue is a "problème" on the Overview card too
+  (it said "incident"), and titles use French sentence case ("Tableau de
+  bord", "Journal d'audit", "Paramètres généraux").
+- **Demo landing page**: a real `<h1>`, "See how SerOps finds the root
+  cause", one sentence on what SerOps does and three points on what the
+  demo shows; the tab reads "Live demo"; the footer is "© 2026 SerOps.".
+- **Issues table**: the "Age" column is hidden by default (it repeats
+  "Last seen" for most issues) and stays available under Columns; a saved
+  choice of columns is kept. Description gets the room.
+- **Overview**: "Recent Deployments" is not shown on the public demo, which
+  has no deployment to list, nor when CI/CD is connected and no service has
+  a run yet; "Recent AI Analyses" takes the full width. A workspace with no
+  CI/CD connected still sees the panel and its hint to add it.
+- **Colour rules**: red now means "needs action". An issue that is resolved
+  or muted keeps its severity as an outlined neutral chip, with no red or
+  amber accent on its row, no coloured icon and no coloured occurrence
+  count (Issues table, issue drawer, analysis page). The "Open" status is
+  the brand tone instead of amber, "Acknowledged" is neutral, "Resolved"
+  green, "Muted" gray, the same on every page; the analysis header no
+  longer shows "Open" in red or amber (the severity chip beside it does).
+  Rows have no severity tint. Informational notices use one info tone
+  instead of amber: the demo banner, the chat's demo note and the
+  notification panel's read-only note. One helper decides these tones
+  (`utils/tones.js`).
+- **Dates and time zones**: every date on screen comes from one utility
+  (`utils/dates.js`) and follows the time zone and the language of the user
+  menu; before, about 30 places asked the browser directly and ignored
+  both. Detail views show the exact time with its zone ("21 Nov 2026,
+  00:57:21 UTC": issue drawer, analysis page, audit log, investigations,
+  settings). Tables show relative time in one style ("2 days ago", no more
+  "1d ago" in some places) with the exact time and zone in the tooltip:
+  Issues, Analyses, Traces, recent analyses and deployments, notifications,
+  integrations. The log table on the analysis page names its zone in the
+  column heading, "Timestamp (UTC)", because the log line beside it often
+  carries its own time in another zone.
+- **Analysis page**: when an analysis found exactly one issue, the "1 issue
+  detected" card is gone: it repeated the title of the page header and the
+  text of "Suggested fix". With several issues the list stays, and the first
+  issue's fix is no longer repeated under its row. The issue is still one
+  click away under Related > Issues.
+- **Overview**: six panels instead of eleven, in this order: Needs
+  attention now; three key numbers (Open critical, Open issues, System
+  Health); Recent analyses beside Recent deployments; the 7-day trend beside
+  the root cause breakdown; Service health. At 1440 x 900 the first screen
+  holds Needs attention now and the key numbers completely (the row ended at
+  894 px of 900, now 852). The mean-time-to-resolve tile and the AI
+  recommendations tile are gone from the page; the two count tiles open the
+  Issues list with the matching filter.
+  "Needs attention now" is a neutral card with a red accent on the left
+  instead of a red background. Service health is one panel: the coloured
+  tiles and the "Top Failing Services" chart became neutral tiles, worst
+  first, each with the name, the health and the open issues.
+  Moved, with the same data: Sentinel figures to the top of Settings >
+  Sentinel, AI correlation insights to one line above the Analyses list,
+  workloads by cluster to Settings > Clusters under the table.
+- **Analysis page**: the page downloads an analysis once instead of twice.
+  The envelope, the log list and the metric charts each asked for the whole
+  answer; calls made at the same time now share one download. On the demo's
+  Fleet analysis that is 553 KB instead of 1,106 KB before compression.
+- **Overview**: less text on the first screen. In "Needs attention now" the
+  headline is the first sentence of the issue's description, on two lines at
+  most; "Why it is happening" shows three lines with "Show more"; "What to
+  do" is a numbered list, one sentence per step, three shown and the rest
+  behind "Show more". The rows below show one whole first sentence instead of
+  a line cut by an ellipsis. Display only: the stored texts are unchanged and
+  the full description is in the tooltip and on the issue.
+- **Issue headlines**: wherever an issue is shown by its title (Overview,
+  Issues table, issue drawer, analysis page header and issue list, command
+  palette) the title is a headline: the first sentence of the description,
+  and when that is over 120 characters it is cut at a word boundary, never
+  inside a word or inside quoted error text, and ends with "…". The whole
+  text is in the title attribute; the drawer shows it once under the title.
+  The analysis page header no longer cuts in the middle of a word. Computed
+  in the browser; stored texts unchanged.
+- **Issues table**: the Component column is wide enough for a service name
+  ("shippingservice" showed as "shippi…"). The room comes from the
+  Occurrences column and, for about 36 px at 1440 px, from Description.
+  The Description shows the headline on two lines instead of one line with
+  the root cause under it, so a row keeps its height and the headline is no
+  longer cut after three words; the root cause is in the issue drawer.
+- **Keyboard and screen readers**: every signed-in page has one `<main>`
+  landmark, and "Skip to content" is the first stop of the Tab key (English
+  and French). Reaching the Issues table took 26 Tab presses.
+  The chat box and the inputs of General, Sentinel, My Notification
+  Preferences and Audit Log settings (17 controls) have an accessible name,
+  taken from the label already shown next to them.
+- **Notifications panel**: it is a named dialog that takes the focus, closes
+  on Escape and on a click outside, gives the focus back to the bell, and
+  closes when the command palette opens. Escalations read "Escalation level
+  2: Pod crash in Shopfront" instead of "ESCALATION (Level 2): POD_CRASH in
+  Shopfront", and a new issue reads "Critical: Pod crash on shippingservice"
+  instead of "[CRITICAL] POD_CRASH on shippingservice" (English and French;
+  the stored subject stays in the tooltip). The levels of one issue show as one
+  entry at its highest level; marking it read or deleting it acts on every
+  level. The count badge sits on the corner of the bell, not over it.
+- **Public demo**: the controls that would write are switched off, with the
+  read-only sentence as their tooltip, instead of failing on click: Resolve,
+  Mute, Acknowledge and Reopen in the issue drawer, the same entries in the
+  Issues row menu, the bulk bar and the `r` / `m` shortcuts; New Project,
+  edit and delete on Projects; Add new Service and delete on a project;
+  Edit, Update Password and the photo controls on the profile; Mark all as
+  read, Clear all and the per-item actions in the notifications panel.
+  Unchanged for every other user.
+- **Public demo**: a visitor can close the banner for the session. Settings
+  no longer shows a second tinted banner under it: the read-only sentence is
+  a line of the page.
+
+### Fixed
+
+- **Dark theme**: the timeline on the analysis page drew white lanes, white
+  marker outlines and a light frame, and the page buttons of Analyses and
+  Issues were white with pale text. They use the theme's tokens now.
+- **AI Chat on the public demo**: the conversation card no longer runs below
+  the screen. Its height ignored the demo banner above the top bar; the
+  banner now publishes its height (`--demo-banner-h`) and the chat subtracts
+  it.
+
 ## [1.5.1] - 2026-11-22
 
 ### Changed

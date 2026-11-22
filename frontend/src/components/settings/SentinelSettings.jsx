@@ -8,7 +8,11 @@ import { Spinner } from 'react-bootstrap';
 import { FaSlidersH } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import SettingsService from '../../services/settings.service';
+import DashboardService from '../../services/dash.service';
+import { useCluster } from '../../context/ClusterContext';
+import SentinelStatsCard from '../SentinelStatsCard';
 import CollapsibleSection from './CollapsibleSection';
 import './SettingsLayout.css';
 import PageHeader from '../PageHeader';
@@ -22,6 +26,18 @@ const SentinelSettings = () => {
         error_spike_multiplier: 0,
         z_score_threshold: 0,
         max_quiet_batches: 12,
+    });
+
+    // What Sentinel did in the last 7 days (was a card on the Overview),
+    // for the environment and cluster picked in the top bar.
+    const { currentCluster, loading: clustersLoading, filter } = useCluster();
+    const clusterId = clustersLoading ? null : (currentCluster?.id ?? null);
+    const environment = filter?.environment || 'all';
+    const { data: sentinelStats, isLoading: loadingStats } = useQuery({
+        queryKey: ['sentinel-stats', environment, clusterId],
+        queryFn: () => DashboardService.getSentinelStats(7, environment),
+        staleTime: 2 * 60 * 1000,
+        refetchInterval: 2 * 60 * 1000,
     });
 
     useEffect(() => {
@@ -61,6 +77,10 @@ const SentinelSettings = () => {
         <div className="settings-section">
             <PageHeader title={t('sentinel.title')} subtitle={t('sentinel.subtitle')} />
 
+            <div className="settings-stats-panel">
+                <SentinelStatsCard data={sentinelStats} loading={loadingStats} />
+            </div>
+
             {/* Active Mode Toggle */}
             <CollapsibleSection
                 title={t('sentinel.activeGating.title')}
@@ -81,7 +101,7 @@ const SentinelSettings = () => {
                                 </small>
                             </div>
                             <label className="settings-toggle-switch">
-                                <input
+                                <input aria-label={t('sentinel.enableActiveMode')}
                                     type="checkbox"
                                     checked={config.active_mode}
                                     onChange={(e) => setConfig({ ...config, active_mode: e.target.checked })}
@@ -120,7 +140,7 @@ const SentinelSettings = () => {
                             <small className="text-muted d-block mb-2">
                                 {t('sentinel.errorSpikeHint')}
                             </small>
-                            <input
+                            <input aria-label={t('sentinel.errorSpikeMultiplier')}
                                 type="number"
                                 className="form-control"
                                 style={{ maxWidth: 200 }}
@@ -140,7 +160,7 @@ const SentinelSettings = () => {
                             <small className="text-muted d-block mb-2">
                                 {t('sentinel.zScoreHint')}
                             </small>
-                            <input
+                            <input aria-label={t('sentinel.zScoreThreshold')}
                                 type="number"
                                 className="form-control"
                                 style={{ maxWidth: 200 }}
@@ -160,7 +180,7 @@ const SentinelSettings = () => {
                             <small className="text-muted d-block mb-2">
                                 {t('sentinel.maxQuietHint')}
                             </small>
-                            <input
+                            <input aria-label={t('sentinel.maxQuietBatches')}
                                 type="number"
                                 className="form-control"
                                 style={{ maxWidth: 200 }}

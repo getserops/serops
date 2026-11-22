@@ -8,6 +8,7 @@ import { isDemoUser } from "../../utils/demo";
 import { describeRequestError } from "../../utils/apiError";
 import { PRESETS, clampWindow, fromLocalInput, toLocalInput, validateWindow, MINUTE } from "./window";
 import "./Investigate.css";
+import { formatAbsolute } from '../../utils/dates';
 
 const ACTIVE = ["queued", "collecting", "analyzing"];
 const STEPS = ["queued", "collecting", "analyzing", "done"];
@@ -36,7 +37,7 @@ function currentUserRole() {
   }
 }
 
-const formatWhen = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
+const formatWhen = (iso) => formatAbsolute(iso, { seconds: false });
 
 function RunProgress({ run, t }) {
   const reached = run.status === "done" ? STEPS.length : STEPS.indexOf(run.status) + 1;

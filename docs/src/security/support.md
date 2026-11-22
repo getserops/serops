@@ -15,17 +15,19 @@ each point links to the document that governs it.
 | A bug | [GitHub issues](https://github.com/getserops/serops/issues) (pick the bug report form) |
 | A feature request | [GitHub issues](https://github.com/getserops/serops/issues) (pick the feature request form) |
 | A vulnerability | **security@serops.ai**, never a public issue (see below) |
-| A question about a commercial or Enterprise license | **licensing@serops.ai** |
-| An Enterprise license and a support question | **support@serops.ai** |
+| A question about a paid or commercial license | **licensing@serops.ai** |
+| A paid license and a support question | **support@serops.ai** |
 
 For SerOps Community, questions and bugs are handled in public, through
 Discussions and issues.
 
-Support for Enterprise license holders is by email, during Business Hours:
-09:00 to 18:00 Central European Time, Monday to Friday, excluding public
-holidays in Tunisia. The level is the one written in your order; without one
-it is best effort
+Support for paid license holders (Business and Enterprise) is by email,
+during Business Hours: 09:00 to 18:00 Central European Time, Monday to
+Friday, excluding public holidays in Tunisia. On Business, the first reply
+is targeted within one working day: a target, not a guarantee. On
+Enterprise, the level is the one written in your contract
 ([Enterprise terms, section 5](../legal/enterprise-terms.md#5-support-and-updates)).
+There is no 24×7 support today.
 
 Before you write, two pages answer most install questions:
 [Troubleshooting](../troubleshooting.md) and

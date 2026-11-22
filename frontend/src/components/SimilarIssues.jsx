@@ -15,11 +15,9 @@ import { Card, Badge, Spinner } from 'react-bootstrap';
 import { FaLightbulb, FaClock } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import dataService from '../services/data.service';
+import { formatAbsolute } from '../utils/dates';
 
-const formatDate = (iso) => {
-    if (!iso) return '—';
-    try { return new Date(iso).toLocaleString(); } catch { return iso; }
-};
+const formatDate = (iso) => formatAbsolute(iso, { seconds: false });
 
 const SimilarIssues = ({ issueId }) => {
     const { t } = useTranslation();

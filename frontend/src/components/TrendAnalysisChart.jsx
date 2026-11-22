@@ -3,13 +3,10 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { FaHistory } from "react-icons/fa";
 
 import { useTranslation } from "react-i18next";
+import { formatCalendarDay } from '../utils/dates';
 
 // "2026-10-09" -> "Oct 9", read as a local date so it never shifts a day.
-const shortDate = (value) => {
-    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value || '');
-    if (!m) return value;
-    return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-};
+const shortDate = (value) => formatCalendarDay(value);
 
 const TrendAnalysisChart = ({ data, loading }) => {
     const { t } = useTranslation();

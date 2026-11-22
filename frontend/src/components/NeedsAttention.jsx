@@ -6,10 +6,10 @@ import { FaArrowRight, FaCheckCircle, FaFileAlt, FaSearch } from "react-icons/fa
 import dataService from "../services/data.service";
 import { investigateLink } from "./issues/IssuePanel";
 import { isDemoUser } from "../utils/demo";
-import { firstSentence, splitSteps } from "../utils/sentences";
+import { headline as cutHeadline, splitSteps } from "../utils/sentences";
+import { severityChipClass } from "../utils/tones";
 import "./NeedsAttention.css";
 
-const SEVERITY_CHIP = { CRITICAL: "ds-chip-err", HIGH: "ds-chip-err", WARNING: "ds-chip-warn", MEDIUM: "ds-chip-warn" };
 
 // Only these get the full card; a warning gets one line so it doesn't
 // dominate the page.
@@ -67,9 +67,10 @@ const Steps = ({ text, t }) => {
   );
 };
 
-// Headline and rows show the first sentence of the description; the full
-// text is on the issue and in the tooltip.
-const headline = (issue) => firstSentence(issue.description) || issue.description;
+// Headline and rows show the first sentence of the description, cut at a
+// word boundary when it is very long; the full text is on the issue and in
+// the tooltip.
+const headline = (issue) => cutHeadline(issue.description) || issue.description;
 
 /**
  * The Overview opens on what is broken now: the most severe open issue
@@ -112,7 +113,7 @@ const NeedsAttention = ({ environment, clusterId }) => {
   if (!URGENT.has(severity)) {
     return (
       <section className={`attention-card attention-compact attention-${severity.toLowerCase()}`} aria-label={t("dashboard.attention.title")}>
-        <span className={`ds-chip ${SEVERITY_CHIP[severity] || "ds-chip-info"}`}>{top.severity}</span>
+        <span className={severityChipClass(severity)}>{top.severity}</span>
         <Link to={`/dash/issues?id=${top.id}`} className="attention-compact-title" title={top.description}>{headline(top)}</Link>
         {top.component && <span className="ds-mono attention-rest-svc">{top.component}</span>}
         <Link to="/dash/issues?status=OPEN" className="attention-all">
@@ -133,7 +134,7 @@ const NeedsAttention = ({ environment, clusterId }) => {
 
       <div className="attention-top">
         <div className="attention-meta">
-          <span className={`ds-chip ${SEVERITY_CHIP[severity] || "ds-chip-info"}`}>{top.severity}</span>
+          <span className={severityChipClass(severity)}>{top.severity}</span>
           {top.component && <span className="ds-mono">{top.component}</span>}
           {top.environment && <span>{top.environment}</span>}
           {top.project_name && <span>{top.project_name}</span>}
@@ -172,7 +173,7 @@ const NeedsAttention = ({ environment, clusterId }) => {
         <ul className="attention-rest">
           {rest.map((issue) => (
             <li key={issue.id}>
-              <span className={`ds-chip ${SEVERITY_CHIP[(issue.severity || "").toUpperCase()] || "ds-chip-info"}`}>{issue.severity}</span>
+              <span className={severityChipClass(issue.severity)}>{issue.severity}</span>
               <Link to={`/dash/issues?id=${issue.id}`} title={issue.description}>{headline(issue)}</Link>
               {issue.component && <span className="ds-mono attention-rest-svc">{issue.component}</span>}
             </li>

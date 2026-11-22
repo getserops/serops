@@ -107,22 +107,31 @@ Full guides in [docs/](docs/) or at https://serops.ai/docs.
 See the [docs](https://serops.ai/docs/) roadmap for the full picture. Everything above,
 and every item in this list once it ships, is in SerOps Community.
 
-## Community and the Enterprise license
+## Community and the paid licenses
 
-Community is the complete product for a team, free under the AGPL. The Enterprise
-license adds governance for running SerOps as an organisation, under a commercial license.
-It only adds to Community: nothing is ever moved out of it
-([open source promise](https://serops.ai/docs/open-source-promise/)).
+Community is free in production, under the AGPL, with no limit on users,
+projects, services or data. A paid license is needed only for a production
+installation that uses the paid features, or when your organisation cannot
+use AGPL software. A paid license only adds to Community: nothing is ever
+moved out of it ([open source promise](https://serops.ai/docs/open-source-promise/)).
 
-The Enterprise license is priced per organisation by employees, never per
-seat, and nothing is counted or limited in the product:
+One thing is counted: installations. One license covers one installation (one
+SerOps database with its high-availability replicas and its disaster-recovery
+standby). Users, employees, projects, services, clusters and data are never
+counted, and nothing is counted or limited in the product.
 
-| Band | Employees | Price per year |
+| Plan | For | Price |
 |---|---|---|
-| Business | up to 2,000 | €7,500 (€625 a month, billed yearly), introductory |
-| Enterprise | over 2,000, or a negotiated contract | from €30,000 |
+| Community | Any team, free in production | Free (AGPL-3.0) |
+| Business | Organisations that sign the standard terms as they are | €7,500 a year per installation (€625 a month, billed yearly) |
+| Enterprise | Buyers who need anything changed or added | Quoted to your scope, minimum €30,000 a year |
 
-In every Enterprise license today, with a commercial license and a support contract:
+Business and Enterprise include the same features, with a commercial license for
+internal use and support, and the standard
+[security pack](https://serops.ai/docs/legal/security-pack/). Details and the
+rules: [pricing](https://serops.ai/pricing).
+
+In every paid license today:
 
 - custom roles and per-project access (since 1.3.0);
 - SAML 2.0 single sign-on, from Entra ID, Okta, Keycloak or any SAML identity provider

@@ -33,10 +33,10 @@ const SettingsLayout = () => {
                 {alerting && (
                     <nav className="nav nav-tabs settings-subtabs" aria-label={t('nav.alertsRouting')} data-demo-allowed>
                         <NavLink to="/dash/settings/delivery" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-                            {t('settings.delivery.title', 'Delivery Channels')}
+                            {t('settings.delivery.title', 'Delivery channels')}
                         </NavLink>
                         <NavLink to="/dash/settings/routing-rules" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-                            {t('settings.routing.title', 'Routing Rules')}
+                            {t('settings.routing.title', 'Routing rules')}
                         </NavLink>
                     </nav>
                 )}

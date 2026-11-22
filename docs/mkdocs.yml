@@ -196,6 +196,7 @@ nav:
     - Self-metrics (/metrics/): admin/self-metrics.md
   - Security:
     - Authentication & SSO: security/authentication.md
+    - Security Overview: security/overview.md
     - Data Protection: security/data-protection.md
     - Compliance & Audit: security/compliance.md
     - Support and Security: security/support.md
@@ -230,8 +231,11 @@ nav:
   - Changelog: changelog.md
   - Open Source Promise: open-source-promise.md
   - License: license.md
+  - Data-Processing Terms: legal/data-processing-terms.md
   - Enterprise Terms: legal/enterprise-terms.md
   - Vendor and Security Facts: legal/vendor-facts.md
+  - Security Pack: legal/security-pack.md
+  - Security Questionnaire: legal/security-questionnaire.md
 
 extra:
   social:

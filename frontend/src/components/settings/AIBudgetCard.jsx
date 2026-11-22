@@ -24,6 +24,7 @@ import { FaDollarSign, FaExclamationTriangle, FaCheckCircle, FaInfoCircle } from
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
 import SettingsService from '../../services/settings.service';
+import { formatMonthYear } from '../../utils/dates';
 
 const formatUsd = (raw) => {
     if (raw == null || raw === '') return '—';
@@ -32,15 +33,8 @@ const formatUsd = (raw) => {
     return `$${n.toFixed(2)}`;
 };
 
-const formatMonth = (iso) => {
-    if (!iso) return '';
-    try {
-        const d = new Date(iso);
-        return d.toLocaleString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' });
-    } catch {
-        return '';
-    }
-};
+// The budget month is a UTC month.
+const formatMonth = (iso) => formatMonthYear(iso, { utc: true, fallback: '' });
 
 const AIBudgetCard = () => {
     const { t } = useTranslation();

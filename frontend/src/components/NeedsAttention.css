@@ -21,9 +21,11 @@
 .attention-all { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; text-decoration: none; color: var(--text-link); }
 .attention-all:hover { text-decoration: underline; }
 
+/* Neutral card; an urgent issue is marked by a red accent on the left,
+   not by a tinted background. */
 .attention-top { padding: 20px; background: var(--bg-card); }
-.attention-critical .attention-top,
-.attention-high .attention-top { background: var(--tone-red-soft); }
+.attention-critical,
+.attention-high { box-shadow: inset 3px 0 0 var(--tone-red-solid); }
 .attention-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; }
 /* Headline: the first sentence of the description, at most two lines. */
 .attention-issue-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; font-size: 18px; font-weight: 600; line-height: 1.35; color: var(--text-primary); text-decoration: none; margin-bottom: 14px; overflow-wrap: anywhere; }

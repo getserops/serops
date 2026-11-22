@@ -138,6 +138,16 @@
 .ds-chip-err     { background: hsl(0, 70%, 94%);   color: hsl(0, 75%, 40%); }
 .ds-chip-info    { background: hsl(210, 65%, 93%); color: hsl(210, 75%, 32%); }
 
+/* One style for informational notices (demo, read-only, Enterprise):
+   the brand-soft tone. Amber is for warnings only. */
+.ds-notice-info {
+  background: var(--tone-brand-soft);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.ds-notice-info a { color: var(--text-link); font-weight: var(--font-semibold); text-decoration: underline; }
+
 /* Semantic aliases for priority levels */
 .ds-chip-p0 { background: hsl(0, 70%, 94%);   color: hsl(0, 75%, 40%); }
 .ds-chip-p1 { background: hsl(40, 80%, 92%);  color: hsl(40, 90%, 32%); }
@@ -768,3 +778,30 @@ a code { color: inherit; }
 :root[data-theme="dark"] .issue-component-chip.component-chip-infra { background-color: hsl(285, 35%, 22%); color: hsl(285, 70%, 82%); }
 :root[data-theme="dark"] .count-heat-amber { color: hsl(35, 95%, 65%); }
 :root[data-theme="dark"] .count-heat-red { color: hsl(0, 85%, 75%); }
+
+/* Skip link: the first focusable element of the signed-in layout. Out of
+   sight until the keyboard reaches it. */
+.ds-skip-link {
+  position: fixed;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 2000;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--text-link);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+.ds-skip-link:focus,
+.ds-skip-link:focus-visible {
+  transform: none;
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* The landmark takes the focus from the skip link; no ring around the page. */
+main#main-content:focus { outline: none; }
