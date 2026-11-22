@@ -170,15 +170,17 @@ const StatCard = ({ icon, label, value, danger }) => (
     </div>
 );
 
-const SpanTable = ({ rows, showMessage }) => (
+const SpanTable = ({ rows, showMessage }) => {
+    const { t } = useTranslation();
+    return (
     <Table hover responsive size="sm" className="mb-0 table-stack">
         <thead>
             <tr>
-                <th>Service</th>
-                <th>Operation</th>
-                {showMessage && <th>Message</th>}
-                <th>Duration</th>
-                <th>Trace</th>
+                <th>{t('traces.dashboard.service')}</th>
+                <th>{t('traces.dashboard.operation')}</th>
+                {showMessage && <th>{t('detail.colMessage')}</th>}
+                <th>{t('traces.dashboard.duration')}</th>
+                <th>{t('traces.dashboard.trace')}</th>
             </tr>
         </thead>
         <tbody>
@@ -189,7 +191,7 @@ const SpanTable = ({ rows, showMessage }) => (
                         {span.operation_name || '—'}
                     </td>
                     {showMessage && (
-                        <td className="text-danger small text-truncate" style={{ maxWidth: 220 }}>
+                        <td className={`small text-truncate ${span.status_message ? 'text-danger' : 'text-muted'}`} style={{ maxWidth: 220 }}>
                             {span.status_message || '—'}
                         </td>
                     )}
@@ -208,6 +210,7 @@ const SpanTable = ({ rows, showMessage }) => (
             ))}
         </tbody>
     </Table>
-);
+    );
+};
 
 export default BatchTraces;

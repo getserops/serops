@@ -38,6 +38,28 @@ describe('BatchTraces trace ids', () => {
     expect(screen.getByRole('link', { name: 'bbbbbbbbbbbb…' })).toHaveAttribute('href', '/dash/traces/bbbbbbbbbbbb2222');
   });
 
+  it('names its columns from the translations, and keeps red for a real error message', async () => {
+    svc.getBatchDetails.mockResolvedValue({
+      batch_id: 'shop-1',
+      data: { traces: { trace_count: 3, span_count: 9, error_span_count: 2, top_slow: [], top_errors: [
+        span('aaaaaaaaaaaa1111', { status_message: 'boom' }), span('dddddddddddd4444'),
+      ] } },
+    });
+    render(
+      <MemoryRouter initialEntries={['/dash/traces/batch/shop-1']}>
+        <Routes><Route path="/dash/traces/batch/:batchId" element={<BatchTraces />} /></Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByText('aaaaaaaaaaaa…');
+    const headers = screen.getAllByRole('columnheader').map((h) => h.textContent);
+    expect(headers).toEqual(expect.arrayContaining(['traces.dashboard.operation', 'traces.dashboard.duration', 'detail.colMessage']));
+    expect(headers).not.toContain('Operation');
+    expect(screen.getByText('boom').className).toContain('text-danger');
+    const empty = screen.getByText('dddddddddddd…').closest('tr').querySelectorAll('td')[2];
+    expect(empty.textContent).toBe('—');
+    expect(empty.className).not.toContain('text-danger');
+  });
+
   it('shows a trace that was not stored as plain text', async () => {
     await renderWith([
       span('aaaaaaaaaaaa1111'),

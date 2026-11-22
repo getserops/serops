@@ -54,7 +54,8 @@ const ClusterCard = ({ cluster }) => {
     return (
         <Accordion.Item eventKey={String(cluster.id)}>
             <Accordion.Header>
-                <div className="d-flex align-items-center flex-grow-1 me-3">
+                {/* Wraps on a narrow screen: the counts used to run off it. */}
+                <div className="d-flex align-items-center flex-wrap row-gap-1 flex-grow-1 me-3" style={{ minWidth: 0 }}>
                     <FaServer className={cluster.is_active ? 'text-primary me-2' : 'text-muted me-2'} />
                     <span className="fw-bold me-2">{cluster.name}</span>
                     <span className="text-muted small me-3">{cluster.provider_display}</span>

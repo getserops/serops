@@ -132,7 +132,9 @@ describe('Investigate page', () => {
   it('cannot be started from the demo', async () => {
     window.localStorage.getItem.mockImplementation((k) => (k === 'user' ? JSON.stringify({ role: 'viewer', is_demo: true }) : null));
     renderAt();
-    expect(await screen.findByText('investigate.demoNotice')).toBeInTheDocument();
+    const notice = await screen.findByText('investigate.demoNotice');
+    // An information notice: the info tone, not amber.
+    expect(notice.className).toContain('ds-notice-info');
     await waitFor(() => expect(screen.getByRole('button', { name: /investigate.run/ })).toBeDisabled());
   });
 

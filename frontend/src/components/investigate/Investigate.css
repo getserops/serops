@@ -16,8 +16,9 @@
 .investigate-check input { margin-top: 3px; }
 .investigate-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .investigate-banner {
-  padding: var(--space-3) var(--space-4); border-radius: 8px; font-size: var(--text-sm);
-  background: hsl(40, 80%, 94%); color: hsl(40, 90%, 26%);
+  /* An information notice (read-only demo, viewer role): the info tone of
+     .ds-notice-info, not amber. */
+  padding: var(--space-3) var(--space-4); font-size: var(--text-sm);
 }
 .investigate-note { font-size: var(--text-sm); color: var(--text-secondary); margin: var(--space-2) 0 0; }
 .investigate-note.is-error { color: var(--danger); display: flex; gap: var(--space-2); align-items: center; }

@@ -179,7 +179,7 @@ const TraceDetail = () => {
                                         </td>
                                         <td className="small">{formatMs(row.duration_ms)}</td>
                                         <td>
-                                            <div style={{ position: 'relative', height: 18, background: '#f1f3f5', borderRadius: 4 }}>
+                                            <div style={{ position: 'relative', height: 18, background: 'var(--bg-sunken)', borderRadius: 4 }}>
                                                 <div
                                                     style={{
                                                         position: 'absolute',

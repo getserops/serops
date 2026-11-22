@@ -17,7 +17,7 @@ export const OPEN_EVENT = "serops:open-command-palette";
 const PAGES = [
   ["/dash", "nav.overview"],
   ["/dash/issues", "nav.issues"],
-  ["/dash/data", "nav.data"],
+  ["/dash/data", "nav.analyses"],
   ["/dash/investigate", "nav.investigate"],
   ["/dash/chat", "nav.aiChat"],
   ["/dash/traces", "traces.dashboard.title"],

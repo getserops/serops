@@ -16,6 +16,98 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.5.2] - 2026-11-22
+
+A clearer web app: a shorter Overview, one colour rule, dates in your time
+zone, keyboard access and a corrected French translation. No backend change
+and no database migration.
+
+Set `SEROPS_VERSION=1.5.2` or `--version 1.5.2`. Upgrading from 1.5.1 needs
+nothing else.
+
+### Added
+
+- **ROADMAP.md and SUPPORT.md** in the repository: what is planned and where
+  to ask for help.
+- **README**: a picture of the Overview on the first screen.
+- **Docs**: Enterprise Terms 1.2, data-processing terms 1.0, a security
+  overview, a security pack and a security questionnaire (with a CSV).
+
+### Changed
+
+- **Overview**: six panels instead of eleven: Needs attention now, three
+  key numbers, recent analyses and deployments, the 7-day trend with the
+  root cause breakdown, service health. Sentinel figures, AI correlation
+  insights and workloads by cluster moved to Settings > Sentinel, the
+  Analyses list and Settings > Clusters, with the same data. The
+  mean-time-to-resolve tile and the AI recommendations tile are gone.
+- **Issue headlines**: an issue is shown by the first sentence of its
+  description, cut at a word boundary when it is long, never inside a word
+  or inside quoted error text. The full text is in the tooltip and in the
+  issue drawer. Stored texts are unchanged.
+- **Colours**: red means "needs action". A resolved or muted issue keeps
+  its severity as a neutral outlined chip; "Open", "Acknowledged",
+  "Resolved" and "Muted" have the same tone on every page; notices use one
+  info tone.
+- **Dates and time zones**: every date follows the time zone and the
+  language chosen in the user menu; about 30 places ignored both. Detail
+  views show the exact time with its zone, tables show relative time with
+  the exact time in the tooltip, and the log table names its zone in the
+  column heading.
+- **Issues table**: the Component column fits a service name, the
+  description shows a two-line headline, and the "Age" column is hidden by
+  default (still available under Columns).
+- **Analysis page**: when an analysis found exactly one issue, the card
+  that repeated the page title and the suggested fix is gone.
+- **One name per page**: the menu entry, the page heading and the browser
+  tab say the same thing, in English and French.
+- **Paid features**: the license key and the features it turns on are
+  called "paid license" and "paid features" instead of "Enterprise license"
+  and "SerOps Enterprise", because they start with the Business plan. Names
+  only: no key, feature or behaviour changes. The docs describe the paid
+  licenses as Business or Enterprise.
+- **Keyboard and screen readers**: one `<main>` landmark on every signed-in
+  page, "Skip to content" as the first Tab stop, accessible names on the
+  chat box and 17 settings controls. The notifications panel is a named
+  dialog that takes the focus and closes on Escape.
+- **Notifications**: an escalation reads "Escalation level 2: Pod crash in
+  Shopfront" instead of "ESCALATION (Level 2): POD_CRASH in Shopfront"; the
+  levels of one issue show as one entry.
+- **Public demo**: the controls that would write are switched off with the
+  read-only sentence as their tooltip, instead of failing on click. A
+  visitor can close the banner for the session. The demo landing page says
+  what SerOps does and what the demo shows.
+- **Helm chart 0.2.4**: description, keywords, home page, icon and Artifact
+  Hub annotations. No template or value changes.
+- **Docs**: key examples are an obvious placeholder.
+
+### Fixed
+
+- **French**: about 180 labels were in English title case and are in
+  sentence case; eleven sentences said "incident" where the English says
+  "issue" and say "problème". About 70 sentences of the Issues page stayed in
+  English whatever the language; they are translated, and its filters and
+  columns fit the French text.
+- **Dark theme**: the timeline on the analysis page, the page buttons of
+  Analyses and Issues, and the track of the gauges and of the span bars of a
+  trace use the theme's colours (they were white or near-white).
+- **Phone**: the counts of "Workloads by cluster" no longer run off the
+  screen, and the scope filters of Issues no longer cut their French labels.
+  The AI Providers table no longer breaks a provider's name one letter per
+  line.
+- **AI Chat on the public demo**: the conversation card no longer runs below
+  the screen.
+
+### Upgrade
+
+- No migration, no new setting, no changed default. Set the version and
+  restart. Going back to 1.5.1 is the same step with the old version.
+- **If you built on the frontend**: `npm run lint` now fails on a new
+  literal colour outside `src/styles/design.css`; `frontend/DESIGN.md` has
+  the rules.
+
+---
+
 ## [1.5.1] - 2026-11-22
 
 Security fixes for sign-in, email addresses and outbound

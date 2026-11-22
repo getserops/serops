@@ -120,17 +120,36 @@ describe('getSeverityRowClass', () => {
 // ---- Component render tests ----
 
 // Mock dependencies for full component tests
+// The page of one analysis sets a batchId here.
+let routeParams = {};
 vi.mock('react-router-dom', () => ({
   // eslint-disable-next-line react/prop-types
   Link: ({ to, children, ...rest }) => <a href={to} {...rest}>{children}</a>,
   useNavigate: () => vi.fn(),
-  useParams: () => ({}),
+  useParams: () => routeParams,
   useSearchParams: () => [new URLSearchParams(), vi.fn()],
 }));
 
+// The strings of the list itself (issues.list.*) and the severity names
+// come from the real translation files, in the language of `mockLang`;
+// the other keys show as themselves.
+let mockLang = 'en';
+const mockLocales = {
+  en: JSON.parse(readFileSync(resolve(__dirname, '../../locales/en.json'), 'utf8')),
+  fr: JSON.parse(readFileSync(resolve(__dirname, '../../locales/fr.json'), 'utf8')),
+};
+const mockFromFile = (key, opts = {}) => {
+  const node = key.split('.').slice(0, -1).reduce((o, k) => o?.[k], mockLocales[mockLang]);
+  const leaf = key.split('.').pop();
+  const text = node?.[opts.count === 1 ? `${leaf}_one` : `${leaf}_other`] ?? node?.[leaf];
+  return typeof text === 'string' ? text.replace(/\{\{(\w+)\}\}/g, (_, name) => opts[name]) : key;
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key) => {
+    t: (key, opts) => {
+      if (key.startsWith('issues.list.') || /^issues\.(critical|warning|info)$/.test(key)
+        || (mockLang === 'fr' && key.startsWith('issues.statusLabel.'))) return mockFromFile(key, opts);
       const translations = {
         'common.loading': 'Loading...',
         'common.actions': 'Actions',
@@ -256,8 +275,9 @@ describe('Issues component', () => {
 
   it('shows status as a label, not a bare dot', () => {
     render(<Issues />);
-    expect(screen.getByText('issues.statusLabel.open')).toBeTruthy();
-    expect(screen.getByText('issues.statusLabel.muted')).toBeTruthy();
+    // In the row, not the choice of the same name in the status filter.
+    expect(screen.getByText('issues.statusLabel.open', { selector: 'td span' })).toBeTruthy();
+    expect(screen.getByText('issues.statusLabel.muted', { selector: 'td span' })).toBeTruthy();
   });
 
   it('opens the issue panel when a row is clicked', () => {
@@ -411,15 +431,15 @@ describe('Issues on the read-only demo', () => {
   it('row menu: Resolve, Mute and Reopen are off, reading entries stay on', () => {
     render(<Issues />);
     fireEvent.click(screen.getByLabelText('Actions for issue 1'));
-    const resolve = screen.getByText('Resolve').closest('.dropdown-item');
-    const mute = screen.getByText('Mute').closest('.dropdown-item');
+    const resolve = screen.getByText('issues.panel.resolve').closest('.dropdown-item');
+    const mute = screen.getByText('issues.panel.mute').closest('.dropdown-item');
     [resolve, mute].forEach((el) => {
       expect(el.className).toContain('disabled');
       expect(el.getAttribute('title')).toBe('demo.readOnlyNotice');
     });
     expect(screen.getByText('issues.panel.copyLink').closest('.dropdown-item').className).not.toContain('disabled');
     fireEvent.click(screen.getByLabelText('Actions for issue 2'));
-    expect(screen.getByText('Reopen').closest('.dropdown-item').className).toContain('disabled');
+    expect(screen.getByText('issues.panel.reopen').closest('.dropdown-item').className).toContain('disabled');
   });
 
   it('bulk bar: Resolve, Mute and Reopen are off', () => {
@@ -436,6 +456,21 @@ describe('Issues on the read-only demo', () => {
   });
 });
 
+// Final pass: the heading of an analysis's issues was "1 Issues Detected",
+// in English whatever the language. It is the page name, as in the menu.
+describe('Issues of one analysis', () => {
+  it('keeps the page name as its heading', () => {
+    routeParams = { batchId: 'acme-studio-l10-r1' };
+    try {
+      render(<Issues />);
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('System Issues');
+      expect(screen.queryByText(/Issues Detected/)).toBeNull();
+    } finally {
+      routeParams = {};
+    }
+  });
+});
+
 // Review item 8: the Component column cut service names ("check…", "shippi…").
 describe('Issues table: Component column', () => {
   it('has its own width class and shows the whole name, also in the title', () => {
@@ -448,5 +483,59 @@ describe('Issues table: Component column', () => {
     const cell = chip.closest('td');
     expect(cell.className).toContain('issue-cell-component');
     expect(cell.style.maxWidth).toBe('');
+  });
+});
+
+// The list had about 70 sentences written in the code, shown in English
+// whatever the language. They are in the translation files now.
+describe('Issues list in French', () => {
+  beforeEach(() => { mockLang = 'fr'; });
+  afterEach(() => { mockLang = 'en'; });
+
+  it('shows filters, column names, severity and the row controls in French', () => {
+    render(<Issues />);
+    ['Composant', 'Vu en dernier', 'Sévérité', 'Statut', 'Colonnes'].forEach((text) => expect(screen.getByText(new RegExp(`^\\s*${text}$`))).toBeTruthy());
+    expect(screen.getByLabelText('Filtrer par sévérité').options[0].textContent).toBe('Toutes les sévérités');
+    expect([...screen.getByLabelText('Filtrer par statut').options].map((o) => o.textContent))
+      .toEqual(['Tous les statuts', 'Ouvert', 'En sourdine', 'Résolu']);
+    expect(screen.getByText('CRITIQUE').className).toBe('ds-chip ds-chip-err');
+    expect(screen.getByText('AVERTISSEMENT')).toBeTruthy();
+    expect(screen.getByLabelText('Actions pour le problème 1')).toBeTruthy();
+    expect(screen.getByLabelText('Sélectionner tous les problèmes')).toBeTruthy();
+    expect(screen.queryByText(/^(Component|Severity|Status|Columns|CRITICAL|WARNING)$/)).toBeNull();
+  });
+
+  it('counts the selection in French, singular and plural', () => {
+    render(<Issues />);
+    const boxes = screen.getAllByRole('checkbox');
+    fireEvent.click(boxes[1]);
+    expect(screen.getByText('1 sélectionné')).toBeTruthy();
+    fireEvent.click(boxes[2]);
+    expect(screen.getByText('2 sélectionnés')).toBeTruthy();
+    expect(screen.getByText('Tout désélectionner')).toBeTruthy();
+  });
+});
+
+describe('Issues list: no sentence left in the code', () => {
+  const source = readFileSync(resolve(__dirname, '../Issues.jsx'), 'utf8');
+  const jsx = source.slice(source.indexOf('const Issues = () =>'));
+
+  it('has no English text node, label or message outside t()', () => {
+    // Text between tags: a capital then letters, not inside {…}.
+    expect(jsx.match(/>\s*[A-Z][a-z]+[^<>{}=;()]*</g) || []).toEqual([]);
+    expect(jsx.match(/(aria-label|title|placeholder)="[^"]*"/g) || []).toEqual([]);
+    expect(jsx.match(/toast\.\w+\(\s*["`]/g) || []).toEqual([]);
+  });
+
+  it('has every list string in English and in French, with the same variables', () => {
+    const flat = (o, p = '') => Object.entries(o).flatMap(([k, v]) => (typeof v === 'string' ? [[p + k, v]] : flat(v, `${p}${k}.`)));
+    const en = Object.fromEntries(flat(mockLocales.en.issues.list));
+    const fr = Object.fromEntries(flat(mockLocales.fr.issues.list));
+    expect(Object.keys(fr).sort()).toEqual(Object.keys(en).sort());
+    const vars = (text) => (text.match(/\{\{\w+\}\}/g) || []).sort();
+    Object.keys(en).forEach((key) => expect([key, vars(fr[key])]).toEqual([key, vars(en[key])]));
+    const used = [...source.matchAll(/t\('issues\.list\.([\w.]+)'/g)].map((m) => m[1]);
+    used.forEach((key) => expect(Object.keys(en).some((k) => k === key || k.startsWith(`${key}_`))).toBe(true));
+    expect(used.length).toBeGreaterThan(60);
   });
 });

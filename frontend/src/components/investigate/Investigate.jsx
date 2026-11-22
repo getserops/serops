@@ -266,7 +266,7 @@ const Investigate = () => {
 
       {loadError && <div className="investigate-note is-error">{loadError}</div>}
       {!canRun && (
-        <div className="investigate-banner">{demo ? t("investigate.demoNotice") : t("investigate.viewerNotice")}</div>
+        <div className="investigate-banner ds-notice-info">{demo ? t("investigate.demoNotice") : t("investigate.viewerNotice")}</div>
       )}
 
       {options && options.projects.length === 0 && (

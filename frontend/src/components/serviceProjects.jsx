@@ -16,26 +16,6 @@ import { ProjectService } from "../services/project.service";
 import { can, canOnProject } from "../utils/permissions";
 import { enterpriseProjectTabs } from "../utils/edition";
 
-// Helper function to get badge color based on service type
-const getTypeBadgeClass = (type) => {
-  switch (type?.toLowerCase()) {
-    case 'gitlab':
-      return 'bg-primary';
-    case 'github':
-      return 'bg-dark';
-    case 'infrastructure':
-      return 'bg-info';
-    case 'azure_devops':
-      return 'bg-secondary';
-    case 'bitbucket':
-      return 'bg-primary';
-    case 'jenkins':
-      return 'bg-danger';
-    default:
-      return 'bg-warning text-dark';
-  }
-};
-
 const ServiceProjects = () => {
   const { t } = useTranslation();
   const lock = useDemoLock();
@@ -198,7 +178,7 @@ const ServiceProjects = () => {
                                     `Service #${service.id}`}
                                 </td>
                                 <td>
-                                  <span className={`badge ${getTypeBadgeClass(service.service_type)} px-3 py-2`}>
+                                  <span className="ds-chip ds-chip-neutral">
                                     {(service.service_type || "custom").toUpperCase()}
                                   </span>
                                 </td>

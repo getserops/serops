@@ -369,7 +369,7 @@ const AISettings = () => {
             >
 
                 <div className="table-responsive">
-                    <table className="table settings-table table-stack">
+                    <table className="table settings-table table-stack table-stack-block ai-providers-table">
                         <thead>
                             <tr>
                                 <th style={{ width: '25%' }}>Provider</th>
@@ -448,7 +448,7 @@ const AISettings = () => {
                                                 </InputGroup>
 
                                                 {(keyStatus.hasKey || provider.requires_api_key === false || inputValue) && (
-                                                    <div className="d-flex justify-content-between align-items-center small mt-1">
+                                                    <div className="d-flex justify-content-between align-items-center small mt-1 ai-provider-key-row">
                                                         <span className="text-muted text-truncate" style={{ maxWidth: '200px' }}>
                                                             {keyStatus.hasKey && keyStatus.maskedKey && <>Key: <code style={{ wordBreak: "break-all" }}>{keyStatus.maskedKey}</code></>}
                                                         </span>

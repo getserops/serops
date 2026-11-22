@@ -78,6 +78,12 @@ upgrades are safe with a brief restart.
 
 Releases that need something from you after upgrading. Migrations run on their own (`docker compose up` / the Helm migrate job).
 
+### 1.5.2: web app changes only
+
+- **Nothing to do.** No migration, no new setting and no changed default: set the version and restart. Chart 0.2.4 changes metadata only.
+- **Going back to 1.5.1**: set the version back. There is no database step.
+- **If you built on the frontend**: `npm run lint` now fails on a new literal colour outside `src/styles/design.css`; `frontend/DESIGN.md` has the rules.
+
 ### 1.5.1: security fixes for sign-in, email addresses and outbound requests
 
 - **Email addresses are one identity whatever their case.** Migration `Users 0018` adds a unique rule on the lowercase address. If two accounts have the same address in different case (`Ana@example.com` and `ana@example.com`), the migration stops before it changes anything and lists them, masked, with their user ids: the backend container (quick-start) or the migrate job (Helm) fails with `Users 0018 not applied`. Merge, rename or delete the extra account, then start the upgrade again. To check before upgrading, on PostgreSQL: `SELECT lower(email), count(*) FROM "Users" GROUP BY 1 HAVING count(*) > 1;` (no row means nothing to do).
@@ -173,7 +179,7 @@ For example:
 
 ```bash
 # Upgrade to a specific version
-./scripts/upgrade.sh 1.5.1
+./scripts/upgrade.sh 1.5.2
 
 # Upgrade to the latest version
 ./scripts/upgrade.sh
@@ -203,7 +209,7 @@ If you prefer to upgrade manually:
 If upgrading to a specific version, edit `.env`:
 
 ```env
-SEROPS_VERSION=1.5.1
+SEROPS_VERSION=1.5.2
 ```
 
 ### Step 3: Pull New Images

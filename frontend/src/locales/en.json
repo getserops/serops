@@ -296,7 +296,88 @@
     "openIssue": "Issue {{id}}: {{description}}. Press Enter for details.",
     "updatedAt": "Updated {{time}}",
     "autoRefresh": "Refreshes every 30 s",
-    "fromBatch": "Issues found by this analysis"
+    "fromBatch": "Issues found by this analysis",
+    "list": {
+      "loadFailed": "Failed to load issues. Please try again later.",
+      "filterSeverity": "Filter by severity",
+      "allSeverities": "All Severity",
+      "filterStatus": "Filter by status",
+      "allStatuses": "All Status",
+      "columns": "Columns",
+      "col": {
+        "id": "ID",
+        "type": "Type",
+        "component": "Component",
+        "description": "Description",
+        "age": "Age",
+        "lastSeen": "Last seen",
+        "correlations": "Correlations",
+        "count": "Occurrences",
+        "severity": "Severity",
+        "status": "Status"
+      },
+      "shortcutsTooltip": "Keyboard shortcuts (?)",
+      "showShortcuts": "Show keyboard shortcuts",
+      "allClearTitle": "All clear!",
+      "allClearText": "No open issues remaining. Great work keeping the system healthy.",
+      "noMatch": "No issues matching \"{{search}}\"",
+      "selectAll": "Select all issues",
+      "selectOne": "Select issue {{id}}",
+      "actionsFor": "Actions for issue {{id}}",
+      "selected_one": "{{count}} selected",
+      "selected_other": "{{count}} selected",
+      "bulkResolve": "Resolve {{count}}",
+      "bulkMute": "Mute {{count}}",
+      "bulkReopen": "Reopen {{count}}",
+      "clearSelection": "Clear",
+      "showing": "Showing",
+      "of": "of",
+      "muteTitle": "Mute Issue",
+      "muteTitleBulk": "Mute {{count}} Issue(s)",
+      "muteQuestion": "How long would you like to mute this issue?",
+      "muteQuestionBulk": "How long would you like to mute these issues?",
+      "muteDays_one": "{{count}} day",
+      "muteDays_other": "{{count}} days",
+      "muteForever": "Forever",
+      "muteNote": "Muted issues will still be tracked but won't create duplicate alerts.",
+      "shortcuts": {
+        "title": "Keyboard Shortcuts",
+        "down": "Move down",
+        "up": "Move up",
+        "select": "Toggle select",
+        "help": "Show/hide help"
+      },
+      "toast": {
+        "linkCopied": "Issue link copied!",
+        "resolvedLearned": "Issue resolved. The root cause will be used as context in future AI analyses for this project.",
+        "resolved": "Issue resolved successfully",
+        "resolvedTip": "Tip: a more descriptive root cause becomes useful context for future AI analyses on this project.",
+        "resolveFailed": "Failed to resolve issue",
+        "bulkMuted": "{{count}} issue(s) muted",
+        "mutedForever": "Issue muted for forever",
+        "mutedDays": "Issue muted for {{count}} days",
+        "muteFailed": "Failed to mute issue",
+        "reopened": "Issue reopened",
+        "reopenFailed": "Failed to reopen issue",
+        "bulkResolved": "{{count}} issue(s) resolved",
+        "bulkResolveFailed": "Failed to bulk resolve",
+        "bulkReopened": "{{count}} issue(s) reopened",
+        "bulkReopenFailed": "Failed to bulk reopen"
+      },
+      "corr": {
+        "commit": "Linked to commit {{sha}}",
+        "unknownSha": "unknown",
+        "sustained": "sustained",
+        "sustainedHigh": "sustained high",
+        "spike": "spike",
+        "peak": "peak {{value}}%",
+        "spansTooltip": "{{spans}} spans ({{errors}} errors)",
+        "errCount": "{{count}} err",
+        "spanCount": "{{count}} spans",
+        "pipelineFailure": "Pipeline failure: {{job}}",
+        "pipeline": "Pipeline"
+      }
+    }
   },
   "addService": {
     "title": "Add New Service",
@@ -1083,14 +1164,14 @@
     "protocolOidcDesc": "Included in Community. Okta, Entra ID, Google, Keycloak.",
     "protocolSaml": "SAML 2.0",
     "protocolSamlDesc": "For identity providers set up for SAML only (ADFS, older Okta and Entra ID apps).",
-    "samlEnterprise": "SAML 2.0 sign-in is part of SerOps Enterprise. OpenID Connect, with the same group-to-role and group-to-team mapping, is included in Community.",
+    "samlEnterprise": "SAML 2.0 sign-in needs a paid license. OpenID Connect, with the same group-to-role and group-to-team mapping, is included in Community.",
     "groupsAttribute": "Groups attribute",
     "groupsAttributeHint": "Name of the assertion attribute that lists the groups. Entra ID: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups (group object IDs).",
     "enforceSso": "Require single sign-on",
     "enforceSsoHint": "Members can no longer sign in with a password. The organisation's admins keep theirs, as a way back in if the identity provider is down.",
     "scim": "Provisioning (SCIM)",
     "scimDesc": "Accounts, roles and deactivation pushed by your identity provider",
-    "scimEnterprise": "SCIM provisioning is part of SerOps Enterprise: Entra ID or Okta create accounts, keep roles and teams in line with groups, and deactivate people the moment they leave. With Community, accounts are created at the first SSO sign-in."
+    "scimEnterprise": "SCIM provisioning needs a paid license: Entra ID or Okta create accounts, keep roles and teams in line with groups, and deactivate people the moment they leave. With Community, accounts are created at the first SSO sign-in."
   },
   "batchInterval": {
     "title": "Batch Generation Interval",
@@ -1211,7 +1292,7 @@
   },
   "auditLog": {
     "streaming": "Stream to your SIEM",
-    "streamingEnterprise": "Real-time audit streaming (syslog over TLS, Splunk HEC, Datadog, Elastic or any HTTPS collector) is part of SerOps Enterprise. The audit log, its filters and its CSV export are included in Community.",
+    "streamingEnterprise": "Real-time audit streaming (syslog over TLS, Splunk HEC, Datadog, Elastic or any HTTPS collector) needs a paid license. The audit log, its filters and its CSV export are included in Community.",
     "title": "Audit Log",
     "subtitle": "Track and review all important actions in your organization",
     "loading": "Loading audit logs...",
@@ -1905,9 +1986,9 @@
     "viewSample": "See a sample incident"
   },
   "enterprise": {
-    "label": "Enterprise",
-    "notice": "This is a SerOps Enterprise feature. Everything else keeps working without a license.",
-    "seePricing": "About SerOps Enterprise"
+    "label": "Paid license",
+    "notice": "This feature needs a paid license. Everything else keeps working without one.",
+    "seePricing": "About the paid license"
   },
   "batchTrigger": {
     "trigger": {

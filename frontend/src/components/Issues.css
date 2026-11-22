@@ -458,7 +458,8 @@ button.issue-stat-card:focus-visible { outline: 2px solid var(--primary-600, #2f
    The search keeps a usable width; the filters wrap onto a second line
    rather than squeezing it to nothing. */
 .issues-search { flex: 1 1 260px; min-width: 220px; max-width: 360px; }
-.issues-scope-select { width: 150px !important; flex: 0 0 auto; }
+/* As wide as its longest choice: at a fixed 150px the French labels were cut. */
+.issues-scope-select { width: auto !important; min-width: 150px; max-width: 260px; flex: 0 0 auto; }
 .issues-result-count { margin-left: auto; font-size: 0.8125rem; color: var(--text-secondary); white-space: nowrap; }
 
 /* ---- Rows ----
@@ -501,7 +502,9 @@ button.issue-stat-card:focus-visible { outline: 2px solid var(--primary-600, #2f
    age, occurrences, severity and status wrap below it. */
 @media (max-width: 767px) {
   .issues-toolbar .input-group { max-width: 100% !important; flex: 1 1 100% !important; }
-  .issues-scope-select { flex: 1 1 45% !important; width: auto !important; }
+  /* Two per line when the labels are short; a long one ("Toutes les
+     sévérités") takes its own line instead of being cut. */
+  .issues-scope-select { flex: 1 1 auto !important; width: auto !important; min-width: 45%; max-width: 100%; }
   .issues-result-count { margin-left: 0; flex: 1 1 100%; }
   .issues-table-wrap table, .issues-table-wrap tbody { display: block; width: 100% !important; }
   .issues-table-wrap thead { display: none; }

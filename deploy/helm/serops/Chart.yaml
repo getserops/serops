@@ -1,28 +1,42 @@
 apiVersion: v2
 name: serops
 description: |
-  SerOps — AGPL-3.0 AI Root Cause Analysis platform. Deploys the
-  Django backend, React frontend, Celery worker, Celery beat, plus
-  optional bundled PostgreSQL + Redis.
+  SerOps: open-source, self-hosted AI root cause analysis. Deploys the
+  backend, the web app, the Celery worker and Celery beat. PostgreSQL
+  and Redis are your own; lab installs can turn on devServices.
 type: application
 # Chart version — bumped per chart change independent of the app.
-version: 0.2.3
+version: 0.2.4
 # App version — mirrors the SerOps release cut.
-appVersion: "1.5.1"
+appVersion: "1.5.2"
 kubeVersion: ">= 1.25.0-0"
 keywords:
+  - root-cause-analysis
+  - rca
+  - aiops
   - observability
   - sre
   - incident-response
-  - ai
-  - rca
+  - self-hosted
   - devops
-home: https://github.com/getserops
+home: https://serops.ai
+icon: https://serops.ai/logo-512.png
 sources:
   - https://github.com/getserops/serops
 maintainers:
   - name: SerOps contributors
     url: https://github.com/getserops
+# Read by Artifact Hub. The license is the SPDX identifier.
+annotations:
+  artifacthub.io/license: AGPL-3.0-only
+  artifacthub.io/category: monitoring-logging
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://serops.ai/docs/
+    - name: Source
+      url: https://github.com/getserops/serops
+    - name: Issues
+      url: https://github.com/getserops/serops/issues
 # No subchart dependencies.
 #
 # This chart previously bundled bitnami/postgresql 15.5.28 and

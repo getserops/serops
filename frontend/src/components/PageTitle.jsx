@@ -32,8 +32,12 @@ const RULES = [
   [/^\/dash\/settings\/traces/, "traces.settings.menuLabel"],
   [/^\/dash\/settings\/clusters/, "clusters.menuLabel"],
   [/^\/dash\/settings\/security/, "settings.security.title"],
+  // Pages of the paid modules: their names are only loaded with src/ee/.
+  [/^\/dash\/settings\/audit-streaming/, "ee.auditStream.menuLabel"],
+  [/^\/dash\/settings\/license/, "ee.license.menuLabel"],
   [/^\/dash\/settings\/audit/, "auditLog.title"],
   [/^\/dash\/settings\/preferences/, "preferences.title"],
+  [/^\/dash\/settings\/?$/, "settings.general.menuLabel"],
   [/^\/dash\/settings/, "nav.settings"],
 ];
 
@@ -41,7 +45,10 @@ export function pageTitle(pathname, t) {
   for (const [pattern, key, group] of RULES) {
     const m = pathname.match(pattern);
     if (m) {
-      const name = t(key);
+      // A name that is not loaded (a paid page in the Community build)
+      // falls back to "Settings", never to the raw key.
+      let name = t(key);
+      if (name === key && key.startsWith("ee.")) name = t("nav.settings");
       return group ? `${decodeURIComponent(m[group])} · ${name} · SerOps` : `${name} · SerOps`;
     }
   }

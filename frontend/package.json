@@ -2,7 +2,7 @@
   "name": "serops-frontend",
   "version": "1.0.0-dev",
   "private": true,
-  "description": "React 19 web UI for SerOps — the open-source AI-powered incident detection and root-cause-analysis platform.",
+  "description": "Web app of SerOps, open-source and self-hosted AI root cause analysis.",
   "homepage": "https://serops.ai",
   "repository": {
     "type": "git",

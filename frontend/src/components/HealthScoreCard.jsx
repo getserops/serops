@@ -25,7 +25,7 @@ const HealthScoreCard = ({ score, status, loading }) => {
     // Value is score, Remainder is 100 - score
     const data = [
         { name: "Score", value: score, color: color },
-        { name: "Remainder", value: 100 - score, color: "#e9ecef" }
+        { name: "Remainder", value: 100 - score, color: "var(--bg-sunken)" }
     ];
 
     if (loading) {

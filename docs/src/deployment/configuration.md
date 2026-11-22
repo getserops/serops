@@ -87,7 +87,7 @@ id, no query string, no search or chat text. Do Not Track is respected.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SEROPS_VERSION` | No | `1.5.1` | Version tag for SerOps Docker images (backend + frontend) |
+| `SEROPS_VERSION` | No | `1.5.2` | Version tag for SerOps Docker images (backend + frontend) |
 
 ---
 

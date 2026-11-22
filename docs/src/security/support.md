@@ -26,7 +26,7 @@ during Business Hours: 09:00 to 18:00 Central European Time, Monday to
 Friday, excluding public holidays in Tunisia. On Business, the first reply
 is targeted within one working day: a target, not a guarantee. On
 Enterprise, the level is the one written in your contract
-([Enterprise terms, section 5](../legal/enterprise-terms.md#5-support-and-updates)).
+([Enterprise terms, section 7](../legal/enterprise-terms.md#5-support-and-updates)).
 There is no 24×7 support today.
 
 Before you write, two pages answer most install questions:
@@ -88,15 +88,15 @@ find these signatures), replace the tag with the one you pull:
 
 ```bash
 # Signature
-cosign verify ghcr.io/getserops/backend:1.5.1 \
+cosign verify ghcr.io/getserops/backend:1.5.2 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/docker\.yml@refs/tags/v'
 
 # Provenance: which commit and workflow built it
-gh attestation verify oci://ghcr.io/getserops/backend:1.5.1 --owner getserops
+gh attestation verify oci://ghcr.io/getserops/backend:1.5.2 --owner getserops
 
 # SBOM attached to the image
-docker buildx imagetools inspect ghcr.io/getserops/backend:1.5.1 \
+docker buildx imagetools inspect ghcr.io/getserops/backend:1.5.2 \
   --format '{{ json .SBOM }}'
 ```
 

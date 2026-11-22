@@ -146,7 +146,7 @@ const GeneralSettings = () => {
 
     return (
         <div className="settings-section">
-            <PageHeader title={t('settings.general.title')} subtitle={t('settings.general.subtitle')} />
+            <PageHeader title={t('settings.general.menuLabel')} subtitle={t('settings.general.subtitle')} />
 
             <CollapsibleSection
                 title={t('settings.general.organisation.title')}

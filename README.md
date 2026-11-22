@@ -1,6 +1,13 @@
 # SerOps
 
-**AGPL-3.0 AI Root Cause Analysis platform** — logs · infrastructure metrics · distributed traces · deploys · code changes.
+**Open-source, self-hosted AI root cause analysis.** SerOps correlates logs, infrastructure metrics, traces, deploys and code changes to explain why an incident happened, even without an alert. AGPL-3.0.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/readme/overview-dark.webp">
+  <img src=".github/readme/overview-light.webp" alt="The SerOps Overview page: open issues that need attention, each with its root cause and next steps. Example data from the demo." width="800">
+</picture>
+
+[Live demo](https://app.serops.ai) · [Docs](https://serops.ai/docs/) · [Benchmark](https://serops.ai/benchmark) · [Changelog](https://serops.ai/docs/changelog/)
 
 **Benchmark:** the right root cause on 27 to 29 of 30 unseen synthetic incidents over three rounds, and on 66 of 84 analyses across four test estates we built on real clusters. Every miss is shown: [method and results](https://serops.ai/benchmark).
 
@@ -104,7 +111,7 @@ Full guides in [docs/](docs/) or at https://serops.ai/docs.
 - Inbound Slack / Teams interactions (acknowledge from chat)
 - Discord channel
 
-See the [docs](https://serops.ai/docs/) roadmap for the full picture. Everything above,
+See [ROADMAP.md](ROADMAP.md) for the full picture. Everything above,
 and every item in this list once it ships, is in SerOps Community.
 
 ## Community and the paid licenses

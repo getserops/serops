@@ -4,7 +4,8 @@ import { MemoryRouter } from 'react-router-dom';
 import IssuePanel from '../issues/IssuePanel';
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key, opts) => (opts ? `${key} ${JSON.stringify(opts)}` : key) }),
+  // Severity names resolve as in en.json; every other key shows as itself.
+  useTranslation: () => ({ t: (key, opts) => ({ 'issues.critical': 'Critical', 'issues.warning': 'Warning' }[key] || (opts ? `${key} ${JSON.stringify(opts)}` : key)) }),
 }));
 
 const base = {

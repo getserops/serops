@@ -10,6 +10,8 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-11-22
+
 ### Added
 
 - **Design rules**: `frontend/DESIGN.md` says where the tokens are, which
@@ -19,12 +21,6 @@ means backend + frontend + Helm chart appVersion all match.
   files that were there are in a baseline
   (`scripts/literal-colours-baseline.json`): a file may go down, never up.
   Both pipelines already run `npm run lint`.
-
-### Removed
-
-- The mean-time-to-resolve card and the service ranking chart, with their
-  tests, styles, service call and texts: no page has shown them since the
-  six-panel Overview.
 
 ### Changed
 
@@ -90,17 +86,6 @@ means backend + frontend + Helm chart appVersion all match.
   Moved, with the same data: Sentinel figures to the top of Settings >
   Sentinel, AI correlation insights to one line above the Analyses list,
   workloads by cluster to Settings > Clusters under the table.
-- **Analysis page**: the page downloads an analysis once instead of twice.
-  The envelope, the log list and the metric charts each asked for the whole
-  answer; calls made at the same time now share one download. On the demo's
-  Fleet analysis that is 553 KB instead of 1,106 KB before compression.
-- **Overview**: less text on the first screen. In "Needs attention now" the
-  headline is the first sentence of the issue's description, on two lines at
-  most; "Why it is happening" shows three lines with "Show more"; "What to
-  do" is a numbered list, one sentence per step, three shown and the rest
-  behind "Show more". The rows below show one whole first sentence instead of
-  a line cut by an ellipsis. Display only: the stored texts are unchanged and
-  the full description is in the tooltip and on the issue.
 - **Issue headlines**: wherever an issue is shown by its title (Overview,
   Issues table, issue drawer, analysis page header and issue list, command
   palette) the title is a headline: the first sentence of the description,
@@ -141,6 +126,19 @@ means backend + frontend + Helm chart appVersion all match.
 - **Public demo**: a visitor can close the banner for the session. Settings
   no longer shows a second tinted banner under it: the read-only sentence is
   a line of the page.
+- **Wording**: the key and the features it turns on are called "paid
+  license" and "paid features" ("licence payante" in French) instead of
+  "Enterprise license" and "SerOps Enterprise": Settings menu and license
+  page, the notices on SAML, SCIM, audit streaming, custom roles and project
+  access, and the badge on those features. The paid features start with the
+  Business plan, so the old name was wrong for a Business buyer. Names only:
+  no key, feature or behaviour changes.
+
+### Removed
+
+- The mean-time-to-resolve card and the service ranking chart, with their
+  tests, styles, service call and texts: no page has shown them since the
+  six-panel Overview.
 
 ### Fixed
 
@@ -151,6 +149,35 @@ means backend + frontend + Helm chart appVersion all match.
   the screen. Its height ignored the demo banner above the top bar; the
   banner now publishes its height (`--demo-banner-h`) and the chat subtracts
   it.
+- **Issues page in French**: about 70 sentences of the list were written in
+  the code and stayed in English whatever the language (filters, column
+  names, the Columns menu, the selection bar, the mute window, keyboard
+  shortcuts, confirmation messages, the "CRITICAL" and "WARNING" chips, also
+  in the side panel). They are in the translation files; the English text is
+  unchanged. The severity and status filters size to their longest choice,
+  and the "Last seen" and "Severity" columns are wider, so French fits.
+- **AI Providers on a phone**: at 375 px the provider's name broke one letter
+  per line. Each column name now sits above its cell and the content takes
+  the full width; the saved key has its own line.
+- **Final read before 1.5.2** (every page, English and French, light and
+  dark, 1440 and 375 px):
+  - French: about 180 labels were still in English title case ("Politique de
+    Rétention", "Enregistrer les Modifications"); they are in sentence case.
+    Eleven sentences said "incident" where the English says "issue"; they say
+    "problème", as the menu does. "Le diagnostic AI" reads "IA".
+  - Names: the General settings page is headed "General", as its menu entry;
+    the issues of one analysis are headed "Issues" (it was "1 Issues
+    Detected", in English in both languages); the command palette lists
+    "Analyses", not "Data"; the tabs of Audit Streaming and Paid license
+    carry their own name.
+  - Cut text: on a phone, the counts of "Workloads by cluster" ran off the
+    screen; the scope filters of Issues cut their French labels ("Tous les
+    environ"). The span tables of an analysis have translated column names.
+  - Tone: the "read-only demo" notice of Investigate is an information
+    notice, not amber; a service type is a neutral chip, not amber; an empty
+    message in the error spans is no longer red.
+  - Dark theme: the track of the health and usage gauges and of the span
+    bars of a trace is no longer near-white.
 
 ## [1.5.1] - 2026-11-22
 

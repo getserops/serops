@@ -393,7 +393,7 @@ const Metrics = () => {
                             styles={buildStyles({
                               pathColor: colorFor(memoryAverageValue, "memory"),
                               textColor: colorFor(memoryAverageValue, "memory"),
-                              trailColor: "#e3e6f0",
+                              trailColor: "var(--bg-sunken)",
                               textSize: '16px',
                             })}
                           />
@@ -544,7 +544,7 @@ const Metrics = () => {
                             styles={buildStyles({
                               pathColor: colorFor(cpuAverageValue, "cpu"),
                               textColor: colorFor(cpuAverageValue, "cpu"),
-                              trailColor: "#e3e6f0",
+                              trailColor: "var(--bg-sunken)",
                               textSize: '16px',
                             })}
                           />

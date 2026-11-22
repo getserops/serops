@@ -9,8 +9,8 @@ import dataService from "../services/data.service";
 import notificationService from "../services/notification.service";
 import InvestigationService from "../services/investigation.service";
 import PageHeader from "./PageHeader";
-import IssuePanel, { StatusChip } from "./issues/IssuePanel";
-import { needsAction, severityTone, severityChipClass } from "../utils/tones";
+import IssuePanel, { StatusChip, SeverityChip } from "./issues/IssuePanel";
+import { needsAction, severityTone } from "../utils/tones";
 import { useCluster } from "../context/ClusterContext";
 import useFilterUrlSync from "../hooks/useFilterUrlSync";
 import { headline } from "../utils/sentences";
@@ -164,17 +164,17 @@ const Issues = () => {
   });
 
   const columnLabels = {
-    id: 'ID',
-    type: 'Type',
-    component: 'Component',
-    description: 'Description',
-    age: 'Age',
-    lastSeen: 'Last seen',
-    correlations: 'Correlations',
-    count: 'Occurrences',
-    severity: 'Severity',
-    status: 'Status',
-    actions: 'Actions',
+    id: t('issues.list.col.id'),
+    type: t('issues.list.col.type'),
+    component: t('issues.list.col.component'),
+    description: t('issues.list.col.description'),
+    age: t('issues.list.col.age'),
+    lastSeen: t('issues.list.col.lastSeen'),
+    correlations: t('issues.list.col.correlations'),
+    count: t('issues.list.col.count'),
+    severity: t('issues.list.col.severity'),
+    status: t('issues.list.col.status'),
+    actions: t('common.actions'),
   };
 
   const sortableColumns = {
@@ -254,7 +254,7 @@ const Issues = () => {
   const pagination = data?.pagination || null;
   const summary = data?.summary || null;
   const error = queryError
-    ? (queryError.response?.data?.error || queryError.message || "Failed to load issues. Please try again later.")
+    ? (queryError.response?.data?.error || queryError.message || t('issues.list.loadFailed'))
     : null;
 
   // Sync URL params
@@ -400,8 +400,8 @@ const Issues = () => {
     if (issue.has_commit_correlation && linkedCommits.length > 0) {
       const firstCommit = linkedCommits[0];
       const commitSha = typeof firstCommit === 'object' ? firstCommit.sha : String(firstCommit);
-      const displaySha = commitSha ? commitSha.substring(0, 8) : 'unknown';
-      const tooltipText = `Linked to commit ${displaySha}${confidence ? ` (${confidence})` : ''}`;
+      const displaySha = commitSha ? commitSha.substring(0, 8) : t('issues.list.corr.unknownSha');
+      const tooltipText = `${t('issues.list.corr.commit', { sha: displaySha })}${confidence ? ` (${confidence})` : ''}`;
       badges.push(
         <OverlayTrigger key="commit" overlay={<Tooltip>{tooltipText}</Tooltip>}>
           <Badge bg="purple" className="me-1 d-inline-flex align-items-center" style={{ backgroundColor: '#7c3aed', cursor: 'pointer' }}>
@@ -412,11 +412,11 @@ const Issues = () => {
     }
     if (issue.has_metric_correlation) {
       const metricType = issue.metric_correlation_type || 'resource';
-      const label = anomalyType === 'sustained_high' ? 'sustained' : metricType;
+      const label = anomalyType === 'sustained_high' ? t('issues.list.corr.sustained') : metricType;
       const badgeBg = anomalyType === 'sustained_high' ? 'warning' : 'info';
-      const peakStr = metricDetail.peak_value != null ? ` peak ${metricDetail.peak_value}%` : '';
+      const peakStr = metricDetail.peak_value != null ? ` ${t('issues.list.corr.peak', { value: metricDetail.peak_value })}` : '';
       const durationStr = metricDetail.duration_seconds > 0 ? ` (${Math.round(metricDetail.duration_seconds / 60)}m)` : '';
-      const tooltipText = `${metricType.charAt(0).toUpperCase() + metricType.slice(1)} ${anomalyType === 'sustained_high' ? 'sustained high' : 'spike'}${peakStr}${durationStr}`;
+      const tooltipText = `${metricType.charAt(0).toUpperCase() + metricType.slice(1)} ${anomalyType === 'sustained_high' ? t('issues.list.corr.sustainedHigh') : t('issues.list.corr.spike')}${peakStr}${durationStr}`;
       badges.push(
         <OverlayTrigger key="metric" overlay={<Tooltip>{tooltipText}</Tooltip>}>
           <Badge bg={badgeBg} className="d-inline-flex align-items-center" style={{ cursor: 'pointer' }}>
@@ -437,7 +437,7 @@ const Issues = () => {
       const svc = traceLink.service_name || '';
       const op = traceLink.operation_name || '';
       const errCount = traces.error_span_count || 0;
-      const tooltipText = `${traces.span_count} spans (${errCount} errors)`
+      const tooltipText = t('issues.list.corr.spansTooltip', { spans: traces.span_count, errors: errCount })
         + (svc ? ` — ${svc}` : '') + (op ? ` :: ${op}` : '');
       // The badge keeps its counts when the trace was not stored, but
       // has no page to open: no pointer, no navigation.
@@ -454,7 +454,7 @@ const Issues = () => {
             } : undefined}
           >
             <FaProjectDiagram size={10} className="me-1" />
-            {errCount > 0 ? `${errCount} err` : `${traces.span_count} spans`}
+            {errCount > 0 ? t('issues.list.corr.errCount', { count: errCount }) : t('issues.list.corr.spanCount', { count: traces.span_count })}
           </Badge>
         </OverlayTrigger>
       );
@@ -463,11 +463,11 @@ const Issues = () => {
       const cicdDetail = (issue.correlation_details || {}).cicd_correlation || {};
       const jobName = cicdDetail.job_name || 'pipeline';
       const pipelineId = cicdDetail.pipeline_id || '';
-      const tooltipText = `Pipeline failure: ${jobName}${pipelineId ? ` (#${pipelineId})` : ''}`;
+      const tooltipText = `${t('issues.list.corr.pipelineFailure', { job: jobName })}${pipelineId ? ` (#${pipelineId})` : ''}`;
       badges.push(
         <OverlayTrigger key="cicd" overlay={<Tooltip>{tooltipText}</Tooltip>}>
           <Badge bg="secondary" className="d-inline-flex align-items-center" style={{ cursor: 'pointer' }}>
-            <FaCog size={10} className="me-1" />Pipeline
+            <FaCog size={10} className="me-1" />{t('issues.list.corr.pipeline')}
           </Badge>
         </OverlayTrigger>
       );
@@ -479,7 +479,7 @@ const Issues = () => {
   const handleCopyId = (issueId) => {
     const url = `${window.location.origin}/dash/issues?id=${issueId}`;
     navigator.clipboard.writeText(url);
-    toast.success("Issue link copied!");
+    toast.success(t('issues.list.toast.linkCopied'));
   };
 
   const handleSort = (columnKey) => {
@@ -563,19 +563,19 @@ const Issues = () => {
       if (rootCause.length >= MEMORY_ROOT_CAUSE_MIN_LENGTH) {
         // Positive reinforcement — this resolution will feed future analyses.
         toast.success(
-          "Issue resolved. The root cause will be used as context in future AI analyses for this project.",
+          t('issues.list.toast.resolvedLearned'),
           { autoClose: 4000 }
         );
       } else {
-        toast.success("Issue resolved successfully");
+        toast.success(t('issues.list.toast.resolved'));
         // Soft nudge — heads-up that this won't contribute as context.
         toast.info(
-          "Tip: a more descriptive root cause becomes useful context for future AI analyses on this project.",
+          t('issues.list.toast.resolvedTip'),
           { autoClose: 6000 }
         );
       }
     } catch {
-      toast.error("Failed to resolve issue");
+      toast.error(t('issues.list.toast.resolveFailed'));
     }
   };
 
@@ -589,26 +589,26 @@ const Issues = () => {
     try {
       if (isBulkMute) {
         await dataService.bulkAction([...selectedIds], 'mute', muteDays);
-        toast.success(`${selectedIds.size} issue(s) muted`);
+        toast.success(t('issues.list.toast.bulkMuted', { count: selectedIds.size }));
         setSelectedIds(new Set());
       } else {
         await dataService.muteIssue(muteIssueId, muteDays);
-        toast.success(`Issue muted for ${muteDays === 0 ? 'forever' : `${muteDays} days`}`);
+        toast.success(muteDays === 0 ? t('issues.list.toast.mutedForever') : t('issues.list.toast.mutedDays', { count: muteDays }));
       }
       setShowMuteModal(false);
       queryClient.invalidateQueries({ queryKey: ["issues"] });
     } catch {
-      toast.error("Failed to mute issue");
+      toast.error(t('issues.list.toast.muteFailed'));
     }
   };
 
   const handleReopen = async (issueId) => {
     try {
       await dataService.reopenIssue(issueId);
-      toast.success("Issue reopened");
+      toast.success(t('issues.list.toast.reopened'));
       queryClient.invalidateQueries({ queryKey: ["issues"] });
     } catch {
-      toast.error("Failed to reopen issue");
+      toast.error(t('issues.list.toast.reopenFailed'));
     }
   };
 
@@ -645,11 +645,11 @@ const Issues = () => {
   const handleBulkResolve = async () => {
     try {
       const result = await dataService.bulkAction([...selectedIds], 'resolve');
-      toast.success(`${result.updated} issue(s) resolved`);
+      toast.success(t('issues.list.toast.bulkResolved', { count: result.updated }));
       setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["issues"] });
     } catch {
-      toast.error("Failed to bulk resolve");
+      toast.error(t('issues.list.toast.bulkResolveFailed'));
     }
   };
 
@@ -661,11 +661,11 @@ const Issues = () => {
   const handleBulkReopen = async () => {
     try {
       const result = await dataService.bulkAction([...selectedIds], 'reopen');
-      toast.success(`${result.updated} issue(s) reopened`);
+      toast.success(t('issues.list.toast.bulkReopened', { count: result.updated }));
       setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["issues"] });
     } catch {
-      toast.error("Failed to bulk reopen");
+      toast.error(t('issues.list.toast.bulkReopenFailed'));
     }
   };
 
@@ -716,9 +716,7 @@ const Issues = () => {
           { label: t('nav.issues'), to: '/dash/issues' },
           { label: batchId.length <= 24 ? batchId : batchId.slice(0, 8) + '…' + batchId.slice(-6), mono: true },
         ] : undefined}
-        title={batchId
-          ? `${pagination?.total_issues ?? issuesData.length} Issues Detected`
-          : t('issues.systemIssues')}
+        title={t('issues.systemIssues')}
         subtitle={(
           <span className="d-inline-flex flex-wrap align-items-center gap-2">
             {batchId ? t('issues.fromBatch') : t('issues.trackAnomalies')}
@@ -776,12 +774,11 @@ const Issues = () => {
           <Form.Select
             value={severityFilter}
             onChange={handleSeverityFilterChange}
-            style={{ width: "140px" }}
-           
+            className="issues-scope-select"
             size="sm"
-            aria-label="Filter by severity"
+            aria-label={t('issues.list.filterSeverity')}
           >
-            <option value="All">{t('common.all')} Severity</option>
+            <option value="All">{t('issues.list.allSeverities')}</option>
             <option value="Critical">{t('issues.critical')}</option>
             <option value="Warning">{t('issues.warning')}</option>
           </Form.Select>
@@ -789,15 +786,14 @@ const Issues = () => {
           <Form.Select
             value={statusFilter}
             onChange={handleStatusFilterChange}
-            style={{ width: "140px" }}
-           
+            className="issues-scope-select"
             size="sm"
-            aria-label="Filter by status"
+            aria-label={t('issues.list.filterStatus')}
           >
-            <option value="All">{t('common.all')} Status</option>
-            <option value="OPEN">Open</option>
-            <option value="MUTED">Muted</option>
-            <option value="RESOLVED">Resolved</option>
+            <option value="All">{t('issues.list.allStatuses')}</option>
+            <option value="OPEN">{t('issues.statusLabel.open')}</option>
+            <option value="MUTED">{t('issues.statusLabel.muted')}</option>
+            <option value="RESOLVED">{t('issues.statusLabel.resolved')}</option>
           </Form.Select>
 
           {!batchId && (
@@ -836,7 +832,7 @@ const Issues = () => {
 
           <Dropdown>
             <Dropdown.Toggle variant="outline-secondary" size="sm" id="columns-dropdown">
-              <FaColumns className="me-1" /> Columns
+              <FaColumns className="me-1" /> {t('issues.list.columns')}
             </Dropdown.Toggle>
             <Dropdown.Menu>
               {Object.entries(columnLabels).map(([key, label]) => (
@@ -853,11 +849,11 @@ const Issues = () => {
             </Dropdown.Menu>
           </Dropdown>
 
-          <OverlayTrigger overlay={<Tooltip>Keyboard shortcuts (?)</Tooltip>}>
+          <OverlayTrigger overlay={<Tooltip>{t('issues.list.shortcutsTooltip')}</Tooltip>}>
             <button
               className="btn btn-link btn-sm p-1 text-muted"
               onClick={() => setShowShortcutHelp(true)}
-              aria-label="Show keyboard shortcuts"
+              aria-label={t('issues.list.showShortcuts')}
             >
               <FaKeyboard size={16} aria-hidden="true" />
             </button>
@@ -877,14 +873,14 @@ const Issues = () => {
               <div className="checkmark-icon">
                 <FaCheckCircle />
               </div>
-              <h4>All clear!</h4>
-              <p>No open issues remaining. Great work keeping the system healthy.</p>
+              <h4>{t('issues.list.allClearTitle')}</h4>
+              <p>{t('issues.list.allClearText')}</p>
             </div>
           ) : (
             <div className="text-center py-5">
               <p className="text-muted">
                 {debouncedSearch
-                  ? `No issues matching "${debouncedSearch}"`
+                  ? t('issues.list.noMatch', { search: debouncedSearch })
                   : t('issues.noIssues')}
               </p>
             </div>
@@ -899,51 +895,51 @@ const Issues = () => {
                     <input
                       type="checkbox"
                       className="select-all-checkbox"
-                      aria-label="Select all issues"
+                      aria-label={t('issues.list.selectAll')}
                       checked={issuesData.length > 0 && selectedIds.size === issuesData.length}
                       onChange={toggleSelectAll}
                     />
                   </th>
-                  {visibleColumns.id && <th className="py-3 border-bottom" style={{ width: '56px' }}>ID</th>}
+                  {visibleColumns.id && <th className="py-3 border-bottom" style={{ width: '56px' }}>{columnLabels.id}</th>}
                   {visibleColumns.type && (
                     <th className="py-3 border-bottom" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('type')}>
-                      Type{renderSortIcon('type')}
+                      {columnLabels.type}{renderSortIcon('type')}
                     </th>
                   )}
                   {visibleColumns.component && (
                     <th className="py-3 border-bottom issue-col-component" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('component')}>
-                      Component{renderSortIcon('component')}
+                      {columnLabels.component}{renderSortIcon('component')}
                     </th>
                   )}
                   {visibleColumns.description && (
                     <th className="py-3 border-bottom" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('description')}>
-                      Description{renderSortIcon('description')}
+                      {columnLabels.description}{renderSortIcon('description')}
                     </th>
                   )}
                   {visibleColumns.age && (
-                    <th className="py-3 border-bottom" style={{ width: '100px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('age')}>
-                      Age{renderSortIcon('age')}
+                    <th className="py-3 border-bottom" style={{ width: '124px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('age')}>
+                      {columnLabels.age}{renderSortIcon('age')}
                     </th>
                   )}
                   {visibleColumns.lastSeen && (
-                    <th className="py-3 border-bottom" style={{ width: '100px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('lastSeen')}>
-                      Last seen{renderSortIcon('lastSeen')}
+                    <th className="py-3 border-bottom" style={{ width: '124px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('lastSeen')}>
+                      {columnLabels.lastSeen}{renderSortIcon('lastSeen')}
                     </th>
                   )}
-                  {visibleColumns.correlations && <th className="py-3 border-bottom">Correlations</th>}
+                  {visibleColumns.correlations && <th className="py-3 border-bottom">{columnLabels.correlations}</th>}
                   {visibleColumns.count && (
                     <th className="py-3 border-bottom text-center issue-col-count" style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} onClick={() => handleSort('count')}>
-                      Occurrences{renderSortIcon('count')}
+                      {columnLabels.count}{renderSortIcon('count')}
                     </th>
                   )}
                   {visibleColumns.severity && (
-                    <th className="py-3 border-bottom" style={{ width: '100px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('severity')}>
-                      Severity{renderSortIcon('severity')}
+                    <th className="py-3 border-bottom" style={{ width: '136px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('severity')}>
+                      {columnLabels.severity}{renderSortIcon('severity')}
                     </th>
                   )}
                   {visibleColumns.status && (
                     <th className="py-3 border-bottom text-center" style={{ width: '104px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('status')}>
-                      Status{renderSortIcon('status')}
+                      {columnLabels.status}{renderSortIcon('status')}
                     </th>
                   )}
                   <th className="py-3 border-bottom text-center issue-col-actions">{t('common.actions')}</th>
@@ -972,7 +968,7 @@ const Issues = () => {
                         <input
                           type="checkbox"
                           className="row-checkbox"
-                          aria-label={`Select issue ${issue.id}`}
+                          aria-label={t('issues.list.selectOne', { id: issue.id })}
                           checked={selectedIds.has(issue.id)}
                           onChange={() => toggleSelection(issue.id)}
                         />
@@ -1042,9 +1038,7 @@ const Issues = () => {
                       )}
                       {visibleColumns.severity && (
                         <td className="issue-cell-meta">
-                          <span className={severityChipClass(issue.severity, issue.status)}>
-                            {(issue.severity || 'N/A').toUpperCase()}
-                          </span>
+                          <SeverityChip severity={issue.severity} status={issue.status} t={t} />
                         </td>
                       )}
                       {visibleColumns.status && <td className="text-center issue-cell-meta">{getStatusBadge(issue.status)}</td>}
@@ -1053,7 +1047,7 @@ const Issues = () => {
                         <Dropdown className="issue-actions-dropdown" align="end">
                           <Dropdown.Toggle
                             variant="link" size="sm" className="text-muted tap-target"
-                            aria-label={`Actions for issue ${issue.id}`}
+                            aria-label={t('issues.list.actionsFor', { id: issue.id })}
                           >
                             <FaEllipsisV size={14} aria-hidden="true" />
                           </Dropdown.Toggle>
@@ -1075,16 +1069,16 @@ const Issues = () => {
                             {issue.status === 'OPEN' && (
                               <>
                                 <Dropdown.Item onClick={() => handleResolve(issue)} {...lock}>
-                                  <FaCheck className="me-2 text-success" size={12} />Resolve
+                                  <FaCheck className="me-2 text-success" size={12} />{t('issues.panel.resolve')}
                                 </Dropdown.Item>
                                 <Dropdown.Item onClick={() => handleMuteClick(issue.id)} {...lock}>
-                                  <FaVolumeMute className="me-2 text-secondary" size={12} />Mute
+                                  <FaVolumeMute className="me-2 text-secondary" size={12} />{t('issues.panel.mute')}
                                 </Dropdown.Item>
                               </>
                             )}
                             {(issue.status === 'MUTED' || issue.status === 'RESOLVED') && (
                               <Dropdown.Item onClick={() => handleReopen(issue.id)} {...lock}>
-                                <FaRedo className="me-2 text-warning" size={12} />Reopen
+                                <FaRedo className="me-2 text-warning" size={12} />{t('issues.panel.reopen')}
                               </Dropdown.Item>
                             )}
                           </Dropdown.Menu>
@@ -1101,24 +1095,24 @@ const Issues = () => {
         {/* Bulk action toolbar */}
         {selectedIds.size > 0 && (
           <div className="bulk-toolbar">
-            <span className="bulk-count">{selectedIds.size} selected</span>
+            <span className="bulk-count">{t('issues.list.selected', { count: selectedIds.size })}</span>
             {canResolveSelection && (
               <>
                 <Button size="sm" variant="success" onClick={handleBulkResolve} {...lock}>
-                  <FaCheck className="me-1" size={12} />Resolve {selectedIds.size}
+                  <FaCheck className="me-1" size={12} />{t('issues.list.bulkResolve', { count: selectedIds.size })}
                 </Button>
                 <Button size="sm" variant="secondary" onClick={handleBulkMuteClick} {...lock}>
-                  <FaVolumeMute className="me-1" size={12} />Mute {selectedIds.size}
+                  <FaVolumeMute className="me-1" size={12} />{t('issues.list.bulkMute', { count: selectedIds.size })}
                 </Button>
               </>
             )}
             {canReopenSelection && (
               <Button size="sm" variant="outline-warning" onClick={handleBulkReopen} {...lock}>
-                <FaRedo className="me-1" size={12} />Reopen {selectedIds.size}
+                <FaRedo className="me-1" size={12} />{t('issues.list.bulkReopen', { count: selectedIds.size })}
               </Button>
             )}
             <Button size="sm" variant="outline-secondary" onClick={() => setSelectedIds(new Set())}>
-              Clear
+              {t('issues.list.clearSelection')}
             </Button>
           </div>
         )}
@@ -1126,10 +1120,10 @@ const Issues = () => {
         {pagination && pagination.total_pages > 1 && (
           <div className="pagination-footer">
             <div className="pagination-info">
-              Showing <strong>
+              {t('issues.list.showing')} <strong>
                 {(pagination.page - 1) * (pagination.page_size || 10) + 1}-
                 {Math.min(pagination.page * (pagination.page_size || 10), pagination.total_issues)}
-              </strong> of <strong>{pagination.total_issues}</strong>
+              </strong> {t('issues.list.of')} <strong>{pagination.total_issues}</strong>
             </div>
 
             <div className="modern-pagination">
@@ -1193,25 +1187,22 @@ const Issues = () => {
       {/* Mute Modal */}
       <Modal show={showMuteModal} onHide={() => setShowMuteModal(false)} centered>
         <Modal.Header closeButton>
-          <Modal.Title>{isBulkMute ? `Mute ${selectedIds.size} Issue(s)` : 'Mute Issue'}</Modal.Title>
+          <Modal.Title>{isBulkMute ? t('issues.list.muteTitleBulk', { count: selectedIds.size }) : t('issues.list.muteTitle')}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <p>How long would you like to mute {isBulkMute ? 'these issues' : 'this issue'}?</p>
+          <p>{isBulkMute ? t('issues.list.muteQuestionBulk') : t('issues.list.muteQuestion')}</p>
           <Form.Select value={muteDays} onChange={(e) => setMuteDays(parseInt(e.target.value))}>
-            <option value={1}>1 day</option>
-            <option value={7}>7 days</option>
-            <option value={30}>30 days</option>
-            <option value={90}>90 days</option>
-            <option value={0}>Forever</option>
+            {[1, 7, 30, 90].map((d) => <option key={d} value={d}>{t('issues.list.muteDays', { count: d })}</option>)}
+            <option value={0}>{t('issues.list.muteForever')}</option>
           </Form.Select>
           <p className="text-muted mt-3 small">
-            Muted issues will still be tracked but won't create duplicate alerts.
+            {t('issues.list.muteNote')}
           </p>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="outline-secondary" onClick={() => setShowMuteModal(false)}>Cancel</Button>
+          <Button variant="outline-secondary" onClick={() => setShowMuteModal(false)}>{t('common.cancel')}</Button>
           <Button variant="secondary" onClick={handleMuteConfirm}>
-            {isBulkMute ? `Mute ${selectedIds.size} Issue(s)` : 'Mute Issue'}
+            {isBulkMute ? t('issues.list.muteTitleBulk', { count: selectedIds.size }) : t('issues.list.muteTitle')}
           </Button>
         </Modal.Footer>
       </Modal>
@@ -1220,37 +1211,37 @@ const Issues = () => {
       {showShortcutHelp && (
         <div className="shortcut-help-overlay" onClick={() => setShowShortcutHelp(false)}>
           <div className="shortcut-help-card" onClick={(e) => e.stopPropagation()}>
-            <h5>Keyboard Shortcuts</h5>
+            <h5>{t('issues.list.shortcuts.title')}</h5>
             <div className="shortcut-row">
-              <span>Move down</span>
+              <span>{t('issues.list.shortcuts.down')}</span>
               <span className="shortcut-key">j</span>
             </div>
             <div className="shortcut-row">
-              <span>Move up</span>
+              <span>{t('issues.list.shortcuts.up')}</span>
               <span className="shortcut-key">k</span>
             </div>
             <div className="shortcut-row">
-              <span>View details</span>
+              <span>{t('issues.menu.viewDetails')}</span>
               <span className="shortcut-key">v</span>
             </div>
             <div className="shortcut-row">
-              <span>Resolve</span>
+              <span>{t('issues.panel.resolve')}</span>
               <span className="shortcut-key">r</span>
             </div>
             <div className="shortcut-row">
-              <span>Mute</span>
+              <span>{t('issues.panel.mute')}</span>
               <span className="shortcut-key">m</span>
             </div>
             <div className="shortcut-row">
-              <span>Toggle select</span>
+              <span>{t('issues.list.shortcuts.select')}</span>
               <span className="shortcut-key">x</span>
             </div>
             <div className="shortcut-row">
-              <span>Show/hide help</span>
+              <span>{t('issues.list.shortcuts.help')}</span>
               <span className="shortcut-key">?</span>
             </div>
             <div className="mt-3 text-center">
-              <Button size="sm" variant="outline-secondary" onClick={() => setShowShortcutHelp(false)}>Close</Button>
+              <Button size="sm" variant="outline-secondary" onClick={() => setShowShortcutHelp(false)}>{t('common.close')}</Button>
             </div>
           </div>
         </div>

@@ -37,6 +37,13 @@ export function StatusChip({ status, t }) {
   return <span className={statusChipClass(s)}>{t(`issues.statusLabel.${s.toLowerCase() || "unknown"}`, { defaultValue: status || "—" })}</span>;
 }
 
+// The severity in the user's language, in capitals as before ("CRITICAL").
+export function SeverityChip({ severity, status, t }) {
+  const s = (severity || "").toLowerCase();
+  const label = s ? t(`issues.${s}`, { defaultValue: severity }) : "N/A";
+  return <span className={severityChipClass(severity, status)}>{label.toUpperCase()}</span>;
+}
+
 /**
  * Issue details, sliding in from the right so the list stays in view.
  * Everything comes from the list response; no extra request.
@@ -80,7 +87,7 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
       <Offcanvas.Header closeButton closeLabel={t("common.close")}>
         <div className="issue-panel-head">
           <div className="issue-panel-chips">
-            <span className={severityChipClass(issue.severity, issue.status)}>{(issue.severity || "N/A").toUpperCase()}</span>
+            <SeverityChip severity={issue.severity} status={issue.status} t={t} />
             <StatusChip status={issue.status} t={t} />
             {issue.acknowledged_at && <span className="ds-chip ds-chip-info">{t("issues.panel.acknowledged")}</span>}
             <span className="ds-mono issue-panel-id">#{issue.id}</span>

@@ -242,6 +242,23 @@
     justify-content: flex-end;
     row-gap: var(--space-2);
   }
+  /* A table whose cells hold more than one short value (several lines,
+     form fields): the column name goes above the cell and the content
+     takes the full width, instead of sharing one line with the name. */
+  .table-stack.table-stack-block td {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1);
+    padding: var(--space-2) 0 !important;
+    text-align: left !important;
+  }
+  .table-stack.table-stack-block td::before { flex: none; max-width: none; }
+  .ds-settings-section-flush .table-stack.table-stack-block td:first-child { padding-left: 0 !important; }
+  .ds-settings-section-flush .table-stack.table-stack-block td:last-child > .d-flex { justify-content: flex-start; }
+  /* The saved key on its own line, its two links under it. */
+  .ai-provider-key-row { flex-wrap: wrap; row-gap: var(--space-1); }
+  .ai-provider-key-row > .text-truncate { flex: 1 1 100%; max-width: 100% !important; }
+  .ai-provider-key-row > .text-truncate:empty { display: none; }
 }
 
 /* =============================================================
@@ -747,7 +764,6 @@ a code { color: inherit; }
 :root[data-theme="dark"] .status-badge.skipped,
 :root[data-theme="dark"] .sentinel-shadow  { background: hsl(230, 15%, 22%); color: hsl(230, 10%, 82%); }
 :root[data-theme="dark"] .settings-readonly-notice,
-:root[data-theme="dark"] .investigate-banner { background: hsl(40, 45%, 16%); color: hsl(40, 90%, 75%); }
 :root[data-theme="dark"] .investigate-chip.is-on { background: hsl(230, 45%, 25%); color: hsl(230, 90%, 85%); border-color: hsl(230, 70%, 60%); }
 :root[data-theme="dark"] .count-heat-normal { color: var(--text-secondary); }
 :root[data-theme="dark"] .ds-btn-primary { background: var(--brand-fill); border-color: var(--brand-fill); }

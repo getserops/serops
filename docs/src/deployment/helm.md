@@ -30,7 +30,7 @@ at your own:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.5.1 \
+  --version 1.5.2 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set django.encryptionKey="$(openssl rand -base64 32 | tr '+/' '-_')" \
@@ -57,7 +57,7 @@ For a lab or demo cluster, let the chart run Postgres and Redis itself:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.5.1 \
+  --version 1.5.2 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set django.encryptionKey="$(openssl rand -base64 32 | tr '+/' '-_')" \
@@ -327,11 +327,11 @@ provenance attestations. Before installing:
 ```bash
 # A tag publishes the chart; a failed publish is redone by hand from main
 # without moving the tag (chart 1.3.0 was), hence both refs.
-cosign verify ghcr.io/getserops/charts/serops:1.5.1 \
+cosign verify ghcr.io/getserops/charts/serops:1.5.2 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/helm-release\.yml@refs/(tags/v|heads/main$)'
 
-cosign verify ghcr.io/getserops/backend:1.5.1 \
+cosign verify ghcr.io/getserops/backend:1.5.2 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/docker\.yml@refs/tags/v'
 ```
@@ -360,7 +360,7 @@ from, with the same values:
 
 ```bash
 # OCI (as installed above)
-helm upgrade serops oci://ghcr.io/getserops/charts/serops --version 1.5.1 \
+helm upgrade serops oci://ghcr.io/getserops/charts/serops --version 1.5.2 \
   --namespace serops -f my-values.yaml --wait --timeout 15m
 
 # From a clone of the repository

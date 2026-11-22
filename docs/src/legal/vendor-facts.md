@@ -79,7 +79,7 @@ AGPL. See the [open source promise](../open-source-promise.md) and the
 
 - By email to **support@serops.ai**, during Business Hours: 09:00 to 18:00
   Central European Time, Monday to Friday, excluding public holidays in
-  Tunisia ([Terms, section 5](enterprise-terms.md#5-support-and-updates)).
+  Tunisia ([Terms, section 7](enterprise-terms.md#5-support-and-updates)).
 - Business: standard terms, a first reply targeted within one working day
   (a target, not a guarantee), and the standard
   [security pack](security-pack.md).

@@ -25,6 +25,14 @@ describe('CommandPalette', () => {
     expect(navigate).toHaveBeenCalledWith('/dash/settings/audit');
   });
 
+  it('lists the Analyses page under the name the menu gives it', () => {
+    render(<CommandPalette />);
+    act(() => { fireEvent.keyDown(window, { key: 'k', ctrlKey: true }); });
+    const texts = screen.getAllByRole('option').map((o) => o.textContent);
+    expect(texts.some((x) => x.includes('nav.analyses'))).toBe(true);
+    expect(texts.some((x) => x.includes('nav.data'))).toBe(false);
+  });
+
   it('finds projects by name', () => {
     render(<CommandPalette />);
     act(() => { fireEvent.keyDown(window, { key: 'k', metaKey: true }); });
