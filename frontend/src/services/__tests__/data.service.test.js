@@ -330,3 +330,56 @@ describe('dataService.getBatchMetrics — per-service collapse', () => {
     expect(out.results[0].value).toBe(55);
   });
 });
+
+describe('dataService: one download per batch at a time', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const payload = {
+    batch_id: 'b9',
+    data: {
+      logs: [{ _id: 'l1', _source: { '@timestamp': '2026-11-20T10:00:00Z', message: 'boom' } }],
+      metrics: { memory_usage_percent: [{ time: 't1', value: '50', series_key: 'api' }] },
+    },
+  };
+
+  it('shares the download between calls made at the same time', async () => {
+    let release;
+    apiClient.get.mockReturnValue(new Promise((resolve) => { release = () => resolve({ data: payload }); }));
+
+    const all = Promise.all([
+      dataService.getBatchLogs('b9'),
+      dataService.getBatchDetailsResult('b9'),
+      dataService.getBatchMetrics('b9', { type: 'memory_usage' }),
+      dataService.getBatchDetails('b9'),
+    ]);
+    release();
+    const [logs, result, metrics, details] = await all;
+
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+    expect(apiClient.get.mock.calls[0][0]).toBe('/data/batches/b9/');
+    expect(logs.count).toBe(1);
+    expect(result.batch.batch_id).toBe('b9');
+    expect(metrics.results).toHaveLength(1);
+    expect(details.batch_id).toBe('b9');
+  });
+
+  it('downloads again once the first download has finished', async () => {
+    apiClient.get.mockResolvedValue({ data: payload });
+    await dataService.getBatchDetails('b9');
+    await dataService.getBatchDetails('b9');
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not share between two batches, and a failure is not kept', async () => {
+    apiClient.get.mockRejectedValueOnce({ response: { status: 404 } }).mockResolvedValue({ data: payload });
+    const [a, b] = await Promise.all([
+      dataService.getBatchDetailsResult('missing'),
+      dataService.getBatchDetailsResult('b9'),
+    ]);
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+    expect(a).toEqual({ batch: null, notFound: true });
+    expect(b.batch.batch_id).toBe('b9');
+    const again = await dataService.getBatchDetailsResult('missing');
+    expect(again.batch.batch_id).toBe('b9');   // a new download, not the old failure
+  });
+});

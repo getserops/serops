@@ -1,6 +1,7 @@
 import re
-import requests
 
+
+from Utils import outbound  # user-configured URLs: checked and pinned (audit item 3)
 from Utils.outbound import check_url
 from urllib.parse import urlparse
 from .models import GitlabProject, Pipeline, Job
@@ -157,7 +158,7 @@ def gitlab_retrieve_job_logs(project_id, pipeline_id, pipeline_branch, job_id, j
     # Stored, user-configured GitLab URL: re-checked, no redirects
     # followed (security review 2026-11, finding 3).
     check_url(job_logs_url)
-    response = requests.get(job_logs_url, headers=headers, timeout=30, allow_redirects=False)
+    response = outbound.get(job_logs_url, headers=headers, timeout=30, allow_redirects=False)
 
     if response.status_code == 200:
         job_logs_data = response.text
@@ -289,7 +290,7 @@ def trigger_pipeline_run( project_id,access_token,pipeline_id):
 
 
     check_url(url)
-    response = requests.post(url, headers=headers, json={}, timeout=30, allow_redirects=False)
+    response = outbound.post(url, headers=headers, json={}, timeout=30, allow_redirects=False)
     if response.status_code not in [200,201] :
         return False
     logger.debug(f"Response status: {response.status_code}")
@@ -304,7 +305,7 @@ def cancel_pipeline_run(  project_id,access_token,pipeline_id):
     }
 
     check_url(url)
-    response = requests.post(url, headers=headers, json={}, timeout=30, allow_redirects=False)
+    response = outbound.post(url, headers=headers, json={}, timeout=30, allow_redirects=False)
     if response.status_code not in [200,201] :
         return False
     logger.debug(f"Response status: {response.status_code}")

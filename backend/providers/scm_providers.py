@@ -18,6 +18,8 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 import requests
 
+
+from Utils import outbound  # user-configured URLs: checked and pinned (audit item 3)
 from Utils.outbound import check_url
 import logging
 from dateutil import parser as date_parser
@@ -798,7 +800,7 @@ class GitHubProvider(BaseProvider):
             # User-configured base URL: re-checked before the request, no
             # redirects followed (security review 2026-11, finding 3).
             check_url(url)
-            response = requests.post(
+            response = outbound.post(
                 url,
                 headers=self._get_headers(),
                 json=payload,
@@ -1170,7 +1172,7 @@ class BitbucketProvider(BaseProvider):
             # User-configured base URL: re-checked before the request, no
             # redirects followed (security review 2026-11, finding 3).
             check_url(url)
-            response = requests.get(
+            response = outbound.get(
                 url,
                 headers=self._get_headers(),
                 timeout=30,
@@ -1799,7 +1801,7 @@ class JenkinsProvider:
             # User-configured base URL: re-checked before the request, no
             # redirects followed (security review 2026-11, finding 3).
             check_url(url)
-            response = requests.get(
+            response = outbound.get(
                 url,
                 auth=self._get_auth(),
                 headers=self._get_headers(),
@@ -1852,7 +1854,7 @@ class JenkinsProvider:
             # User-configured base URL: re-checked before the request, no
             # redirects followed (security review 2026-11, finding 3).
             check_url(url)
-            response = requests.get(
+            response = outbound.get(
                 url,
                 auth=self._get_auth(),
                 headers=self._get_headers(),
@@ -1931,7 +1933,7 @@ class JenkinsProvider:
             # User-configured base URL: re-checked before the request, no
             # redirects followed (security review 2026-11, finding 3).
             check_url(url)
-            response = requests.get(
+            response = outbound.get(
                 url, auth=self._get_auth(), headers=self._get_headers(),
                 params=params, timeout=30,
                 allow_redirects=False,
@@ -2017,7 +2019,7 @@ class JenkinsProvider:
             # User-configured base URL: re-checked before the request, no
             # redirects followed (security review 2026-11, finding 3).
             check_url(url)
-            response = requests.get(
+            response = outbound.get(
                 url,
                 auth=self._get_auth(),
                 headers=self._get_headers(),
@@ -2062,7 +2064,7 @@ class JenkinsProvider:
             # User-configured base URL: re-checked before the request, no
             # redirects followed (security review 2026-11, finding 3).
             check_url(url)
-            response = requests.get(
+            response = outbound.get(
                 url,
                 auth=self._get_auth(),
                 timeout=30,
@@ -2102,7 +2104,7 @@ class JenkinsProvider:
             # User-configured base URL: re-checked before the request, no
             # redirects followed (security review 2026-11, finding 3).
             check_url(url)
-            response = requests.get(
+            response = outbound.get(
                 url,
                 auth=self._get_auth(),
                 headers=self._get_headers(),
@@ -2153,7 +2155,7 @@ class JenkinsProvider:
             # User-configured base URL: re-checked before the request, no
             # redirects followed (security review 2026-11, finding 3).
             check_url(url)
-            response = requests.post(
+            response = outbound.post(
                 url,
                 auth=self._get_auth(),
                 headers=self._get_headers(),

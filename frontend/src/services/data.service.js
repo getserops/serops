@@ -76,10 +76,26 @@ const getBatches = async (params = {}) => {
 };
 
 // The batch envelope, or the sample incident's fixture (see sample/).
+//
+// One download per batch at a time. The analysis page asks for the same batch
+// from several places at once (the envelope, the log adapter, the two metric
+// charts), and each call used to download the whole answer again: several
+// hundred kilobytes each when the batch holds 300 log records. Calls made
+// while a download is running share it; once it has finished the next call
+// downloads again, so a refresh after "promote" or a re-analysis is fresh.
+// Callers must not modify the object they receive.
+const inFlightBatches = new Map();
 const fetchBatch = async (batchId) => {
   if (isSampleBatch(batchId)) return (await loadSampleIncident()).details;
-  const response = await apiClient.get(`${API_URL}/${batchId}/`);
-  return response.data;
+  let pending = inFlightBatches.get(batchId);
+  if (!pending) {
+    pending = apiClient
+      .get(`${API_URL}/${batchId}/`)
+      .then((response) => response.data)
+      .finally(() => inFlightBatches.delete(batchId));
+    inFlightBatches.set(batchId, pending);
+  }
+  return pending;
 };
 
 const getBatchLogs = async (batchId) => {
@@ -148,13 +164,13 @@ const getBatchMetrics = async (batchId, { type = "memory_usage" } = {}) => {
   }
 
   try {
-    const response = await apiClient.get(`${API_URL}/${batchId}/`);
+    const batch = await fetchBatch(batchId);
 
     let metrics = [];
     if (type === "memory_usage") {
-      metrics = response.data.data?.metrics?.memory_usage_percent || [];
+      metrics = batch?.data?.metrics?.memory_usage_percent || [];
     } else if (type === "cpu_usage") {
-      metrics = response.data.data?.metrics?.cpu_usage_percent || [];
+      metrics = batch?.data?.metrics?.cpu_usage_percent || [];
     }
 
     // Metrics are per-service: in Kubernetes the collectors aggregate by
@@ -217,7 +233,7 @@ const getBatchMetrics = async (batchId, { type = "memory_usage" } = {}) => {
       // routine housekeeping, the other means something is misconfigured, and
       // showing the wrong one sends the operator looking for a fault that is
       // not there.
-      trimmedAt: response.data.data?.metrics_trimmed_at || null,
+      trimmedAt: batch?.data?.metrics_trimmed_at || null,
     };
   } catch (error) {
     console.error("Error fetching batch metrics:", error);

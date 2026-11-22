@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models.functions import Lower
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.core.exceptions import ValidationError
 from model_utils import Choices
@@ -23,6 +24,17 @@ class SeropsUserManager(UserManager):
         supply an org, we create a bootstrap "<Admin>'s Organisation"
         and attach the superuser + set role=admin.
     """
+
+    @classmethod
+    def normalize_email(cls, email):
+        """The whole address lowercase, not only the domain (audit
+        2026-11-20, item 8)."""
+        from Users.emails import normalize_email
+        return normalize_email(email)
+
+    def get_by_natural_key(self, username):
+        """Sign-in by email whatever its case."""
+        return self.get(**{f'{self.model.USERNAME_FIELD}__iexact': username})
 
     def create_superuser(self, username=None, email=None, password=None, **extra_fields):
         extra_fields.setdefault("is_active", True)
@@ -90,7 +102,12 @@ class User(AbstractUser):
     )
     
     def save(self, *args, **kwargs):
-        """Override save to enforce role validation."""
+        """Override save to enforce role validation and store the email
+        lowercase (every write path: sign-up, invitation, SSO, SCIM, email
+        change, createsuperuser)."""
+        if self.email:
+            from Users.emails import normalize_email
+            self.email = normalize_email(self.email)
         if self.role and self.role not in [r[0] for r in self.ROLE]:
             raise ValidationError(f"Invalid role: '{self.role}'. Valid roles are: {', '.join([r[0] for r in self.ROLE])}")
         if self.role == 'custom':
@@ -105,6 +122,12 @@ class User(AbstractUser):
 
     class Meta:
         db_table = 'Users'
+        # One account per address whatever its case (audit 2026-11-20,
+        # item 8). Migration 0018 refuses to add it while case duplicates
+        # exist, and lists them.
+        constraints = [
+            models.UniqueConstraint(Lower('email'), name='users_email_lower_unique'),
+        ]
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = [
@@ -148,7 +171,10 @@ class SecuritySettings(models.Model):
         related_name='security_settings'
     )
     
-    # Password Policy
+    # Password policy: NOT USED. Nothing reads these columns; the screen and
+    # the API no longer show them (audit 2026-11-20, item 17). Passwords are
+    # checked by AUTH_PASSWORD_VALIDATORS (api/settings.py). Kept to avoid a
+    # migration; enforcing a configurable policy is on the after-launch list.
     min_password_length = models.IntegerField(default=8)
     require_uppercase = models.BooleanField(default=True)
     require_lowercase = models.BooleanField(default=True)

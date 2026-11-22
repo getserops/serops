@@ -77,20 +77,6 @@ export const OrganisationService = {
     }
   },
 
-  createOrganisation: async (organisationData) => {
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/create/`,
-        organisationData,
-        getAuthHeaders()
-      );
-      return response.data;
-    } catch (error) {
-      console.error("Error creating organisation:", error);
-      throw error;
-    }
-  },
-
   updateOrganisation: async (id, organisationData) => {
     try {
       const response = await axios.put(

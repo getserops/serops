@@ -93,7 +93,7 @@ class TestCeleryTaskIntegration(unittest.TestCase):
     """Integration tests for Celery tasks (mocked)."""
 
     @patch('providers.tasks.GitlabProject.objects')
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_fetch_failed_job_logs_handles_missing_project(self, mock_get, mock_objects):
         """Test that task handles missing GitLab project gracefully."""
         from providers.tasks import fetch_failed_job_logs_for_project
@@ -108,7 +108,7 @@ class TestCeleryTaskIntegration(unittest.TestCase):
         mock_get.assert_not_called()
 
     @patch('providers.tasks.GitlabProject.objects')
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_fetch_failed_job_logs_handles_api_error(self, mock_get, mock_objects):
         """Test that task handles GitLab API errors gracefully."""
         from providers.tasks import fetch_failed_job_logs_for_project

@@ -65,7 +65,7 @@ class TestGitLabProvider(unittest.TestCase):
         headers = self.provider._get_headers()
         self.assertEqual(headers["PRIVATE-TOKEN"], self.access_token)
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_get_commits_success(self, mock_request):
         """Test successful commit fetching from GitLab."""
         mock_response = Mock()
@@ -87,7 +87,7 @@ class TestGitLabProvider(unittest.TestCase):
         self.assertEqual(commits[0]['sha'], "commit1")
         self.assertEqual(commits[0]['author_name'], "John Doe")
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_verify_connection_success(self, mock_request):
         """Test successful GitLab connection verification."""
         mock_response = Mock()
@@ -105,7 +105,7 @@ class TestGitLabProvider(unittest.TestCase):
         self.assertEqual(result['username'], "testuser")
         self.assertEqual(result['name'], "Test User")
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_list_projects_success(self, mock_request):
         """Test successful GitLab project listing."""
         mock_response = Mock()
@@ -154,7 +154,7 @@ class TestGitHubProvider(unittest.TestCase):
         self.assertIn("Bearer", headers["Authorization"])
         self.assertEqual(headers["Accept"], "application/vnd.github.v3+json")
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_verify_connection_success(self, mock_request):
         """Test successful GitHub connection verification."""
         mock_response = Mock()
@@ -175,7 +175,7 @@ class TestGitHubProvider(unittest.TestCase):
         self.assertEqual(result['name'], "The Octocat")
         self.assertEqual(result['type'], "User")
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_verify_connection_invalid_token(self, mock_request):
         """Test GitHub verification with invalid token."""
         mock_response = Mock()
@@ -188,7 +188,7 @@ class TestGitHubProvider(unittest.TestCase):
 
         self.assertIn("Authentication failed", str(context.exception))
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_list_projects_success(self, mock_request):
         """Test successful GitHub repository listing."""
         mock_response = Mock()
@@ -218,7 +218,7 @@ class TestGitHubProvider(unittest.TestCase):
         self.assertEqual(projects[0]['default_branch'], "main")
         self.assertFalse(projects[0]['is_private'])
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_get_commits_success(self, mock_request):
         """Test successful GitHub commit fetching."""
         mock_response = Mock()
@@ -263,7 +263,7 @@ class TestBitbucketProvider(unittest.TestCase):
         """Test Bitbucket uses correct default API URL."""
         self.assertEqual(self.provider.base_url, "https://api.bitbucket.org/2.0")
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_verify_connection_success(self, mock_request):
         """Test successful Bitbucket connection verification."""
         mock_response = Mock()
@@ -283,7 +283,7 @@ class TestBitbucketProvider(unittest.TestCase):
         self.assertEqual(result['username'], "testuser")
         self.assertEqual(result['display_name'], "Test User")
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_verify_connection_invalid_token(self, mock_request):
         """Test Bitbucket verification with invalid token."""
         mock_response = Mock()
@@ -296,7 +296,7 @@ class TestBitbucketProvider(unittest.TestCase):
 
         self.assertIn("Authentication failed", str(context.exception))
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_list_projects_success(self, mock_request):
         """Test successful Bitbucket repository listing."""
         mock_response = Mock()
@@ -361,7 +361,7 @@ class TestAzureDevOpsProvider(unittest.TestCase):
         self.assertEqual(provider.organization, "myorg")
         self.assertIsNone(provider.project)
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_verify_connection_success(self, mock_request):
         """Test successful Azure DevOps connection verification."""
         mock_response = Mock()
@@ -380,7 +380,7 @@ class TestAzureDevOpsProvider(unittest.TestCase):
         self.assertEqual(result['username'], "Test User")
         self.assertEqual(result['organization'], "myorg")
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_verify_connection_invalid_pat(self, mock_request):
         """Test Azure DevOps verification with invalid PAT."""
         mock_response = Mock()
@@ -393,7 +393,7 @@ class TestAzureDevOpsProvider(unittest.TestCase):
 
         self.assertIn("Authentication failed", str(context.exception))
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_list_projects_success(self, mock_request):
         """The Azure picker lists Git repositories (a project can hold several)."""
         mock_response = Mock()
@@ -455,7 +455,7 @@ class TestJenkinsProvider(unittest.TestCase):
         provider = JenkinsProvider(base_url="https://jenkins.com")
         self.assertIsNone(provider._get_auth())
 
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_verify_connection_success(self, mock_get):
         """Test successful Jenkins connection verification."""
         mock_response = Mock()
@@ -475,7 +475,7 @@ class TestJenkinsProvider(unittest.TestCase):
         self.assertEqual(result['jenkins_version'], "2.401.1")
         self.assertEqual(result['jobs_count'], 3)
 
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_verify_connection_invalid_credentials(self, mock_get):
         """Test Jenkins verification with invalid credentials."""
         mock_response = Mock()
@@ -487,7 +487,7 @@ class TestJenkinsProvider(unittest.TestCase):
 
         self.assertIn("Invalid Jenkins credentials", str(context.exception))
 
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_verify_connection_cannot_connect(self, mock_get):
         """Test Jenkins verification when server unreachable."""
         mock_get.side_effect = requests.exceptions.ConnectionError()
@@ -497,7 +497,7 @@ class TestJenkinsProvider(unittest.TestCase):
 
         self.assertIn("Cannot connect to Jenkins", str(context.exception))
 
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_list_projects_success(self, mock_get):
         """Test successful Jenkins job listing."""
         mock_response = Mock()
@@ -528,7 +528,7 @@ class TestJenkinsProvider(unittest.TestCase):
         self.assertEqual(jobs[0]['last_build']['number'], 42)
         self.assertEqual(jobs[0]['last_build']['result'], "SUCCESS")
 
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_list_projects_with_search(self, mock_get):
         """Test Jenkins job listing with search filter."""
         mock_response = Mock()
@@ -547,7 +547,7 @@ class TestJenkinsProvider(unittest.TestCase):
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs[0]['name'], "deploy-job")
 
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_get_build_logs_success(self, mock_get):
         """Test successful build log retrieval."""
         mock_response = Mock()
@@ -565,7 +565,7 @@ class TestJenkinsProvider(unittest.TestCase):
             allow_redirects=False,
         )
 
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_get_build_logs_not_found(self, mock_get):
         """Test build log retrieval returns empty string on 404."""
         mock_response = Mock()
@@ -576,7 +576,7 @@ class TestJenkinsProvider(unittest.TestCase):
 
         self.assertEqual(logs, '')
 
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_get_build_logs_connection_error(self, mock_get):
         """Test build log retrieval returns empty string on connection error."""
         mock_get.side_effect = requests.exceptions.ConnectionError()
@@ -585,7 +585,7 @@ class TestJenkinsProvider(unittest.TestCase):
 
         self.assertEqual(logs, '')
 
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_list_recent_builds_success(self, mock_get):
         """Test successful recent builds listing."""
         mock_response = Mock()
@@ -621,7 +621,7 @@ class TestJenkinsProvider(unittest.TestCase):
         self.assertFalse(builds[0]['building'])
         self.assertEqual(builds[1]['result'], 'FAILURE')
 
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_list_recent_builds_empty(self, mock_get):
         """Test recent builds listing returns empty list on failure."""
         mock_response = Mock()
@@ -632,7 +632,7 @@ class TestJenkinsProvider(unittest.TestCase):
 
         self.assertEqual(builds, [])
 
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_list_recent_builds_connection_error(self, mock_get):
         """Test recent builds listing returns empty list on connection error."""
         mock_get.side_effect = requests.exceptions.ConnectionError()

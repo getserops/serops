@@ -140,6 +140,15 @@ docker compose logs -f backend                          # tail app logs
 
 ## Post-deployment
 
+### Several organisations on one install
+
+If more than one organisation (more than one team that should not see the
+others' network) signs in to this install, set
+`SEROPS_OUTBOUND_ALLOW_PRIVATE=false`. Otherwise the URLs an organisation
+configures (log and metric stores, SCM and CI base URLs, AI endpoints, SSO
+discovery) may point at private and loopback addresses of the host's
+network. See [Configuration](configuration.md).
+
 ### TLS
 
 Caddy handles HTTPS automatically via Let's Encrypt when

@@ -70,7 +70,9 @@ class OptimizedTokenAuthentication(KnoxTokenAuthentication):
                 if _idle_too_long(auth_token):
                     auth_token.delete()
                     raise _auth_failed(_('Your session expired.'))
-                if knox_settings.AUTO_REFRESH and auth_token.expiry:
+                # Demo tokens keep the short lifetime they were issued with:
+                # a renewal would push them to TOKEN_TTL (30 days).
+                if knox_settings.AUTO_REFRESH and auth_token.expiry and not auth_token.user.is_demo:
                     self.renew_token(auth_token)
                 return self.validate_user(auth_token)
 
@@ -86,6 +88,10 @@ def _idle_too_long(auth_token):
     """
     organisation = auth_token.user.organisation
     if auth_token.expiry is None or organisation is None:
+        return False
+    if auth_token.user.is_demo:
+        # Not renewed, so expiry - TOKEN_TTL is not "last used": the token's
+        # own short lifetime is the limit.
         return False
     from Users.models import SecuritySettings
     try:

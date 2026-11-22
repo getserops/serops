@@ -49,21 +49,21 @@ class RepositoryIdParsingTests(SimpleTestCase):
 
 
 class RequestUrlTests(SimpleTestCase):
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_commits_use_the_repository_not_the_project(self, mock_request):
         mock_request.return_value = _ok({'value': []})
         AzureDevOpsProvider('acme/Shop/payments-api', 'pat').get_commits()
         url = mock_request.call_args.kwargs['url']
         self.assertIn('/acme/Shop/_apis/git/repositories/payments-api/commits', url)
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_diff_uses_the_repository(self, mock_request):
         mock_request.return_value = _ok({'changes': [], 'parents': []})
         AzureDevOpsProvider('acme/Shop/payments-api', 'pat').get_commit_diff('abc')
         urls = [c.kwargs['url'] for c in mock_request.call_args_list]
         self.assertTrue(all('/_apis/git/repositories/payments-api/' in u for u in urls), urls)
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_picker_lists_repositories_across_the_organization(self, mock_request):
         mock_request.return_value = _ok({'value': [
             {'name': 'web', 'project': {'name': 'Shop'}},
@@ -76,7 +76,7 @@ class RequestUrlTests(SimpleTestCase):
         self.assertEqual(repos[0]['default_branch'], 'trunk')
         self.assertFalse(repos[0]['is_private'])
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_picker_pagination(self, mock_request):
         mock_request.return_value = _ok({'value': [{'name': f'r{i:02d}', 'project': {'name': 'P'}} for i in range(25)]})
         page2 = AzureDevOpsProvider('', 'pat', organization='acme').list_projects(page=2, per_page=20)

@@ -20,6 +20,9 @@
     paint on slow phones; defer keeps the order and runs it after parsing.
     Filtering super() keeps Material's own (versioned) bundle name. -#}
 {% block scripts %}
+  {#- Mermaid from our own site: see partials/mermaid-local.js. Not deferred,
+      so it runs before the theme's bundle looks for `window.mermaid`. -#}
+  <script data-src="{{ 'assets/javascripts/mermaid-11.17.2.min.js' | url }}">{% include "partials/mermaid-local.js" %}</script>
   {{ super() | replace('<script src=', '<script defer src=') }}
 {% endblock %}
 

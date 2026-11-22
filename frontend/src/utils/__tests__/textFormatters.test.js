@@ -376,3 +376,20 @@ describe('renderFormattedText: markdown lists', () => {
         expect(html).toContain('</ul><div class="chat-table-wrapper">');
     });
 });
+
+describe('renderFormattedText: bold paragraphs', () => {
+    it('keeps the break between two bold paragraphs in a row', () => {
+        const html = renderFormattedText('**It started at 23:59:36Z.**\n\n**What it changed**\nThe limit.');
+        expect(html).toBe('<strong>It started at 23:59:36Z.</strong><br /><br /><strong>What it changed</strong><br />The limit.');
+    });
+
+    it('keeps the break between two bold lines one after the other', () => {
+        const html = renderFormattedText('**one**\n**two**');
+        expect(html).toBe('<strong>one</strong><br /><strong>two</strong>');
+    });
+
+    it('still drops an empty pair of markers on one line', () => {
+        expect(renderFormattedText('before ** ** after')).toBe('before  after');
+        expect(renderFormattedText('before **** after')).toBe('before  after');
+    });
+});

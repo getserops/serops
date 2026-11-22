@@ -18,7 +18,7 @@ your own for production:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.5.0 \
+  --version 1.5.1 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set django.encryptionKey="$(openssl rand -base64 32 | tr '+/' '-_')" \
@@ -67,6 +67,14 @@ secret in a Kubernetes Secret you manage, referenced through the
 `--set` or in a values file is stored in the chart-managed Secret and in
 every Helm release record in the namespace, and `--set` leaves it in your
 shell history.
+
+An install shared by several organisations must refuse private and loopback
+destinations for the URLs organisations configure:
+
+```yaml
+django:
+  outboundAllowPrivate: false   # SEROPS_OUTBOUND_ALLOW_PRIVATE, for the API pods and the workers
+```
 
 ```yaml
 # my-values.yaml
@@ -151,6 +159,17 @@ reachable. Egress is open by default because SerOps queries the observability
 providers, SCM and AI endpoints you configure, on their own hosts and ports;
 narrow `networkPolicy.egress` once you know them. The policies need a CNI
 that enforces NetworkPolicy; set `networkPolicy.enabled=false` to skip them.
+
+## Upgrading to chart 0.2.3
+
+* New value `django.outboundAllowPrivate` (default `true`, the behaviour
+  until now). It sets `SEROPS_OUTBOUND_ALLOW_PRIVATE` for the API pods and
+  the Celery workers. An install shared by several organisations must set it
+  to `false`. Nothing to do for an install with one organisation.
+* SerOps 1.5.1 runs migration `Users 0018` in the migrate job. It stops, and
+  the job fails, if two accounts have the same email address in different
+  case; the job's log lists them. See
+  [Upgrade notes](https://serops.ai/docs/deployment/upgrading/#upgrade-notes).
 
 ## Upgrading to chart 0.2.2
 

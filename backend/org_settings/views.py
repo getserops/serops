@@ -1,6 +1,7 @@
 """
 API Views for Organisation Settings.
 """
+from Utils import outbound  # user-configured URLs: checked and pinned (audit item 3)
 from Middlewares.rbac import Requires
 
 from rest_framework import status
@@ -354,7 +355,7 @@ class OllamaProbeView(APIView):
         try:
             # No redirects: the check above covers this URL only (security
             # review 2026-11, finding 3).
-            resp = requests.get(url, timeout=5, allow_redirects=False)
+            resp = outbound.get(url, timeout=5, allow_redirects=False)
             resp.raise_for_status()
             data = resp.json() or {}
             models = [

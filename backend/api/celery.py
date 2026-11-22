@@ -92,6 +92,16 @@ app.conf.beat_schedule = {
             'priority': 7,  # High but not highest
         }
     },
+    # Expired sign-in tokens (demo visits included) are not deleted when
+    # authentication skips them (audit 2026-11-20, item 15).
+    'delete-expired-auth-tokens': {
+        'task': 'Users.tasks.delete_expired_auth_tokens',
+        'schedule': timedelta(hours=1),
+        'options': {
+            'queue': 'background',
+            'priority': 2,
+        }
+    },
     'auto-retention-cleanup': {
         'task': 'Data.tasks.run_auto_retention_cleanup',
         'schedule': timedelta(hours=1),

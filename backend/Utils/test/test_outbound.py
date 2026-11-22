@@ -59,13 +59,13 @@ def _redirect_response(location, status=302):
 
 class GuardedRequestTest(SimpleTestCase):
 
-    @patch('Utils.outbound.requests.request')
+    @patch('Utils.outbound._send')
     def test_a_metadata_url_is_refused_before_any_request(self, request):
         with self.assertRaises(BlockedOutboundURL):
             guarded_request('GET', 'http://169.254.169.254/latest/meta-data/')
         request.assert_not_called()
 
-    @patch('Utils.outbound.requests.request')
+    @patch('Utils.outbound._send')
     def test_a_redirect_to_another_host_is_not_followed(self, request):
         request.return_value = _redirect_response('http://169.254.169.254/latest/meta-data/')
 
@@ -75,7 +75,7 @@ class GuardedRequestTest(SimpleTestCase):
         request.assert_called_once()
         self.assertFalse(request.call_args.kwargs['allow_redirects'])
 
-    @patch('Utils.outbound.requests.request')
+    @patch('Utils.outbound._send')
     def test_a_same_host_redirect_is_followed(self, request):
         final = MagicMock(status_code=200)
         request.side_effect = [_redirect_response('/api/v4/projects/2'), final]

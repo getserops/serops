@@ -96,13 +96,13 @@ class GitLabWebhookTenancyTest(TestCase):
             username='o', email='other@tenancy.example', password='x', organisation=other, role='admin', is_active=True))
 
     def test_cannot_set_webhook_on_another_orgs_project(self):
-        with mock.patch('providers.views.requests.post') as post:
+        with mock.patch('Utils.outbound.post') as post:
             response = self.client.post('/api/providers/webhook-set/', {'project_id': '4242'}, format='json')
         self.assertEqual(response.status_code, 404)
         post.assert_not_called()
 
     def test_cannot_delete_webhooks_on_another_orgs_project(self):
-        with mock.patch('providers.views.requests.get') as get, mock.patch('providers.views.requests.delete') as delete:
+        with mock.patch('Utils.outbound.get') as get, mock.patch('Utils.outbound.delete') as delete:
             response = self.client.post('/api/providers/webhook-del/', {'project_id': '4242'}, format='json')
         self.assertEqual(response.status_code, 404)
         get.assert_not_called()

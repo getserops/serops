@@ -75,12 +75,9 @@ _DEDUP_WINDOW = timedelta(minutes=5)
 
 def _secret_for(source: str, organisation) -> str:
     """
-    Return the expected bearer secret for (source, org).
-
-    Priority:
-    1. Per-org secret in ``organisation.extra_config`` (future — not
-       wired yet). Left as an extension point.
-    2. Global env-backed secret in ``settings.ALERT_WEBHOOK_SECRETS``.
+    Return the install-wide env secret for ``source``
+    (``settings.ALERT_WEBHOOK_SECRETS``). An organisation's own ingest
+    secret is checked first, in ``_authenticate``.
 
     Returns empty string when no secret is configured; caller must
     treat that as "reject all" — never allow un-authed webhooks.

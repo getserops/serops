@@ -1,7 +1,8 @@
 from celery import shared_task
 from .deployment_service import canonical_environment
-import requests
 
+
+from Utils import outbound  # user-configured URLs: checked and pinned (audit item 3)
 from Utils.outbound import check_url
 import re
 from datetime import datetime, timezone
@@ -140,7 +141,7 @@ def fetch_failed_job_logs_for_project(project_id):
     # Stored, user-configured GitLab URL: re-checked, no redirects
     # followed (security review 2026-11, finding 3).
     check_url(pipelines_url)
-    pipelines_resp = requests.get(pipelines_url, headers=headers, timeout=30, allow_redirects=False)
+    pipelines_resp = outbound.get(pipelines_url, headers=headers, timeout=30, allow_redirects=False)
     if pipelines_resp.status_code != 200:
         return
     
@@ -151,7 +152,7 @@ def fetch_failed_job_logs_for_project(project_id):
         
         # Get all jobs for this pipeline (all job types)
         jobs_url = f"{gitlab_base}/api/v4/projects/{gitlab_project_id}/pipelines/{pipeline_id}/jobs"
-        jobs_resp = requests.get(jobs_url, headers=headers, timeout=30, allow_redirects=False)
+        jobs_resp = outbound.get(jobs_url, headers=headers, timeout=30, allow_redirects=False)
         if jobs_resp.status_code != 200:
             continue
             
@@ -493,7 +494,7 @@ def sync_stuck_pipelines():
                 url = f"{gitlab_base}/api/v4/projects/{pipeline.project.project_id}/pipelines/{pipeline.pipeline_id}"
                 headers = {"PRIVATE-TOKEN": pipeline.project.get_access_token()}
                 check_url(url)
-                response = requests.get(url, headers=headers, timeout=10, allow_redirects=False)
+                response = outbound.get(url, headers=headers, timeout=10, allow_redirects=False)
                 
                 if response.status_code != 200:
                     logger.warning(f"Failed to get pipeline {pipeline.pipeline_id} from GitLab: {response.status_code}")
@@ -644,7 +645,7 @@ def sync_recent_deployments(hours: int = 2):
                 }
                 
                 check_url(url)
-                response = requests.get(url, headers=headers, params=params, timeout=15, allow_redirects=False)
+                response = outbound.get(url, headers=headers, params=params, timeout=15, allow_redirects=False)
                 
                 if response.status_code != 200:
                     logger.warning(f"Failed to fetch pipelines for {gitlab_project.name}: {response.status_code}")
@@ -700,7 +701,7 @@ def sync_recent_deployments(hours: int = 2):
                     if not code_change:
                         # Fetch commit details from GitLab
                         commit_url = f"{provider.base_url}/api/v4/projects/{gitlab_project.project_id}/repository/commits/{sha}"
-                        commit_resp = requests.get(commit_url, headers=headers, timeout=10, allow_redirects=False)
+                        commit_resp = outbound.get(commit_url, headers=headers, timeout=10, allow_redirects=False)
                         
                         if commit_resp.status_code == 200:
                             commit_data = commit_resp.json()

@@ -470,7 +470,10 @@ export const renderFormattedText = (text) => {
 
     // Clean up standalone ** markers
     formattedText = formattedText.replace(/^\*\*$/gm, "");
-    formattedText = formattedText.replace(/\*\*\s*\*\*/g, "");
+    // Same line only: across a line break, the first pair closes one bold
+    // paragraph and the second opens the next ("**a.**\n\n**b**"), and removing
+    // them glued the two paragraphs together.
+    formattedText = formattedText.replace(/\*\*[ \t]*\*\*/g, "");
 
     // Format code blocks with syntax highlighting.
     //

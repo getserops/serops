@@ -72,7 +72,7 @@ class UnifiedDiffTextTests(unittest.TestCase):
 
 
 class GitHubDiffTextTests(unittest.TestCase):
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_patch_is_kept(self, mock_request):
         mock_request.return_value = _response(json={
             'stats': {'additions': 1, 'deletions': 1},
@@ -84,7 +84,7 @@ class GitHubDiffTextTests(unittest.TestCase):
 
 
 class BitbucketDiffTextTests(unittest.TestCase):
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_diffstat_files_get_the_raw_diff_text(self, mock_request):
         diffstat = _response(json={'values': [
             {'status': 'modified', 'lines_added': 1, 'lines_removed': 1,
@@ -101,7 +101,7 @@ class BitbucketDiffTextTests(unittest.TestCase):
         self.assertTrue(raw_call.kwargs['url'].endswith('/repositories/acme/api/diff/abc123'))
         self.assertEqual(raw_call.kwargs['headers']['Accept'], 'text/plain')
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_file_list_survives_when_the_diff_text_fails(self, mock_request):
         diffstat = _response(json={'values': [
             {'status': 'modified', 'lines_added': 1, 'lines_removed': 1, 'new': {'path': 'a.py'}, 'old': {'path': 'a.py'}},
@@ -136,7 +136,7 @@ class AzureDevOpsDiffTextTests(unittest.TestCase):
             return _response(status=404)
         return handler
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_hunks_are_built_from_before_and_after(self, mock_request):
         mock_request.side_effect = self._router({
             ('/api/pay.py', 'parent1'): 'def charge(order):\n    timeout = 30\n    return post(order)\n',
@@ -156,7 +156,7 @@ class AzureDevOpsDiffTextTests(unittest.TestCase):
         self.assertEqual(by_path['/img/logo.png']['diff_preview'], '')  # binary
         self.assertEqual(diff['total_additions'], 2)
 
-    @patch('requests.request')
+    @patch('Utils.outbound._send')
     def test_only_the_first_files_are_diffed(self, mock_request):
         changes = [{'changeType': 'add', 'item': {'path': f'/f{i}.py', 'gitObjectType': 'blob'}} for i in range(15)]
 

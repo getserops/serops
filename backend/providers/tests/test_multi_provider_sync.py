@@ -15,7 +15,7 @@ from django.test import SimpleTestCase
 def _patch_sync():
     """Return a dict of patch context managers for sync_recent_deployments internals."""
     return {
-        'requests': patch('providers.tasks.requests'),
+        'requests': patch('providers.tasks.outbound'),
         'GitlabProject': patch('providers.models.GitlabProject'),
         'Pipeline': patch('providers.models.Pipeline'),
         'CodeChange': patch('providers.models.CodeChange'),

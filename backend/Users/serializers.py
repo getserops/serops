@@ -69,7 +69,7 @@ class UserSerializer(serializers.ModelSerializer):
     def validate(self, data):
         # Check email uniqueness
         email = data.get('email')
-        if email and User.objects.filter(email=email).first():
+        if email and User.objects.filter(email__iexact=email).first():
             raise serializers.ValidationError({"error": "Email Address Already Exists"})
         # Phone uniqueness check only if phone is provided and not empty
         phone = data.get('phone')

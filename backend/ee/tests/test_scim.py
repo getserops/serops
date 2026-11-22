@@ -528,3 +528,29 @@ class ScimWiringTest(APITestCase):
         with mock.patch.dict(sys.modules), mock.patch('builtins.__import__', broken):
             with self.assertRaisesMessage(ImproperlyConfigured, 'SerOps Enterprise SCIM cannot load'):
                 load_scim()
+
+
+class ScimSsoDomainTest(ScimBase):
+    """Audit 2026-11-20 item 8: an address another organisation's SSO claims
+    cannot be provisioned or moved to through this organisation's SCIM."""
+
+    def setUp(self):
+        super().setUp()
+        other = Organisations.objects.create(name='Other Corp')
+        SecuritySettings.objects.create(organisation=other, sso_enabled=True, sso_provider='oidc',
+                                        sso_domains=['other.example'])
+
+    def test_create_refused(self):
+        r = self.scim.post('/Users', user_body('Eve@Other.example'))
+        self.assertEqual(r.status_code, 409, r.json_body)
+        self.assertFalse(User.objects.filter(email__iexact='eve@other.example').exists())
+
+    def test_rename_refused(self):
+        uid = self.create_user('ada@acme.test')
+        r = self.scim.put(f'/Users/{uid}', user_body('ada@other.example'))
+        self.assertEqual(r.status_code, 409, r.json_body)
+        self.assertTrue(User.objects.filter(email='ada@acme.test').exists())
+
+    def test_own_domain_and_case_are_fine(self):
+        uid = self.create_user('Grace@ACME.test')
+        self.assertEqual(User.objects.get(scim_identity__scim_id=uid).email, 'grace@acme.test')

@@ -184,6 +184,12 @@ class OrganisationTeamView(APIView):
         except ValidationError:
             return Response({"email": "Invalid email format"}, status=400)
 
+        # An address another organisation's SSO claims stays with that
+        # organisation (as for an email change; audit 2026-11-20, item 8).
+        from Users.emails import sso_domain_claimed_elsewhere
+        if sso_domain_claimed_elsewhere(email, request.user.organisation_id):
+            return Response({"email": "This email address cannot be used."}, status=400)
+
         try:
             role, custom_role = _grantable_role(request, user_info.get('role') or 'viewer')
         except edition.LicenseRequired as e:
@@ -347,37 +353,6 @@ class OrganisationMemberView(APIView):
             return Response({'message': 'User updated successfully'}, status=200)
         except User.DoesNotExist:
             return Response({'error': 'User does not exist'}, status=400)
-
-class OrganisationCreateView(APIView):
-    permission_classes = [IsAuthenticated, Requires(default='settings.manage')]
-    
-    @swagger_auto_schema(
-        operation_description="Create a new organization",
-        request_body=OrganisationSerializer,
-        responses={
-            201: OrganisationSerializer,
-            400: 'Invalid input data',
-            500: 'Internal Server Error'
-        },
-        tags=['Organizations']
-    )
-    def post(self, request):
-        try:
-            serializer = OrganisationSerializer(data=request.data)
-            if serializer.is_valid():
-                organisation = serializer.save()
-                logger.info(f"Organisation {organisation.name} created successfully")
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            
-            logger.error(f"Invalid data for organisation creation: {serializer.errors}")
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        except Exception as e:
-            logger.exception(f"Error creating organisation: {str(e)}")
-            return Response(
-                {"error": "An error occurred while creating the organisation"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
 
 class OrganisationUpdateView(APIView):
     permission_classes = [IsAuthenticated, Requires(default='settings.manage')]

@@ -10,6 +10,8 @@ Docs: https://api.slack.com/messaging/webhooks
 import logging
 
 import requests
+
+from Utils import outbound  # user-configured URLs: checked and pinned (audit item 3)
 from requests.exceptions import RequestException
 
 from Utils.url_validator import validate_public_url
@@ -104,7 +106,7 @@ def send(channel, payload: dict):
     try:
         # No redirects: validate_public_url checked this URL, not wherever
         # a redirect would send the payload.
-        resp = requests.post(url, json=body, timeout=_TIMEOUT_SECONDS, allow_redirects=False)
+        resp = outbound.post(url, json=body, timeout=_TIMEOUT_SECONDS, allow_redirects=False)
     except RequestException as exc:
         return False, f'Network error: {exc}'
 

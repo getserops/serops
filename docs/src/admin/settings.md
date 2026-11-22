@@ -146,16 +146,21 @@ See [Notification Preferences](../user-guide/notifications.md).
 
 ### Password Validation
 
-SerOps uses a NIST 800-63B compliant password policy:
+Every new password (sign-up, invitation, reset, change) goes through the
+same checks, in the spirit of NIST 800-63B (length over composition rules):
 
-| Setting | Value |
+| Check | Rule |
 |---------|-------|
-| Minimum Length | 8 characters (fixed) |
-| Maximum Length | 128 characters |
-| Complexity Requirements | None |
-| Password Expiry | Never |
+| Minimum length | 8 characters |
+| Common passwords | Refused (Django's list of 20,000 common passwords) |
+| Similarity | Refused when too close to the user's name, username or email |
+| All digits | Refused |
+| Complexity rules (upper case, symbols…) | None |
+| Expiry | Never |
 
-> **Note**: Password policy is fixed and cannot be configured via UI. Validation occurs during password creation/reset with real-time feedback.
+The rules are fixed: there is no password-policy setting in the UI or the
+API. Organisations that need stricter rules can require single sign-on
+(Settings → Security) and set them in their identity provider.
 
 ### Session Settings
 | Setting | Description |

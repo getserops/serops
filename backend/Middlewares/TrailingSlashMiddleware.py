@@ -17,6 +17,14 @@ Redirecting is deliberately avoided: a 301 turns a POST into a GET and drops
 the body, so the request that most needs this — logging in — would arrive
 without its credentials. The matched view is called directly instead, so the
 method and body survive.
+
+Calling the view directly SKIPS every middleware's ``process_view`` hook (for
+example CsrfViewMiddleware's) for the re-dispatched request. Nothing that
+guards the API may rely on ``process_view``: the demo read-only rule runs in
+DemoUserMiddleware.__call__, before this middleware, and again in the token
+authentication class, inside the view; permissions are checked by the view
+itself. Middlewares/tests/test_trailing_slash_demo_guard.py keeps that true
+(audit 2026-11-20, item 17).
 """
 
 import logging

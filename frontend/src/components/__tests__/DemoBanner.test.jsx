@@ -20,10 +20,7 @@ describe('DemoBanner', () => {
     signIn({ username: 'demo', is_demo: true });
     render(<DemoBanner />);
     expect(screen.getByRole('status').textContent).toContain(
-      'These are analyses SerOps got right. The misses are on the benchmark page. '
-      + 'They are selected from our benchmark runs on test environments we built, shown under the name Acme Cloud. '
-      + 'SerOps found the cause in each incident shown here; two are healthy windows where it rightly raised nothing. '
-      + 'Counts reflect the analyses shown here.',
+      'Example data: analyses SerOps got right, from our own test environments. The misses are on the benchmark page.',
     );
     const link = screen.getByRole('link', { name: 'benchmark page' });
     expect(link).toHaveAttribute('href', 'https://serops.ai/benchmark');
@@ -44,9 +41,13 @@ describe('DemoBanner', () => {
   });
 
   it('has its sentence in French', () => {
-    for (const part of ['before', 'link', 'after', 'selfHost']) {
+    for (const part of ['before', 'link', 'selfHost']) {
       expect(fr.demo.banner[part]).toBeTruthy();
       expect(fr.demo.banner[part]).not.toBe(en.demo.banner[part]);
     }
+    const { before, link, after } = fr.demo.banner;
+    expect(before + link + after).toBe(
+      "Données d'exemple : des analyses que SerOps a réussies, issues de nos propres environnements de test. Les échecs sont sur la page du benchmark."
+    );
   });
 });

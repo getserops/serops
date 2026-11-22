@@ -68,7 +68,7 @@ class OllamaProbeSsrfTest(TestCase):
         self.client.force_authenticate(user=user)
 
     def test_metadata_and_link_local_are_refused_before_any_request(self):
-        with patch('requests.get') as get:
+        with patch('Utils.outbound.get') as get:
             for url in REFUSED:
                 with self.subTest(url=url):
                     r = self.client.post(URL, {'base_url': url}, format='json')
@@ -77,7 +77,7 @@ class OllamaProbeSsrfTest(TestCase):
             get.assert_not_called()
 
     def test_localhost_is_allowed_and_redirects_are_off(self):
-        with patch('requests.get') as get:
+        with patch('Utils.outbound.get') as get:
             get.return_value.json.return_value = {'models': [{'name': 'llama3'}]}
             r = self.client.post(URL, {'base_url': 'http://localhost:11434/v1'}, format='json')
         self.assertEqual(r.status_code, 200)
@@ -111,7 +111,7 @@ class OllamaProbeSsrfTest(TestCase):
             organisation=Organisations.objects.get(name='Probe Org'), role='viewer')
         client = APIClient()
         client.force_authenticate(user=viewer)
-        with patch('requests.get') as get:
+        with patch('Utils.outbound.get') as get:
             r = client.post(URL, {'base_url': 'http://localhost:11434'}, format='json')
         self.assertEqual(r.status_code, 403)
         get.assert_not_called()

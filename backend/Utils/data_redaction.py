@@ -86,7 +86,10 @@ class DataRedactionService:
             SensitivityLevel.CRITICAL
         ),
         'api_key': (
-            r'(?i)(api[_-]?key|apikey|api_secret|access[_-]?key|secret[_-]?key)\\?["\']?\s*(?:=>|[:=\s]|%3[dD])\s*\\?["\']?([a-zA-Z0-9_\-]{16,})',
+            # One separator run, not ``\s*[:=\s]\s*``: three adjacent
+            # whitespace matchers took 30 s on a line of spaces (audit
+            # 2026-11-20, item 7).
+            r'(?i)(api[_-]?key|apikey|api_secret|access[_-]?key|secret[_-]?key)\\?["\']?(?:\s*(?:=>|[:=]|%3[dD])\s*|\s+)\\?["\']?([a-zA-Z0-9_\-]{16,})',
             SensitivityLevel.CRITICAL
         ),
         'aws_access_key': (
@@ -94,7 +97,7 @@ class DataRedactionService:
             SensitivityLevel.CRITICAL
         ),
         'aws_secret_key': (
-            r'(?i)(aws[_-]?secret[_-]?access[_-]?key)["\']?\s*[:=\s]\s*["\']?([a-zA-Z0-9/+=]{40})',
+            r'(?i)(aws[_-]?secret[_-]?access[_-]?key)["\']?(?:\s*[:=]\s*|\s+)["\']?([a-zA-Z0-9/+=]{40})',
             SensitivityLevel.CRITICAL
         ),
         'jwt_token': (
@@ -170,7 +173,102 @@ class DataRedactionService:
         # proxies, registries. Database schemes are covered (whole URL) by
         # ``connection_string``; this masks only the password part.
         'url_credentials': (
-            r'(?i)\b[a-z][a-z0-9+.\-]*://[^\s/:@]+:(?P<secret>[^\s/@]+)@',
+            # The scheme starts at the start of a run and is at most 32
+            # characters: retried at every position of a long dotted run it
+            # cost seconds (audit 2026-11-20, item 7).
+            r'(?i)(?<![a-z0-9+.\-])[a-z][a-z0-9+.\-]{0,31}://[^\s/:@]+:(?P<secret>[^\s/@]+)@',
+            SensitivityLevel.CRITICAL
+        ),
+        # SaaS and cloud token formats with a recognisable prefix (audit
+        # 2026-11-20, item 7). Each is bounded so a long run costs linear time.
+        'stripe_key': (
+            r'(?<![A-Za-z0-9_])(?:sk|rk)_live_[A-Za-z0-9]{16,247}',
+            SensitivityLevel.CRITICAL
+        ),
+        'github_fine_grained_token': (
+            r'(?<![A-Za-z0-9_])github_pat_[A-Za-z0-9_]{22,255}',
+            SensitivityLevel.CRITICAL
+        ),
+        'slack_webhook': (
+            r'https://hooks\.slack\.com/(?:services|workflows|triggers)/[A-Za-z0-9_/\-]{8,200}',
+            SensitivityLevel.CRITICAL
+        ),
+        'slack_app_token': (
+            r'(?<![A-Za-z0-9_])xapp-\d-[A-Za-z0-9\-]{10,250}',
+            SensitivityLevel.CRITICAL
+        ),
+        'sendgrid_key': (
+            r'(?<![A-Za-z0-9_])SG\.[A-Za-z0-9_\-]{16,32}\.[A-Za-z0-9_\-]{16,64}',
+            SensitivityLevel.CRITICAL
+        ),
+        # Twilio API key SIDs (SK...) and account SIDs (AC...) are 32 hex
+        # digits after the prefix; an auth token is caught by the key-word
+        # patterns or the unlabelled-secret pattern below.
+        'twilio_key': (
+            r'(?<![A-Za-z0-9])(?:SK|AC)[0-9a-f]{32}(?![A-Za-z0-9])',
+            SensitivityLevel.CRITICAL
+        ),
+        'npm_token': (
+            r'(?<![A-Za-z0-9_])npm_[A-Za-z0-9]{36}(?![A-Za-z0-9])',
+            SensitivityLevel.CRITICAL
+        ),
+        'pypi_token': (
+            r'(?<![A-Za-z0-9_])pypi-[A-Za-z0-9_\-]{50,250}',
+            SensitivityLevel.CRITICAL
+        ),
+        'huggingface_token': (
+            r'(?<![A-Za-z0-9_])hf_[A-Za-z0-9]{30,64}(?![A-Za-z0-9])',
+            SensitivityLevel.CRITICAL
+        ),
+        'digitalocean_token': (
+            r'(?<![A-Za-z0-9_])do[opr]_v1_[a-f0-9]{64}(?![A-Za-z0-9])',
+            SensitivityLevel.CRITICAL
+        ),
+        'google_oauth_token': (
+            r'(?<![A-Za-z0-9_])ya29\.[0-9A-Za-z_\-]{20,2048}',
+            SensitivityLevel.CRITICAL
+        ),
+        # Azure storage connection strings and SAS URLs: only the key or the
+        # signature is masked, the account and resource stay readable.
+        'azure_account_key': (
+            r'(?i)\bAccountKey=(?P<secret>[A-Za-z0-9+/]{20,200}={0,2})',
+            SensitivityLevel.CRITICAL
+        ),
+        'azure_sas_signature': (
+            r'(?i)[?&]sig=(?P<secret>[A-Za-z0-9%+/=]{16,200})',
+            SensitivityLevel.CRITICAL
+        ),
+        # A credential in a URL's query string (OAuth access tokens, API keys).
+        'url_query_secret': (
+            r'(?i)[?&](?:access_token|refresh_token|id_token|token|key|api_key|apikey|client_secret)'
+            r'=(?P<secret>[^&\s#"\'<>]{6,512})',
+            SensitivityLevel.CRITICAL
+        ),
+        # Every cookie, not only csrf: a session cookie is a credential.
+        'cookie_header': (
+            r'(?im)\b(?:set-)?cookie["\']?\s*:\s*["\']?(?P<secret>[^\r\n"\']{1,4096})',
+            SensitivityLevel.CRITICAL
+        ),
+        'curl_user_password': (
+            r'(?i)\bcurl\b[^\n]{0,500}?\s(?:-u|--user)(?:\s+|=)["\']?[^\s:"\']{1,256}:(?P<secret>[^\s"\']{1,256})',
+            SensitivityLevel.CRITICAL
+        ),
+        'mysql_password_flag': (
+            r'(?i)\bmysql(?:dump|admin|import|check|show)?\b[^\n]{0,500}?\s-p(?P<secret>[^\s"\']{1,256})',
+            SensitivityLevel.CRITICAL
+        ),
+        # A long hex or base64 value a few characters after a word that names
+        # a secret (``signing key 9f86d0...``, ``webhook secret is ...``),
+        # with no ``=`` or ``:`` label the other patterns need. Not after the
+        # bare word ``key``: database, Redis, Kafka, cache, idempotency and
+        # S3 keys are identifiers the analysis needs (owner review of the
+        # offline run, 20 Nov: PostgreSQL ``Key (order_id)=(...)``).
+        'unlabelled_secret': (
+            r'(?i)\b(?:client[ _-]?secret|secret(?:[ _-]?key)?|signing[ _-]?key|signature|hmac|'
+            r'(?:private|master|encryption|api|access)[ _-]?key)\b'
+            r'[^\n(]{0,20}?(?<![A-Za-z0-9+/=_\-])'
+            r'(?P<secret>[A-Fa-f0-9]{32,512}|(?=[A-Za-z0-9+/_\-]{0,512}\d)(?=[A-Za-z0-9+/_\-]{0,512}[A-Za-z])'
+            r'[A-Za-z0-9+/_\-]{32,512}={0,2})(?![A-Za-z0-9+/=_\-])',
             SensitivityLevel.CRITICAL
         ),
         # ``token=value`` / ``secret: value``, or a key word followed by a
@@ -187,7 +285,11 @@ class DataRedactionService:
         # PERSONAL IDENTIFIABLE INFORMATION (HIGH)
         # ==========================================
         'email': (
-            r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}',
+            # Starts only at the start of a run (lookbehind) and is bounded
+            # (64 + 253, the RFC limits): ``[...]+@`` retried at every position
+            # of a long run and took seconds on a 50,000-character line
+            # (audit 2026-11-20, item 7).
+            r'(?<![a-zA-Z0-9._%+\-])[a-zA-Z0-9._%+\-]{1,64}@[a-zA-Z0-9.\-]{1,253}\.[a-zA-Z]{2,63}(?![a-zA-Z])',
             SensitivityLevel.HIGH
         ),
         # Not inside a longer run of letters and digits: ten digits in a
@@ -216,7 +318,7 @@ class DataRedactionService:
             SensitivityLevel.HIGH
         ),
         'ssn_labeled': (
-            r'(?i)(?<![0-9A-Za-z_])(?:ssn|social security(?: number)?)["\']?\s*[:=#]?\s*["\']?\d{9}(?!\d)',
+            r'(?i)(?<![0-9A-Za-z_])(?:ssn|social security(?: number)?)["\']?\s*(?:[:=#]\s*)?["\']?\d{9}(?!\d)',
             SensitivityLevel.HIGH
         ),
         # An IBAN, compact or in groups of four: two letters, two check
@@ -231,7 +333,7 @@ class DataRedactionService:
         ),
         # A labelled IBAN is masked whatever its checksum.
         'iban_labeled': (
-            r'(?i)(?<![0-9A-Za-z_])iban["\']?\s*[:=#]?\s*["\']?(?P<secret>[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{1,4}){3,8})(?![A-Za-z0-9])',
+            r'(?i)(?<![0-9A-Za-z_])iban["\']?\s*(?:[:=#]\s*)?["\']?(?P<secret>[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{1,4}){3,8})(?![A-Za-z0-9])',
             SensitivityLevel.HIGH
         ),
         'credit_card': (
@@ -305,6 +407,24 @@ class DataRedactionService:
         'basic_auth': '[REDACTED]',
         'url_credentials': '*****',
         'generic_secret': '[SECRET]',
+        'stripe_key': '[STRIPE_KEY]',
+        'github_fine_grained_token': 'github_pat_[REDACTED]',
+        'slack_webhook': 'https://hooks.slack.com/[REDACTED]',
+        'slack_app_token': 'xapp-[REDACTED]',
+        'sendgrid_key': 'SG.[REDACTED]',
+        'twilio_key': '[TWILIO_KEY]',
+        'npm_token': 'npm_[REDACTED]',
+        'pypi_token': 'pypi-[REDACTED]',
+        'huggingface_token': 'hf_[REDACTED]',
+        'digitalocean_token': 'do*_v1_[REDACTED]',
+        'google_oauth_token': 'ya29.[REDACTED]',
+        'azure_account_key': '[REDACTED]',
+        'azure_sas_signature': '[REDACTED]',
+        'url_query_secret': '[REDACTED]',
+        'cookie_header': '[REDACTED]',
+        'curl_user_password': '*****',
+        'mysql_password_flag': '*****',
+        'unlabelled_secret': '[SECRET]',
         'email': '[EMAIL]',
         'phone_us': '[PHONE]',
         'phone_international': '[PHONE]',
@@ -425,7 +545,8 @@ class DataRedactionService:
         """
         if not text:
             return text, []
-            
+
+        text = self.cap_lines(text)
         findings = self.scan(text)
         redacted_text = text
         
@@ -437,6 +558,26 @@ class DataRedactionService:
         
         return redacted_text, findings
     
+    # No single line longer than this reaches the patterns (audit 2026-11-20,
+    # item 7): a line is cut with a marker, so a pathological input costs
+    # bounded time. Whole prompts are redacted as one string, so the cap is
+    # per line, not per string; real log lines and stack-trace lines are far
+    # shorter.
+    MAX_LINE_CHARS = 20_000
+
+    @classmethod
+    def cap_lines(cls, text: str) -> str:
+        if len(text) <= cls.MAX_LINE_CHARS:
+            return text
+        lines = text.split('\n')
+        if all(len(line) <= cls.MAX_LINE_CHARS for line in lines):
+            return text
+        return '\n'.join(
+            line if len(line) <= cls.MAX_LINE_CHARS
+            else line[:cls.MAX_LINE_CHARS] + f' [{len(line) - cls.MAX_LINE_CHARS} characters cut before redaction]'
+            for line in lines
+        )
+
     def _get_mask(self, finding: RedactedItem) -> str:
         """Get the appropriate mask for a finding."""
         return self.masks.get(finding.pattern_type, '[REDACTED]')

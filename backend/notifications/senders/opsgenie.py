@@ -15,6 +15,8 @@ Docs:
 import logging
 
 import requests
+
+from Utils import outbound  # user-configured URLs: checked and pinned (audit item 3)
 from requests.exceptions import RequestException
 
 logger = logging.getLogger(__name__)
@@ -82,7 +84,7 @@ def send(channel, payload: dict):
         return False, f'Unknown OpsGenie region "{region}" (allowed: us, eu)'
 
     try:
-        resp = requests.post(
+        resp = outbound.post(
             f'{base}/v2/alerts',
             headers={
                 'Authorization': f'GenieKey {api_key}',

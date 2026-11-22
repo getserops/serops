@@ -14,6 +14,8 @@ import logging
 from datetime import datetime, timezone
 
 import requests
+
+from Utils import outbound  # user-configured URLs: checked and pinned (audit item 3)
 from requests.exceptions import RequestException
 
 logger = logging.getLogger(__name__)
@@ -69,7 +71,7 @@ def send(channel, payload: dict):
     body = _build_change_event(channel, payload)
 
     try:
-        resp = requests.post(_CHANGE_EVENTS_URL, json=body, timeout=_TIMEOUT_SECONDS)
+        resp = outbound.post(_CHANGE_EVENTS_URL, json=body, timeout=_TIMEOUT_SECONDS)
     except RequestException as exc:
         return False, f'Network error: {exc}'
 

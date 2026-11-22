@@ -129,7 +129,7 @@ class SlackSenderTest(TestCase):
         self.channel.set_webhook_url('https://hooks.slack.com/x')
         self.channel.save()
 
-    @patch('notifications.senders.slack.requests.post')
+    @patch('Utils.outbound.post')
     def test_success(self, post):
         post.return_value = _mock_resp(200, 'ok')
         from notifications.senders.slack import send
@@ -140,7 +140,7 @@ class SlackSenderTest(TestCase):
         self.assertIn('blocks', body)
         self.assertIn('text', body)
 
-    @patch('notifications.senders.slack.requests.post')
+    @patch('Utils.outbound.post')
     def test_http_error_returns_false(self, post):
         post.return_value = _mock_resp(500, 'server error')
         from notifications.senders.slack import send
@@ -148,7 +148,7 @@ class SlackSenderTest(TestCase):
         self.assertFalse(ok)
         self.assertIn('500', msg)
 
-    @patch('notifications.senders.slack.requests.post')
+    @patch('Utils.outbound.post')
     def test_network_error_returns_false(self, post):
         from requests.exceptions import ConnectionError as ReqConnErr
         post.side_effect = ReqConnErr('down')
@@ -157,7 +157,7 @@ class SlackSenderTest(TestCase):
         self.assertFalse(ok)
         self.assertIn('Network error', msg)
 
-    @patch('notifications.senders.slack.requests.post')
+    @patch('Utils.outbound.post')
     def test_stored_internal_url_is_refused_at_send_time(self, post):
         c = IncidentNotificationChannel(organisation=self.org, name='old', kind='slack')
         c.set_webhook_url('https://169.254.169.254/latest/meta-data/')   # saved before validation existed
@@ -189,7 +189,7 @@ class TeamsSenderTest(TestCase):
         self.channel.set_webhook_url('https://outlook.office.com/webhook/x')
         self.channel.save()
 
-    @patch('notifications.senders.teams.requests.post')
+    @patch('Utils.outbound.post')
     def test_success_uses_message_card(self, post):
         post.return_value = _mock_resp(200)
         from notifications.senders.teams import send
@@ -209,7 +209,7 @@ class PagerdutySenderTest(TestCase):
         self.channel.set_api_key('int-key-abc')
         self.channel.save()
 
-    @patch('notifications.senders.pagerduty.requests.post')
+    @patch('Utils.outbound.post')
     def test_success_hits_change_events_endpoint(self, post):
         post.return_value = _mock_resp(202)
         from notifications.senders.pagerduty import send
@@ -233,7 +233,7 @@ class OpsgenieSenderTest(TestCase):
         self.channel.set_api_key('og-key')
         self.channel.save()
 
-    @patch('notifications.senders.opsgenie.requests.post')
+    @patch('Utils.outbound.post')
     def test_eu_region_hits_eu_host(self, post):
         post.return_value = _mock_resp(202)
         from notifications.senders.opsgenie import send
@@ -300,7 +300,7 @@ class DispatcherTest(TestCase):
         r.targets.set(channels)
         return r
 
-    @patch('notifications.senders.slack.requests.post')
+    @patch('Utils.outbound.post')
     def test_fires_matching_channels(self, post):
         post.return_value = _mock_resp(200)
         c = IncidentNotificationChannel(
@@ -314,7 +314,7 @@ class DispatcherTest(TestCase):
         self.assertEqual(result['sent'], 1)
         self.assertEqual(result['failed'], 0)
 
-    @patch('notifications.senders.slack.requests.post')
+    @patch('Utils.outbound.post')
     def test_skips_non_matching_event(self, post):
         """A routing rule scoped to alert_triggered doesn't fire on
         a batch_analyzed dispatch."""
@@ -333,7 +333,7 @@ class DispatcherTest(TestCase):
         self.assertEqual(result['failed'], 0)
         post.assert_not_called()
 
-    @patch('notifications.senders.slack.requests.post')
+    @patch('Utils.outbound.post')
     def test_severity_floor_skips(self, post):
         """A routing rule with min_severity=CRITICAL doesn't match a
         HIGH-severity batch."""
@@ -350,7 +350,7 @@ class DispatcherTest(TestCase):
         self.assertEqual(result['failed'], 0)
         post.assert_not_called()
 
-    @patch('notifications.senders.slack.requests.post')
+    @patch('Utils.outbound.post')
     def test_sender_failure_recorded_not_raised(self, post):
         post.return_value = _mock_resp(500, 'boom')
         c = IncidentNotificationChannel(
@@ -457,7 +457,7 @@ class CrudEndpointTest(TestCase):
         r = self.client.post(self.url, {'name': 'x', 'kind': 'pagerduty'}, format='json')
         self.assertEqual(r.status_code, 400)
 
-    @patch('notifications.senders.slack.requests.post')
+    @patch('Utils.outbound.post')
     def test_test_send_action(self, post):
         post.return_value = _mock_resp(200)
         c = IncidentNotificationChannel(organisation=self.org, name='x', kind='slack')

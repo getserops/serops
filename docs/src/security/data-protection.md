@@ -40,6 +40,7 @@ text.
 | Limit | What it means |
 |---|---|
 | **Pattern coverage** | Only the formats in the tables below are recognised. Other token formats (for example some cloud-provider or SaaS keys) pass through unless they match the generic secret patterns. |
+| **Very long lines** | A single line longer than 20,000 characters is cut there, with a note of how many characters were cut, before masking, so one pathological line cannot stall an analysis. |
 | **Unformatted numbers** | A phone number needs phone formatting (`+33 6 12 34 56 78`, `(555) 123-4567`) or a `phone=` / `tel:` label, and an SSN its dashes or an `ssn` label. Bare digit runs are left alone so byte counts, timestamps and ids stay readable for the analysis. |
 | **AI chat** | Your message is masked like everything else. The browser also warns before you send text that looks sensitive (see [AI Chat Protection](#ai-chat-protection)). |
 
@@ -145,6 +146,12 @@ For most teams the organisation boundary is the right unit — a whole SerOps or
 | Authorization headers | `Bearer <token of 20+ characters>`, `Authorization: Basic ...` (and `Token`, `Digest`, ...) | `Bearer [REDACTED]`, `Authorization: Basic [REDACTED]` |
 | Private and SSH keys | `-----BEGIN RSA PRIVATE KEY-----` (the whole key body) | `[PRIVATE_KEY]`, `[SSH_KEY]` |
 | JWT tokens | `eyJhbGciOi...` | `[JWT_TOKEN]` |
+| SaaS and cloud tokens | Stripe `sk_live_` / `rk_live_`, GitHub `github_pat_`, Slack `xapp-` and `hooks.slack.com/...` webhooks, SendGrid `SG.`, Twilio `SK`/`AC` SIDs, npm `npm_`, PyPI `pypi-`, Hugging Face `hf_`, DigitalOcean `dop_v1_`, Google OAuth `ya29.` | the prefix with `[REDACTED]` (`[STRIPE_KEY]`, `[TWILIO_KEY]`) |
+| Azure storage | `AccountKey=...`, SAS `sig=...` | the key or signature only: `[REDACTED]` |
+| Credentials in a URL query | `?access_token=...`, `&token=...`, `&key=...`, `api_key`, `client_secret` | the value only: `[REDACTED]` |
+| Cookies | `Cookie:` and `Set-Cookie:` values (every cookie) | `[REDACTED]` |
+| Command-line passwords | `curl -u user:pass`, `mysql -p<password>` | the password only: `*****` |
+| Unlabelled secrets | a long hex or base64 value just after `key`, `secret`, `signing`, `signature` or `hmac` | `[SECRET]` |
 
 ### Personal Information (High)
 | Pattern | Example | Masked As |
@@ -214,7 +221,9 @@ the UI is already the redacted form.
 
 ## Outbound requests
 
-Cloud metadata and every link-local address are always refused, before and after redirects; localhost and private addresses are allowed by default because a self-hosted install reaches Ollama at `http://localhost:11434` and Loki, Prometheus or Elasticsearch inside its own network (set `SEROPS_OUTBOUND_ALLOW_PRIVATE=false` on a shared install to refuse them).
+Cloud metadata and every link-local address are always refused, before and after redirects; localhost and private addresses are allowed by default because a self-hosted install reaches Ollama at `http://localhost:11434` and Loki, Prometheus or Elasticsearch inside its own network (an install shared by several organisations must set `SEROPS_OUTBOUND_ALLOW_PRIVATE=false` to refuse them).
+
+The host name of a configured URL is resolved once; every address it resolves to must pass, and the connection goes to one of those addresses, with the Host header, TLS SNI and certificate check still using the name. This covers the HTTP integrations, SCM and CI calls, notification webhooks and the SSO token exchange. The Elasticsearch and OpenSearch clients check the URL before every request but resolve the name themselves when they connect; the AI SDKs (OpenAI-compatible endpoints) check a custom base URL when the client is created.
 
 ## Secrets at Rest
 

@@ -39,27 +39,27 @@ class VerifyGitLabProjectTest(TestCase):
     def post(self, **body):
         return self.client.post(URL, {'access_token': 'tok', **body}, format='json')
 
-    @mock.patch('providers.views.requests.get')
+    @mock.patch('Utils.outbound.get')
     def test_cloud_metadata_is_refused(self, get):
         for url in ('http://169.254.169.254', 'http://metadata.google.internal'):
             response = self.post(project_id='1', gitlab_url=url)
             self.assertEqual(response.status_code, 400, url)
         get.assert_not_called()
 
-    @mock.patch('providers.views.requests.get')
+    @mock.patch('Utils.outbound.get')
     def test_project_id_cannot_leave_the_projects_route(self, get):
         for bad in ('../../latest/meta-data', '1/../../x', '%2e%2e', '..', '', 'a//b'):
             response = self.post(project_id=bad, gitlab_url='https://gitlab.example')
             self.assertEqual(response.status_code, 400, bad)
         get.assert_not_called()
 
-    @mock.patch('providers.views.requests.get')
+    @mock.patch('Utils.outbound.get')
     def test_query_and_fragment_stay_inside_the_id(self, get):
         get.return_value = _reply(404, {})
         self.post(project_id='1?x=#y', gitlab_url='https://gitlab.example')
         self.assertEqual(get.call_args.args[0], 'https://gitlab.example/api/v4/projects/1%3Fx%3D%23y')
 
-    @mock.patch('providers.views.requests.get')
+    @mock.patch('Utils.outbound.get')
     def test_group_path_is_one_segment_and_redirects_are_not_followed(self, get):
         get.return_value = _reply(404, {})
         self.post(project_id='group/sub/app', gitlab_url='https://gitlab.example/some/page')
@@ -67,20 +67,20 @@ class VerifyGitLabProjectTest(TestCase):
         self.assertIs(get.call_args.kwargs['allow_redirects'], False)
         self.assertTrue(get.call_args.kwargs['timeout'])
 
-    @mock.patch('providers.views.requests.get')
+    @mock.patch('Utils.outbound.get')
     def test_private_self_hosted_gitlab_still_works(self, get):
         get.side_effect = [_reply(200, {'id': 7, 'name': 'app'}), _reply(200, [{'id': 1, 'status': 'success'}])]
         response = self.post(project_id='7', gitlab_url='http://10.0.0.5:8080')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(get.call_args_list[0].args[0], 'http://10.0.0.5:8080/api/v4/projects/7')
 
-    @mock.patch('providers.views.requests.get')
+    @mock.patch('Utils.outbound.get')
     def test_server_replies_are_not_echoed(self, get):
         get.return_value = _reply(500, 'SECRET internal page')
         response = self.post(project_id='7', gitlab_url='https://gitlab.example')
         self.assertNotIn('SECRET', response.content.decode())
 
-    @mock.patch('providers.views.requests.get')
+    @mock.patch('Utils.outbound.get')
     def test_pipelines_keep_only_known_fields(self, get):
         get.side_effect = [_reply(200, {'id': 7}),
                            _reply(200, [{'id': 1, 'status': 'failed', 'AccessKeyId': 'AKIA'}])]
@@ -88,7 +88,7 @@ class VerifyGitLabProjectTest(TestCase):
         self.assertNotIn('AKIA', response.content.decode())
         self.assertEqual(response.json()['pipelines'][0]['status'], 'failed')
 
-    @mock.patch('providers.views.requests.get')
+    @mock.patch('Utils.outbound.get')
     def test_another_organisations_project_is_neither_used_nor_written(self, get):
         get.side_effect = [_reply(200, {'id': 123}), _reply(200, [{'id': 99, 'status': 'success', 'ref': 'x'}])]
         response = self.post(project_id='123')

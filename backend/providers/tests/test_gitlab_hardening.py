@@ -45,21 +45,21 @@ class ProjectRegistrationTest(TestCase):
     def post(self, **body):
         return self.client.post('/api/providers/', {'access_token': 'tok', **body}, format='json')
 
-    @mock.patch('providers.views.requests.get')
+    @mock.patch('Utils.outbound.get')
     def test_metadata_and_path_escapes_are_refused(self, get):
         self.assertEqual(self.post(project_id='1', gitlab_url='http://169.254.169.254').status_code, 400)
         self.assertEqual(self.post(project_id='../../x', gitlab_url='https://gitlab.example').status_code, 400)
         get.assert_not_called()
 
-    @mock.patch('providers.views.requests.get')
+    @mock.patch('Utils.outbound.get')
     def test_server_replies_are_not_echoed_and_redirects_not_followed(self, get):
         get.return_value = _reply(500, 'SECRET internal page')
         response = self.post(project_id='7', gitlab_url='https://gitlab.example')
         self.assertNotIn('SECRET', response.content.decode())
         self.assertIs(get.call_args.kwargs['allow_redirects'], False)
 
-    @mock.patch('providers.views.requests.post')
-    @mock.patch('providers.views.requests.get')
+    @mock.patch('Utils.outbound.post')
+    @mock.patch('Utils.outbound.get')
     def test_another_organisations_project_and_secret_stay_hidden(self, get, post):
         get.return_value = _reply(200, {'id': 123, 'name': 'x'})
         response = self.post(project_id='123', gitlab_url='https://attacker.example')
@@ -105,6 +105,6 @@ class SenderRedirectTest(TestCase):
         for sender in (slack, teams):
             with self.subTest(sender.__name__), \
                     mock.patch.object(sender, 'validate_public_url'), \
-                    mock.patch.object(sender.requests, 'post', return_value=mock.Mock(status_code=200, text='ok')) as post:
+                    mock.patch.object(sender.outbound, 'post', return_value=mock.Mock(status_code=200, text='ok')) as post:
                 sender.send(channel, payload)
                 self.assertIs(post.call_args.kwargs['allow_redirects'], False)

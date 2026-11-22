@@ -6,8 +6,7 @@
 #   2. docs.serops.ai              — legacy backlink 301 → serops.ai/docs
 #   3. app.serops.ai               — demo instance (backend + SPA)
 #
-# Deployed from this repo to /root/workspace/docs/Caddyfile on the
-# server. Restart with:
+# Reload after a change:
 #   docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
 # or fall back to a container restart if reload fails validation.
 # ─────────────────────────────────────────────────────────────
@@ -17,6 +16,22 @@
 # Marketing landing + docs (subdirectory)
 # ═════════════════════════════════════════════════════════════
 serops.ai, www.serops.ai {
+
+    # Security headers for the landing and the docs (audit 2026-11-20, item
+    # 16), the same set the quick-start's Caddy sends. Deferred, so they
+    # replace what the landing or the docs container sends. The scripts:
+    # Next.js and mkdocs-material emit inline scripts ('unsafe-inline'), and
+    # the page and event counts load https://stats.serops.ai/script.js and
+    # post to the same host; the landing's star count and the docs' release
+    # badge read api.github.com; docs pages with diagrams load Mermaid from
+    # unpkg.com.
+    header {
+        defer
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://stats.serops.ai https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://stats.serops.ai https://api.github.com; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+    }
     # www.serops.ai → apex (single canonical host)
     @www host www.serops.ai
     redir @www https://serops.ai{uri} permanent

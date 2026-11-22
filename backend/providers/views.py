@@ -11,6 +11,8 @@ import json
 from django.http import Http404, JsonResponse
 import re
 import requests
+
+from Utils import outbound  # user-configured URLs: checked and pinned (audit item 3)
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.permissions import AllowAny
 from rest_framework.decorators import permission_classes, api_view
@@ -142,7 +144,7 @@ class ProjectList(APIView):
 
         try:
             # Verify project exists in GitLab
-            response = requests.get(gitlab_api_url, **fetch)
+            response = outbound.get(gitlab_api_url, **fetch)
             
             if response.status_code == 401 or response.status_code == 403:
                 logger.error(f"GitLab authentication failed for user {request.user}, project_id: {project_id}")
@@ -224,7 +226,7 @@ class ProjectList(APIView):
 
                     try:
                         logger.info(f"Creating webhook for project {project_id} with URL: {url}")
-                        webhook_response = requests.post(gitlab_webhook_url, json=gitlab_webhook_data, **fetch)
+                        webhook_response = outbound.post(gitlab_webhook_url, json=gitlab_webhook_data, **fetch)
 
                         if webhook_response.status_code == 201:
                             existing_project.webhook = True
@@ -257,7 +259,7 @@ class ProjectList(APIView):
                 
                 # Fetch initial pipelines for this project
                 pipelines_url = f"{gitlab_api_url}/pipelines"
-                pipelines_response = requests.get(pipelines_url, **fetch)
+                pipelines_response = outbound.get(pipelines_url, **fetch)
 
                 if pipelines_response.status_code == 200 and isinstance(pipelines_response.json(), list):
                     pipelines = [p for p in pipelines_response.json() if isinstance(p, dict) and p.get('id') is not None]
@@ -312,7 +314,7 @@ class ProjectList(APIView):
                 if token:
                     gitlab_webhook_data["token"] = token
 
-                webhook_response = requests.post(gitlab_webhook_url, json=gitlab_webhook_data, **fetch)
+                webhook_response = outbound.post(gitlab_webhook_url, json=gitlab_webhook_data, **fetch)
 
                 if webhook_response.status_code == 201:
                     project.webhook = True
@@ -520,7 +522,7 @@ class SetupGitLabWebhookView(APIView):
         gitlab_headers = {
             "PRIVATE-TOKEN": access_token
         }
-        gitlab_response = requests.post(gitlab_api_url, headers=gitlab_headers, json=gitlab_data, timeout=30,
+        gitlab_response = outbound.post(gitlab_api_url, headers=gitlab_headers, json=gitlab_data, timeout=30,
                                         allow_redirects=False)
         logger.debug(f'GitLab response: {gitlab_response.content}')
         if gitlab_response.status_code == 201:
@@ -574,7 +576,7 @@ class DeleteGitLabWebhookView(APIView):
         access_token=pr.get_access_token()
         gitlab_base = get_gitlab_api_base(project=pr)
         # List all webhooks
-        response = requests.get(
+        response = outbound.get(
             f"{gitlab_base}/api/v4/projects/{project_id}/hooks",
             headers={"PRIVATE-TOKEN": access_token}, timeout=30, allow_redirects=False,
         )
@@ -584,7 +586,7 @@ class DeleteGitLabWebhookView(APIView):
         deleted_webhooks = []
         for webhook in webhooks:
             if webhook["url"].endswith("api/gitlab/webhook/"):
-                response = requests.delete(
+                response = outbound.delete(
                     f"{gitlab_base}/api/v4/projects/{project_id}/hooks/{webhook['id']}",
                     headers={"PRIVATE-TOKEN": access_token}, timeout=30, allow_redirects=False,
                 )
@@ -698,7 +700,7 @@ class VerifyGitLabProjectView(APIView):
         fetch = dict(headers=headers, timeout=30, allow_redirects=False)
 
         try:
-            response = requests.get(gitlab_api_url, **fetch)
+            response = outbound.get(gitlab_api_url, **fetch)
 
             if response.status_code == 200:
                 project_data = response.json()
@@ -706,7 +708,7 @@ class VerifyGitLabProjectView(APIView):
                     return Response({'exists': False, 'error': 'Not a GitLab project'},
                                     status=status.HTTP_502_BAD_GATEWAY)
 
-                pipelines_response = requests.get(f"{gitlab_api_url}/pipelines", **fetch)
+                pipelines_response = outbound.get(f"{gitlab_api_url}/pipelines", **fetch)
                 pipelines = []
                 if pipelines_response.status_code == 200 and isinstance(pipelines_response.json(), list):
                     pipelines = [{k: p.get(k) for k in _GITLAB_PIPELINE_FIELDS}
@@ -817,7 +819,7 @@ class PipelineLogsView(APIView):
             gitlab_api_url = f"{gitlab_base}/api/v4/projects/{gitlab_project_id}/pipelines/{pipeline.pipeline_id}/jobs"
             headers = {"PRIVATE-TOKEN": access_token}
             
-            response = requests.get(gitlab_api_url, headers=headers, timeout=30, allow_redirects=False)
+            response = outbound.get(gitlab_api_url, headers=headers, timeout=30, allow_redirects=False)
 
             if response.status_code != 200:
                 # GitLab's raw reply is not echoed (it can carry internal
@@ -839,7 +841,7 @@ class PipelineLogsView(APIView):
                     continue  # Only process failed jobs
 
                 logs_url = f"{gitlab_base}/api/v4/projects/{gitlab_project_id}/jobs/{job_id}/trace"
-                logs_response = requests.get(logs_url, headers=headers, timeout=30, allow_redirects=False)
+                logs_response = outbound.get(logs_url, headers=headers, timeout=30, allow_redirects=False)
                 logs = ""
                 if logs_response.status_code == 200:
                     logs = logs_response.text
@@ -945,7 +947,7 @@ class VerifyGitHubProjectView(APIView):
         
         try:
             # Try to get repository details from GitHub
-            response = requests.get(github_api_url, headers=headers, timeout=30)
+            response = outbound.get(github_api_url, headers=headers, timeout=30)
             
             if response.status_code == 200:
                 repo_data = response.json()
@@ -1077,7 +1079,7 @@ class VerifyBitbucketProjectView(APIView):
         
         try:
             # Try to get repository details from Bitbucket
-            response = requests.get(bitbucket_api_url, headers=headers, timeout=30)
+            response = outbound.get(bitbucket_api_url, headers=headers, timeout=30)
             
             if response.status_code == 200:
                 repo_data = response.json()
@@ -1208,7 +1210,7 @@ class VerifyAzureDevOpsProjectView(APIView):
         
         try:
             # Try to get project details from Azure DevOps
-            response = requests.get(azure_api_url, headers=headers, params=params, timeout=30)
+            response = outbound.get(azure_api_url, headers=headers, params=params, timeout=30)
             
             if response.status_code == 200:
                 project_data = response.json()

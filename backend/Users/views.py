@@ -22,6 +22,8 @@ from django.contrib.auth.tokens import default_token_generator, PasswordResetTok
 from django.core import signing
 import jwt
 from django.conf import settings
+from django.contrib.auth.hashers import make_password
+from django.core.cache import cache
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.exceptions import ValidationError
 from django.contrib.auth.password_validation import validate_password
@@ -35,6 +37,26 @@ from .models import SecuritySettings
 
 # Get Logger
 logger = logging.getLogger(__name__)
+
+
+def _login_fail_keys(email, request):
+    """Cache keys of the failed sign-in counters: per account and source
+    address, and per account. Hashes only: no address or email is stored."""
+    from Data.audit import get_client_ip
+    account = _email_ref(email)
+    source = hashlib.sha256((get_client_ip(request) or '').encode()).hexdigest()[:16]
+    return {'source': f'login-fail:s:{account}:{source}', 'account': f'login-fail:a:{account}'}
+
+
+def _count_login_failure(key):
+    """Add one failure; the window starts at the first failure."""
+    window = settings.LOGIN_FAILURE_WINDOW_SECONDS
+    if cache.add(key, 1, timeout=window):
+        return
+    try:
+        cache.incr(key)
+    except ValueError:  # expired between add and incr
+        cache.add(key, 1, timeout=window)
 
 
 def _email_ref(email):
@@ -197,7 +219,17 @@ class RegisterView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            if User.objects.filter(email=email).exists():
+            # A valid address, and not one another organisation's SSO claims
+            # (audit 2026-11-20, item 8).
+            try:
+                validate_email(email)
+            except ValidationError:
+                return Response({"error": "Enter a valid email address."}, status=status.HTTP_400_BAD_REQUEST)
+            from .emails import sso_domain_claimed_elsewhere
+            if sso_domain_claimed_elsewhere(email, None):
+                return Response({"error": "This email address cannot be used."}, status=status.HTTP_400_BAD_REQUEST)
+
+            if User.objects.filter(email__iexact=email).exists():
                 logger.error(f"Registration failed: Email ref {_email_ref(email)} already exists")
                 return Response(
                     {"error": "Email already exists"}, 
@@ -318,17 +350,38 @@ class LoginView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            user = User.objects.filter(email=email).first()
+            # Failed-attempt limits, per account and source address and per
+            # account alone; checked before the password so the answer says
+            # nothing about it, and counted for unknown addresses too so it
+            # says nothing about who has an account (audit 2026-11-20,
+            # item 10). The per-IP throttle still applies.
+            fail_keys = _login_fail_keys(email, request)
+            if (cache.get(fail_keys['source'], 0) >= settings.LOGIN_MAX_FAILURES_PER_SOURCE
+                    or cache.get(fail_keys['account'], 0) >= settings.LOGIN_MAX_FAILURES_PER_ACCOUNT):
+                logger.warning("Login refused: too many failed attempts for %s", _email_ref(email))
+                return Response(
+                    {'error': 'Too many failed sign-ins for this account. Try again in 15 minutes.'},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS
+                )
+
+            user = User.objects.filter(email__iexact=email).first()
 
             # One answer for an unknown email and a wrong password, so the
-            # login form cannot be used to find out who has an account.
+            # login form cannot be used to find out who has an account. An
+            # unknown email still costs one password hash, so the response
+            # time does not tell either.
+            if user is None:
+                make_password(password)
             if not user or not user.check_password(password):
                 logger.warning("Failed login attempt")
                 log_login(request, user=user, success=False)
+                for key in fail_keys.values():
+                    _count_login_failure(key)
                 return Response(
                     {'error': 'Invalid email or password'},
                     status=status.HTTP_401_UNAUTHORIZED
                 )
+            cache.delete_many(list(fail_keys.values()))
 
             # Check if account is activated
             if not user.is_active:
@@ -453,7 +506,9 @@ class DemoLoginView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        _instance, token = AuthToken.objects.create(demo_user)
+        # A fixed, short lifetime (SEROPS_DEMO_TOKEN_HOURS, 8 by default):
+        # demo tokens are not renewed on use (Users/authentication.py).
+        _instance, token = AuthToken.objects.create(demo_user, expiry=settings.DEMO_TOKEN_TTL)
         # Same user shape as a password sign-in (permissions included, so the
         # app shows the right controls straight away).
         user = UserSerializer(demo_user).data
@@ -575,9 +630,8 @@ def _refuse_email_change(request, user, new_email):
         return Response({"error": "Enter a valid email address."}, status=400)
     if User.objects.filter(email__iexact=new_email).exists():
         return Response({"error": "Email address already used!"}, status=400)
-    domain = new_email.rsplit('@', 1)[1].lower()
-    if SecuritySettings.objects.filter(sso_enabled=True, sso_domains__contains=[domain]).exclude(
-            organisation_id=user.organisation_id).exists():
+    from .emails import sso_domain_claimed_elsewhere
+    if sso_domain_claimed_elsewhere(new_email, user.organisation_id):
         return Response({"error": "This email address cannot be used."}, status=400)
     return None
 
@@ -850,7 +904,7 @@ class ForgetPasswordView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(email__iexact=email)
         except User.DoesNotExist:
             # Do not log the attempted email — either it's a fat-finger
             # typo (log noise) or an enumeration attempt (feeding the

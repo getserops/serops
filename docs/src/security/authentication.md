@@ -83,7 +83,9 @@ SerOps uses **Knox token-based authentication** for API access (not JWT).
 | **Token Type** | Knox token |
 | **Header Format** | `Authorization: Token <token>` |
 | **Token TTL** | 30 days |
-| **Auto-Refresh** | Token expiry is extended on each authenticated request (at most once per hour) |
+| **Auto-Refresh** | Token expiry is extended on each authenticated request (at most once per minute) |
+| **Demo sign-ins** | 8 hours (`SEROPS_DEMO_TOKEN_HOURS`), not extended by use |
+| **Failed sign-ins** | 10 per account and address, 100 per account, in 15 minutes; then 429 until the window ends (see Configuration) |
 
 When a user logs in, a Knox token is issued. Include it in subsequent API requests via the `Authorization` header:
 

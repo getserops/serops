@@ -47,6 +47,7 @@ data:
   # Behind TLS: Secure cookies and HSTS. No redirect from Django: the ingress
   # does it, and the probes reach the pods over plain HTTP.
   SEROPS_HTTPS: {{ ternary "True" "False" (hasPrefix "https://" $publicUrl) | quote }}
+  SEROPS_OUTBOUND_ALLOW_PRIVATE: {{ ternary "true" "false" (ne .Values.django.outboundAllowPrivate false) | quote }}
   {{- with .Values.django.queryTrailDir }}
   SEROPS_QUERY_TRAIL_DIR: {{ . | quote }}
   {{- end }}

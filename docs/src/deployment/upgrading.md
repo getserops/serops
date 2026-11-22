@@ -78,6 +78,16 @@ upgrades are safe with a brief restart.
 
 Releases that need something from you after upgrading. Migrations run on their own (`docker compose up` / the Helm migrate job).
 
+### 1.5.1: security fixes for sign-in, email addresses and outbound requests
+
+- **Email addresses are one identity whatever their case.** Migration `Users 0018` adds a unique rule on the lowercase address. If two accounts have the same address in different case (`Ana@example.com` and `ana@example.com`), the migration stops before it changes anything and lists them, masked, with their user ids: the backend container (quick-start) or the migrate job (Helm) fails with `Users 0018 not applied`. Merge, rename or delete the extra account, then start the upgrade again. To check before upgrading, on PostgreSQL: `SELECT lower(email), count(*) FROM "Users" GROUP BY 1 HAVING count(*) > 1;` (no row means nothing to do).
+- **Failed password sign-ins are counted.** Ten failures in 15 minutes for one account from one address stop that address for that account, and 100 from all addresses stop password sign-in for the account, until the window ends (answer 429). The three numbers are settings: `SEROPS_LOGIN_MAX_FAILURES_PER_SOURCE`, `SEROPS_LOGIN_MAX_FAILURES_PER_ACCOUNT`, `SEROPS_LOGIN_FAILURE_WINDOW_SECONDS`. A script that retries a wrong password in a loop will now be refused.
+- **Outbound requests to the URLs you configure** (SCM and CI providers, notification senders, webhooks, the SSO token exchange) check every address the host name resolves to. With the default `SEROPS_OUTBOUND_ALLOW_PRIVATE=true` private addresses stay allowed, as before. An install shared by several organisations must set it to `false` (Helm: `django.outboundAllowPrivate: false`, chart 0.2.3).
+- **`POST /api/organisation/create/` is removed.** It was unused by the web app.
+- **Demo installs**: a "Try the live demo" sign-in lasts 8 hours (`SEROPS_DEMO_TOKEN_HOURS`) and is not extended by use.
+- **New migration**: Users 0018. It adds the unique rule and changes no row.
+- **Going back to 1.5.0**: the 1.5.0 images run on a database that has the unique rule. To remove it first, run `python manage.py migrate Users 0017` with the 1.5.1 backend image, then set the version back.
+
 ### 1.5.0: accuracy, integrations and security fixes
 
 - **OpenSearch verifies TLS by default.** `verify_certs` is now `true` (it was `false`). For a self-signed certificate you trust, clear **Verify TLS certificate** on the integration.
@@ -163,7 +173,7 @@ For example:
 
 ```bash
 # Upgrade to a specific version
-./scripts/upgrade.sh 1.5.0
+./scripts/upgrade.sh 1.5.1
 
 # Upgrade to the latest version
 ./scripts/upgrade.sh
@@ -193,7 +203,7 @@ If you prefer to upgrade manually:
 If upgrading to a specific version, edit `.env`:
 
 ```env
-SEROPS_VERSION=1.5.0
+SEROPS_VERSION=1.5.1
 ```
 
 ### Step 3: Pull New Images

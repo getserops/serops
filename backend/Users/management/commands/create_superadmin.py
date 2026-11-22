@@ -83,7 +83,7 @@ class Command(BaseCommand):
             raise CommandError('Password must be at least 8 characters long')
         
         # Check if user already exists
-        if User.objects.filter(email=email).exists():
+        if User.objects.filter(email__iexact=email).exists():
             raise CommandError(f'User with email {email} already exists!')
         
         try:

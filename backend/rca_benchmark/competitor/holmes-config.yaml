@@ -1,0 +1,9 @@
+# The benchmark gives HolmesGPT the scenario's evidence as files, the way
+# SerOps receives it. Toolsets that would reach outside that evidence are
+# off: the web, connectivity checks and a Prometheus that does not exist.
+# With no kubeconfig, kubectl, cloud CLIs or API tokens in the container the
+# others cannot load either (holmes toolset list shows them unavailable).
+toolsets:
+  internet: {enabled: false}
+  connectivity_check: {enabled: false}
+  kubernetes/kube-prometheus-stack: {enabled: false}

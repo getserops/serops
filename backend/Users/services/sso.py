@@ -5,6 +5,32 @@ from authlib.integrations.requests_client import OAuth2Session
 
 logger = logging.getLogger(__name__)
 
+
+def _guarded_oauth_session(*args, **kwargs):
+    """An Authlib ``OAuth2Session`` (a ``requests.Session``) with the outbound
+    policy of ``Utils.outbound.GuardedSession``: the token endpoint is checked,
+    resolved once and connected to a checked address, and only same-origin
+    redirects are followed (audit 2026-11-20, item 3)."""
+    import types
+    from urllib.parse import urljoin
+    from Utils.outbound import MAX_REDIRECTS, PinnedAdapter, _origin
+
+    client = OAuth2Session(*args, **kwargs)
+    base_target = client.get_redirect_target
+
+    def get_redirect_target(self, resp):
+        target = base_target(resp)
+        if target and _origin(urljoin(resp.url, target)) != _origin(resp.url):
+            return None
+        return target
+
+    client.get_redirect_target = types.MethodType(get_redirect_target, client)
+    client.max_redirects = MAX_REDIRECTS
+    adapter = PinnedAdapter()
+    client.mount('http://', adapter)
+    client.mount('https://', adapter)
+    return client
+
 class SSOService:
     def __init__(self, client_id, client_secret, discovery_url, redirect_uri, extra_scopes=''):
         self.client_id = client_id
@@ -55,9 +81,9 @@ class SSOService:
         from Utils.outbound import check_url
         check_url(token_endpoint)
         
-        client = OAuth2Session(
-            self.client_id, 
-            self.client_secret, 
+        client = _guarded_oauth_session(
+            self.client_id,
+            self.client_secret,
             redirect_uri=self.redirect_uri
         )
         

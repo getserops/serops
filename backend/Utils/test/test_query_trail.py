@@ -89,7 +89,7 @@ class RecordTest(_TrailCase):
         self.assertNotIn('TOPSECRET', json.dumps(line))
         self.assertFalse(line['truncated'])
 
-    @patch('Utils.outbound.requests.request')
+    @patch('Utils.outbound._send')
     def test_guarded_request_records_the_url_as_sent_and_failures(self, request):
         sent = MagicMock(status_code=200, content=b'[{"id": "abc"}]')
         sent.request.url = 'http://gitea.local/api/v1/repos/x/commits?sha=main'

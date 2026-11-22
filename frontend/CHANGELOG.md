@@ -10,6 +10,37 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-11-22
+
+### Changed
+
+- **Analysis page**: the page downloads an analysis once instead of twice.
+  The envelope, the log list and the metric charts each asked for the whole
+  answer; calls made at the same time now share one download. On the demo's
+  Fleet analysis that is 553 KB instead of 1,106 KB before compression.
+- **Overview**: less text on the first screen. In "Needs attention now" the
+  headline is the first sentence of the issue's description, on two lines at
+  most; "Why it is happening" shows three lines with "Show more"; "What to
+  do" is a numbered list, one sentence per step, three shown and the rest
+  behind "Show more". The rows below show one whole first sentence instead of
+  a line cut by an ellipsis. Display only: the stored texts are unchanged and
+  the full description is in the tooltip and on the issue.
+- **Public demo**: a shorter banner: "Example data: analyses SerOps got right,
+  from our own test environments. The misses are on the benchmark page."
+  The French banner says the same.
+
+### Fixed
+
+- **Read-only demo**: a write the server refused is never shown as a
+  success. Creating a project showed "Project created successfully!"
+  although the server had refused it; the project form, the add-service
+  wizard and the delete actions now show the read-only notice and nothing
+  else, and a refused delete of a chat conversation no longer clears the
+  open conversation.
+- **AI Chat**: two bold paragraphs in a row are no longer shown on one
+  line. The clean-up of empty `**` pairs also removed the pair that closes
+  one bold paragraph and opens the next, with the blank line between them.
+
 ## [1.5.0] - 2026-11-21
 
 ### Added

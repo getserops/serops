@@ -1,0 +1,4 @@
+# HolmesGPT for the competitor benchmark, version pinned.
+# docker build -t serops-bench/holmesgpt:0.46.0 -f Dockerfile.holmesgpt .
+FROM python:3.12-slim
+RUN pip install --no-cache-dir holmesgpt==0.46.0

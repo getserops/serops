@@ -297,7 +297,7 @@ class OllamaProbeViewTest(TestCase):
         ranges the whole feature breaks — this test ensures we don't
         over-correct.
         """
-        with patch('requests.get') as get:
+        with patch('Utils.outbound.get') as get:
             mock = MagicMock()
             mock.status_code = 200
             mock.raise_for_status = MagicMock()
@@ -311,7 +311,7 @@ class OllamaProbeViewTest(TestCase):
             )
             self.assertEqual(r.status_code, 200)
 
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_ok_returns_models(self, get):
         mock = MagicMock()
         mock.status_code = 200
@@ -331,7 +331,7 @@ class OllamaProbeViewTest(TestCase):
         called_url = get.call_args.args[0]
         self.assertTrue(called_url.endswith('/models'))
 
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_network_error_returns_unreachable(self, get):
         from requests.exceptions import ConnectionError as ReqConnErr
         get.side_effect = ReqConnErr('down')
@@ -343,7 +343,7 @@ class OllamaProbeViewTest(TestCase):
         self.assertFalse(body['reachable'])
         self.assertIn('Could not reach', body['error'])
 
-    @patch('requests.get')
+    @patch('Utils.outbound.get')
     def test_malformed_response_returns_error(self, get):
         mock = MagicMock()
         mock.status_code = 200

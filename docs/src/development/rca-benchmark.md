@@ -144,3 +144,35 @@ organisation per run, your key with no fallback provider.
 ## Results
 
 Results are published per release with the full Markdown report, failures included. See the [changelog](../changelog.md) for the latest.
+
+## Other tools on the same scenarios
+
+`python3 -m rca_benchmark.competitor` (from `backend/`) scores another RCA
+tool on the same scenarios, keys and scoring rules, with no Django or
+database. Method, fixed before any result was seen:
+
+- **Evidence:** the tool gets each scenario's data, the data SerOps receives,
+  as files: `logs.txt`, `changes.txt` (commits with diffs) and every other
+  source as JSON. Nothing added, nothing removed; the answer key is never
+  in it.
+- **Question:** one fixed instruction asks for the incidents and their root
+  cause as JSON with the fields the scoring reads. No model grades another.
+- **Model:** the same as SerOps (`claude-sonnet-5-5`); cost at SerOps' prices.
+- **HolmesGPT** 0.46.0 (pinned image): `holmes ask --no-interactive` with the
+  files attached, in its documented defaults (`--mode default`, the mode of the
+  published runs): its default toolsets stay on (bash, internet, connectivity
+  check among them); the Kubernetes and cloud ones cannot load, as there is no
+  cluster or credential in the container. `--mode evidence-only` turns the
+  internet, connectivity and Prometheus toolsets off (`holmes-config.yaml`).
+  HolmesGPT normally collects data itself with tools; here it gets the
+  evidence, so this measures its reasoning over the same evidence, not its
+  data collection. Settings of the published runs:
+  `backend/rca_benchmark/competitor/SETTINGS.md`.
+- **Reproduce the published round:** `python3 -m rca_benchmark.competitor
+  --tool holmesgpt --env-file <file with ANTHROPIC_API_KEY=...> --set held_out_v2
+  --budget-usd 2 --json holmes.json` (32 runs; the published round cost $1.39,
+  the most expensive run $0.29). The results are on
+  [/benchmark](https://serops.ai/benchmark).
+- **k8sgpt** is not scored: its analyzers read live Kubernetes objects through
+  the API server and it has no input for logs, metrics, traces or commits.
+  A fair comparison needs a live cluster during an incident.

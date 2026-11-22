@@ -198,6 +198,10 @@ class UsersView(ScimView):
 
         from ee.models import ScimIdentity
         fields = protocol.user_fields(request.data)
+        from Users.emails import sso_domain_claimed_elsewhere
+        if sso_domain_claimed_elsewhere(fields['email'], self.org.pk):
+            # Another organisation's SSO claims the domain (audit 2026-11-20, item 8).
+            raise ScimError(409, 'This email address cannot be used by this organisation', 'uniqueness')
         existing = User.objects.filter(email__iexact=fields['email']).first()
         if existing is not None and (existing.organisation_id != self.org.pk or existing.is_demo):
             raise ScimError(409, 'This email belongs to an account outside this organisation', 'uniqueness')
@@ -240,6 +244,9 @@ class UsersView(ScimView):
         if fields['email'].lower() != user.email.lower():
             if User.objects.filter(email__iexact=fields['email']).exclude(pk=user.pk).exists():
                 raise ScimError(409, 'Another account has this email', 'uniqueness')
+            from Users.emails import sso_domain_claimed_elsewhere
+            if sso_domain_claimed_elsewhere(fields['email'], user.organisation_id):
+                raise ScimError(409, 'This email address cannot be used by this organisation', 'uniqueness')
             user.email, changed = fields['email'], changed + ['email']
         if changed:
             user.save(update_fields=changed)

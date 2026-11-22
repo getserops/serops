@@ -16,6 +16,90 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.5.1] - 2026-11-22
+
+Security fixes for sign-in, email addresses and outbound
+requests, found by our own review of 1.5.0, and fixes in the web app.
+
+Set `SEROPS_VERSION=1.5.1` or `--version 1.5.1`. One migration runs on its
+own. It stops if two accounts have the same email address in different
+case; see Upgrade before you start.
+
+### Added
+
+- **A local demo in one command**: `deploy/demo/demo.sh` starts SerOps with
+  Docker Compose on `http://localhost:8080` and loads the data of the live
+  demo. No AI key is needed and the demo is read-only. See the README.
+
+### Changed
+
+- **Docs**: diagrams are drawn with a copy of Mermaid served by the docs
+  site itself (11.17.2, the version the theme loaded from unpkg.com), fetched
+  only on pages that show a diagram. A reader's browser no longer contacts
+  unpkg.com, and a self-hosted or offline copy of the docs shows its
+  diagrams.
+- **Overview**: less text on the first screen. "Needs attention now" shows
+  the first sentence of the issue's description, three lines of the cause
+  and the first three steps, each with "Show more". The rows below show one
+  whole first sentence. The stored texts are unchanged.
+- **Analysis page**: the page downloads an analysis once instead of twice.
+- **Public demo**: a shorter banner, in English and French.
+
+### Fixed
+
+- **AI Chat**: two bold paragraphs in a row are no longer shown on one line.
+- **Read-only demo**: a write the server refused is never shown as a
+  success. Creating a project showed "Project created successfully!"
+  although nothing was created. A refused write now shows the read-only
+  notice, and only that.
+
+### Security
+
+- **Sign-in**: failed password attempts are counted. Ten failures in 15
+  minutes for one account from one address stop that address for that
+  account; 100 from all addresses stop password sign-in for the account,
+  until the window ends. An unknown address takes as long to refuse as a
+  wrong password, so timing does not reveal which accounts exist.
+- **Email addresses** are one identity whatever their case: stored
+  lowercase, looked up without regard to case, and unique. An address that
+  another organisation's single sign-on claims can no longer be invited,
+  provisioned by SCIM or registered elsewhere.
+- **Outbound requests** to the URLs you configure resolve the host name
+  once, check every address it resolves to, and connect to a checked
+  address. This now covers SCM and CI providers, notification senders,
+  webhooks, the Ollama probe and the SSO token exchange.
+- **Masking**: more token formats are masked before text reaches the AI
+  (among them Stripe, GitHub fine-grained tokens, Slack app tokens and
+  webhooks, SendGrid, Twilio, npm, PyPI, Hugging Face, DigitalOcean, Google
+  OAuth, Azure account keys and SAS signatures, credentials in URL query
+  strings and cookies). Six patterns that took seconds on one very long
+  line now run in linear time.
+- **Demo sign-ins** last 8 hours and are not extended by use; expired
+  sign-in tokens are deleted every hour.
+- Removed the unused `POST /api/organisation/create/`.
+
+### Upgrade
+
+- Migration: `Users 0018`. It adds a unique rule on the lowercase email
+  address and changes no row. If two accounts differ only in the case of
+  their address, it stops before changing anything and lists them (masked,
+  with their user ids). Merge, rename or delete the extra account, then
+  start the upgrade again. See
+  [Upgrade notes](deployment/upgrading.md#upgrade-notes) for a query that
+  checks beforehand.
+- A script that retries a wrong password in a loop is refused with 429
+  after ten attempts. Settings: `SEROPS_LOGIN_MAX_FAILURES_PER_SOURCE`,
+  `SEROPS_LOGIN_MAX_FAILURES_PER_ACCOUNT`,
+  `SEROPS_LOGIN_FAILURE_WINDOW_SECONDS`.
+- Helm chart 0.2.3: new value `django.outboundAllowPrivate` (default
+  `true`, the behaviour until now). An install shared by several
+  organisations must set it to `false`
+  (`SEROPS_OUTBOUND_ALLOW_PRIVATE=false` on the quick-start).
+- New optional settings: the three `SEROPS_LOGIN_*` above and
+  `SEROPS_DEMO_TOKEN_HOURS`.
+
+---
+
 ## [1.5.0] - 2026-11-21
 
 Analysis accuracy and integration fixes, most of them found by installing

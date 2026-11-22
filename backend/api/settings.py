@@ -387,16 +387,17 @@ REST_FRAMEWORK = {
     },
 }
 
-# Alert webhook shared secrets — env-only (mirrors SMTP env-only pattern).
-# Set one per source that you actually use; unset sources reject 401.
+# Alert webhook secrets. Each organisation normally has its own ingest secret
+# (Settings, Alerts & routing: generate or rotate; stored hashed, and it
+# takes precedence). These env secrets are the install-wide fallback, one per
+# source, and are accepted only while the install has a single organisation:
+# the org_id in the webhook URL does not limit them to one organisation
+# (Data/alert_webhooks.py). An unset source with no organisation secret is
+# refused (401).
 #
 #   SEROPS_ALERTMANAGER_SECRET=<random>
 #   SEROPS_GRAFANA_ALERT_SECRET=<random>
 #   SEROPS_DATADOG_MONITOR_SECRET=<random>
-#
-# The webhook URL includes an ``org_id`` so a leaked secret only
-# affects that one tenant's analyses. Rotate by setting a new env
-# and reconfiguring the sender.
 ALERT_WEBHOOK_SECRETS = {
     'alertmanager': os.getenv('SEROPS_ALERTMANAGER_SECRET', ''),
     'grafana': os.getenv('SEROPS_GRAFANA_ALERT_SECRET', ''),
@@ -736,6 +737,35 @@ PROJECT_NAME = os.getenv('PROJECT_NAME', 'serops-backend')  # Add this line
 BETA_INVITE_CODE = os.getenv('BETA_INVITE_CODE') or None
 
 # Knox Token Configuration - 7-day sliding expiration
+# The public demo's tokens live hours, not 30 days, and are not renewed on
+# use (audit 2026-11-20, item 15). Users.tasks.delete_expired_auth_tokens
+# removes expired tokens every hour.
+def _demo_token_hours(raw):
+    try:
+        return max(1, int(raw))
+    except (TypeError, ValueError):
+        return 8
+
+
+DEMO_TOKEN_TTL = timedelta(hours=_demo_token_hours(os.getenv('SEROPS_DEMO_TOKEN_HOURS', '8')))
+
+# Failed password sign-ins, counted in the shared cache on top of the per-IP
+# throttle (audit 2026-11-20, item 10). Per account AND source address: an
+# attacker's address is stopped without locking the owner out. Per account
+# alone, much higher: a slow attack from many addresses still stops, while
+# one outsider cannot lock an administrator out.
+def _positive_int(raw, default):
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
+
+
+LOGIN_FAILURE_WINDOW_SECONDS = _positive_int(os.getenv('SEROPS_LOGIN_FAILURE_WINDOW_SECONDS'), 15 * 60)
+LOGIN_MAX_FAILURES_PER_SOURCE = _positive_int(os.getenv('SEROPS_LOGIN_MAX_FAILURES_PER_SOURCE'), 10)
+LOGIN_MAX_FAILURES_PER_ACCOUNT = _positive_int(os.getenv('SEROPS_LOGIN_MAX_FAILURES_PER_ACCOUNT'), 100)
+
 REST_KNOX = {
     'TOKEN_TTL': timedelta(days=30),  # Token expires 30 days after creation/refresh
     'AUTO_REFRESH': True,  # Automatically extend token on each request

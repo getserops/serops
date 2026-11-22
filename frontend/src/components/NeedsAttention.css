@@ -25,12 +25,21 @@
 .attention-critical .attention-top,
 .attention-high .attention-top { background: var(--tone-red-soft); }
 .attention-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; }
-.attention-issue-title { display: block; font-size: 18px; font-weight: 600; line-height: 1.35; color: var(--text-primary); text-decoration: none; margin-bottom: 14px; overflow-wrap: anywhere; }
+/* Headline: the first sentence of the description, at most two lines. */
+.attention-issue-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; font-size: 18px; font-weight: 600; line-height: 1.35; color: var(--text-primary); text-decoration: none; margin-bottom: 14px; overflow-wrap: anywhere; }
 .attention-issue-title:hover { text-decoration: underline; color: var(--text-primary); }
 
 .attention-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 24px; margin-bottom: 16px; }
 .attention-label { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--text-primary); }
 .attention-grid p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--text-secondary); }
+/* "Why it is happening": three lines, the rest behind "Show more". */
+.attention-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+.attention-steps { margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.55; color: var(--text-secondary); }
+.attention-steps li + li { margin-top: 4px; }
+.attention-steps li::marker { color: var(--text-primary); font-weight: 600; }
+.attention-more { margin-top: 6px; padding: 0; border: 0; background: none; font-size: 13px; font-weight: 600; color: var(--text-link); cursor: pointer; }
+.attention-more:hover { text-decoration: underline; }
+.attention-more:focus-visible { outline: 2px solid var(--text-link); outline-offset: 2px; border-radius: 2px; }
 
 .attention-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
@@ -44,13 +53,14 @@
   border-top: 1px solid var(--border-default);
   font-size: 14px;
 }
-.attention-rest a { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-weight: 600; text-decoration: none; }
+/* Rows show one whole sentence; it wraps instead of being cut by an ellipsis. */
+.attention-rest a { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; line-height: 1.4; color: var(--text-primary); font-weight: 600; text-decoration: none; }
 .attention-rest a:hover { text-decoration: underline; }
 .attention-rest-svc { flex-shrink: 0; font-size: 12px; color: var(--text-tertiary); }
 
 /* Warning-level: one line. */
 .attention-compact { display: flex; align-items: center; gap: 12px; padding: 14px 20px; }
-.attention-compact-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text-primary); text-decoration: none; }
+.attention-compact-title { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; line-height: 1.4; font-weight: 600; color: var(--text-primary); text-decoration: none; }
 .attention-compact-title:hover { text-decoration: underline; }
 .attention-compact .attention-all { flex-shrink: 0; }
 

@@ -37,6 +37,10 @@ Complete reference for all environment variables consumed by SerOps.
 | `SEROPS_API_DOCS` | No | `False` | Serves the interactive API reference (Swagger UI) at `/api/docs/`. Off by default outside `DEBUG`: it lists every endpoint to anyone who can reach the instance. |
 | `TRUSTED_PROXY_COUNT` | No | `1` | How many reverse proxies sit in front of the backend. Login rate limits identify a client by the address the trusted proxy adds to `X-Forwarded-For`, so a client can't dodge them with a fake header. `1` fits the bundled Caddy (Compose) and ingress-nginx (Helm); raise it if, for example, a cloud load balancer sits in front of those. |
 | `DEMO_ONLY_LOGIN` | No | `false` | For a public demo host only. `true` hides the password and SSO form and refuses password login, SSO and password reset server-side; the only way in is the "Try the live demo" button for the user seeded by `seed_demo_org`. Registration is closed too. |
+| `SEROPS_DEMO_TOKEN_HOURS` | No | `8` | Lifetime of a "Try the live demo" sign-in, in hours (at least 1). Demo sign-ins are not extended by use; when one expires the visitor is sent back to the sign-in page. Expired sign-ins of every user are deleted every hour. |
+| `SEROPS_LOGIN_MAX_FAILURES_PER_SOURCE` | No | `10` | Failed password sign-ins allowed for one account from one address within the window; then that account cannot sign in with a password from that address until the window ends (429). The account's owner signing in from elsewhere is not affected. |
+| `SEROPS_LOGIN_MAX_FAILURES_PER_ACCOUNT` | No | `100` | Failed password sign-ins allowed for one account from all addresses together within the window; then password sign-in for that account stops until the window ends. High on purpose, so one outsider cannot lock an administrator out. |
+| `SEROPS_LOGIN_FAILURE_WINDOW_SECONDS` | No | `900` | The window both counts use, starting at the first failure. Counts live in the shared cache (Redis); a successful sign-in clears them. |
 | `BETA_INVITE_CODE` | No | -- | If set, register requests must include a matching invite code to succeed. Leave unset in normal deployments. |
 
 ---
@@ -83,7 +87,7 @@ id, no query string, no search or chat text. Do Not Track is respected.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SEROPS_VERSION` | No | `1.5.0` | Version tag for SerOps Docker images (backend + frontend) |
+| `SEROPS_VERSION` | No | `1.5.1` | Version tag for SerOps Docker images (backend + frontend) |
 
 ---
 
@@ -208,7 +212,7 @@ DEFAULT_FROM_EMAIL=SerOps <serops@yourdomain.com>
 |----------|----------|---------|-------------|
 | `SEROPS_HTTPS` | No | `False` | SerOps is served over HTTPS by a proxy (set by the quick-start's `docker-compose.yml`, and by Helm when `publicUrl` starts with `https://`). Session and CSRF cookies are Secure, responses send HSTS, and the backend reads the proxy's `X-Forwarded-Proto` to know a request came in over HTTPS. The proxy must set that header and replace a client's own (Caddy and ingress-nginx do). |
 | `SECURE_SSL_REDIRECT` | No | `False` | Django redirects HTTP to HTTPS itself (also trusts `X-Forwarded-Proto`). Usually leave it to the proxy: a redirect in Django also bounces plain-HTTP health probes. |
-| `SEROPS_OUTBOUND_ALLOW_PRIVATE` | No | `true` | Whether URLs users configure (observability hosts, SCM and CI base URLs, AI provider base URLs, SSO discovery) may point at private or loopback addresses. Keep `true` for a self-hosted install that reads in-cluster Loki, Prometheus or Ollama; set `false` on an install shared by several organisations so none of them can reach the host's network. Cloud metadata and link-local addresses are refused either way, these URLs are checked again before every request, and redirects to another host are not followed. Notification webhooks (Slack, Teams) always need a public `https` address. |
+| `SEROPS_OUTBOUND_ALLOW_PRIVATE` | No | `true` | Whether URLs users configure (observability hosts, SCM and CI base URLs, AI provider base URLs, SSO discovery) may point at private or loopback addresses. Keep `true` for a self-hosted install that reads in-cluster Loki, Prometheus or Ollama; an install shared by several organisations **must** set `false`, so none of them can reach the host's network. Cloud metadata and link-local addresses are refused either way, these URLs are checked again before every request, the host name is resolved once and the connection goes to an address that passed the check (a DNS answer that changes in between is never used), and redirects to another host are not followed. Notification webhooks (Slack, Teams) always need a public `https` address. |
 
 ---
 

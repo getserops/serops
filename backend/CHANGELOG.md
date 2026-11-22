@@ -7,6 +7,18 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-11-22
+
+### Security
+
+- Outbound requests to configured URLs resolve the host name once, check every address it resolves to, and connect to a checked address; the Host header, TLS SNI and certificate check keep the name. Every remaining direct call to a configured URL (SCM and CI providers, notification senders, webhooks, the Ollama probe, the SSO token exchange) goes through this path. New Helm value `django.outboundAllowPrivate` sets `SEROPS_OUTBOUND_ALLOW_PRIVATE` for the API pods and the workers; an install shared by several organisations must set it to `false`.
+- Masking: more token formats (Stripe, GitHub fine-grained, Slack app tokens and webhooks, SendGrid, Twilio, npm, PyPI, Hugging Face, DigitalOcean, Google OAuth, Azure account keys and SAS signatures, credentials in URL query strings, cookies, `curl -u`, `mysql -p`, long unlabelled secrets after key words). Six patterns that took seconds on one long line now run in linear time, and a line longer than 20,000 characters is cut before masking.
+- Emails are one identity whatever their case: stored lowercase, looked up case-insensitively, and unique in any case (migration `Users 0018`, which stops and lists the accounts if two addresses differ only in case). An address another organisation's single sign-on claims can no longer be invited, provisioned by SCIM or registered elsewhere.
+- Sign-in: failed password attempts are counted per account and source address (10 in 15 minutes stop that address for that account) and per account (100 in 15 minutes stop the account), with a 429 until the window ends; all three numbers are settings (`SEROPS_LOGIN_*`). An unknown address costs a password hash, so timing does not reveal accounts.
+- Demo sign-ins last 8 hours (`SEROPS_DEMO_TOKEN_HOURS`) and are not extended by use; expired sign-in tokens are deleted every hour.
+- Removed the unused `POST /api/organisation/create/`.
+- Security headers and a Content-Security-Policy for the landing and docs hosts in `docs/Caddyfile`.
+
 ## [1.5.0] - 2026-11-21
 
 ### Added
