@@ -3,12 +3,14 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Box, Button, Card, CardContent, Typography } from '@mui/material';
 import { FaArrowRight, FaFolder } from 'react-icons/fa';
 
 import CreateProjectModal from '../modals/CreateProjectModal';
 
 export default function CreateProjectStep({ status, onDone }) {
+    const { t } = useTranslation();
     const [open, setOpen] = useState(false);
 
     return (
@@ -21,14 +23,10 @@ export default function CreateProjectStep({ status, onDone }) {
                         </Box>
                         <Box sx={{ flex: 1 }}>
                             <Typography variant="h6" fontWeight={600} gutterBottom>
-                                Create your first project
+                                {t('createProjectStep.title')}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                                A project is a grouping of services SerOps
-                                analyzes together — e.g. "Payments Backend"
-                                or "Data Pipeline". Default environments
-                                (development, staging, production) are created
-                                for you.
+                                {t('createProjectStep.intro')}
                             </Typography>
                         </Box>
                     </Box>
@@ -38,7 +36,7 @@ export default function CreateProjectStep({ status, onDone }) {
                             onClick={() => setOpen(true)}
                             endIcon={<FaArrowRight />}
                         >
-                            Create project
+                            {t('createProjectStep.create')}
                         </Button>
                     </Box>
                 </CardContent>

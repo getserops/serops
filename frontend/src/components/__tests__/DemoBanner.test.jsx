@@ -70,3 +70,27 @@ describe('DemoBanner', () => {
     expect(second.container).toBeEmptyDOMElement();
   });
 });
+
+// A2: on a phone the banner took 104 px. It is one line there, the rest
+// behind "More" (the stylesheet shows the button on a phone only).
+describe('DemoBanner on a phone', () => {
+  beforeEach(() => { window.localStorage.getItem.mockReset(); window.sessionStorage.clear(); });
+
+  it('has a "More" control that opens and closes the full text', () => {
+    signIn({ username: 'demo', is_demo: true });
+    render(<DemoBanner />);
+    const banner = screen.getByRole('status');
+    const more = screen.getByRole('button', { name: 'More' });
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    expect(banner.className).not.toContain('is-expanded');
+    fireEvent.click(more);
+    expect(banner.className).toContain('is-expanded');
+    expect(screen.getByRole('button', { name: 'Less' }).getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('keeps the close button', () => {
+    signIn({ username: 'demo', is_demo: true });
+    render(<DemoBanner />);
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+  });
+});

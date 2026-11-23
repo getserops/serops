@@ -3,9 +3,11 @@ import '../Styles/Register.css';
 import './Login.css';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import BrandMark from './BrandMark';
 
 function RegisterPart3() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { state } = useLocation();
   const emailFailed = state?.emailSent === false;
@@ -22,14 +24,12 @@ function RegisterPart3() {
                 ? <FaExclamationTriangle size={40} aria-hidden="true" style={{ color: 'var(--warning-500)' }} />
                 : <FaCheckCircle size={40} aria-hidden="true" style={{ color: 'var(--success-500)' }} />}
             </div>
-            <h2>{emailFailed ? 'Account created, email not sent' : 'Verify by email'}</h2>
+            <h2>{emailFailed ? t('registerPart3.emailNotSentTitle') : t('registerPart3.verifyTitle')}</h2>
             {emailFailed ? (
               <p role="alert">{state.message}</p>
             ) : (
               <p>
-                Check your inbox: we sent an activation link{state?.email ? <> to <strong>{state.email}</strong></> : null}.
-                Follow it to finish creating your account. Nothing after a few minutes?
-                Check your spam folder, or ask your SerOps administrator.
+                {t('registerPart3.sentBefore')}{state?.email ? <>{t('registerPart3.sentTo')}<strong>{state.email}</strong></> : null}{t('registerPart3.sentAfter')}
               </p>
             )}
           </div>
@@ -40,13 +40,13 @@ function RegisterPart3() {
               className="btn btn-primary ds-btn ds-btn-primary ds-btn-full"
               onClick={handleSignIn}
             >
-              Back to sign in
+              {t('registerPart3.backToSignIn')}
             </button>
           </div>
         </div>
 
         <div className="login-footer">
-          <span>&copy; {new Date().getFullYear()} SerOps. All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} SerOps. {t('login.allRightsReserved')}</span>
         </div>
       </div>
     </div>

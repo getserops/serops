@@ -18,7 +18,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  height: var(--topbar-h, 56px);
+  height: var(--topbar-h);
   padding: 0 12px 0 16px;
   flex: none;
 }

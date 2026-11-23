@@ -16,7 +16,7 @@ const GITOPS_PROVIDERS = ['argocd', 'flux'];
 // Where each sender posts, and how it authenticates (docs/src/integrations/
 // jenkins.md and gitops.md). Argo CD and Flux can report to any binding; an
 // Argo CD or Flux integration's binding is only for them.
-const webhookTargets = (id, provider) => {
+const webhookTargets = (id, provider, t) => {
     const origin = window.location.origin;
     const targets = [];
     const argocd = { label: 'Argo CD', url: `${origin}/api/providers/webhook/argocd/${id}/`, auth: 'Authorization: Bearer <secret>' };
@@ -24,34 +24,37 @@ const webhookTargets = (id, provider) => {
     if (provider === 'argocd') return [argocd];
     if (provider === 'flux') return [flux];
     if (provider === 'jenkins') {
-        targets.push({ label: 'Jenkins', url: `${origin}/api/webhooks/jenkins/${id}/`, auth: 'Header X-Jenkins-Token: <secret>' });
+        targets.push({ label: 'Jenkins', url: `${origin}/api/webhooks/jenkins/${id}/`, auth: t('services.webhookAuthJenkins') });
     } else if (provider) {
         const slug = provider === 'azure_devops' ? 'azure-devops' : provider;
-        targets.push({ label: 'Pipeline webhook', url: `${origin}/api/webhooks/${slug}/${id}/`, auth: 'Webhook secret: <secret>' });
+        targets.push({ label: t('services.pipelineWebhook'), url: `${origin}/api/webhooks/${slug}/${id}/`, auth: t('services.webhookAuthSecret') });
     }
     targets.push(argocd, flux);
     return targets;
 };
 
-const WebhookDetails = ({ webhook, onClose }) => (
-    <Alert variant="warning" dismissible onClose={onClose} aria-label="Webhook details">
-        <strong>Copy the webhook secret now.</strong> SerOps shows it only once.
+const WebhookDetails = ({ webhook, onClose }) => {
+    const { t } = useTranslation();
+    return (
+    <Alert variant="warning" dismissible onClose={onClose} aria-label={t('services.webhookDetails')}>
+        <strong>{t('services.copySecretNow')}</strong>{t('services.copySecretAfter')}
         <Form.Group className="mt-2" controlId="cicd-webhook-secret">
-            <Form.Label className="small mb-1">Webhook secret</Form.Label>
+            <Form.Label className="small mb-1">{t('services.webhookSecret')}</Form.Label>
             <Form.Control readOnly value={webhook.secret} onFocus={(e) => e.target.select()} />
         </Form.Group>
         <Table size="sm" className="mt-2 mb-0 small">
             <tbody>
-                {webhookTargets(webhook.id, webhook.provider).map((t) => (
-                    <tr key={t.label}>
-                        <th scope="row">{t.label}</th>
-                        <td><code>{t.url}</code><div className="text-muted">{t.auth}</div></td>
+                {webhookTargets(webhook.id, webhook.provider, t).map((target) => (
+                    <tr key={target.label}>
+                        <th scope="row">{target.label}</th>
+                        <td><code>{target.url}</code><div className="text-muted">{target.auth}</div></td>
                     </tr>
                 ))}
             </tbody>
         </Table>
     </Alert>
-);
+    );
+};
 
 const ServiceDetailsModal = ({
     show,
@@ -99,7 +102,7 @@ const ServiceDetailsModal = ({
                 setRepos(list);
                 setReposState({ loading: false, error: null });
             })
-            .catch(() => setReposState({ loading: false, error: 'Could not list the repositories of this integration.' }));
+            .catch(() => setReposState({ loading: false, error: 'services.listReposFailed' }));
     }, [repoForm.integration]);
 
     const repoKey = (r) => String(r.id || r.full_name || r.path_with_namespace);
@@ -115,13 +118,13 @@ const ServiceDetailsModal = ({
                 repository_url: repo.html_url || repo.web_url || repo.url || '',
                 default_branch: repo.default_branch,
             });
-            setActionResult({ type: 'success', message: 'Repository connected.' });
+            setActionResult({ type: 'success', message: t('services.repoConnected') });
             setShowConnectRepo(false);
             setRepoForm({ integration: '', repository: '' });
             if (onRefresh) onRefresh();
         } catch (err) {
             const detail = err?.response?.data;
-            setActionResult({ type: 'danger', message: 'Could not connect the repository: ' + (detail ? JSON.stringify(detail) : err.message) });
+            setActionResult({ type: 'danger', message: t('services.connectRepoFailed', { error: detail ? JSON.stringify(detail) : err.message }) });
         } finally {
             setConnecting(false);
         }
@@ -143,10 +146,10 @@ const ServiceDetailsModal = ({
     const newBindingIsGitOps = GITOPS_PROVIDERS.includes(newBindingProvider);
     // GitHub Actions and GitLab CI pipelines are the repository / project,
     // not a job (phase 3 C1: a workflow file went there and every sync failed).
-    const newBindingPlaceholder = newBindingIsGitOps ? 'e.g., payments'
+    const newBindingPlaceholder = newBindingIsGitOps ? t('services.appPlaceholder')
         : newBindingProvider === 'github' ? 'owner/repo'
-        : newBindingProvider === 'gitlab' ? 'group/project or project ID'
-        : 'e.g., job/my-job';
+        : newBindingProvider === 'gitlab' ? t('services.gitlabPipelinePlaceholder')
+        : t('services.jobPlaceholder');
 
     const handleAddCICDBinding = async () => {
         if (!newBinding.integration_id || !newBinding.pipeline_id) return;
@@ -154,7 +157,7 @@ const ServiceDetailsModal = ({
         setAddingBinding(true);
         try {
             const created = await ProjectService.addCICDBinding(service.id, newBinding);
-            setActionResult({ type: 'success', message: 'CI/CD binding added successfully!' });
+            setActionResult({ type: 'success', message: t('services.bindingAdded') });
             if (created?.id && created?.webhook_secret) {
                 const provider = integrations.find((i) => String(i.id) === String(newBinding.integration_id))?.provider_type;
                 setNewWebhook({ id: created.id, secret: created.webhook_secret, provider });
@@ -163,20 +166,20 @@ const ServiceDetailsModal = ({
             setNewBinding({ integration_id: '', binding_type: 'build', pipeline_id: '', pipeline_name: '', auto_trigger: true });
             if (onRefresh) onRefresh();
         } catch (err) {
-            setActionResult({ type: 'danger', message: 'Failed to add binding: ' + (err.message || 'Unknown error') });
+            setActionResult({ type: 'danger', message: t('services.addBindingFailed', { error: err.message || t('services.unknownError') }) });
         } finally {
             setAddingBinding(false);
         }
     };
 
     const handleDeleteBinding = async (bindingId) => {
-        if (!window.confirm('Remove this CI/CD binding?')) return;
+        if (!window.confirm(t('services.removeBindingConfirm'))) return;
         try {
             await ProjectService.deleteCICDBinding(bindingId);
-            setActionResult({ type: 'success', message: 'Binding removed successfully!' });
+            setActionResult({ type: 'success', message: t('services.bindingRemoved') });
             if (onRefresh) onRefresh();
         } catch (err) {
-            setActionResult({ type: 'danger', message: 'Failed to remove binding' });
+            setActionResult({ type: 'danger', message: t('services.removeBindingFailed') });
         }
     };
 
@@ -185,10 +188,10 @@ const ServiceDetailsModal = ({
         setActionResult(null);
         try {
             await ProjectService.SyncSCMBinding(bindingId);
-            setActionResult({ type: 'success', message: 'Sync started successfully' });
+            setActionResult({ type: 'success', message: t('services.syncStarted') });
             if (onRefresh) onRefresh();
         } catch (err) {
-            setActionResult({ type: 'danger', message: 'Sync failed: ' + (err.response?.data?.error || err.message) });
+            setActionResult({ type: 'danger', message: t('services.syncFailed', { error: err.response?.data?.error || err.message }) });
         } finally {
             setPerformAction({ loading: false, type: null, id: null });
         }
@@ -199,10 +202,10 @@ const ServiceDetailsModal = ({
         setActionResult(null);
         try {
             await ProjectService.SetupSCMWebhook(bindingId);
-            setActionResult({ type: 'success', message: 'Webhook configured successfully' });
+            setActionResult({ type: 'success', message: t('services.webhookConfigured') });
             if (onRefresh) onRefresh();
         } catch (err) {
-            setActionResult({ type: 'danger', message: 'Webhook setup failed: ' + (err.response?.data?.error || err.message) });
+            setActionResult({ type: 'danger', message: t('services.webhookSetupFailed', { error: err.response?.data?.error || err.message }) });
         } finally {
             setPerformAction({ loading: false, type: null, id: null });
         }
@@ -218,7 +221,7 @@ const ServiceDetailsModal = ({
                         <div className="d-flex justify-content-between align-items-center">
                             <div>
                                 <h4 className="mb-1">
-                                    {service?.name || `Service #${service?.id}`}
+                                    {service?.name || t('services.serviceNumber', { id: service?.id })}
                                 </h4>
                                 <span className="badge bg-primary bg-opacity-75 text-white rounded-pill px-3">
                                     {/* Its type, not whether it has a repository: an Application
@@ -262,7 +265,7 @@ const ServiceDetailsModal = ({
                                         <div className="card-header bg-white border-bottom-0 pt-3">
                                             <div className="d-flex align-items-center">
                                                 <FaGit className="text-secondary me-2" size={20} />
-                                                <h5 className="mb-0 text-dark">Source Control Integration</h5>
+                                                <h5 className="mb-0 text-dark">{t('services.sourceControlIntegration')}</h5>
                                                 {service.scm_binding.provider_type === 'gitlab' && <FaGitlab className="ms-auto text-warning" size={24} />}
                                                 {service.scm_binding.provider_type === 'github' && <FaGithub className="ms-auto text-dark" size={24} />}
                                                 {service.scm_binding.provider_type === 'bitbucket' && <FaBitbucket className="ms-auto text-primary" size={24} />}
@@ -272,15 +275,15 @@ const ServiceDetailsModal = ({
                                         <div className="card-body">
                                             <Row className="g-3">
                                                 <Col md={6}>
-                                                    <label className="text-muted small">Repository</label>
+                                                    <label className="text-muted small">{t('serviceForms.repository')}</label>
                                                     <div className="fw-bold">{service.scm_binding.repository_name}</div>
                                                 </Col>
                                                 <Col md={6}>
-                                                    <label className="text-muted small">Branch</label>
+                                                    <label className="text-muted small">{t('services.branch')}</label>
                                                     <div><Badge bg="light" text="dark" className="border">{service.scm_binding.default_branch || 'HEAD'}</Badge></div>
                                                 </Col>
                                                 <Col md={12}>
-                                                    <label className="text-muted small">Clone URL</label>
+                                                    <label className="text-muted small">{t('services.cloneUrl')}</label>
                                                     <code className="d-block p-2 bg-light rounded text-break">{service.scm_binding.repository_url}</code>
                                                 </Col>
 
@@ -289,10 +292,10 @@ const ServiceDetailsModal = ({
                                                         <div className="d-flex align-items-center gap-3">
                                                             <div className="d-flex align-items-center">
                                                                 <div className={`rounded-circle me-2 ${service.scm_binding.webhook_configured ? 'bg-success' : 'bg-secondary'}`} style={{ width: 8, height: 8 }}></div>
-                                                                <small>{service.scm_binding.webhook_configured ? 'Webhook Active' : 'Webhook Not Configured'}</small>
+                                                                <small>{service.scm_binding.webhook_configured ? t('services.webhookActiveShort') : t('services.webhookNotConfiguredShort')}</small>
                                                             </div>
                                                             {service.scm_binding.last_sync_at && (
-                                                                <small className="text-muted">Last sync: {formatAbsolute(service.scm_binding.last_sync_at, { seconds: false })}</small>
+                                                                <small className="text-muted">{t('services.lastSync', { date: formatAbsolute(service.scm_binding.last_sync_at, { seconds: false }) })}</small>
                                                             )}
                                                         </div>
                                                         <div className="d-flex gap-2">
@@ -303,7 +306,7 @@ const ServiceDetailsModal = ({
                                                                     onClick={() => handleSetupWebhook(service.scm_binding.id)}
                                                                     disabled={performAction.loading}
                                                                 >
-                                                                    {performAction.loading && performAction.type === 'webhook' && performAction.id === service.scm_binding.id ? <Spinner size="sm" animation="border" /> : 'Setup Webhook'}
+                                                                    {performAction.loading && performAction.type === 'webhook' && performAction.id === service.scm_binding.id ? <Spinner size="sm" animation="border" /> : t('services.setupWebhook')}
                                                                 </Button>
                                                             )}
                                                             <Button
@@ -311,14 +314,14 @@ const ServiceDetailsModal = ({
                                                                 size="sm"
                                                                 onClick={() => handleSync(service.scm_binding.id)}
                                                                 disabled={performAction.loading}
-                                                                title="Sync Commits"
+                                                                title={t('services.syncCommits')}
                                                             >
                                                                 <FaSync className={performAction.loading && performAction.type === 'sync' && performAction.id === service.scm_binding.id ? "fa-spin" : ""} />
                                                             </Button>
                                                         </div>
                                                     </div>
                                                     {service.scm_binding.sync_error && (
-                                                        <div className="text-danger small mt-2">Sync Error: {service.scm_binding.sync_error}</div>
+                                                        <div className="text-danger small mt-2">{t('services.syncError', { error: service.scm_binding.sync_error })}</div>
                                                     )}
                                                 </Col>
                                             </Row>
@@ -331,47 +334,47 @@ const ServiceDetailsModal = ({
                                         <div className="card-header bg-white border-bottom-0 pt-3 d-flex justify-content-between align-items-center">
                                             <div className="d-flex align-items-center">
                                                 <FaGit className="text-secondary me-2" />
-                                                <h5 className="mb-0 text-dark">Code repository</h5>
+                                                <h5 className="mb-0 text-dark">{t('services.codeRepository')}</h5>
                                             </div>
                                             <Button variant="outline-primary" size="sm" onClick={() => setShowConnectRepo(!showConnectRepo)}>
-                                                <FaLink className="me-1" /> Connect repository
+                                                <FaLink className="me-1" /> {t('services.connectRepository')}
                                             </Button>
                                         </div>
                                         {showConnectRepo ? (
                                             <Card.Body className="border-bottom bg-light">
                                                 <Row className="g-2 align-items-end">
                                                     <Col md={4}>
-                                                        <Form.Label className="small mb-1" htmlFor="scm-binding-integration">Integration</Form.Label>
+                                                        <Form.Label className="small mb-1" htmlFor="scm-binding-integration">{t('addService.integration')}</Form.Label>
                                                         <Form.Select id="scm-binding-integration" size="sm" value={repoForm.integration}
                                                             onChange={(e) => setRepoForm({ integration: e.target.value, repository: '' })}>
-                                                            <option value="">Select…</option>
+                                                            <option value="">{t('services.selectEllipsis')}</option>
                                                             {scmIntegrations.map(i => <option key={i.id} value={i.id}>{i.name} ({i.provider_type})</option>)}
                                                         </Form.Select>
                                                     </Col>
                                                     <Col md={5}>
-                                                        <Form.Label className="small mb-1" htmlFor="scm-binding-repository">Repository</Form.Label>
+                                                        <Form.Label className="small mb-1" htmlFor="scm-binding-repository">{t('serviceForms.repository')}</Form.Label>
                                                         <Form.Select id="scm-binding-repository" size="sm" value={repoForm.repository}
                                                             disabled={!repoForm.integration || reposState.loading}
                                                             onChange={(e) => setRepoForm({ ...repoForm, repository: e.target.value })}>
-                                                            <option value="">{reposState.loading ? 'Loading…' : 'Select…'}</option>
+                                                            <option value="">{reposState.loading ? t('services.loadingEllipsis') : t('services.selectEllipsis')}</option>
                                                             {repos.map(r => <option key={repoKey(r)} value={repoKey(r)}>{r.full_name || r.name || r.path_with_namespace}</option>)}
                                                         </Form.Select>
                                                     </Col>
                                                     <Col md={3}>
                                                         <Button size="sm" className="w-100" onClick={handleConnectRepo}
                                                             disabled={connecting || !repoForm.repository}>
-                                                            {connecting ? <Spinner size="sm" animation="border" /> : 'Connect'}
+                                                            {connecting ? <Spinner size="sm" animation="border" /> : t('services.connect')}
                                                         </Button>
                                                     </Col>
                                                 </Row>
-                                                {reposState.error && <div className="text-danger small mt-2">{reposState.error}</div>}
+                                                {reposState.error && <div className="text-danger small mt-2">{t(reposState.error)}</div>}
                                                 {!scmIntegrations.length && integrations.length > 0 && (
-                                                    <div className="small text-muted mt-2">Add a source control integration first (Settings → Integrations → Source Control).</div>
+                                                    <div className="small text-muted mt-2">{t('services.addScmFirst')}</div>
                                                 )}
                                             </Card.Body>
                                         ) : (
                                             <Card.Body className="pt-0 small text-muted">
-                                                No repository connected: the analysis cannot point at the commit that caused an incident.
+                                                {t('services.noRepoConnected')}
                                             </Card.Body>
                                         )}
                                     </div>
@@ -382,7 +385,7 @@ const ServiceDetailsModal = ({
                                     <div className="card-header bg-white border-bottom-0 pt-3 d-flex justify-content-between align-items-center">
                                         <div className="d-flex align-items-center">
                                             <FaCog className="text-secondary me-2" />
-                                            <h5 className="mb-0 text-dark">CI/CD Pipelines</h5>
+                                            <h5 className="mb-0 text-dark">{t('services.cicdPipelines')}</h5>
                                             {service.cicd_bindings?.length > 0 && (
                                                 <Badge bg="primary" className="ms-2">{service.cicd_bindings.length}</Badge>
                                             )}
@@ -392,7 +395,7 @@ const ServiceDetailsModal = ({
                                             size="sm"
                                             onClick={() => setShowAddCICD(!showAddCICD)}
                                         >
-                                            <FaPlus className="me-1" /> Add Pipeline
+                                            <FaPlus className="me-1" /> {t('services.addPipeline')}
                                         </Button>
                                     </div>
 
@@ -401,7 +404,7 @@ const ServiceDetailsModal = ({
                                         <Card.Body className="border-bottom bg-light">
                                             <Row className="g-2 align-items-end">
                                                 <Col md={3}>
-                                                    <Form.Label className="small mb-1" htmlFor="cicd-binding-integration">Integration</Form.Label>
+                                                    <Form.Label className="small mb-1" htmlFor="cicd-binding-integration">{t('addService.integration')}</Form.Label>
                                                     <Form.Select
                                                         id="cicd-binding-integration"
                                                         size="sm"
@@ -413,28 +416,28 @@ const ServiceDetailsModal = ({
                                                             setNewBinding({ ...newBinding, integration_id: e.target.value, ...(gitops ? { binding_type: 'deploy' } : {}) });
                                                         }}
                                                     >
-                                                        <option value="">Select...</option>
+                                                        <option value="">{t('services.selectDots')}</option>
                                                         {cicdIntegrations.map(int => (
                                                             <option key={int.id} value={int.id}>{int.name}</option>
                                                         ))}
                                                     </Form.Select>
                                                 </Col>
                                                 <Col md={2}>
-                                                    <Form.Label className="small mb-1" htmlFor="cicd-binding-type">Type</Form.Label>
+                                                    <Form.Label className="small mb-1" htmlFor="cicd-binding-type">{t('services.type')}</Form.Label>
                                                     <Form.Select
                                                         id="cicd-binding-type"
                                                         size="sm"
                                                         value={newBinding.binding_type}
                                                         onChange={(e) => setNewBinding({ ...newBinding, binding_type: e.target.value })}
                                                     >
-                                                        <option value="build">Build</option>
-                                                        <option value="deploy">Deploy</option>
-                                                        <option value="test">Test</option>
-                                                        <option value="release">Release</option>
+                                                        <option value="build">{t('services.bindingTypeBuild')}</option>
+                                                        <option value="deploy">{t('services.bindingTypeDeploy')}</option>
+                                                        <option value="test">{t('services.bindingTypeTest')}</option>
+                                                        <option value="release">{t('services.bindingTypeRelease')}</option>
                                                     </Form.Select>
                                                 </Col>
                                                 <Col md={3}>
-                                                    <Form.Label className="small mb-1" htmlFor="cicd-binding-pipeline">{newBindingIsGitOps ? 'Application' : 'Pipeline ID'}</Form.Label>
+                                                    <Form.Label className="small mb-1" htmlFor="cicd-binding-pipeline">{newBindingIsGitOps ? t('services.gitopsApplication') : t('services.pipelineId')}</Form.Label>
                                                     <Form.Control
                                                         id="cicd-binding-pipeline"
                                                         size="sm"
@@ -445,12 +448,12 @@ const ServiceDetailsModal = ({
                                                     />
                                                 </Col>
                                                 <Col md={2}>
-                                                    <Form.Label className="small mb-1" htmlFor="cicd-binding-name">Name</Form.Label>
+                                                    <Form.Label className="small mb-1" htmlFor="cicd-binding-name">{t('services.bindingName')}</Form.Label>
                                                     <Form.Control
                                                         id="cicd-binding-name"
                                                         size="sm"
                                                         type="text"
-                                                        placeholder="Optional"
+                                                        placeholder={t('services.optionalPlaceholder')}
                                                         value={newBinding.pipeline_name}
                                                         onChange={(e) => setNewBinding({ ...newBinding, pipeline_name: e.target.value })}
                                                     />
@@ -463,7 +466,7 @@ const ServiceDetailsModal = ({
                                                         disabled={addingBinding || !newBinding.integration_id || !newBinding.pipeline_id}
                                                         className="w-100"
                                                     >
-                                                        {addingBinding ? <Spinner size="sm" animation="border" /> : 'Add'}
+                                                        {addingBinding ? <Spinner size="sm" animation="border" /> : t('common.add')}
                                                     </Button>
                                                 </Col>
                                             </Row>
@@ -474,11 +477,11 @@ const ServiceDetailsModal = ({
                                         <Table hover responsive className="mb-0">
                                             <thead className="bg-light">
                                                 <tr>
-                                                    <th className="border-0">Type</th>
-                                                    <th className="border-0">Pipeline</th>
-                                                    <th className="border-0">Status</th>
-                                                    <th className="border-0">Auto-Trigger</th>
-                                                    <th className="border-0 text-end">Actions</th>
+                                                    <th className="border-0">{t('services.type')}</th>
+                                                    <th className="border-0">{t('services.pipeline')}</th>
+                                                    <th className="border-0">{t('services.status')}</th>
+                                                    <th className="border-0">{t('services.autoTrigger')}</th>
+                                                    <th className="border-0 text-end">{t('common.actions')}</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -490,9 +493,9 @@ const ServiceDetailsModal = ({
                                                                 {binding.pipeline_name || binding.pipeline_id} <FaLink size={10} />
                                                             </a>
                                                         </td>
-                                                        <td>{binding.sync_error ? <Badge bg="danger">Error</Badge> : <Badge bg="success">Active</Badge>}</td>
+                                                        <td>{binding.sync_error ? <Badge bg="danger">{t('common.error')}</Badge> : <Badge bg="success">{t('services.active')}</Badge>}</td>
                                                         <td>
-                                                            {binding.auto_trigger ? <Badge bg="info">On</Badge> : <Badge bg="secondary">Off</Badge>}
+                                                            {binding.auto_trigger ? <Badge bg="info">{t('services.on')}</Badge> : <Badge bg="secondary">{t('services.off')}</Badge>}
                                                         </td>
                                                         <td className="text-end">
                                                             <Button
@@ -500,7 +503,7 @@ const ServiceDetailsModal = ({
                                                                 size="sm"
                                                                 className="text-danger p-0"
                                                                 onClick={() => handleDeleteBinding(binding.id)}
-                                                                title="Remove binding"
+                                                                title={t('services.removeBinding')}
                                                             >
                                                                 <FaTrash size={12} />
                                                             </Button>
@@ -512,8 +515,8 @@ const ServiceDetailsModal = ({
                                     ) : (
                                         !showAddCICD && (
                                             <Card.Body className="text-center text-muted py-4">
-                                                <p className="mb-0">No CI/CD pipelines configured</p>
-                                                <small>Click "Add Pipeline" to connect a CI/CD integration</small>
+                                                <p className="mb-0">{t('services.noPipelines')}</p>
+                                                <small>{t('services.noPipelinesHint')}</small>
                                             </Card.Body>
                                         )
                                     )}

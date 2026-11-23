@@ -7,16 +7,17 @@
 ## Why this exists
 
 SerOps is published under the [GNU Affero General Public License v3](./LICENSE),
-and a [commercial license](./LICENSE-COMMERCIAL.md) is offered to organisations
-that cannot accept AGPL copyleft, or that want to build a proprietary product on
-top of SerOps. The repository also holds the SerOps Enterprise edition: the
+and a [commercial license](./LICENSE-COMMERCIAL.md) for internal use is offered
+to organisations that cannot accept AGPL copyleft. Building a product on SerOps,
+embedding it, redistributing it or running it for clients needs a separate
+written agreement. The repository also holds the SerOps Enterprise edition: the
 `ee/` directories, under the source-available
 [SerOps Enterprise License](./backend/ee/LICENSE), which add governance
-features to the complete Community edition (see the
+features to the Community edition and its full root cause analysis (see the
 [open source promise](https://serops.ai/docs/open-source-promise/)).
 
-Offering those licenses requires the project to hold sufficient rights over
-**all** of the code they cover. A contribution accepted without those rights
+Offering those licenses and agreements requires the project to hold sufficient
+rights over **all** of the code they cover. A contribution accepted without those rights
 cannot be included in a commercially licensed release, and the practical
 consequence is awkward: either the commercial release has to omit the
 contribution, or every past contributor has to be tracked down for permission

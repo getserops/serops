@@ -22,6 +22,8 @@ const DemoBanner = () => {
   const { t } = useTranslation();
   const ref = useRef(null);
   const [dismissed, setDismissed] = useState(wasDismissed);
+  // On a phone the banner is one line; "More" shows the rest.
+  const [expanded, setExpanded] = useState(false);
   const shown = isDemoUser() && !dismissed;
 
   useLayoutEffect(() => {
@@ -47,8 +49,8 @@ const DemoBanner = () => {
     setDismissed(true);
   };
   return (
-    <div className="demo-banner" role="status" ref={ref}>
-      <span>
+    <div className={`demo-banner${expanded ? ' is-expanded' : ''}`} role="status" ref={ref}>
+      <span className="demo-banner-text">
         {t('demo.banner.before')}
         <a href={BENCHMARK_URL} target="_blank" rel="noopener noreferrer">{t('demo.banner.link')}</a>
         {t('demo.banner.after')}
@@ -57,9 +59,13 @@ const DemoBanner = () => {
         href="https://serops.ai/docs/getting-started/quick-start-self-hosted/"
         target="_blank"
         rel="noopener noreferrer"
+        className="demo-banner-selfhost"
       >
         {t('demo.banner.selfHost')}
       </a>
+      <button type="button" className="demo-banner-more" aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
+        {expanded ? t('demo.banner.less') : t('demo.banner.more')}
+      </button>
       <button type="button" className="demo-banner-close" onClick={dismiss} aria-label={t('common.close')} title={t('common.close')}>
         <X size={14} aria-hidden="true" />
       </button>

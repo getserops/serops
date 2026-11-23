@@ -264,6 +264,97 @@
 /* =============================================================
    4 · Inputs
    ============================================================= */
+/* Phones, tablets and small laptops: no text under 12 px (group labels of
+   the menu, the unread count, the badges of the analyses feed, "+2"). */
+@media (max-width: 1024px) {
+  :is(html, :root[data-theme]) :is(.app-nav-group-label, .app-topbar-badge, .feed-badge, .feed-model, .issue-affected-more) { font-size: var(--text-xs); }
+}
+
+/* A table wider than its box, scrolled sideways (.ds-scroll-cue around the
+   scrolling element, hooks/useScrollCue.js): a soft edge on the side where
+   more columns are, and the first columns stay in place (.ds-sticky-col). */
+.ds-scroll-cue { position: relative; }
+.ds-scroll-cue::before,
+.ds-scroll-cue::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--space-6);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 3;
+}
+.ds-scroll-cue::after { right: 0; background: linear-gradient(to left, color-mix(in srgb, var(--text-primary) 16%, transparent), transparent); }
+.ds-scroll-cue::before { left: 0; background: linear-gradient(to right, color-mix(in srgb, var(--text-primary) 16%, transparent), transparent); }
+.ds-scroll-cue:has(> [data-scroll="start"])::after,
+.ds-scroll-cue:has(> [data-scroll="middle"])::after,
+.ds-scroll-cue:has(> [data-scroll="middle"])::before,
+.ds-scroll-cue:has(> [data-scroll="end"])::before { opacity: 1; }
+/* Touch devices: an iPhone zooms the page when a field with text under
+   16 px takes the focus, and does not zoom back. One rule for every text
+   field, select and text area, whatever class sized it (ds-input,
+   form-control-sm, a page's own). Pinch zoom stays on; a mouse or a
+   trackpad keeps the compact sizes. */
+@media (pointer: coarse) {
+  :is(input, select, textarea):not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"], [type="submit"], [type="image"]) {
+    font-size: 16px !important;
+  }
+}
+
+/* Touch devices: everything a finger presses is tall enough to hit.
+   Buttons, menu rows, tabs, pickers, fields and row actions are 44 px high
+   (--tap-min); nothing is under 24 by 24 px (--tap-floor). A mouse or a
+   trackpad keeps the compact sizes: these rules never apply to it.
+   !important because the sizes they replace are set with every kind of
+   selector, page by page; this is the one place that decides for touch. */
+@media (pointer: coarse) {
+  /* Buttons and button-like links. */
+  :is(.ds-btn, .btn, .page-btn, .view-btn, .command-palette-trigger, .app-picker-toggle, .issue-stat-card, .history-toggle-btn, .investigate-chip, .feed-view-all, .ds-skip-link, .app-topbar-user):not(.btn-close) {
+    min-height: var(--tap-min) !important;
+  }
+  :is(.ds-btn, .btn, .investigate-chip, .feed-view-all):not(.btn-close, .d-block, .w-100) { display: inline-flex; align-items: center; justify-content: center; }
+  .app-topbar-user { min-width: var(--tap-min) !important; justify-content: center; }
+  /* Icon buttons and row actions: square. */
+  :is(.app-topbar-icon, .tap-target, .page-btn, .app-sidebar-collapse, .phone-collapse-toggle, .demo-banner-close, .history-toggle-btn, .send-button) {
+    min-width: var(--tap-min) !important;
+    min-height: var(--tap-min) !important;
+  }
+  /* Menu rows and tabs. */
+  :is(.dropdown-item, .app-nav-item, .app-subnav-item, .nav-link, [role="tab"], [role="menuitem"], .command-palette-item) {
+    min-height: var(--tap-min) !important;
+    display: flex;
+    align-items: center;
+  }
+  /* Fields and pickers. */
+  :is(.ds-input, .form-control, .form-select, select, input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"])):not(textarea) {
+    min-height: var(--tap-min) !important;
+  }
+  .input-group-text { min-height: var(--tap-min) !important; }
+  /* A checkbox or a radio that stands alone (a table row, a list). Those
+     with a label are pressed through the label. */
+  input:is([type="checkbox"], [type="radio"]):not(.form-check-input) { width: var(--tap-floor); height: var(--tap-floor); }
+  /* In a table row or a card the box keeps its size and the cell around
+     it takes the press: 44 px of room for a 24 px box. */
+  :is(td, th):has(> input:is([type="checkbox"], [type="radio"])) { min-width: var(--tap-min); }
+  .form-check:not(.form-switch) { min-height: var(--tap-floor); }
+  /* Links that stand alone (a table cell, a card footer, a chip, a
+     breadcrumb): vertical padding widens the hit area and moves no text.
+     Links inside a sentence are left alone. */
+  :is(td, th, li, dd, .ds-card-footer, .chart-header, .page-header-crumbs) > a,
+  a:is(.ds-chip, .ds-section-link, .attention-all, .text-decoration-none, .MuiLink-root),
+  button.attention-more {
+    display: inline-block;
+    min-width: var(--tap-floor) !important;
+    min-height: var(--tap-floor) !important;
+    padding-block: 3px;
+  }
+  .demo-banner a { padding-block: 3px; }
+  /* The same links and text buttons, where they are the action of a card
+     or of a table row: full height. */
+  a:is(.attention-all, .text-decoration-none):not(p a), button.attention-more, :is(td, th) > a:only-child, .detail-tabs a, .ds-kv > a { min-height: var(--tap-min) !important; display: inline-flex; align-items: center; }
+}
 .ds-input {
   display: block;
   width: 100%;

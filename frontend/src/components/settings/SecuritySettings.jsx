@@ -261,7 +261,7 @@ const SecuritySettings = () => {
                                                 ...prev,
                                                 sso: { ...(prev?.sso || {}), client_id: e.target.value }
                                             }))}
-                                            placeholder="e.g., serops-dashboard"
+                                            placeholder={t('security.clientIdPlaceholder')}
                                         />
                                     </div>
                                 </div>
@@ -277,7 +277,7 @@ const SecuritySettings = () => {
                                                 ...prev,
                                                 sso: { ...(prev?.sso || {}), client_secret: e.target.value }
                                             }))}
-                                            placeholder={settings?.sso?.sso_client_secret_configured ? t('security.configured') : "Paste Client Secret"}
+                                            placeholder={settings?.sso?.sso_client_secret_configured ? t('security.configured') : t('security.clientSecretPlaceholder')}
                                         />
                                     </div>
                                 </div>

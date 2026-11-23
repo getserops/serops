@@ -7,6 +7,7 @@ import React from "react";
 import { Form } from "react-bootstrap";
 import { FaGitlab, FaGithub, FaJenkins, FaMicrosoft, FaRocket, FaForward } from "react-icons/fa";
 import { SiArgo, SiFlux } from "react-icons/si";
+import { useTranslation } from "react-i18next";
 
 const cicdProviders = [
     { id: "gitlab", name: "GitLab CI", icon: FaGitlab, color: "#FC6D26" },
@@ -18,10 +19,10 @@ const cicdProviders = [
 ];
 
 const pipelineTypes = [
-    { id: "build", label: "Build Pipeline" },
-    { id: "deploy", label: "Deployment Pipeline" },
-    { id: "test", label: "Test Pipeline" },
-    { id: "release", label: "Release Pipeline" },
+    { id: "build", labelKey: "serviceForms.buildPipeline" },
+    { id: "deploy", labelKey: "serviceForms.deploymentPipeline" },
+    { id: "test", labelKey: "serviceForms.testPipeline" },
+    { id: "release", labelKey: "serviceForms.releasePipeline" },
 ];
 
 const StepCICD = ({
@@ -29,6 +30,7 @@ const StepCICD = ({
     updateFormData,
     integrations
 }) => {
+    const { t } = useTranslation();
     // Filter CI/CD integrations
     const getCicdIntegrations = (provider) => {
         return integrations.filter(i => i.provider_type === provider && i.is_active);
@@ -38,9 +40,9 @@ const StepCICD = ({
 
     return (
         <div className="wizard-step-content">
-            <h5 className="wizard-step-title">Add CI/CD Pipeline?</h5>
+            <h5 className="wizard-step-title">{t('addServiceWizard.cicd.title')}</h5>
             <p className="wizard-step-subtitle">
-                Connect a build or deployment pipeline to this service.
+                {t('addServiceWizard.cicd.subtitle')}
             </p>
 
             {/* Yes/No Toggle */}
@@ -53,14 +55,14 @@ const StepCICD = ({
                     })}
                 >
                     <div className="optional-card-icon"><FaRocket /></div>
-                    <div className="optional-card-label">Yes, set up CI/CD</div>
+                    <div className="optional-card-label">{t('addServiceWizard.cicd.yes')}</div>
                 </div>
                 <div
                     className={`optional-card ${!formData.addCicd ? 'selected' : ''}`}
                     onClick={() => updateFormData({ addCicd: false })}
                 >
                     <div className="optional-card-icon"><FaForward /></div>
-                    <div className="optional-card-label">Skip for now</div>
+                    <div className="optional-card-label">{t('addServiceWizard.cicd.skip')}</div>
                 </div>
             </div>
 
@@ -69,7 +71,7 @@ const StepCICD = ({
                 <div className="optional-section mt-3">
                     {/* Provider Selection */}
                     <div className="wizard-form-section">
-                        <span className="wizard-form-label d-block" id="wizard-cicd-provider">CI/CD Provider</span>
+                        <span className="wizard-form-label d-block" id="wizard-cicd-provider">{t('addServiceWizard.cicd.provider')}</span>
                         <div className="provider-buttons" role="group" aria-labelledby="wizard-cicd-provider">
                             {cicdProviders.map((provider) => {
                                 const Icon = provider.icon;
@@ -97,11 +99,11 @@ const StepCICD = ({
 
                     {/* Integration Selection */}
                     <div className="wizard-form-section">
-                        <label className="wizard-form-label" htmlFor="wizard-cicd-1">Integration</label>
+                        <label className="wizard-form-label" htmlFor="wizard-cicd-1">{t('addService.integration')}</label>
                         {currentProviderIntegrations.length === 0 ? (
                             <div className="text-muted small">
-                                No {formData.cicdProvider} integrations configured.
-                                <a href="/dash/settings/integrations" className="ms-1">Add one in Settings</a>
+                                {t('addServiceWizard.noIntegrations', { provider: formData.cicdProvider })}
+                                <a href="/dash/settings/integrations" className="ms-1">{t('addServiceWizard.addOneInSettings')}</a>
                             </div>
                         ) : (
                             <Form.Select id="wizard-cicd-1"
@@ -111,7 +113,7 @@ const StepCICD = ({
                                 })}
                                 className="rounded-3"
                             >
-                                <option value="">Select integration...</option>
+                                <option value="">{t('serviceForms.selectIntegration')}</option>
                                 {currentProviderIntegrations.map(integration => (
                                     <option key={integration.id} value={integration.id}>
                                         {integration.name}
@@ -123,7 +125,7 @@ const StepCICD = ({
 
                     {/* Pipeline Type */}
                     <div className="wizard-form-section">
-                        <label className="wizard-form-label" htmlFor="wizard-cicd-2">Pipeline Type</label>
+                        <label className="wizard-form-label" htmlFor="wizard-cicd-2">{t('serviceForms.pipelineType')}</label>
                         <Form.Select id="wizard-cicd-2"
                             value={formData.cicdType || "build"}
                             onChange={(e) => updateFormData({ cicdType: e.target.value })}
@@ -131,7 +133,7 @@ const StepCICD = ({
                         >
                             {pipelineTypes.map(type => (
                                 <option key={type.id} value={type.id}>
-                                    {type.label}
+                                    {t(type.labelKey)}
                                 </option>
                             ))}
                         </Form.Select>
@@ -140,7 +142,7 @@ const StepCICD = ({
                     {/* Info text */}
                     {(formData.cicdProvider === 'gitlab' || formData.cicdProvider === 'github') && (
                         <div className="text-muted small mt-2">
-                            ℹ️ Pipeline will be auto-detected from your repository configuration.
+                            ℹ️ {t('serviceForms.pipelineAutoDetected')}
                         </div>
                     )}
                 </div>
@@ -148,7 +150,7 @@ const StepCICD = ({
 
             {!formData.addCicd && (
                 <div className="text-muted small mt-3">
-                    You can add CI/CD pipelines later from the Service Details page.
+                    {t('addServiceWizard.cicd.later')}
                 </div>
             )}
         </div>

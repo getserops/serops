@@ -9,8 +9,10 @@ import {
 } from "react-bootstrap";
 import { FaSearch, FaExclamationCircle } from "react-icons/fa";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 const Errors = () => {
+  const { t } = useTranslation();
   const { batchId } = useParams();
   const [errors] = useState([
     {
@@ -52,6 +54,17 @@ const Errors = () => {
   const [selectedNewest, setSelectedNewest] = useState("Newest");
   const [showAlert, setShowAlert] = useState(false);
 
+  // Labels for the values kept in state (the values themselves are compared in code).
+  const optionLabels = {
+    Logs: t("errors.logs"),
+    Metrics: t("errors.metrics"),
+    Errors: t("errors.errors"),
+    "1 hour": t("errors.oneHour"),
+    Newest: t("errors.newest"),
+    Oldest: t("errors.oldest"),
+  };
+  const label = (value) => optionLabels[value] || value;
+
   const paginatedErrors = errors.slice(
     (currentPage - 1) * pageSize,
     currentPage * pageSize
@@ -91,7 +104,7 @@ const Errors = () => {
             <Form.Group className="position-relative">
               <Form.Control
                 type="text"
-                placeholder="Search"
+                placeholder={t("common.search")}
                 className="me-2 rounded-3 ps-5"
                 style={{
                   width: "150px",
@@ -117,7 +130,7 @@ const Errors = () => {
                 className="rounded-3"
                 style={{ fontSize: "14px" }}
               >
-                Service: {selectedService}
+                {t("errors.service", { service: selectedService })}
               </Dropdown.Toggle>
               <Dropdown.Menu>
                 <Dropdown.Item
@@ -141,26 +154,26 @@ const Errors = () => {
                 className="rounded-3"
                 style={{ fontSize: "14px" }}
               >
-                Data type: {selectedData}
+                {t("errors.dataType", { type: label(selectedData) })}
               </Dropdown.Toggle>
               <Dropdown.Menu>
                 <Dropdown.Item
                   onClick={() => handleDataChange("Logs")}
                   style={{ fontSize: "14px" }}
                 >
-                  Logs
+                  {t("errors.logs")}
                 </Dropdown.Item>
                 <Dropdown.Item
                   onClick={() => handleDataChange("Metrics")}
                   style={{ fontSize: "14px" }}
                 >
-                  Metrics
+                  {t("errors.metrics")}
                 </Dropdown.Item>
                 <Dropdown.Item
                   onClick={() => handleDataChange("Errors")}
                   style={{ fontSize: "14px" }}
                 >
-                  Errors
+                  {t("errors.errors")}
                 </Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown>
@@ -171,7 +184,7 @@ const Errors = () => {
                 className="rounded-3"
                 style={{ fontSize: "14px" }}
               >
-                Time: {selectedTime}
+                {t("errors.time", { time: label(selectedTime) })}
               </Dropdown.Toggle>
               <Dropdown.Menu>
                 <Dropdown.Item
@@ -184,7 +197,7 @@ const Errors = () => {
                   onClick={() => handleTimeChange("1 hour")}
                   style={{ fontSize: "14px" }}
                 >
-                  1 hour
+                  {t("errors.oneHour")}
                 </Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown>
@@ -195,20 +208,20 @@ const Errors = () => {
                 className="rounded-3"
                 style={{ fontSize: "14px" }}
               >
-                {selectedNewest}
+                {label(selectedNewest)}
               </Dropdown.Toggle>
               <Dropdown.Menu>
                 <Dropdown.Item
                   onClick={() => handleNewestChange("Newest")}
                   style={{ fontSize: "14px" }}
                 >
-                  Newest
+                  {t("errors.newest")}
                 </Dropdown.Item>
                 <Dropdown.Item
                   onClick={() => handleNewestChange("Oldest")}
                   style={{ fontSize: "14px" }}
                 >
-                  Oldest
+                  {t("errors.oldest")}
                 </Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown>
@@ -261,7 +274,7 @@ const Errors = () => {
               }}
               onClick={handleSendToIA}
             >
-              Send to IA
+              {t("errors.sendToAi")}
             </Button>
           </div>
         </div>
@@ -278,7 +291,7 @@ const Errors = () => {
               fontSize: "14px",
             }}
           >
-            Data sent to {selectedDeepseek} model.
+            {t("errors.dataSent", { model: selectedDeepseek })}
           </Alert>
         )}
 
@@ -290,9 +303,9 @@ const Errors = () => {
         >
           <thead className="table-primary">
             <tr>
-              <th style={{ fontSize: "14px" }}>Select</th>
-              <th style={{ fontSize: "14px" }}>Timestamp</th>
-              <th style={{ fontSize: "14px" }}>Error Details</th>
+              <th style={{ fontSize: "14px" }}>{t("common.select")}</th>
+              <th style={{ fontSize: "14px" }}>{t("errors.timestamp")}</th>
+              <th style={{ fontSize: "14px" }}>{t("errors.errorDetails")}</th>
             </tr>
           </thead>
           <tbody>
@@ -327,7 +340,7 @@ const Errors = () => {
               borderColor: "#2B47D6",
             }}
           >
-            Back to Data
+            {t("errors.backToData")}
           </Button>
 
           <Pagination>

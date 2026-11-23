@@ -22,10 +22,10 @@ of the in-cluster ones.
 ## 1. Verify what you install
 
 ```bash
-cosign verify ghcr.io/getserops/backend:1.5.2 \
+cosign verify ghcr.io/getserops/backend:1.5.3 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/docker\.yml@refs/tags/v'
-gh attestation verify oci://ghcr.io/getserops/backend:1.5.2 --owner getserops
+gh attestation verify oci://ghcr.io/getserops/backend:1.5.3 --owner getserops
 ```
 
 The same for `frontend` and the chart: see [Verifying what you pull](helm.md#verifying-what-you-pull).
@@ -104,12 +104,12 @@ celeryWorker:
 ## 4. Install and sign in
 
 ```bash
-helm install serops oci://ghcr.io/getserops/charts/serops --version 1.5.2 \
+helm install serops oci://ghcr.io/getserops/charts/serops --version 1.5.3 \
   -n serops -f aks-values.yaml --wait --timeout 15m
 kubectl -n serops get certificate serops-tls      # READY True after ~30 s
 ```
 
-1.5.2 is the chart tested here as 1.3.0, with the fixes found on GKE and
+1.5.3 is the chart tested here as 1.3.0, with the fixes found on GKE and
 EKS since 1.3.1 ([changelog](../changelog.md)).
 
 Open `https://HOST`, register the first account (it becomes the admin; open

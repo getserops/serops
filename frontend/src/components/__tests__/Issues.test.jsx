@@ -539,3 +539,75 @@ describe('Issues list: no sentence left in the code', () => {
     expect(used.length).toBeGreaterThan(60);
   });
 });
+
+// A1: the layout follows the width of the list's card.
+describe('Issues list layout by card width', () => {
+  const widthOf = (px) => vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect() {
+    const w = this.classList?.contains('issues-page-card') ? px : 0;
+    return { width: w, height: 0, top: 0, left: 0, right: w, bottom: 0, x: 0, y: 0, toJSON() {} };
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('is the full table before the card is measured', () => {
+    render(<Issues />);
+    expect(document.querySelector('.issues-table-wrap').className).toContain('issues-tier-full');
+    expect(document.querySelector('.issue-row-meta')).toBeNull();
+  });
+
+  it('puts Last seen and Occurrences under the description in a 728 px card', () => {
+    widthOf(728);
+    render(<Issues />);
+    expect(document.querySelector('.issues-table-wrap').className).toContain('issues-tier-compact');
+    const meta = document.querySelectorAll('.issue-row-meta');
+    expect(meta.length).toBe(2);
+    expect(meta[0].textContent).toMatch(/^Last seen .+Occurrences 15×$/);
+  });
+
+  it('is one card per issue in a 343 px card', () => {
+    widthOf(343);
+    render(<Issues />);
+    expect(document.querySelector('.issues-table-wrap').className).toContain('issues-tier-cards');
+  });
+});
+
+// A8: on a phone the cards showed "1 day ago" and "1×" with no label.
+describe('Issues cards: labelled values', () => {
+  it('names Last seen and Occurrences on each row, for the card layout', () => {
+    render(<Issues />);
+    const row = screen.getByText('Test critical issue description').closest('tr');
+    expect(row.querySelector('.issue-cell-seen').getAttribute('data-label')).toBe('Last seen');
+    expect(row.querySelector('.issue-cell-count').getAttribute('data-label')).toBe('Occurrences');
+  });
+
+  it('shows the label in the card layout only', () => {
+    const css = readFileSync(resolve(__dirname, '../Issues.css'), 'utf8');
+    expect(css).toMatch(/\.issues-tier-cards tbody tr\.issue-row > td\.issue-cell-meta\[data-label\]::before \{\s*content: attr\(data-label\);/);
+    expect(css.match(/\[data-label\]::before/g).length).toBe(1);
+  });
+});
+
+// Owner's decision of 23 Nov: at 1,024 px, where Last seen and Occurrences
+// sit under the description, the list can still be sorted by them.
+describe('Issues list at 1,024 px: sorting by the two moved columns', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('has their sort controls in the Description header, with the column names', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect() {
+      const w = this.classList?.contains('issues-page-card') ? 728 : 0;
+      return { width: w, height: 0, top: 0, left: 0, right: w, bottom: 0, x: 0, y: 0, toJSON() {} };
+    });
+    render(<Issues />);
+    const header = screen.getByText('Description').closest('th');
+    const buttons = [...header.querySelectorAll('button.issue-th-sort')];
+    expect(buttons.map((b) => b.textContent)).toEqual(['Last seen', 'Occurrences']);
+    fireEvent.click(buttons[0]);
+    // The chosen column shows the "sorted" arrow.
+    expect(buttons[0].querySelector('.text-primary')).toBeTruthy();
+    expect(buttons[1].querySelector('.text-primary')).toBeNull();
+  });
+
+  it('has no such control where the columns have their own header', () => {
+    render(<Issues />);
+    expect(document.querySelector('.issue-th-sort')).toBeNull();
+  });
+});

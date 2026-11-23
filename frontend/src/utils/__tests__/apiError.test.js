@@ -65,3 +65,18 @@ describe('describeRequestError', () => {
     expect(describeRequestError(err, REJECTED)).toBe('user with this email already exists.');
   });
 });
+
+// 1.5.3: the messages are in the translation files, also in French.
+describe('describeRequestError in French', () => {
+  it('says the server could not be reached, and when to try again, in French', async () => {
+    const { default: i18n } = await import('../../i18n');
+    await i18n.changeLanguage('fr');
+    try {
+      expect(describeRequestError(null, REJECTED)).toMatch(/^Impossible de joindre le serveur/);
+      const err = { response: { status: 429, data: { detail: 'Request was throttled. Expected available in 3412 seconds.' } } };
+      expect(describeRequestError(err, REJECTED)).toBe('Trop de tentatives. Réessayez dans 57 minutes.');
+    } finally {
+      await i18n.changeLanguage('en');
+    }
+  });
+});

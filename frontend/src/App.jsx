@@ -14,6 +14,7 @@ import PageTitle from "./components/PageTitle";
 import UsageAnalytics from "./components/UsageAnalytics";
 import { applyTheme, applyDensity } from "./utils/theme";
 import { enterpriseSettingsPages } from "./utils/edition";
+import { useTranslation } from "react-i18next";
 
 // Lazy loading components
 // Public registration now ENABLED for SaaS
@@ -64,13 +65,16 @@ const IncidentChannelsSettings = lazy(() => import("./components/settings/Incide
 const UserPreferencesSettings = lazy(() => import("./components/settings/UserPreferencesSettings"));
 
 // Loading fallback component
-const PageLoader = () => (
-  <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
-    <div className="spinner-border text-primary" role="status">
-      <span className="visually-hidden">Loading...</span>
+const PageLoader = () => {
+  const { t } = useTranslation();
+  return (
+    <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
+      <div className="spinner-border text-primary" role="status">
+        <span className="visually-hidden">{t('common.loading')}</span>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 
 function App() {

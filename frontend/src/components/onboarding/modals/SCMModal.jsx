@@ -25,6 +25,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     Alert,
     Box,
@@ -51,6 +52,7 @@ import apiClient from '../../../services/api-client';
 const SCM_PROVIDER_TYPES = new Set(['gitlab', 'github', 'bitbucket', 'azure_devops']);
 
 export default function SCMModal({ open, onClose, onSaved }) {
+    const { t } = useTranslation();
     const [integrations, setIntegrations] = useState([]);
     const [services, setServices] = useState([]);
     const [integrationId, setIntegrationId] = useState('');
@@ -105,7 +107,7 @@ export default function SCMModal({ open, onClose, onSaved }) {
                     (p.services || []).forEach((s) => {
                         flat.push({
                             id: s.id,
-                            label: `${p.name} → ${s.name || s.subtype || 'service'}`,
+                            label: `${p.name} → ${s.name || s.subtype || t('scmModal.serviceFallback')}`,
                         });
                     });
                 });
@@ -118,13 +120,13 @@ export default function SCMModal({ open, onClose, onSaved }) {
                 setLoadingLists(false);
             } catch (err) {
                 if (!cancelled) {
-                    setError('Failed to load integrations or services');
+                    setError(t('scmModal.loadFailed'));
                     setLoadingLists(false);
                 }
             }
         })();
         return () => { cancelled = true; };
-    }, [open]);
+    }, [open, t]);
 
     useEffect(() => {
         if (!open) resetState();
@@ -162,7 +164,7 @@ export default function SCMModal({ open, onClose, onSaved }) {
                             .map(([f, m]) => `${f}: ${Array.isArray(m) ? m.join(', ') : m}`)
                             .join('; ')
                         : null)
-                    || 'Failed to save SCM binding';
+                    || t('scmModal.saveFailed');
             setError(message);
         } finally {
             setSaving(false);
@@ -177,39 +179,37 @@ export default function SCMModal({ open, onClose, onSaved }) {
 
     return (
         <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-            <DialogTitle>Link a repository</DialogTitle>
+            <DialogTitle>{t('scmModal.title')}</DialogTitle>
             <DialogContent dividers>
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
                 {loadingLists ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-                        <CircularProgress aria-label="Loading" />
+                        <CircularProgress aria-label={t('onboarding.loading')} />
                     </Box>
                 ) : !hasIntegrations ? (
                     <Alert severity="info">
-                        You don't have any source-control provider integrations
-                        yet. Add one under{' '}
+                        {t('scmModal.noIntegrationsBefore')}{' '}
                         <Link
                             href="/dash/settings/integrations"
                             underline="hover"
                         >
-                            Settings → Integrations
+                            {t('scmModal.settingsIntegrations')}
                         </Link>
-                        , then come back to link it to your service.
+                        {t('scmModal.noIntegrationsAfter')}
                     </Alert>
                 ) : !hasServices ? (
                     <Alert severity="warning">
-                        No services found. Complete the "Link a service"
-                        step first.
+                        {t('scmModal.noServices')}
                     </Alert>
                 ) : (
                     <>
                         <FormControl fullWidth sx={{ mb: 2 }}>
-                            <InputLabel id="scm-integration-label">Integration</InputLabel>
+                            <InputLabel id="scm-integration-label">{t('addService.integration')}</InputLabel>
                             <Select
                                 labelId="scm-integration-label"
                                 value={integrationId}
-                                label="Integration"
+                                label={t('addService.integration')}
                                 onChange={(e) => setIntegrationId(e.target.value)}
                             >
                                 {integrations.map((i) => (
@@ -221,11 +221,11 @@ export default function SCMModal({ open, onClose, onSaved }) {
                         </FormControl>
 
                         <FormControl fullWidth sx={{ mb: 2 }}>
-                            <InputLabel id="scm-service-label">Service</InputLabel>
+                            <InputLabel id="scm-service-label">{t('services.service')}</InputLabel>
                             <Select
                                 labelId="scm-service-label"
                                 value={serviceId}
-                                label="Service"
+                                label={t('services.service')}
                                 onChange={(e) => setServiceId(e.target.value)}
                             >
                                 {services.map((s) => (
@@ -239,47 +239,46 @@ export default function SCMModal({ open, onClose, onSaved }) {
                         <TextField
                             fullWidth
                             sx={{ mb: 2 }}
-                            label="Repository ID"
+                            label={t('scmModal.repoId')}
                             value={repoId}
                             onChange={(e) => setRepoId(e.target.value)}
-                            placeholder={isAzure ? 'organization/project/repository' : 'owner/repo — or numeric GitLab project ID'}
+                            placeholder={isAzure ? 'organization/project/repository' : t('scmModal.repoIdPlaceholder')}
                             helperText={isAzure
-                                ? 'Azure DevOps: organization, project and repository. organization/project works when the repository is named like the project.'
-                                : 'The provider-specific identifier for this repo.'}
+                                ? t('scmModal.repoIdHelpAzure')
+                                : t('scmModal.repoIdHelp')}
                         />
 
                         <TextField
                             fullWidth
                             sx={{ mb: 2 }}
-                            label="Repository name (optional)"
+                            label={t('scmModal.repoNameOptional')}
                             value={repoName}
                             onChange={(e) => setRepoName(e.target.value)}
-                            helperText="Human-readable label shown in the UI."
+                            helperText={t('scmModal.repoNameHelp')}
                         />
 
                         <TextField
                             fullWidth
-                            label="Default branch"
+                            label={t('scmModal.defaultBranch')}
                             value={defaultBranch}
                             onChange={(e) => setDefaultBranch(e.target.value)}
                         />
 
                         <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 2 }}>
-                            AI can then reference recent commits in this repo
-                            when analyzing incidents affecting the linked service.
+                            {t('scmModal.footnote')}
                         </Typography>
                     </>
                 )}
             </DialogContent>
             <DialogActions>
-                <Button onClick={handleClose} disabled={saving}>Cancel</Button>
+                <Button onClick={handleClose} disabled={saving}>{t('common.cancel')}</Button>
                 <Button
                     variant="contained"
                     onClick={handleSave}
                     disabled={!canSubmit()}
-                    startIcon={saving ? <CircularProgress aria-label="Loading" size={16} /> : null}
+                    startIcon={saving ? <CircularProgress aria-label={t('onboarding.loading')} size={16} /> : null}
                 >
-                    Link repository
+                    {t('scmStep.link')}
                 </Button>
             </DialogActions>
         </Dialog>

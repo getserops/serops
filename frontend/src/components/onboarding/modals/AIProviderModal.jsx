@@ -22,6 +22,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     Alert,
     Box,
@@ -50,27 +51,28 @@ import apiClient from '../../../services/api-client';
 const PROVIDER_HINTS = {
     gemini: {
         url: 'https://aistudio.google.com/apikey',
-        note: 'Free-tier key — sufficient for testing.',
+        noteKey: 'aiProviderModal.hint.gemini',
     },
     claude: {
         url: 'https://console.anthropic.com',
-        note: 'Signup credits vary.',
+        noteKey: 'aiProviderModal.hint.claude',
     },
     deepseek: {
         url: 'https://platform.deepseek.com',
-        note: 'New accounts get a one-time 5M-token grant (no card).',
+        noteKey: 'aiProviderModal.hint.deepseek',
     },
     openai: {
         url: 'https://platform.openai.com/signup',
-        note: 'Paid — no automatic free credits since mid-2025.',
+        noteKey: 'aiProviderModal.hint.openai',
     },
     ollama: {
         url: 'https://ollama.com/download',
-        note: 'Local install — no key required.',
+        noteKey: 'aiProviderModal.hint.ollama',
     },
 };
 
 export default function AIProviderModal({ open, onClose, onSaved }) {
+    const { t } = useTranslation();
     const [providers, setProviders] = useState([]);
     const [providerId, setProviderId] = useState('');
     const [apiKey, setApiKey] = useState('');
@@ -106,7 +108,7 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
                 }
             } catch (err) {
                 if (!cancelled) {
-                    setError('Failed to load AI providers');
+                    setError(t('aiProviderModal.loadFailed'));
                     setLoadingProviders(false);
                 }
             }
@@ -114,7 +116,7 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
         return () => {
             cancelled = true;
         };
-    }, [open]);
+    }, [open, t]);
 
     // Reset when the modal closes so re-opening starts fresh.
     useEffect(() => {
@@ -148,12 +150,12 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
             const { data } = await apiClient.post('/settings/ai/test/', payload);
             setTestResult({
                 ok: !!data.success,
-                message: data.message || (data.success ? 'Connection successful' : (data.error || 'Test failed')),
+                message: data.message || (data.success ? t('aiProviderModal.connectionSuccessful') : (data.error || t('incidentChannels.testFailed'))),
             });
         } catch (err) {
             setTestResult({
                 ok: false,
-                message: err?.response?.data?.error || 'Test request failed',
+                message: err?.response?.data?.error || t('aiProviderModal.testRequestFailed'),
             });
         } finally {
             setTesting(false);
@@ -184,7 +186,7 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
             const detail = err?.response?.data;
             const message = typeof detail === 'string'
                 ? detail
-                : detail?.error || detail?.detail || 'Failed to save AI provider';
+                : detail?.error || detail?.detail || t('aiProviderModal.saveFailed');
             setError(message);
         } finally {
             setSaving(false);
@@ -199,7 +201,7 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
 
     return (
         <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-            <DialogTitle>Choose your AI model</DialogTitle>
+            <DialogTitle>{t('aiProviderStep.title')}</DialogTitle>
             <DialogContent dividers>
                 {error && (
                     <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
@@ -207,16 +209,16 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
 
                 {loadingProviders ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-                        <CircularProgress aria-label="Loading" />
+                        <CircularProgress aria-label={t('onboarding.loading')} />
                     </Box>
                 ) : (
                     <>
                         <FormControl fullWidth sx={{ mb: 2 }}>
-                            <InputLabel id="ai-provider-label">Provider</InputLabel>
+                            <InputLabel id="ai-provider-label">{t('globalIntegrations.provider')}</InputLabel>
                             <Select
                                 labelId="ai-provider-label"
                                 value={providerId}
-                                label="Provider"
+                                label={t('globalIntegrations.provider')}
                                 onChange={(e) => {
                                     setProviderId(e.target.value);
                                     setApiKey('');
@@ -227,13 +229,12 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
                                 {providers.map((p) => (
                                     <MenuItem key={p.id} value={p.id}>
                                         {p.display_name}
-                                        {!p.requires_api_key && ' (no key required)'}
+                                        {!p.requires_api_key && ` ${t('aiProviderModal.noKeyRequired')}`}
                                     </MenuItem>
                                 ))}
                             </Select>
                             <FormHelperText>
-                                Pick the model you want SerOps to use for analysis.
-                                You can switch later in Settings → AI.
+                                {t('aiProviderModal.pickHelp')}
                             </FormHelperText>
                         </FormControl>
 
@@ -242,7 +243,7 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
                                 fullWidth
                                 sx={{ mb: 1 }}
                                 type="password"
-                                label="API Key"
+                                label={t('incidentChannels.apiKey')}
                                 value={apiKey}
                                 onChange={(e) => setApiKey(e.target.value)}
                                 // Prevent password managers from
@@ -252,7 +253,7 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
                                 // (some browsers send text to remote
                                 // spellcheck services).
                                 spellCheck={false}
-                                inputProps={{ 'aria-label': 'API key' }}
+                                inputProps={{ 'aria-label': t('aiProviderModal.apiKeyAria') }}
                             />
                         )}
 
@@ -260,11 +261,11 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
                             <TextField
                                 fullWidth
                                 sx={{ mb: 1 }}
-                                label="Base URL"
+                                label={t('globalIntegrations.baseUrl')}
                                 value={baseUrl}
                                 onChange={(e) => setBaseUrl(e.target.value)}
                                 placeholder="http://localhost:11434/v1/"
-                                helperText="Leave blank to use the default local Ollama endpoint."
+                                helperText={t('aiProviderModal.ollamaBaseUrlHelp')}
                             />
                         )}
 
@@ -272,24 +273,24 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
                             <TextField
                                 fullWidth
                                 sx={{ mb: 1 }}
-                                label="Base URL (optional)"
+                                label={t('aiProviderModal.baseUrlOptional')}
                                 value={baseUrl}
                                 onChange={(e) => setBaseUrl(e.target.value)}
-                                placeholder="Leave blank for provider default"
-                                helperText="Override the provider's default endpoint (e.g. a proxy)."
+                                placeholder={t('aiProviderModal.baseUrlPlaceholder')}
+                                helperText={t('aiProviderModal.baseUrlHelp')}
                             />
                         )}
 
                         {hint && (
                             <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 1 }}>
-                                {hint.note}{' '}
+                                {t(hint.noteKey)}{' '}
                                 <Link
                                     href={hint.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     underline="hover"
                                 >
-                                    {requiresKey ? 'Get a key' : 'Download Ollama'}
+                                    {requiresKey ? t('aiProviderModal.getKey') : t('aiProviderModal.downloadOllama')}
                                 </Link>
                             </Typography>
                         )}
@@ -307,22 +308,22 @@ export default function AIProviderModal({ open, onClose, onSaved }) {
             </DialogContent>
             <DialogActions>
                 <Button onClick={handleClose} disabled={saving || testing}>
-                    Cancel
+                    {t('common.cancel')}
                 </Button>
                 <Button
                     onClick={handleTest}
                     disabled={!selectedProvider || testing || saving || (requiresKey && !apiKey.trim())}
-                    startIcon={testing ? <CircularProgress aria-label="Loading" size={16} /> : null}
+                    startIcon={testing ? <CircularProgress aria-label={t('onboarding.loading')} size={16} /> : null}
                 >
-                    Test connection
+                    {t('aiProviderModal.testConnection')}
                 </Button>
                 <Button
                     variant="contained"
                     onClick={handleSave}
                     disabled={!canSubmit()}
-                    startIcon={saving ? <CircularProgress aria-label="Loading" size={16} /> : null}
+                    startIcon={saving ? <CircularProgress aria-label={t('onboarding.loading')} size={16} /> : null}
                 >
-                    Save
+                    {t('common.save')}
                 </Button>
             </DialogActions>
         </Dialog>

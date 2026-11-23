@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./Sidebar.css";
 import {
   LayoutDashboard,
@@ -149,11 +149,46 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const collapsed = !isOpen && !isSmallScreen;
   const closeOnMobile = () => isSmallScreen && setIsOpen(false);
 
+  // The drawer of a phone or tablet behaves like a dialog: focus moves into
+  // it, Tab stays inside, Escape closes it, focus goes back to the button
+  // that opened it, and the page behind does not scroll.
+  const navRef = useRef(null);
+  const backdropRef = useRef(null);
+  const drawerOpen = isSmallScreen && isOpen;
+  useEffect(() => {
+    if (!drawerOpen) return undefined;
+    const nav = navRef.current;
+    const opener = document.activeElement;
+    const stops = () => [...(nav ? nav.querySelectorAll('a[href], button:not([disabled])') : []), backdropRef.current].filter(Boolean);
+    (nav?.querySelector('.app-nav-item.active, .app-subnav-item.active') || stops()[0])?.focus();
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); setIsOpen(false); return; }
+      if (e.key !== 'Tab') return;
+      const list = stops();
+      const first = list[0];
+      const last = list[list.length - 1];
+      if (!list.includes(document.activeElement)) { e.preventDefault(); first?.focus(); }
+      else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = overflow;
+      if (opener && document.contains(opener) && typeof opener.focus === 'function') opener.focus();
+    };
+  }, [drawerOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <>
       <nav
         className={`app-sidebar ${collapsed ? "is-collapsed" : ""} ${isSmallScreen ? "is-mobile" : ""} ${isSmallScreen && isOpen ? "is-open" : ""}`}
         aria-label={t("nav.primary", "Primary navigation")}
+        ref={navRef}
+        // Closed and off the screen: out of the Tab order too.
+        inert={isSmallScreen && !isOpen ? true : undefined}
       >
         <div className="app-sidebar-brand">
           <NavLink to="/dash" className="app-sidebar-logo" onClick={closeOnMobile} aria-label="SerOps">
@@ -255,6 +290,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         <button
           type="button"
           className="app-sidebar-backdrop"
+          ref={backdropRef}
           onClick={() => setIsOpen(false)}
           aria-label={t("nav.closeSidebar", "Close sidebar")}
         />

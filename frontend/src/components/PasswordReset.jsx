@@ -4,10 +4,12 @@ import { useNavigate, useParams } from "react-router-dom";
 import { FaCheck, FaTimes, FaSpinner, FaLock } from "react-icons/fa";
 import AuthService from "../services/auth.service";
 import BrandMark from './BrandMark';
+import { useTranslation } from "react-i18next";
 
 const MIN_PASSWORD_LENGTH = 8;
 
 const PasswordReset = () => {
+  const { t } = useTranslation();
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const { uid, token } = useParams();
@@ -25,17 +27,17 @@ const PasswordReset = () => {
 
   const getPasswordStrength = () => {
     if (password.length === 0) return { level: 0, label: "", color: "" };
-    if (password.length < 8)  return { level: 1, label: "Weak",   color: "var(--danger-500)" };
-    if (password.length < 12) return { level: 2, label: "Fair",   color: "var(--warning-500)" };
-    if (password.length < 16) return { level: 3, label: "Good",   color: "var(--success-500)" };
-    return { level: 4, label: "Strong", color: "var(--success-600)" };
+    if (password.length < 8)  return { level: 1, label: t("passwordReset.weak"),   color: "var(--danger-500)" };
+    if (password.length < 12) return { level: 2, label: t("passwordReset.fair"),   color: "var(--warning-500)" };
+    if (password.length < 16) return { level: 3, label: t("passwordReset.good"),   color: "var(--success-500)" };
+    return { level: 4, label: t("passwordReset.strong"), color: "var(--success-600)" };
   };
   const strength = getPasswordStrength();
 
   const submit = (e) => {
     e.preventDefault();
     if (!validation.isValid) {
-      setError("Please meet all password requirements");
+      setError(t("passwordReset.meetRequirements"));
       return;
     }
     setLoading(true);
@@ -50,7 +52,7 @@ const PasswordReset = () => {
         setTimeout(() => navigate("/login"), 2000);
       })
       .catch((err) => {
-        setError(err?.response?.data?.message || "Failed to set password. Please try again.");
+        setError(err?.response?.data?.message || t("passwordReset.failed"));
         setLoading(false);
       });
   };
@@ -70,19 +72,19 @@ const PasswordReset = () => {
         <div className="form-container">
           <div className="form-header">
             <BrandMark className="form-logo" />
-            <h2>Set your password</h2>
-            <p>Create a secure password for your account.</p>
+            <h2>{t("passwordPages.title")}</h2>
+            <p>{t("passwordReset.subtitle")}</p>
           </div>
 
           <form onSubmit={submit} className="login-form">
             <div className="form-group">
-              <label htmlFor="password">New password</label>
+              <label htmlFor="password">{t("passwordReset.newPassword")}</label>
               <div className="input-wrapper">
                 <FaLock className="input-icon" />
                 <input
                   type="password"
                   id="password"
-                  placeholder="Enter your password"
+                  placeholder={t("login.passwordPlaceholder")}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="new-password"
@@ -101,9 +103,9 @@ const PasswordReset = () => {
               gap: "0.5rem",
             }}>
               <div style={{ fontSize: "0.8rem", fontWeight: 500, color: "var(--text-secondary)" }}>
-                Password requirements
+                {t("passwordReset.requirements")}
               </div>
-              <Requirement met={validation.hasMinLength} text={`At least ${MIN_PASSWORD_LENGTH} characters`} />
+              <Requirement met={validation.hasMinLength} text={t("passwordReset.minLength", { n: MIN_PASSWORD_LENGTH })} />
               {password.length > 0 && (
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.25rem" }}>
                   <div style={{
@@ -124,13 +126,13 @@ const PasswordReset = () => {
             </div>
 
             <div className="form-group">
-              <label htmlFor="password_confirmation">Confirm password</label>
+              <label htmlFor="password_confirmation">{t("passwordPages.confirm")}</label>
               <div className="input-wrapper">
                 <FaLock className="input-icon" />
                 <input
                   type="password"
                   id="password_confirmation"
-                  placeholder="Rewrite your password"
+                  placeholder={t("passwordPages.rewrite")}
                   value={passwordConfirmation}
                   onChange={(e) => setPasswordConfirmation(e.target.value)}
                   autoComplete="new-password"
@@ -138,7 +140,7 @@ const PasswordReset = () => {
               </div>
               {passwordConfirmation.length > 0 && (
                 <div style={{ marginTop: "0.375rem" }}>
-                  <Requirement met={validation.passwordsMatch} text="Passwords match" />
+                  <Requirement met={validation.passwordsMatch} text={t("passwordReset.match")} />
                 </div>
               )}
             </div>
@@ -146,7 +148,7 @@ const PasswordReset = () => {
             {error && <div className="alert-error"><span>{error}</span></div>}
             {success && (
               <div className="alert-success">
-                <span>Your password has been set. Redirecting to sign in…</span>
+                <span>{t("passwordPages.done")}</span>
               </div>
             )}
 
@@ -156,14 +158,14 @@ const PasswordReset = () => {
               disabled={loading || !validation.isValid}
             >
               {loading
-                ? <><FaSpinner className="spin" style={{ marginRight: "0.5rem" }} /> Setting password…</>
-                : "Set password"}
+                ? <><FaSpinner className="spin" style={{ marginRight: "0.5rem" }} /> {t("passwordReset.setting")}</>
+                : t("passwordPages.setPassword")}
             </button>
           </form>
         </div>
 
         <div className="login-footer">
-          <span>&copy; {new Date().getFullYear()} SerOps. All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} SerOps. {t('login.allRightsReserved')}</span>
         </div>
       </div>
     </div>

@@ -31,10 +31,16 @@ def plain(cell):
 
 
 def render():
-    rows = [l for l in PAGE.read_text().splitlines() if re.match(r'^\| [A-Z&]+-\d+ ', l)]
+    text = PAGE.read_text()
+    rows = [l for l in text.splitlines() if re.match(r'^\| [A-Z&]+-\d+ ', l)]
+    # The release the answers describe, from the page's own sentence, so a
+    # CSV sent on its own still says which version it is about.
+    version = re.search(r'describe SerOps (\d+\.\d+\.\d+)', text)
+    if not version:
+        sys.exit('questionnaire page: no "describe SerOps <version>" sentence')
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator='\n')
-    writer.writerow(['ID', 'Domain (CSA CCM v4)', 'Question', 'Answer', 'Source'])
+    writer.writerow(['ID', 'Domain (CSA CCM v4)', 'Question', f'Answer (SerOps {version.group(1)})', 'Source'])
     for line in rows:
         writer.writerow([plain(c) for c in line.strip().strip('|').split(' | ')])
     return buf.getvalue()

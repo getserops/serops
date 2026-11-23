@@ -106,23 +106,23 @@ const CorrelationInsightsCard = ({ data, loading }) => {
                     {/* Anomaly type breakdown (spike vs sustained) */}
                     {(anomaly_type_breakdown.spike > 0 || anomaly_type_breakdown.sustained_high > 0) && (
                         <div className="corr-components" style={{ marginBottom: '0.5rem' }}>
-                            <span className="corr-components-title">Anomaly Types</span>
+                            <span className="corr-components-title">{t('dashboard.anomalyTypes')}</span>
                             <div className="corr-component-tags">
                                 {anomaly_type_breakdown.spike > 0 && (
                                     <span className="corr-tag" style={{ borderColor: '#17a2b8' }}>
-                                        Spike
+                                        {t('dashboard.anomalySpike')}
                                         <span className="corr-tag-count">{anomaly_type_breakdown.spike}</span>
                                     </span>
                                 )}
                                 {anomaly_type_breakdown.sustained_high > 0 && (
                                     <span className="corr-tag" style={{ borderColor: '#ffc107' }}>
-                                        Sustained
+                                        {t('dashboard.anomalySustained')}
                                         <span className="corr-tag-count">{anomaly_type_breakdown.sustained_high}</span>
                                     </span>
                                 )}
                                 {high_confidence_count > 0 && (
                                     <span className="corr-tag" style={{ borderColor: '#28a745' }}>
-                                        High Confidence
+                                        {t('dashboard.highConfidence')}
                                         <span className="corr-tag-count">{high_confidence_count}</span>
                                     </span>
                                 )}

@@ -544,7 +544,7 @@ const Project = () => {
                             size="sm"
                             value={env.branch_patterns.join(', ')}
                             onChange={(e) => handlePatternChange(env.name, e.target.value)}
-                            placeholder="branch patterns (comma-separated)"
+                            placeholder={t('projects.patternPlaceholder')}
                             className="text-muted"
                             style={{ fontSize: '0.85rem' }}
                           />

@@ -10,6 +10,7 @@
 import React, { useState, useEffect } from "react";
 import { Modal, Button, Alert, Spinner } from "react-bootstrap";
 import { FaArrowLeft, FaArrowRight, FaCheck } from "react-icons/fa";
+import { useTranslation } from "react-i18next";
 
 import WizardProgress from "./WizardProgress";
 import StepTypeSelect from "./StepTypeSelect";
@@ -49,6 +50,7 @@ const INITIAL_STATE = {
 };
 
 const AddServiceWizard = ({ show, onHide, projectId, onServiceCreated }) => {
+    const { t } = useTranslation();
     // Wizard state
     const [currentStep, setCurrentStep] = useState(1);
     const [formData, setFormData] = useState(INITIAL_STATE);
@@ -75,15 +77,15 @@ const AddServiceWizard = ({ show, onHide, projectId, onServiceCreated }) => {
 
     const getStepLabels = () => {
         if (formData.serviceType === "application") {
-            return ["Choose Type", "Connect Code", "CI/CD"];
+            return [t('addServiceWizard.stepChooseType'), t('addServiceWizard.stepConnectCode'), "CI/CD"];
         }
         if (formData.serviceType === "infrastructure") {
-            return ["Choose Type", "Details"];
+            return [t('addServiceWizard.stepChooseType'), t('addServiceWizard.stepDetails')];
         }
         if (formData.serviceType === "custom") {
-            return ["Choose Type", "Details"];
+            return [t('addServiceWizard.stepChooseType'), t('addServiceWizard.stepDetails')];
         }
-        return ["Choose Type", "Configure"];
+        return [t('addServiceWizard.stepChooseType'), t('addServiceWizard.stepConfigure')];
     };
 
     // Fetch integrations on mount
@@ -164,7 +166,7 @@ const AddServiceWizard = ({ show, onHide, projectId, onServiceCreated }) => {
                 setVerified(true);
             }
         } catch {
-            setVerificationMessage("Verification failed");
+            setVerificationMessage(t('addServiceWizard.verificationFailed'));
             setVerified(false);
         } finally {
             setVerifying(false);
@@ -287,7 +289,7 @@ const AddServiceWizard = ({ show, onHide, projectId, onServiceCreated }) => {
 
         } catch (error) {
             console.error("Error creating service:", error);
-            setSubmitError(error.response?.data?.error || "Failed to create service");
+            setSubmitError(error.response?.data?.error || t('addServiceWizard.createFailed'));
         } finally {
             setSubmitting(false);
         }
@@ -349,7 +351,7 @@ const AddServiceWizard = ({ show, onHide, projectId, onServiceCreated }) => {
     return (
         <Modal show={show} onHide={onHide} size="lg" centered aria-labelledby="add-service-title">
             <Modal.Header closeButton className="border-0 pb-0">
-                <Modal.Title id="add-service-title" className="fw-bold">Add New Service</Modal.Title>
+                <Modal.Title id="add-service-title" className="fw-bold">{t('addService.title')}</Modal.Title>
             </Modal.Header>
 
             <Modal.Body className="pt-3">
@@ -366,7 +368,7 @@ const AddServiceWizard = ({ show, onHide, projectId, onServiceCreated }) => {
                 {loadingIntegrations && currentStep > 1 && formData.serviceType === "application" ? (
                     <div className="text-center py-5">
                         <Spinner animation="border" variant="primary" />
-                        <p className="text-muted mt-2">Loading integrations...</p>
+                        <p className="text-muted mt-2">{t('addServiceWizard.loadingIntegrations')}</p>
                     </div>
                 ) : (
                     renderStep()
@@ -383,7 +385,7 @@ const AddServiceWizard = ({ show, onHide, projectId, onServiceCreated }) => {
                 {submitSuccess && (
                     <Alert variant="success" className="mt-3">
                         <FaCheck className="me-2" />
-                        Service created successfully!
+                        {t('addServiceWizard.created')}
                     </Alert>
                 )}
             </Modal.Body>
@@ -399,7 +401,7 @@ const AddServiceWizard = ({ show, onHide, projectId, onServiceCreated }) => {
                                 className="rounded-pill px-4"
                             >
                                 <FaArrowLeft className="me-2" />
-                                Back
+                                {t('common.back')}
                             </Button>
                         )}
                     </div>
@@ -411,7 +413,7 @@ const AddServiceWizard = ({ show, onHide, projectId, onServiceCreated }) => {
                             disabled={submitting}
                             className="rounded-pill px-4"
                         >
-                            Cancel
+                            {t('common.cancel')}
                         </Button>
 
                         {currentStep === 1 ? (
@@ -427,12 +429,12 @@ const AddServiceWizard = ({ show, onHide, projectId, onServiceCreated }) => {
                                 {submitting ? (
                                     <>
                                         <Spinner size="sm" className="me-2" />
-                                        Creating...
+                                        {t('addServiceWizard.creating')}
                                     </>
                                 ) : (
                                     <>
                                         <FaCheck className="me-2" />
-                                        Create Service
+                                        {t('addServiceWizard.createService')}
                                     </>
                                 )}
                             </Button>
@@ -443,7 +445,7 @@ const AddServiceWizard = ({ show, onHide, projectId, onServiceCreated }) => {
                                 disabled={!canGoNext()}
                                 className="rounded-pill px-4"
                             >
-                                Next
+                                {t('common.next')}
                                 <FaArrowRight className="ms-2" />
                             </Button>
                         )}

@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from 'react-i18next';
 import ClusterPicker from "./ClusterPicker";
 import { OPEN_EVENT as OPEN_PALETTE } from "./CommandPalette";
 import { MdPerson } from "react-icons/md";
 import { RiLogoutBoxLine } from "react-icons/ri";
 import { FaBell } from 'react-icons/fa';
-import { Bell, Menu, Search } from 'lucide-react';
+import { Bell, ListFilter, Menu, Search } from 'lucide-react';
+import { useDeployment } from '../context/DeploymentContext';
 import EnvironmentPicker from './EnvironmentPicker';
 import { AnimatePresence } from 'framer-motion';
 import AuthService from "../services/auth.service";
@@ -16,9 +17,20 @@ import NotificationService from "../services/notification.service";
 import NotificationPanel from "./NotificationPanel";
 import { applyTheme, applyDensity } from "../utils/theme";
 import { formatTime } from '../utils/dates';
+import { usePublishedHeight } from "../hooks/usePublishedSize";
 
 function Navbar({ isOpen, avatar, toggleSidebar }) {
   const { t } = useTranslation();
+  // The bar's real height, for layouts that fill the screen under it.
+  const barRef = useRef(null);
+  usePublishedHeight(barRef, '--topbar-real-h');
+  // Phone: the environment and cluster pickers sit behind one button, so
+  // the bar is a single row. The button shows a dot when a filter is set.
+  const [pickersOpen, setPickersOpen] = useState(false);
+  const { filter: deploymentFilter } = useDeployment();
+  const filtered = Boolean(deploymentFilter?.environment || deploymentFilter?.clusterId != null);
+  const { pathname } = useLocation();
+  useEffect(() => { setPickersOpen(false); }, [pathname]);
   const BACKEND_HOST = import.meta.env.VITE_BASE_URL;
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -46,11 +58,11 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
   // Timezone options
   const TIMEZONES = [
     { value: 'UTC', label: 'UTC' },
-    { value: 'Europe/Paris', label: 'Paris (CET)' },
-    { value: 'Europe/London', label: 'London (GMT)' },
-    { value: 'America/New_York', label: 'New York (EST)' },
-    { value: 'America/Los_Angeles', label: 'Los Angeles (PST)' },
-    { value: 'Asia/Tokyo', label: 'Tokyo (JST)' }
+    { value: 'Europe/Paris', label: t('nav.tzParis') },
+    { value: 'Europe/London', label: t('nav.tzLondon') },
+    { value: 'America/New_York', label: t('nav.tzNewYork') },
+    { value: 'America/Los_Angeles', label: t('nav.tzLosAngeles') },
+    { value: 'Asia/Tokyo', label: t('nav.tzTokyo') }
   ];
 
   useEffect(() => {
@@ -220,7 +232,7 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
 
   return (
     <>
-      <header className="app-topbar">
+      <header className="app-topbar" ref={barRef}>
         <button
           type="button"
           className="app-topbar-icon app-topbar-menu"
@@ -229,9 +241,21 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
         >
           <Menu size={20} aria-hidden="true" />
         </button>
-        <EnvironmentPicker />
-        {/* Cluster picker (Item #19) — visible only for multi-cluster orgs. */}
-        <ClusterPicker />
+        <button
+          type="button"
+          className={`app-topbar-icon app-topbar-filters${filtered ? ' has-filter' : ''}`}
+          onClick={() => setPickersOpen((v) => !v)}
+          aria-label={t('nav.filters')}
+          aria-expanded={pickersOpen}
+          aria-controls="app-topbar-pickers"
+        >
+          <ListFilter size={18} strokeWidth={1.75} aria-hidden="true" />
+        </button>
+        <div className={`app-topbar-pickers${pickersOpen ? ' is-open' : ''}`} id="app-topbar-pickers">
+          <EnvironmentPicker />
+          {/* Cluster picker (Item #19) — visible only for multi-cluster orgs. */}
+          <ClusterPicker />
+        </div>
         <div className="app-topbar-spacer" />
           <button type="button" className="command-palette-trigger" aria-label={t('palette.title')}
                   onClick={() => window.dispatchEvent(new Event(OPEN_PALETTE))}>
@@ -261,7 +285,7 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
           <Dropdown show={dropdownOpen} onToggle={toggleDropdown}>
             <Dropdown.Toggle as="div" id="userDropdown" className="app-topbar-user"
                              data-testid="user-menu-trigger"
-                             aria-label="Open user menu"
+                             aria-label={t('nav.openUserMenu')}
                              role="button"
                              tabIndex={0}>
               <span className="d-none d-xl-inline account-user-name">
@@ -272,13 +296,13 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
                   className="img-profile rounded-circle"
                   src={`${BACKEND_HOST}${image}`}
                   onError={() => setImageFailed(true)}
-                  alt="Profile"
+                  alt={t('nav.profile')}
                   style={{ width: "32px", height: "32px", objectFit: "cover" }}
                 />
               ) : (
                 <span
                   className="img-profile rounded-circle"
-                  aria-label="Profile"
+                  aria-label={t('nav.profile')}
                   style={{ width: "32px", height: "32px", display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--tone-brand-soft)", color: "var(--tone-brand-text)", fontWeight: 700, fontSize: "12px" }}
                 >
                   {getInitials()}
@@ -399,7 +423,7 @@ function Navbar({ isOpen, avatar, toggleSidebar }) {
               <div style={{ padding: '4px 0', marginTop: '4px' }}>
                 <Dropdown.Item onClick={handleLogout}
                                data-testid="user-menu-logout"
-                               aria-label="Log out"
+                               aria-label={t('nav.logOut')}
                                style={{ borderRadius: '8px', padding: '10px 12px', color: 'var(--tone-red-text)' }}>
                   <RiLogoutBoxLine style={{ marginRight: '10px', fontSize: '18px' }} />
                   {t('nav.logout')}

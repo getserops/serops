@@ -18,6 +18,7 @@ import SensitiveDataWarningModal from "./SensitiveDataWarningModal";
 import SimilarIssues from "./SimilarIssues";
 import "./ChatIssues.css";
 import { formatDate, formatTime } from '../utils/dates';
+import { useVisualViewportHeight } from "../hooks/usePublishedSize";
 
 /**
  * Generate commit URL based on SCM provider
@@ -53,9 +54,9 @@ const TraceOperation = ({ span, title }) => {
  */
 const getConfidenceBadge = (confidence) => {
   switch (confidence?.toUpperCase()) {
-    case 'HIGH': return { bg: 'success', label: 'HIGH' };
-    case 'MEDIUM': return { bg: 'warning', label: 'MED' };
-    case 'LOW': return { bg: 'secondary', label: 'LOW' };
+    case 'HIGH': return { bg: 'success', label: 'chat.correlation.confidenceHigh' };
+    case 'MEDIUM': return { bg: 'warning', label: 'chat.correlation.confidenceMed' };
+    case 'LOW': return { bg: 'secondary', label: 'chat.correlation.confidenceLow' };
     default: return null;
   }
 };
@@ -65,9 +66,9 @@ const getConfidenceBadge = (confidence) => {
  */
 const getMetricLabel = (anomalyType) => {
   switch (anomalyType) {
-    case 'sustained_high': return 'Sustained High';
-    case 'spike': return 'Metric Spike';
-    default: return 'Metric Spike';
+    case 'sustained_high': return 'chat.correlation.sustainedHigh';
+    case 'spike': return 'chat.correlation.metricSpike';
+    default: return 'chat.correlation.metricSpike';
   }
 };
 
@@ -79,6 +80,7 @@ const getMetricBadgeBg = (anomalyType) => {
  * Correlation Section - Shows commit and metric correlations
  */
 const CorrelationSection = ({ issueContext }) => {
+  const { t } = useTranslation();
   if (!issueContext) return null;
 
   const relatedTraces = issueContext.related_traces || null;
@@ -96,10 +98,10 @@ const CorrelationSection = ({ issueContext }) => {
     <div className="correlation-section mb-3">
       <h6 className="text-muted mb-2">
         <FaLink className="me-2" />
-        Correlations
+        {t('chat.correlation.title')}
         {confidenceBadge && (
           <Badge bg={confidenceBadge.bg} className="ms-2" style={{ fontSize: '0.65rem' }}>
-            {confidenceBadge.label}
+            {t(confidenceBadge.label)}
           </Badge>
         )}
       </h6>
@@ -112,11 +114,11 @@ const CorrelationSection = ({ issueContext }) => {
               <div className="d-flex align-items-center justify-content-between mb-1">
                 <Badge bg="purple" style={{ backgroundColor: '#7c3aed' }}>
                   <FaLink size={10} className="me-1" />
-                  Code Change
+                  {t('chat.correlation.codeChange')}
                 </Badge>
                 {confidenceBadge && (
                   <Badge bg={confidenceBadge.bg} style={{ fontSize: '0.6rem' }}>
-                    {confidenceBadge.label}
+                    {t(confidenceBadge.label)}
                   </Badge>
                 )}
               </div>
@@ -145,13 +147,13 @@ const CorrelationSection = ({ issueContext }) => {
               <div className="d-flex align-items-center justify-content-between mb-1">
                 <Badge bg={getMetricBadgeBg(anomalyType)}>
                   <FaChartLine size={10} className="me-1" />
-                  {getMetricLabel(anomalyType)}
+                  {t(getMetricLabel(anomalyType))}
                 </Badge>
               </div>
               <div className="small">
                 <span className="text-capitalize fw-medium">{issueContext.metric_correlation_type}</span>
                 {metricAnomaly.peak_value != null && (
-                  <span className="text-muted ms-1">peak {metricAnomaly.peak_value}%</span>
+                  <span className="text-muted ms-1">{t('chat.correlation.peak', { value: metricAnomaly.peak_value })}</span>
                 )}
                 {metricAnomaly.duration_seconds > 0 && (
                   <span className="text-muted ms-1">
@@ -173,13 +175,13 @@ const CorrelationSection = ({ issueContext }) => {
               <div className="d-flex align-items-center justify-content-between mb-1">
                 <Badge bg={(relatedTraces.error_span_count || 0) > 0 ? 'danger' : 'info'}>
                   <FaProjectDiagram size={10} className="me-1" />
-                  Traces
+                  {t('chat.correlation.traces')}
                 </Badge>
                 <small className="text-muted">
-                  {relatedTraces.span_count} spans
+                  {t('chat.correlation.spans', { n: relatedTraces.span_count })}
                   {(relatedTraces.error_span_count || 0) > 0 && (
                     <span className="text-danger ms-1">
-                      ({relatedTraces.error_span_count} err)
+                      ({t('chat.correlation.errSpans', { n: relatedTraces.error_span_count })})
                     </span>
                   )}
                 </small>
@@ -213,23 +215,23 @@ const CorrelationSection = ({ issueContext }) => {
                 <div className="d-flex align-items-center justify-content-between mb-1">
                   <Badge bg="secondary">
                     <FaCog size={10} className="me-1" />
-                    Pipeline Failure
+                    {t('chat.correlation.pipelineFailure')}
                   </Badge>
                   {cicdConfidence && (
                     <Badge bg={cicdConfidence.bg} style={{ fontSize: '0.6rem' }}>
-                      {cicdConfidence.label}
+                      {t(cicdConfidence.label)}
                     </Badge>
                   )}
                 </div>
                 <div className="small">
                   {cicdDetail.job_name && (
-                    <div><span className="text-muted">Job:</span> <span className="fw-medium">{cicdDetail.job_name}</span></div>
+                    <div><span className="text-muted">{t('chat.correlation.job')}</span> <span className="fw-medium">{cicdDetail.job_name}</span></div>
                   )}
                   {cicdDetail.pipeline_id && (
-                    <div><span className="text-muted">Pipeline:</span> #{cicdDetail.pipeline_id}</div>
+                    <div><span className="text-muted">{t('chat.correlation.pipeline')}</span> #{cicdDetail.pipeline_id}</div>
                   )}
                   {cicdDetail.commit_sha && (
-                    <div><span className="text-muted">Commit:</span> <code className="text-primary">{cicdDetail.commit_sha}</code></div>
+                    <div><span className="text-muted">{t('chat.correlation.commit')}</span> <code className="text-primary">{cicdDetail.commit_sha}</code></div>
                   )}
                   {cicdDetail.trace_errors && (
                     <div className="mt-1 text-truncate" style={{ maxWidth: '280px' }} title={cicdDetail.trace_errors}>
@@ -254,6 +256,7 @@ const CorrelationSection = ({ issueContext }) => {
  * shipped) stay clean.
  */
 const AIAnalysisSection = ({ issueContext }) => {
+  const { t } = useTranslation();
   if (!issueContext) return null;
 
   const reasoning = (issueContext.reasoning || '').trim();
@@ -282,12 +285,12 @@ const AIAnalysisSection = ({ issueContext }) => {
     <div className="correlation-section mb-3">
       <h6 className="text-muted mb-2 d-flex align-items-center">
         <FaRobot className="me-2" />
-        How SerOps reached this conclusion
+        {t('chat.reasoning.title')}
         {confidence && confidence !== 'UNKNOWN' && (
           <Badge
             bg={confidenceBadgeBg}
             className="ms-2"
-            title="The AI's self-reported confidence — LOW means evidence was thin and you should verify."
+            title={t('chat.reasoning.confidenceHint')}
             style={{ fontSize: '0.65rem' }}
           >
             {confidenceLabel || confidence}
@@ -311,12 +314,13 @@ const AIAnalysisSection = ({ issueContext }) => {
         <div
           className="small text-muted mt-2"
           title={informedBy.items
-            .map((it) => `#${it.id} ${it.issue_type} on ${it.component}`)
+            .map((it) => `#${it.id} ${t('chat.reasoning.typeOnComponent', { type: it.issue_type, component: it.component })}`)
             .join('\n')}
         >
           <FaLink className="me-1" />
-          Informed by {informedBy.count} past resolution
-          {informedBy.count === 1 ? '' : 's'} on this project
+          {informedBy.count === 1
+            ? t('chat.reasoning.informedByOne', { n: informedBy.count })
+            : t('chat.reasoning.informedByMany', { n: informedBy.count })}
           {informedBy.items.length > 0 && (
             <>
               :&nbsp;
@@ -325,10 +329,10 @@ const AIAnalysisSection = ({ issueContext }) => {
                   {idx > 0 && ', '}
                   <span className="fw-medium">#{it.id}</span>
                   {' '}
-                  <span>({it.issue_type} on {it.component})</span>
+                  <span>({t('chat.reasoning.typeOnComponent', { type: it.issue_type, component: it.component })})</span>
                 </span>
               ))}
-              {informedBy.items.length > 3 && ` and ${informedBy.items.length - 3} more`}
+              {informedBy.items.length > 3 && ` ${t('chat.reasoning.andMore', { n: informedBy.items.length - 3 })}`}
             </>
           )}
         </div>
@@ -339,6 +343,7 @@ const AIAnalysisSection = ({ issueContext }) => {
 
 
 const ChatIssues = () => {
+  useVisualViewportHeight();
   const { t } = useTranslation();
   const {
     // Context

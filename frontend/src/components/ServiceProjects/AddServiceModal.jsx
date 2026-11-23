@@ -81,15 +81,21 @@ const AddServiceModal = ({
             return t('addService.customService');
         }
         if (formData.service_type === "infrastructure") {
+            const infraLabels = {
+                database: t('addService.database'),
+                cache: t('addService.cache'),
+                queue: t('addService.queue'),
+                other: t('addService.other'),
+            };
             const infraName = formData.infra_type ?
-                formData.infra_type.charAt(0).toUpperCase() + formData.infra_type.slice(1) :
-                "Service";
+                infraLabels[formData.infra_type] || formData.infra_type.charAt(0).toUpperCase() + formData.infra_type.slice(1) :
+                t('services.service');
             return `${t('addService.infrastructure')} - ${infraName}`;
         }
         // Application type - show SCM provider name if selected
         const scmNames = { gitlab: "GitLab", github: "GitHub", bitbucket: "Bitbucket" };
-        const providerName = scmNames[formData.scm_type] || "Application";
-        return `Add ${providerName} Service`;
+        const providerName = scmNames[formData.scm_type] || t('services.typeApplication');
+        return t('addService.addProviderService', { provider: providerName });
     };
 
 

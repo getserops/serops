@@ -117,7 +117,7 @@ export default function WaitingAnalysisStep({ status }) {
             <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 2 }}>
                     <Box sx={{ position: 'relative', display: 'inline-flex' }}>
-                        <CircularProgress aria-label="Loading" size={48} thickness={4} />
+                        <CircularProgress aria-label={t('onboarding.loading')} size={48} thickness={4} />
                         <Box
                             sx={{
                                 position: 'absolute',
@@ -136,12 +136,10 @@ export default function WaitingAnalysisStep({ status }) {
                     </Box>
                     <Box sx={{ flex: 1 }}>
                         <Typography variant="h6" fontWeight={600} gutterBottom>
-                            Waiting for your first analysis…
+                            {t('dataCheck.waitingHeading')}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            We've kicked off a batch analysis in the background.
-                            When it lands, we'll drop you straight into your
-                            first insight.
+                            {t('dataCheck.waitingStarted')}
                         </Typography>
                     </Box>
                 </Box>
@@ -152,16 +150,13 @@ export default function WaitingAnalysisStep({ status }) {
                     sx={{ height: 6, borderRadius: 3, mb: 1 }}
                 />
                 <Typography variant="caption" color="text.secondary">
-                    Elapsed {Math.round(elapsed / 1000)}s
+                    {t('dataCheck.waitingElapsed', { seconds: Math.round(elapsed / 1000) })}
                 </Typography>
 
                 <Fade in={stillRunning}>
                     <Box sx={{ mt: 2 }}>
                         <Typography variant="body2" color="text.secondary">
-                            Still running — first analyses can take up to a
-                            minute or two depending on your AI provider and
-                            log volume. You can dismiss this wizard and
-                            we'll notify you when it's ready.
+                            {t('dataCheck.waitingStillRunning')}
                         </Typography>
                     </Box>
                 </Fade>

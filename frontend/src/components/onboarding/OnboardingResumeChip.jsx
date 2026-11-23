@@ -20,12 +20,14 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Alert, Box, Button, CircularProgress, Slide } from '@mui/material';
 import { FaBell } from 'react-icons/fa';
 
 import { useOnboardingStatus } from './hooks/useOnboardingStatus';
 
 export default function OnboardingResumeChip({ onResume }) {
+    const { t } = useTranslation();
     const { status, resume } = useOnboardingStatus({ enabled: true });
     const [resuming, setResuming] = useState(false);
 
@@ -72,16 +74,15 @@ export default function OnboardingResumeChip({ onResume }) {
                             size="small"
                             onClick={handleResume}
                             disabled={resuming}
-                            startIcon={resuming ? <CircularProgress aria-label="Loading" size={14} /> : null}
+                            startIcon={resuming ? <CircularProgress aria-label={t('onboarding.loading')} size={14} /> : null}
                             sx={{ fontWeight: 600 }}
                         >
-                            Resume
+                            {t('onboardingResumeChip.resume')}
                         </Button>
                     }
                     sx={{ boxShadow: 3 }}
                 >
-                    Setup is {status.progress_percentage}% done —
-                    finish it whenever you're ready.
+                    {t('onboardingResumeChip.message', { percent: status.progress_percentage })}
                 </Alert>
             </Box>
         </Slide>

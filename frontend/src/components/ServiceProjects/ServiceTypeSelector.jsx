@@ -81,7 +81,7 @@ const ServiceTypeSelector = ({ formData, setFormData }) => {
         <div className="bg-primary bg-opacity-10 p-4" style={{ minWidth: "280px" }}>
             <h5 className="mb-3 text-primary fw-bold">{t('addService.title')}</h5>
             <p className="text-muted small mb-4">
-                Select the type of service you want to add to your project.
+                {t('addService.selectTypeIntro')}
             </p>
 
             <div className="d-flex flex-column gap-3">
@@ -90,8 +90,8 @@ const ServiceTypeSelector = ({ formData, setFormData }) => {
                     id="application-service"
                     name="service_type"
                     icon={FaCode}
-                    label="Application"
-                    description="Microservices, APIs, backends, frontends with optional code repository and CI/CD pipeline connections."
+                    label={t('services.typeApplication')}
+                    description={t('addService.applicationDesc')}
                     selected={formData.service_type === "application"}
                     onClick={() => handleTypeChange("application")}
                 />
@@ -101,8 +101,8 @@ const ServiceTypeSelector = ({ formData, setFormData }) => {
                     id="infrastructure-service"
                     name="service_type"
                     icon={FaServer}
-                    label="Infrastructure"
-                    description="Databases, caches, message queues, and other non-code infrastructure."
+                    label={t('addService.infrastructure')}
+                    description={t('addService.infrastructureTypeDesc')}
                     selected={formData.service_type === "infrastructure"}
                     onClick={() => handleTypeChange("infrastructure")}
                 />
@@ -112,8 +112,8 @@ const ServiceTypeSelector = ({ formData, setFormData }) => {
                     id="custom-service"
                     name="service_type"
                     icon={FaEdit}
-                    label="Custom"
-                    description="Manual service entry for legacy systems or external services."
+                    label={t('addService.custom')}
+                    description={t('addService.customTypeDesc')}
                     selected={formData.service_type === "custom"}
                     onClick={() => handleTypeChange("custom")}
                 />
@@ -122,7 +122,7 @@ const ServiceTypeSelector = ({ formData, setFormData }) => {
                 {formData.service_type === "application" && (
                     <div className="mt-2 p-3 bg-light rounded-3">
                         <p className="text-muted small mb-2 fw-medium">
-                            Code Repository Provider:
+                            {t('addService.codeRepoProvider')}
                         </p>
                         <div className="d-flex gap-2 flex-wrap">
                             <SubtypeButton
@@ -172,15 +172,15 @@ const ServiceTypeSelector = ({ formData, setFormData }) => {
                                     }))}
                                 />
                                 <label className="form-check-label small" htmlFor="add-cicd-toggle">
-                                    <strong>Add CI/CD Pipeline</strong>
-                                    <span className="text-muted ms-1">(optional)</span>
+                                    <strong>{t('addService.addCicdPipeline')}</strong>
+                                    <span className="text-muted ms-1">{t('common.optional')}</span>
                                 </label>
                             </div>
 
                             {/* CI/CD Provider Selection (when enabled) */}
                             {formData.add_cicd && (
                                 <div className="mt-2 ps-4">
-                                    <p className="text-muted small mb-2">CI/CD Provider:</p>
+                                    <p className="text-muted small mb-2">{t('addService.cicdProvider')}</p>
                                     <div className="d-flex gap-2 flex-wrap">
                                         <SubtypeButton
                                             label="GitLab CI"
@@ -213,26 +213,26 @@ const ServiceTypeSelector = ({ formData, setFormData }) => {
                 {formData.service_type === "infrastructure" && (
                     <div className="mt-2 p-3 bg-light rounded-3">
                         <p className="text-muted small mb-2 fw-medium">
-                            Infrastructure Type:
+                            {t('addService.infrastructureType')}
                         </p>
                         <div className="d-flex gap-2 flex-wrap">
                             <SubtypeButton
-                                label="Database"
+                                label={t('addService.database')}
                                 selected={formData.infra_type === "database"}
                                 onClick={() => handleSubtypeChange("database")}
                             />
                             <SubtypeButton
-                                label="Cache"
+                                label={t('addService.cache')}
                                 selected={formData.infra_type === "cache"}
                                 onClick={() => handleSubtypeChange("cache")}
                             />
                             <SubtypeButton
-                                label="Queue"
+                                label={t('addService.queue')}
                                 selected={formData.infra_type === "queue"}
                                 onClick={() => handleSubtypeChange("queue")}
                             />
                             <SubtypeButton
-                                label="Other"
+                                label={t('addService.other')}
                                 selected={formData.infra_type === "other"}
                                 onClick={() => handleSubtypeChange("other")}
                             />

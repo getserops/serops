@@ -242,7 +242,7 @@ set the new version first:
 docker compose exec postgres pg_dump -U serops serops > backup-$(date +%F).sql
 
 # 2. Set the release you want in .env (see the releases page), e.g.
-#    SEROPS_VERSION=1.5.2
+#    SEROPS_VERSION=1.5.3
 
 # 3. Pull and restart — the backend applies migrations on start
 git pull
@@ -365,6 +365,8 @@ of the supported log or metric providers.
 ## Next steps
 
 - [First project setup](first-project.md)
+- [Replay your last incident](replay-past-incident.md): analyse an
+  incident you already know, from the logs your store still holds
 - [Onboarding Wizard](onboarding.md) walk-through
 - [Integrations Overview](../integrations/overview.md) — connect your
   observability stack

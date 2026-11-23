@@ -46,12 +46,12 @@ const SentinelStatsCard = ({ data, loading }) => {
     return (
         <div className="chart-card sentinel-stats-card">
             <div className="chart-header">
-                <h2><FaShieldAlt className="chart-icon" /> Sentinel Intelligence</h2>
-                <span className="chart-subtitle">AI gating decisions &amp; savings · {t('dashboard.window.lastDays', { count: period_days })}</span>
+                <h2><FaShieldAlt className="chart-icon" /> {t('dashboard.sentinel.title')}</h2>
+                <span className="chart-subtitle">{t('dashboard.sentinel.subtitle')} · {t('dashboard.window.lastDays', { count: period_days })}</span>
             </div>
 
             {!hasData ? (
-                <div className="no-data-message">No sentinel data available yet</div>
+                <div className="no-data-message">{t('dashboard.sentinel.noData')}</div>
             ) : (
                 <div className="sentinel-content">
                     {/* Hero stat: dollars saved by Sentinel gating.
@@ -64,20 +64,20 @@ const SentinelStatsCard = ({ data, loading }) => {
                                 background: 'var(--tone-green-soft)',
                                 color: 'var(--tone-green-text)',
                             }}
-                            title="Estimated by multiplying tokens-saved by this org's actual cost-per-token over the same window."
+                            title={t('dashboard.sentinel.savedHint')}
                         >
                             <div className="d-flex align-items-center justify-content-between">
                                 <div>
                                     <div className="small">
                                         <FaDollarSign className="me-1" />
-                                        Saved by Sentinel
+                                        {t('dashboard.sentinel.savedBy')}
                                     </div>
                                     <div style={{ fontSize: '1.75rem', fontWeight: 700 }}>
                                         {formatUsd(estimated_cost_saved_usd)}
                                     </div>
                                 </div>
                                 <div className="text-end small">
-                                    AI spend
+                                    {t('dashboard.sentinel.aiSpend')}
                                     <div style={{ fontWeight: 600 }}>
                                         {formatUsd(ai_spend_usd)}
                                     </div>
@@ -89,7 +89,7 @@ const SentinelStatsCard = ({ data, loading }) => {
                     {/* Skip rate badge */}
                     <div className="correlation-rate-badge">
                         <span className="rate-value">{skip_rate_percent}%</span>
-                        <span className="rate-label">AI calls saved</span>
+                        <span className="rate-label">{t('dashboard.sentinel.callsSaved')}</span>
                     </div>
 
                     {/* Decision breakdown */}
@@ -100,7 +100,7 @@ const SentinelStatsCard = ({ data, loading }) => {
                             </div>
                             <div className="corr-stat-info">
                                 <span className="corr-stat-value">{decisions.alert || 0}</span>
-                                <span className="corr-stat-label">Alert</span>
+                                <span className="corr-stat-label">{t('dashboard.sentinel.alert')}</span>
                             </div>
                         </div>
 
@@ -110,7 +110,7 @@ const SentinelStatsCard = ({ data, loading }) => {
                             </div>
                             <div className="corr-stat-info">
                                 <span className="corr-stat-value">{decisions.quiet || 0}</span>
-                                <span className="corr-stat-label">Quiet</span>
+                                <span className="corr-stat-label">{t('dashboard.sentinel.quiet')}</span>
                             </div>
                         </div>
 
@@ -120,7 +120,7 @@ const SentinelStatsCard = ({ data, loading }) => {
                             </div>
                             <div className="corr-stat-info">
                                 <span className="corr-stat-value">{decisions.first || 0}</span>
-                                <span className="corr-stat-label">First</span>
+                                <span className="corr-stat-label">{t('dashboard.sentinel.first')}</span>
                             </div>
                         </div>
 
@@ -151,18 +151,18 @@ const SentinelStatsCard = ({ data, loading }) => {
                     {/* Detail row — drilldown beneath the hero number */}
                     {ai_skipped > 0 && (
                         <div className="corr-components">
-                            <span className="corr-components-title">Details</span>
+                            <span className="corr-components-title">{t('dashboard.sentinel.details')}</span>
                             <div className="corr-component-tags">
                                 <span className="corr-tag">
                                     <FaEyeSlash style={{ marginRight: 4, fontSize: '0.7rem' }} />
-                                    {ai_skipped} batches skipped
+                                    {t('dashboard.sentinel.batchesSkipped', { n: ai_skipped })}
                                 </span>
                                 {/* Tokens saved is the average tokens of an analysis times
                                     the batches skipped. In the demo that average is only a
                                     size estimate, so the figure is not shown there. */}
                                 {estimated_tokens_saved > 0 && !isDemoUser() && (
                                     <span className="corr-tag">
-                                        ~{formatTokens(estimated_tokens_saved)} tokens saved
+                                        {t('dashboard.sentinel.tokensSaved', { tokens: formatTokens(estimated_tokens_saved) })}
                                     </span>
                                 )}
                             </div>

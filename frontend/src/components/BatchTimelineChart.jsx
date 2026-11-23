@@ -30,6 +30,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { tracePath } from '../utils/linkTargets';
 import { Form } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
 import { FaSearchPlus, FaSearchMinus, FaExpand } from 'react-icons/fa';
 import { formatAbsolute } from '../utils/dates';
 
@@ -37,11 +38,11 @@ import { formatAbsolute } from '../utils/dates';
 const LANE_ORDER = ['deploy', 'cicd', 'metric_anomaly', 'span_error', 'log'];
 
 const LANE_META = {
-    deploy:         { label: 'Deploy',   colour: '#0d6efd' },  // primary blue
-    cicd:           { label: 'CI/CD',    colour: '#fd7e14' },  // orange
-    metric_anomaly: { label: 'Metric',   colour: '#ffc107' },  // warning yellow
-    span_error:     { label: 'Trace',    colour: '#dc3545' },  // danger red
-    log:            { label: 'Log',      colour: '#6c757d' },  // secondary grey
+    deploy:         { label: 'batchTimelineChart.lane.deploy',   colour: '#0d6efd' },  // primary blue
+    cicd:           { label: 'batchTimelineChart.lane.cicd',     colour: '#fd7e14' },  // orange
+    metric_anomaly: { label: 'batchTimelineChart.lane.metric',   colour: '#ffc107' },  // warning yellow
+    span_error:     { label: 'batchTimelineChart.lane.trace',    colour: '#dc3545' },  // danger red
+    log:            { label: 'batchTimelineChart.lane.log',      colour: '#6c757d' },  // secondary grey
 };
 
 const SEVERITY_COLOUR = {
@@ -96,6 +97,8 @@ const BatchTimelineChart = ({
     causalPairs = [],
     onFilteredIndexesChange,
 }) => {
+    const { t } = useTranslation();
+    const laneLabel = (kind) => (LANE_META[kind] ? t(LANE_META[kind].label) : kind);
     const navigate = useNavigate();
     const containerRef = useRef(null);
     const [width, setWidth] = useState(1000);
@@ -330,7 +333,7 @@ const BatchTimelineChart = ({
     if (normalised.length === 0) {
         return (
             <div ref={containerRef} className="text-muted small text-center py-4">
-                No events with parseable timestamps to plot.
+                {t('batchTimelineChart.noEvents')}
             </div>
         );
     }
@@ -340,16 +343,16 @@ const BatchTimelineChart = ({
             {/* Toolbar row 1: interaction hint + zoom controls */}
             <div className="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                 <small className="text-muted">
-                    Drag to pan · scroll to zoom · shift-drag to filter a window · click a trace marker to open it
+                    {t('batchTimelineChart.hint')}
                 </small>
-                <div className="btn-group btn-group-sm" role="group" aria-label="Timeline zoom">
-                    <button type="button" className="btn btn-outline-secondary" onClick={() => zoomBy(0.7)} aria-label="Zoom in">
+                <div className="btn-group btn-group-sm" role="group" aria-label={t('batchTimelineChart.zoomGroup')}>
+                    <button type="button" className="btn btn-outline-secondary" onClick={() => zoomBy(0.7)} aria-label={t('batchTimelineChart.zoomIn')}>
                         <FaSearchPlus />
                     </button>
-                    <button type="button" className="btn btn-outline-secondary" onClick={() => zoomBy(1.4)} aria-label="Zoom out">
+                    <button type="button" className="btn btn-outline-secondary" onClick={() => zoomBy(1.4)} aria-label={t('batchTimelineChart.zoomOut')}>
                         <FaSearchMinus />
                     </button>
-                    <button type="button" className="btn btn-outline-secondary" onClick={resetZoom} aria-label="Fit to data">
+                    <button type="button" className="btn btn-outline-secondary" onClick={resetZoom} aria-label={t('batchTimelineChart.fitToData')}>
                         <FaExpand />
                     </button>
                 </div>
@@ -358,7 +361,7 @@ const BatchTimelineChart = ({
             {/* Toolbar row 2: lane visibility + severity floor + brush reset */}
             <div className="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2 batch-timeline-filters">
                 <div className="d-flex align-items-center gap-2 flex-wrap">
-                    <span className="text-muted small me-1">Lanes:</span>
+                    <span className="text-muted small me-1">{t('batchTimelineChart.lanes')}</span>
                     {activeLanes.map((k) => {
                         const on = !hiddenLanes.has(k);
                         return (
@@ -378,13 +381,13 @@ const BatchTimelineChart = ({
                                     padding: '2px 10px',
                                 }}
                                 aria-pressed={on}
-                                aria-label={`${on ? 'Hide' : 'Show'} ${LANE_META[k]?.label || k} lane`}
+                                aria-label={on ? t('batchTimelineChart.hideLane', { lane: laneLabel(k) }) : t('batchTimelineChart.showLane', { lane: laneLabel(k) })}
                             >
                                 <span aria-hidden="true" style={{
                                     width: 8, height: 8, borderRadius: '50%',
                                     background: on ? LANE_META[k]?.colour : 'var(--border-hover)',
                                 }} />
-                                {LANE_META[k]?.label || k}
+                                {laneLabel(k)}
                             </button>
                         );
                     })}
@@ -395,20 +398,20 @@ const BatchTimelineChart = ({
                         style={{ width: 'auto' }}
                         value={severityFloor}
                         onChange={(e) => setSeverityFloor(e.target.value)}
-                        aria-label="Severity floor"
+                        aria-label={t('batchTimelineChart.severityFloor')}
                     >
-                        <option value="INFO">All severities</option>
-                        <option value="WARN">Warn & above</option>
-                        <option value="ERROR">Errors only</option>
+                        <option value="INFO">{t('batchTimelineChart.allSeverities')}</option>
+                        <option value="WARN">{t('batchTimelineChart.warnAndAbove')}</option>
+                        <option value="ERROR">{t('batchTimelineChart.errorsOnly')}</option>
                     </Form.Select>
                     {brushSelection && (
                         <button
                             type="button"
                             className="btn btn-sm btn-outline-secondary"
                             onClick={clearBrush}
-                            aria-label="Clear time-window filter"
+                            aria-label={t('batchTimelineChart.clearWindowLabel')}
                         >
-                            Clear window
+                            {t('batchTimelineChart.clearWindow')}
                         </button>
                     )}
                 </div>
@@ -430,7 +433,7 @@ const BatchTimelineChart = ({
                     cursor: dragging ? 'grabbing' : 'grab',
                     userSelect: 'none',
                 }}
-                aria-label="Batch event timeline"
+                aria-label={t('batchTimelineChart.chartLabel')}
                 role="img"
             >
                 {/* Lane bands + labels */}
@@ -458,7 +461,7 @@ const BatchTimelineChart = ({
                             fill={LANE_META[kind]?.colour || '#6c757d'}
                             fontWeight="600"
                         >
-                            {LANE_META[kind]?.label || kind}
+                            {laneLabel(kind)}
                         </text>
                     </g>
                 ))}
@@ -635,7 +638,7 @@ const BatchTimelineChart = ({
                                     className="badge me-2"
                                     style={{ background: (CONF_STYLE[hover._pair.confidence] || CONF_STYLE.MEDIUM).stroke }}
                                 >
-                                    {hover._pair.confidence} confidence
+                                    {t('batchTimelineChart.confidence', { level: hover._pair.confidence })}
                                 </span>
                                 <span className="text-muted small">{hover._pair.type}</span>
                             </div>
@@ -649,7 +652,7 @@ const BatchTimelineChart = ({
                                     className="badge me-2"
                                     style={{ background: LANE_META[hover.event.kind]?.colour || '#6c757d' }}
                                 >
-                                    {LANE_META[hover.event.kind]?.label || hover.event.kind}
+                                    {laneLabel(hover.event.kind)}
                                 </span>
                                 {hover.event.severity && <span className="badge bg-light text-dark me-2">{hover.event.severity}</span>}
                                 {hover.event.service && <span className="text-muted small">{hover.event.service}</span>}

@@ -57,7 +57,7 @@ const SimilarIssues = ({ issueId }) => {
                     <div key={r.id} className="mb-3 pb-2 border-bottom">
                         <div className="d-flex align-items-center mb-1">
                             <Badge bg="info" className="me-2">
-                                {Math.round(r.similarity * 100)}% match
+                                {t('similarIssues.match', { pct: Math.round(r.similarity * 100) })}
                             </Badge>
                             <span className="text-muted small me-2">
                                 {r.issue_type}
@@ -72,12 +72,12 @@ const SimilarIssues = ({ issueId }) => {
                         </div>
                         {r.root_cause && (
                             <div className="small">
-                                <strong>Root cause:</strong> {r.root_cause}
+                                <strong>{t('similarIssues.rootCause')}</strong> {r.root_cause}
                             </div>
                         )}
                         {r.recommendation && (
                             <div className="small mt-1">
-                                <strong>Then-fix:</strong> {r.recommendation}
+                                <strong>{t('similarIssues.thenFix')}</strong> {r.recommendation}
                             </div>
                         )}
                     </div>

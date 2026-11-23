@@ -6,12 +6,14 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Box, Button, Card, CardContent, Typography } from '@mui/material';
 import { FaArrowRight, FaLink } from 'react-icons/fa';
 
 import LinkServiceModal from '../modals/LinkServiceModal';
 
 export default function LinkServiceStep({ status, onDone }) {
+    const { t } = useTranslation();
     const [open, setOpen] = useState(false);
 
     return (
@@ -24,13 +26,10 @@ export default function LinkServiceStep({ status, onDone }) {
                         </Box>
                         <Box sx={{ flex: 1 }}>
                             <Typography variant="h6" fontWeight={600} gutterBottom>
-                                Link a service
+                                {t('linkServiceStep.title')}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                                Tell us the name of a service in your project
-                                (e.g. <code>payments-api</code>). As soon as
-                                you add it, we'll kick off your first
-                                analysis in the background.
+                                {t('linkServiceStep.introBefore')}<code>payments-api</code>{t('linkServiceStep.introAfter')}
                             </Typography>
                         </Box>
                     </Box>
@@ -40,7 +39,7 @@ export default function LinkServiceStep({ status, onDone }) {
                             onClick={() => setOpen(true)}
                             endIcon={<FaArrowRight />}
                         >
-                            Link service
+                            {t('linkServiceStep.link')}
                         </Button>
                     </Box>
                 </CardContent>

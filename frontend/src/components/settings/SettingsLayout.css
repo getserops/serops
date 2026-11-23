@@ -1649,3 +1649,11 @@
 
 /* A statistics card at the top of a settings page (Sentinel). */
 .settings-stats-panel { margin-bottom: var(--space-6); }
+
+/* Phones: the read-only note of the demo is one line; a tap shows it all. */
+@media (max-width: 767px) {
+  :is(html, :root[data-theme]) .settings-readonly-notice { margin-bottom: var(--space-2); font-size: var(--text-xs); cursor: pointer; }
+  :is(html, :root[data-theme]) .settings-readonly-notice:not(.is-expanded) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  :is(html, :root[data-theme]) .settings-section .settings-header { margin-bottom: 12px; }
+  :is(html, :root[data-theme]) .settings-section .settings-header p { display: none; }
+}

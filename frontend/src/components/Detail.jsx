@@ -165,7 +165,7 @@ const Detail = () => {
             id: log._id,
             // The zone is in the column heading, so it is not repeated on each row.
             timestamp: formatAbsolute(log._source?.["@timestamp"], { zone: false }),
-            logDetails: log._source?.message || "No message available",
+            logDetails: log._source?.message || "",
             type: log._source?.level?.toLowerCase() || "other",
             index: log._index || "unknown",
             serviceName: serviceOf(log._source),
@@ -664,15 +664,16 @@ const Detail = () => {
             <FaBrain style={{ color: 'var(--text-tertiary)' }} />
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>
-                {historyEntries.length} analysis result{historyEntries.length === 1 ? '' : 's'}
-                {' '}on file
+                {historyEntries.length === 1
+                  ? t('detail.compare.resultsOne', { n: historyEntries.length })
+                  : t('detail.compare.resultsMany', { n: historyEntries.length })}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                Compare model outputs, promote the best to primary
+                {t('detail.compare.subtitle')}
               </div>
             </div>
             <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-tertiary)' }}>
-              {historyExpanded ? 'Collapse ▲' : 'Expand ▼'}
+              {historyExpanded ? t('detail.compare.collapse') : t('detail.compare.expand')}
             </span>
           </div>
           {historyExpanded && (
@@ -707,10 +708,10 @@ const Detail = () => {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span className={`ds-chip ${isPrimary ? 'ds-chip-ok' : 'ds-chip-neutral'}`}>
-                        {isPrimary ? 'PRIMARY' : (entry.mode || 'compare').toUpperCase()}
+                        {isPrimary ? t('detail.compare.primary') : (entry.mode ? entry.mode.toUpperCase() : t('detail.compare.modeCompare'))}
                       </span>
                       <span className="ds-mono" style={{ fontSize: 12 }}>
-                        {entry.model_name || 'unknown'}
+                        {entry.model_name || t('detail.compare.unknownModel')}
                       </span>
                       <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-tertiary)' }}>
                         {relTime(entry.analyzed_at)}
@@ -721,14 +722,14 @@ const Detail = () => {
                       display: '-webkit-box', WebkitBoxOrient: 'vertical',
                       WebkitLineClamp: 6, overflow: 'hidden',
                     }}>
-                      {entryNarrative || <em style={{ color: 'var(--text-tertiary)' }}>No narrative recorded.</em>}
+                      {entryNarrative || <em style={{ color: 'var(--text-tertiary)' }}>{t('detail.compare.noNarrative')}</em>}
                     </div>
                     <div style={{
                       display: 'flex', gap: 10, alignItems: 'center',
                       fontSize: 11, color: 'var(--text-tertiary)', marginTop: 'auto',
                     }}>
-                      <span>{issueCount} issue{issueCount === 1 ? '' : 's'}</span>
-                      {tokensTotal > 0 && !isDemoUser() && <span>{tokensTotal.toLocaleString()} tokens</span>}
+                      <span>{issueCount === 1 ? t('detail.compare.issueOne', { n: issueCount }) : t('detail.compare.issueMany', { n: issueCount })}</span>
+                      {tokensTotal > 0 && !isDemoUser() && <span>{t('detail.compare.tokens', { formatted: tokensTotal.toLocaleString() })}</span>}
                     </div>
                     {!isPrimary && (
                       <button
@@ -738,8 +739,8 @@ const Detail = () => {
                         onClick={() => handlePromote(entry.analyzed_at)}
                       >
                         {promoteInFlight === entry.analyzed_at
-                          ? 'Promoting…'
-                          : 'Promote to primary'}
+                          ? t('detail.compare.promoting')
+                          : t('detail.compare.promote')}
                       </button>
                     )}
                   </div>
@@ -760,10 +761,10 @@ const Detail = () => {
             <FaBug style={{ color: 'var(--text-tertiary)' }} />
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>
-                {issues.length} issues detected
+                {t('detail.preview.detected', { n: issues.length })}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                Ranked by severity and evidence strength
+                {t('detail.preview.ranked')}
               </div>
             </div>
             {!isSample && (
@@ -772,7 +773,7 @@ const Detail = () => {
                 className="ds-btn ds-btn-secondary ds-btn-sm"
                 style={{ marginLeft: 'auto', textDecoration: 'none' }}
               >
-                View all
+                {t('detail.preview.viewAll')}
                 <FaArrowRight size={11} />
               </Link>
             )}
@@ -796,7 +797,7 @@ const Detail = () => {
                 {issue.status && <span style={{ marginTop: 2 }}><StatusChip status={issue.status} t={t} /></span>}
                 <div className="detail-issue-text" style={{ flexGrow: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }} title={issue.description || undefined}>
-                    {headline(issue.description) || issue.error_target || 'Untitled issue'}
+                    {headline(issue.description) || issue.error_target || t('detail.preview.untitled')}
                   </div>
                   {/* The first issue's fix is the "Suggested fix" card above: shown once. */}
                   {issue.recommendation && issue.id !== primary?.id && (
@@ -893,7 +894,7 @@ const Detail = () => {
       {batchMeta && !isSample && (
         <div
           role="tablist"
-          aria-label="Batch data source"
+          aria-label={t('detail.tabsLabel')}
           className="detail-tabs"
           style={{
             display: 'flex', gap: 2, flexWrap: 'wrap',
@@ -916,13 +917,13 @@ const Detail = () => {
             return (
               <>
                 <span role="tab" aria-selected="true" style={tabStyle(true)}>
-                  <FaBug size={12} aria-hidden="true" /> Logs
+                  <FaBug size={12} aria-hidden="true" /> {t('detail.logs')}
                 </span>
                 <Link role="tab" to={`/dash/metrics/${batchId}`} style={tabStyle(false)}>
-                  <FaChartLine size={12} aria-hidden="true" /> Metrics
+                  <FaChartLine size={12} aria-hidden="true" /> {t('detail.metrics')}
                 </Link>
                 <Link role="tab" to={`/dash/traces/batch/${batchId}`} style={tabStyle(false)}>
-                  Traces
+                  {t('detail.traces')}
                   {traceCount > 0 && (
                     <span className="ds-chip ds-chip-neutral" style={{ marginLeft: 4 }}>
                       {traceCount}
@@ -930,7 +931,7 @@ const Detail = () => {
                   )}
                 </Link>
                 <Link role="tab" to={`/dash/code-changes/${batchId}`} style={tabStyle(false)}>
-                  <FaCode size={12} aria-hidden="true" /> Code changes
+                  <FaCode size={12} aria-hidden="true" /> {t('detail.tabCodeChanges')}
                   {codeCount > 0 && (
                     <span className="ds-chip ds-chip-neutral" style={{ marginLeft: 4 }}>
                       {codeCount}
@@ -938,7 +939,7 @@ const Detail = () => {
                   )}
                 </Link>
                 <Link role="tab" to={`/dash/timeline/${batchId}`} style={tabStyle(false)}>
-                  <FaClock size={12} aria-hidden="true" /> Timeline
+                  <FaClock size={12} aria-hidden="true" /> {t('detail.timeline')}
                 </Link>
               </>
             );
@@ -1158,7 +1159,7 @@ const Detail = () => {
                 >
                   {/* Icon retired 2026-09-21: LEVEL column now owns
                       severity signal via chips. Message stays pure text. */}
-                  <span>{highlightSearchTerm(item.logDetails)}</span>
+                  <span>{item.logDetails ? highlightSearchTerm(item.logDetails) : t("detail.noMessage")}</span>
                 </td>
               </tr>
             ))}

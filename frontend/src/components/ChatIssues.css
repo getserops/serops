@@ -425,7 +425,6 @@
     }
 
     .chat-container-modern {
-        min-height: calc(100vh - 120px);
         border-radius: var(--radius-lg);
     }
 
@@ -785,10 +784,16 @@
 /* v2 · the chat fills the content area as one card, like the rest */
 :is(html, :root[data-theme]) .chat-page-wrapper { padding: 0; background: transparent; min-height: 0; }
 :is(html, :root[data-theme]) .chat-container-modern {
-  /* The demo banner sits above the top bar; without its height the
-     composer ended below the fold. 0px when there is no banner. */
-  height: calc(100vh - var(--topbar-h, 56px) - var(--demo-banner-h, 0px) - 64px);
-  min-height: min(520px, calc(100vh - var(--topbar-h, 56px) - var(--demo-banner-h, 0px) - 64px));
+  /* What is left of the screen under the demo banner and the top bar, both
+     measured (--demo-banner-h is 0px without a banner; --topbar-real-h
+     comes from the bar itself, which is taller on a phone than the token
+     says). --visual-vh is the screen a person really sees: it shrinks when
+     the on-screen keyboard opens, so the composer stays above it. */
+  --chat-chrome: calc(var(--topbar-real-h, var(--topbar-h)) + var(--demo-banner-h, 0px));
+  --chat-gutters: 64px;
+  height: calc(100vh - var(--chat-chrome) - var(--chat-gutters));
+  height: calc(var(--visual-vh, 100dvh) - var(--chat-chrome) - var(--chat-gutters));
+  min-height: min(520px, calc(100vh - var(--chat-chrome) - var(--chat-gutters)));
   background: var(--bg-card);
   border: 1px solid var(--border-default);
   border-radius: 12px;
@@ -806,12 +811,9 @@
 :is(html, :root[data-theme]) .history-toggle-btn:hover { color: var(--text-primary); border-color: var(--border-hover); }
 :is(html, :root[data-theme]) .chat-messages-area { background: var(--bg-sunken); }
 @media (max-width: 767px) {
-  /* dvh: the screen as the browser shows it. 100vh counts the space under
-     a phone browser's address bar, so the chat was taller than the screen. */
-  :is(html, :root[data-theme]) .chat-container-modern {
-    height: calc(100vh - var(--topbar-h, 56px) - var(--demo-banner-h, 0px) - 32px);
-    height: calc(100dvh - var(--topbar-h, 56px) - var(--demo-banner-h, 0px) - 32px);
-  }
+  /* The gutters of a phone (16 px above, 32 px below), and no minimum height: with the keyboard
+     open the chat is as short as what is left above it. */
+  :is(html, :root[data-theme]) .chat-container-modern { --chat-gutters: 48px; min-height: 0; }
   /* One line of placeholder: wrapped, its second line was cut off. */
   .chat-textarea::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }

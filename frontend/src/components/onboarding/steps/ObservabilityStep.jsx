@@ -4,12 +4,14 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Box, Button, Card, CardContent, Typography } from '@mui/material';
 import { FaArrowRight, FaSearch } from 'react-icons/fa';
 
 import ObservabilityModal from '../modals/ObservabilityModal';
 
 export default function ObservabilityStep({ status, onDone }) {
+    const { t } = useTranslation();
     const [open, setOpen] = useState(false);
 
     const handleSaved = async () => {
@@ -26,13 +28,10 @@ export default function ObservabilityStep({ status, onDone }) {
                         </Box>
                         <Box sx={{ flex: 1 }}>
                             <Typography variant="h6" fontWeight={600} gutterBottom>
-                                Connect an observability source
+                                {t('observabilityStep.title')}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                                Point SerOps at your log store (Elasticsearch,
-                                Loki, Datadog, CloudWatch…). We'll pull recent
-                                logs into every batch analysis. Metrics are
-                                optional for the same provider.
+                                {t('observabilityStep.intro')}
                             </Typography>
                         </Box>
                     </Box>
@@ -42,7 +41,7 @@ export default function ObservabilityStep({ status, onDone }) {
                             onClick={() => setOpen(true)}
                             endIcon={<FaArrowRight />}
                         >
-                            Connect source
+                            {t('observabilityStep.connect')}
                         </Button>
                     </Box>
                 </CardContent>

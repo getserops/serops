@@ -21,9 +21,9 @@ import './SettingsLayout.css';
 
 const SEVERITY_CHOICES = ['', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const EVENT_CHOICES = [
-    ['batch_analyzed', 'Any batch analysed'],
-    ['alert_triggered', 'Alert-triggered'],
-    ['critical_issue', 'Critical issue produced'],
+    ['batch_analyzed', 'settings.routing.eventAnyBatch'],
+    ['alert_triggered', 'settings.routing.eventAlertTriggered'],
+    ['critical_issue', 'settings.routing.eventCriticalIssue'],
 ];
 
 const emptyRule = {
@@ -65,7 +65,7 @@ const RoutingRulesSettings = () => {
             setRules(rulesData || []);
             setChannels(channelsData || []);
         } catch (e) {
-            toast.error('Failed to load routing rules');
+            toast.error(t('settings.routing.loadFailed'));
         } finally {
             setLoading(false);
         }
@@ -99,17 +99,17 @@ const RoutingRulesSettings = () => {
 
     const handleSave = async () => {
         if (!form.name.trim()) {
-            toast.warn('Rule name is required');
+            toast.warn(t('settings.routing.nameRequired'));
             return;
         }
         setSaving(true);
         try {
             if (editing) {
                 await SettingsService.updateRoutingRule(editing.id, form);
-                toast.success('Rule updated');
+                toast.success(t('settings.routing.ruleUpdated'));
             } else {
                 await SettingsService.createRoutingRule(form);
-                toast.success('Rule created');
+                toast.success(t('settings.routing.ruleCreated'));
             }
             setShowModal(false);
             await refresh();
@@ -117,20 +117,20 @@ const RoutingRulesSettings = () => {
             const msg = e?.response?.data
                 ? JSON.stringify(e.response.data)
                 : e.message;
-            toast.error(`Save failed: ${msg}`);
+            toast.error(t('settings.routing.saveFailed', { message: msg }));
         } finally {
             setSaving(false);
         }
     };
 
     const handleDelete = async (rule) => {
-        if (!window.confirm(`Delete routing rule "${rule.name}"?`)) return;
+        if (!window.confirm(t('settings.routing.deleteConfirm', { name: rule.name }))) return;
         try {
             await SettingsService.deleteRoutingRule(rule.id);
-            toast.success('Rule deleted');
+            toast.success(t('settings.routing.ruleDeleted'));
             await refresh();
         } catch (e) {
-            toast.error('Delete failed');
+            toast.error(t('settings.routing.deleteFailed'));
         }
     };
 
@@ -143,36 +143,35 @@ const RoutingRulesSettings = () => {
         <div className="settings-content">
             <PageHeader
                 title={t('nav.alertsRouting')}
-                subtitle="Rules decide which delivery channels get notified for each incident. Every active rule that matches contributes its targets; a channel that matches multiple rules is contacted once."
+                subtitle={t('settings.routing.subtitle')}
                 actions={
                     <Button
                         variant="primary"
                         onClick={openCreate}
-                        aria-label="Add a new routing rule"
+                        aria-label={t('settings.routing.addRuleAria')}
                     >
-                        <FaPlus className="me-1" aria-hidden="true" /> New rule
+                        <FaPlus className="me-1" aria-hidden="true" /> {t('settings.routing.newRule')}
                     </Button>
                 }
             />
 
             {loading ? (
                 <div className="text-center py-4">
-                    <Spinner animation="border" size="sm" /> Loading…
+                    <Spinner animation="border" size="sm" /> {t('settings.routing.loading')}
                 </div>
             ) : rules.length === 0 ? (
                 <div className="ds-card text-center text-muted py-5 px-3">
-                    No routing rules yet. Create one to route incidents to your
-                    Delivery Channels.
+                    {t('settings.routing.empty')}
                 </div>
             ) : (
                 <Table hover responsive size="sm" className="table-stack settings-table routing-table">
                     <thead>
                         <tr>
-                            <th>Name</th>
-                            <th>Match</th>
-                            <th>Targets</th>
-                            <th>Priority</th>
-                            <th>Active</th>
+                            <th>{t('settings.routing.colName')}</th>
+                            <th>{t('settings.routing.colMatch')}</th>
+                            <th>{t('settings.routing.colTargets')}</th>
+                            <th>{t('settings.routing.priority')}</th>
+                            <th>{t('settings.routing.active')}</th>
                             <th style={{ width: 100 }}></th>
                         </tr>
                     </thead>
@@ -193,19 +192,19 @@ const RoutingRulesSettings = () => {
                                     ))}
                                     {(r.environments || []).map((e) => (
                                         <Badge key={e} bg="info" className="me-1">
-                                            env: {e}
+                                            {t('settings.routing.envBadge', { value: e })}
                                         </Badge>
                                     ))}
                                     {(r.services || []).map((s) => (
                                         <Badge key={s} bg="light" text="dark" className="me-1">
-                                            svc: {s}
+                                            {t('settings.routing.svcBadge', { value: s })}
                                         </Badge>
                                     ))}
                                     {!r.min_severity
                                         && (!r.event_types || r.event_types.length === 0)
                                         && (!r.environments || r.environments.length === 0)
                                         && (!r.services || r.services.length === 0)
-                                        && <span className="text-muted">any incident</span>}
+                                        && <span className="text-muted">{t('settings.routing.anyIncident')}</span>}
                                 </td>
                                 <td>
                                     {((r.target_ids || (r.targets || []).map((t) => t.id || t))
@@ -219,15 +218,15 @@ const RoutingRulesSettings = () => {
                                 <td>{r.priority ?? 100}</td>
                                 <td>
                                     {r.is_active
-                                        ? <Badge bg="success">Yes</Badge>
-                                        : <Badge bg="secondary">No</Badge>}
+                                        ? <Badge bg="success">{t('common.yes')}</Badge>
+                                        : <Badge bg="secondary">{t('common.no')}</Badge>}
                                 </td>
                                 <td>
                                     <Button
                                         variant="link"
                                         size="sm"
                                         onClick={() => openEdit(r)}
-                                        aria-label={`Edit rule ${r.name}`}
+                                        aria-label={t('settings.routing.editRuleAria', { name: r.name })}
                                     >
                                         <FaEdit aria-hidden="true" />
                                     </Button>
@@ -236,7 +235,7 @@ const RoutingRulesSettings = () => {
                                         size="sm"
                                         className="text-danger"
                                         onClick={() => handleDelete(r)}
-                                        aria-label={`Delete rule ${r.name}`}
+                                        aria-label={t('settings.routing.deleteRuleAria', { name: r.name })}
                                     >
                                         <FaTrash aria-hidden="true" />
                                     </Button>
@@ -249,52 +248,52 @@ const RoutingRulesSettings = () => {
 
             <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
                 <Modal.Header closeButton>
-                    <Modal.Title>{editing ? 'Edit routing rule' : 'New routing rule'}</Modal.Title>
+                    <Modal.Title>{editing ? t('settings.routing.editTitle') : t('settings.routing.newTitle')}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
                         <Form.Group className="mb-3">
-                            <Form.Label>Name</Form.Label>
+                            <Form.Label>{t('settings.routing.name')}</Form.Label>
                             <Form.Control
                                 value={form.name}
                                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                placeholder="e.g. SRE — prod criticals"
+                                placeholder={t('settings.routing.namePlaceholder')}
                             />
                         </Form.Group>
 
                         <div className="row">
                             <Form.Group className="mb-3 col-md-6">
-                                <Form.Label>Min severity</Form.Label>
+                                <Form.Label>{t('settings.routing.minSeverity')}</Form.Label>
                                 <Form.Select
                                     value={form.min_severity}
                                     onChange={(e) => setForm({ ...form, min_severity: e.target.value })}
-                                    aria-label="Minimum severity floor"
+                                    aria-label={t('settings.routing.minSeverityAria')}
                                 >
                                     {SEVERITY_CHOICES.map((s) => (
-                                        <option key={s} value={s}>{s || 'any severity'}</option>
+                                        <option key={s} value={s}>{s || t('settings.routing.anySeverity')}</option>
                                     ))}
                                 </Form.Select>
                             </Form.Group>
 
                             <Form.Group className="mb-3 col-md-6">
-                                <Form.Label>Priority</Form.Label>
+                                <Form.Label>{t('settings.routing.priority')}</Form.Label>
                                 <Form.Control
                                     type="number"
                                     value={form.priority}
                                     onChange={(e) => setForm({ ...form, priority: parseInt(e.target.value || 100, 10) })}
                                 />
-                                <Form.Text muted>Lower = evaluated earlier (informational).</Form.Text>
+                                <Form.Text muted>{t('settings.routing.priorityHelp')}</Form.Text>
                             </Form.Group>
                         </div>
 
                         <Form.Group className="mb-3">
-                            <Form.Label>Event types</Form.Label>
+                            <Form.Label>{t('settings.routing.eventTypes')}</Form.Label>
                             {EVENT_CHOICES.map(([code, label]) => (
                                 <Form.Check
                                     key={code}
                                     type="checkbox"
                                     id={`event-${code}`}
-                                    label={label}
+                                    label={t(label)}
                                     checked={form.event_types.includes(code)}
                                     onChange={(e) => {
                                         const next = new Set(form.event_types);
@@ -304,11 +303,11 @@ const RoutingRulesSettings = () => {
                                     }}
                                 />
                             ))}
-                            <Form.Text muted>Empty = every event.</Form.Text>
+                            <Form.Text muted>{t('settings.routing.eventTypesHelp')}</Form.Text>
                         </Form.Group>
 
                         <Form.Group className="mb-3">
-                            <Form.Label>Environments (comma-separated)</Form.Label>
+                            <Form.Label>{t('settings.routing.environments')}</Form.Label>
                             <Form.Control
                                 value={listToCsv(form.environments)}
                                 onChange={(e) => setForm({ ...form, environments: csvToList(e.target.value) })}
@@ -317,7 +316,7 @@ const RoutingRulesSettings = () => {
                         </Form.Group>
 
                         <Form.Group className="mb-3">
-                            <Form.Label>Services (comma-separated)</Form.Label>
+                            <Form.Label>{t('settings.routing.services')}</Form.Label>
                             <Form.Control
                                 value={listToCsv(form.services)}
                                 onChange={(e) => setForm({ ...form, services: csvToList(e.target.value) })}
@@ -326,11 +325,10 @@ const RoutingRulesSettings = () => {
                         </Form.Group>
 
                         <Form.Group className="mb-3">
-                            <Form.Label>Target channels</Form.Label>
+                            <Form.Label>{t('settings.routing.targetChannels')}</Form.Label>
                             {channels.length === 0 ? (
                                 <Alert variant="warning" className="small">
-                                    No delivery channels configured yet. Create one under
-                                    Settings → Delivery Channels first.
+                                    {t('settings.routing.noChannels')}
                                 </Alert>
                             ) : (
                                 channels.map((c) => (
@@ -354,7 +352,7 @@ const RoutingRulesSettings = () => {
                         <Form.Check
                             type="switch"
                             id="rule-active"
-                            label="Active"
+                            label={t('settings.routing.active')}
                             checked={form.is_active}
                             onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
                         />
@@ -362,10 +360,10 @@ const RoutingRulesSettings = () => {
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowModal(false)}>
-                        Cancel
+                        {t('common.cancel')}
                     </Button>
                     <Button variant="primary" onClick={handleSave} disabled={saving}>
-                        {saving ? <Spinner animation="border" size="sm" /> : 'Save rule'}
+                        {saving ? <Spinner animation="border" size="sm" /> : t('settings.routing.saveRule')}
                     </Button>
                 </Modal.Footer>
             </Modal>

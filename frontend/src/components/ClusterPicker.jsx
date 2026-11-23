@@ -135,7 +135,9 @@ const ClusterPicker = () => {
     );
 };
 
-const FilterChip = ({ icon, label, onClear }) => (
+const FilterChip = ({ icon, label, onClear }) => {
+    const { t } = useTranslation();
+    return (
     <span className="d-inline-flex align-items-center gap-1 badge rounded-pill bg-primary bg-opacity-10 text-primary px-2 py-1 border border-primary border-opacity-25">
         <span style={{ fontSize: 10 }}>{icon}</span>
         <span style={{ fontSize: 11 }}>{label}</span>
@@ -144,14 +146,17 @@ const FilterChip = ({ icon, label, onClear }) => (
             className="btn btn-sm p-0 ms-1 lh-1 text-primary"
             style={{ fontSize: 10 }}
             onClick={onClear}
-            aria-label="Clear filter"
+            aria-label={t('clusterPicker.clearFilter')}
         >
             <FaTimes />
         </button>
     </span>
-);
+    );
+};
 
-const ScopeInput = ({ icon, label, placeholder, value, onChange, onApply, disabled }) => (
+const ScopeInput = ({ icon, label, placeholder, value, onChange, onApply, disabled }) => {
+    const { t } = useTranslation();
+    return (
     <div className="mb-2">
         <div className="small text-muted mb-1 d-flex align-items-center gap-1">{icon} {label}</div>
         <InputGroup size="sm">
@@ -164,10 +169,11 @@ const ScopeInput = ({ icon, label, placeholder, value, onChange, onApply, disabl
                 onKeyDown={(e) => { if (e.key === 'Enter') onApply(); }}
             />
             <Button variant="outline-secondary" onClick={onApply} disabled={disabled || !value.trim()}>
-                Set
+                {t('clusterPicker.set')}
             </Button>
         </InputGroup>
     </div>
-);
+    );
+};
 
 export default ClusterPicker;

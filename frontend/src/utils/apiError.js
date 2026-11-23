@@ -15,7 +15,15 @@
  *   - no `response` at all  -> the request never completed (network, CORS, DNS,
  *     server down). Nothing can be said about the credentials.
  *   - a `response`          -> the server answered and its status is the truth.
+ *
+ * Our own messages are in the translation files (apiError.*); the constants
+ * below are their English text, used until i18next is set up (src/i18n.js).
+ * This file reads the i18next instance directly, not src/i18n.js, so it can
+ * be loaded where react-i18next is mocked.
  */
+import i18next from "i18next";
+
+const say = (key, english, options) => (i18next.isInitialized ? i18next.t(key, options) : english);
 
 export const NETWORK_ERROR =
   "Could not reach the server. Check that the API is running and that your " +
@@ -29,9 +37,9 @@ export const RATE_LIMITED = "Too many attempts. Try again later.";
 // DRF's throttle answer: "Request was throttled. Expected available in 3412 seconds."
 function rateLimitMessage(detail) {
   const seconds = Number(String(detail || "").match(/available in (\d+) second/)?.[1]);
-  if (!seconds) return RATE_LIMITED;
+  if (!seconds) return say("apiError.rateLimited", RATE_LIMITED);
   const minutes = Math.ceil(seconds / 60);
-  return `Too many attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
+  return say("apiError.rateLimitedFor", `Too many attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`, { count: minutes });
 }
 
 // First message of a DRF validation error ({"user": {"email": ["..."]}}).
@@ -64,7 +72,7 @@ export function describeRequestError(error, rejectedMsg) {
   // No response: the request never made it back. Never attribute this to the
   // credentials — they were never checked.
   if (!response) {
-    return NETWORK_ERROR;
+    return say("apiError.network", NETWORK_ERROR);
   }
 
   // Prefer whatever the server said; it knows more than we do.
@@ -79,7 +87,7 @@ export function describeRequestError(error, rejectedMsg) {
   if (response.status === 429) return rateLimitMessage(response.data?.detail);
   if (typeof response.data?.detail === "string") return response.data.detail;
 
-  if (response.status >= 500) return SERVER_ERROR;
+  if (response.status >= 500) return say("apiError.server", SERVER_ERROR);
 
   if (response.status === 400) {
     const field = firstFieldError(response.data);

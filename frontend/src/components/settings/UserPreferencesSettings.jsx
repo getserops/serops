@@ -366,13 +366,13 @@ const UserPreferencesSettings = () => {
                                     <strong>{sub.project_name}</strong>
                                     <div className="mt-1">
                                         {sub.notify_critical && (
-                                            <Badge bg="danger" className="me-1">Critical</Badge>
+                                            <Badge bg="danger" className="me-1">{t('notifications.panel.severities.CRITICAL')}</Badge>
                                         )}
                                         {sub.notify_warning && (
-                                            <Badge bg="warning" className="me-1">Warning</Badge>
+                                            <Badge bg="warning" className="me-1">{t('notifications.panel.severities.WARNING')}</Badge>
                                         )}
                                         {sub.notify_info && (
-                                            <Badge bg="info">Info</Badge>
+                                            <Badge bg="info">{t('notifications.panel.severities.INFO')}</Badge>
                                         )}
                                     </div>
                                 </div>

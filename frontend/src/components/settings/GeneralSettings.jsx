@@ -91,12 +91,12 @@ const GeneralSettings = () => {
 
         e.target.value = '';
         if (!file.type.startsWith('image/')) {
-            toast.error('Please select an image file');
+            toast.error(t('settings.general.organisation.notImage'));
             return;
         }
 
         if (file.size > 2 * 1024 * 1024) {
-            toast.error('Image must be less than 2MB');
+            toast.error(t('settings.general.organisation.imageTooLarge'));
             return;
         }
 
@@ -176,7 +176,7 @@ const GeneralSettings = () => {
                     ) : settings.logoUrl ? (
                         <img
                             src={settings.logoUrl}
-                            alt="Organisation Logo"
+                            alt={t('settings.general.organisation.logoAlt')}
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         />
                     ) : (
@@ -212,10 +212,10 @@ const GeneralSettings = () => {
                         className="form-control"
                         value={settings.orgName}
                         disabled
-                        title="Organisation name is used for data indexing and cannot be changed safely."
+                        title={t('settings.general.organisation.nameLockedTitle')}
                     />
                     <small className="text-muted">
-                        Changes to organisation name are restricted to prevent data loss (metrics & logs dependency).
+                        {t('settings.general.organisation.nameLockedHint')}
                     </small>
                 </div>
 

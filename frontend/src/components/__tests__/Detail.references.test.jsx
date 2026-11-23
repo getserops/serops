@@ -139,7 +139,7 @@ describe('Detail', () => {
       const b = batch({ issue: { description: long, recommendation: 'Raise the pool to 50' } });
       b.issues.push({ id: 2, severity: 'WARNING', status: 'RESOLVED', description: 'Cache is cold after the restart', component: 'cache', recommendation: 'Warm it at start' });
       await renderBatch(b);
-      expect(screen.getByText('2 issues detected')).toBeTruthy();
+      expect(screen.getByText('detail.preview.detected {"n":2}')).toBeTruthy();
       expect(screen.getByText('Cache is cold after the restart')).toBeTruthy();
       expect(screen.getAllByText(/Raise the pool to 50/)).toHaveLength(1);
       expect(screen.getByText(/Warm it at start/)).toBeTruthy();

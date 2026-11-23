@@ -18,6 +18,8 @@ import { tracePath } from "../utils/linkTargets";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import "./Issues.css";
 import { formatAbsolute, formatRelative, formatTime } from '../utils/dates';
+import useElementWidth from "../hooks/useElementWidth";
+import { issuesTier } from "../utils/issuesLayout";
 
 // --- Utility helpers (exported for testing) ---
 
@@ -138,6 +140,9 @@ const Issues = () => {
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const tableRef = useRef(null);
+  // The layout follows the room the list's own card has (utils/issuesLayout.js).
+  const cardRef = useRef(null);
+  const cardWidth = useElementWidth(cardRef);
 
   // Column visibility state — merge saved with defaults so new columns get their default value
   const [visibleColumns, setVisibleColumns] = useState(() => {
@@ -190,6 +195,8 @@ const Issues = () => {
     status: 'status',
     actions: null,
   };
+
+  const tier = issuesTier(cardWidth, visibleColumns);
 
   const toggleColumn = (column) => {
     if (column === 'actions') return;
@@ -754,7 +761,7 @@ const Issues = () => {
         </div>
       )}
 
-      <div className="issues-page-card">
+      <div className="issues-page-card" ref={cardRef}>
         {/* Filter toolbar */}
         <div className="issues-toolbar">
           <InputGroup className="issues-search">
@@ -886,7 +893,7 @@ const Issues = () => {
             </div>
           )
         ) : (
-          <div className="table-responsive issues-table-wrap" ref={tableRef}>
+          <div className={`table-responsive issues-table-wrap issues-tier-${tier}`} ref={tableRef}>
             <Table hover className="align-middle mb-0" style={{ tableLayout: 'fixed', width: '100%' }}>
               <thead className="bg-light">
                 <tr>
@@ -902,7 +909,7 @@ const Issues = () => {
                   </th>
                   {visibleColumns.id && <th className="py-3 border-bottom" style={{ width: '56px' }}>{columnLabels.id}</th>}
                   {visibleColumns.type && (
-                    <th className="py-3 border-bottom" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('type')}>
+                    <th className="py-3 border-bottom issue-col-type" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('type')}>
                       {columnLabels.type}{renderSortIcon('type')}
                     </th>
                   )}
@@ -913,32 +920,48 @@ const Issues = () => {
                   )}
                   {visibleColumns.description && (
                     <th className="py-3 border-bottom" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('description')}>
-                      {columnLabels.description}{renderSortIcon('description')}
+                      {tier === 'compact' ? (
+                        // The two columns that moved under the description keep
+                        // their sort control, here.
+                        <span className="issue-th-sorts">
+                          <span>{columnLabels.description}{renderSortIcon('description')}</span>
+                          {visibleColumns.lastSeen && (
+                            <button type="button" className="issue-th-sort" onClick={(e) => { e.stopPropagation(); handleSort('lastSeen'); }}>
+                              {columnLabels.lastSeen}{renderSortIcon('lastSeen')}
+                            </button>
+                          )}
+                          {visibleColumns.count && (
+                            <button type="button" className="issue-th-sort" onClick={(e) => { e.stopPropagation(); handleSort('count'); }}>
+                              {columnLabels.count}{renderSortIcon('count')}
+                            </button>
+                          )}
+                        </span>
+                      ) : <>{columnLabels.description}{renderSortIcon('description')}</>}
                     </th>
                   )}
                   {visibleColumns.age && (
-                    <th className="py-3 border-bottom" style={{ width: '124px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('age')}>
+                    <th className="py-3 border-bottom issue-col-age" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('age')}>
                       {columnLabels.age}{renderSortIcon('age')}
                     </th>
                   )}
                   {visibleColumns.lastSeen && (
-                    <th className="py-3 border-bottom" style={{ width: '124px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('lastSeen')}>
+                    <th className="py-3 border-bottom issue-col-seen" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('lastSeen')}>
                       {columnLabels.lastSeen}{renderSortIcon('lastSeen')}
                     </th>
                   )}
-                  {visibleColumns.correlations && <th className="py-3 border-bottom">{columnLabels.correlations}</th>}
+                  {visibleColumns.correlations && <th className="py-3 border-bottom issue-col-correlations">{columnLabels.correlations}</th>}
                   {visibleColumns.count && (
                     <th className="py-3 border-bottom text-center issue-col-count" style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} onClick={() => handleSort('count')}>
                       {columnLabels.count}{renderSortIcon('count')}
                     </th>
                   )}
                   {visibleColumns.severity && (
-                    <th className="py-3 border-bottom" style={{ width: '136px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('severity')}>
+                    <th className="py-3 border-bottom issue-col-severity" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('severity')}>
                       {columnLabels.severity}{renderSortIcon('severity')}
                     </th>
                   )}
                   {visibleColumns.status && (
-                    <th className="py-3 border-bottom text-center" style={{ width: '104px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('status')}>
+                    <th className="py-3 border-bottom text-center issue-col-status" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('status')}>
                       {columnLabels.status}{renderSortIcon('status')}
                     </th>
                   )}
@@ -975,7 +998,7 @@ const Issues = () => {
                       </td>
                       {visibleColumns.id && <td className="py-3 text-muted small issue-cell-meta">#{issue.id}</td>}
                       {visibleColumns.type && (
-                        <td className="py-3 issue-cell-meta">
+                        <td className="py-3 issue-cell-meta" data-label={columnLabels.type}>
                           <code className="bg-light px-2 py-1 rounded small">{issue.issue_type || 'OTHER'}</code>
                         </td>
                       )}
@@ -1008,29 +1031,40 @@ const Issues = () => {
                               <span className="text-dark issue-description-clamp" title={issue.description}>
                                 {headline(issue.description) || issue.description}
                               </span>
+                              {/* Compact layout: the two columns that left the table. */}
+                              {tier === 'compact' && (visibleColumns.lastSeen || visibleColumns.count) && (
+                                <span className="issue-row-meta">
+                                  {visibleColumns.lastSeen && (
+                                    <span title={formatAbsolute(issue.last_seen_at || issue.created_at)}>
+                                      {columnLabels.lastSeen} {formatAge(issue.last_seen_at || issue.created_at)}
+                                    </span>
+                                  )}
+                                  {visibleColumns.count && <span>{columnLabels.count} {issue.occurrence_count}&times;</span>}
+                                </span>
+                              )}
                             </span>
                           </div>
                         </td>
                       )}
                       {visibleColumns.age && (
-                        <td className="py-3 issue-cell-meta">
+                        <td className="py-3 issue-cell-meta" data-label={columnLabels.age}>
                           <OverlayTrigger overlay={<Tooltip>{formatAbsolute(issue.created_at)}</Tooltip>}>
                             <span className="text-muted small">{formatAge(issue.created_at)}</span>
                           </OverlayTrigger>
                         </td>
                       )}
                       {visibleColumns.lastSeen && (
-                        <td className="py-3 issue-cell-meta">
+                        <td className="py-3 issue-cell-meta issue-cell-seen" data-label={columnLabels.lastSeen}>
                           <OverlayTrigger overlay={<Tooltip>{formatAbsolute(issue.last_seen_at || issue.created_at)}</Tooltip>}>
                             <span className="text-muted small">{formatAge(issue.last_seen_at || issue.created_at)}</span>
                           </OverlayTrigger>
                         </td>
                       )}
                       {visibleColumns.correlations && (
-                        <td className="py-3 issue-cell-meta">{renderCorrelationBadges(issue)}</td>
+                        <td className="py-3 issue-cell-meta" data-label={columnLabels.correlations}>{renderCorrelationBadges(issue)}</td>
                       )}
                       {visibleColumns.count && (
-                        <td className="text-center issue-cell-meta">
+                        <td className="text-center issue-cell-meta issue-cell-count" data-label={columnLabels.count}>
                           <span className={`px-2 py-1 rounded count-heat-${heatLevel}`}>
                             {issue.occurrence_count}&times;
                           </span>

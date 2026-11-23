@@ -4,7 +4,7 @@ description: "Every feature in SerOps Community stays in Community, under AGPL-3
 ---
 # Our open source promise
 
-**Effective 21 October 2026, updated 22 November 2026.** Every change to this page is public: see its
+**Effective 21 October 2026, updated 23 November 2026.** Every change to this page is public: see its
 [history](https://github.com/getserops/serops/commits/main/docs/src/open-source-promise.md).
 [Version française ci-dessous](#notre-engagement-open-source).
 
@@ -14,7 +14,7 @@ description: "Every feature in SerOps Community stays in Community, under AGPL-3
 
 SerOps comes in three forms:
 
-- **Community**: the complete product, open source under the
+- **Community**: the full root cause analysis, open source under the
   [AGPL-3.0](license.md), self-hosted, free.
 - **Cloud** (planned for 2027): the same product, run by us.
 - **Business and Enterprise** (paid licenses): Community plus the paid
@@ -99,10 +99,12 @@ Everything SerOps does as of **v1.2.4**, the last release before this page:
 - **No limits** on users, projects, services or data.
 - **SSO groups and teams** (from 1.3.0): map identity-provider groups to
   roles and teams, and group members into teams.
-- **Enforced single sign-on and tamper-evident audit export**, when they
-  ship: requiring every sign-in to go through your identity provider, and
-  proving that an audit export was not altered. They protect one install,
-  so they belong here.
+- **Require single sign-on** (since 1.4.0): members sign in only through
+  your identity provider; the organisation's admins keep a password as a
+  way back in.
+- **Tamper-evident audit export**, when it ships: proving that an audit
+  export was not altered. Like required single sign-on, it protects one
+  install, so it belongs here.
 
 ## What a paid license adds { #what-enterprise-adds }
 
@@ -143,7 +145,7 @@ made it precise before any paid feature was built.
 
 ## Notre engagement open source
 
-**En vigueur le 21 octobre 2026, mis à jour le 13 novembre 2026.** Chaque modification de cette page est
+**En vigueur le 21 octobre 2026, mis à jour le 23 novembre 2026.** Chaque modification de cette page est
 publique : voir son
 [historique](https://github.com/getserops/serops/commits/main/docs/src/open-source-promise.md).
 
@@ -154,7 +156,7 @@ publique : voir son
 
 SerOps existe sous trois formes :
 
-- **Community** : le produit complet, open source sous
+- **Community** : toute l'analyse de cause racine, open source sous
   [AGPL-3.0](license.md), auto-hébergé, gratuit.
 - **Cloud** (prévu en 2027) : le même produit, opéré par nous.
 - **Business et Enterprise** (licences payantes) : Community plus les
@@ -221,10 +223,12 @@ avant cette page :
 - **Groupes SSO et équipes** (à partir de 1.3.0) : associer les groupes du
   fournisseur d'identité aux rôles et aux équipes, et regrouper les membres
   en équipes.
-- **SSO imposé et export d'audit infalsifiable**, dès leur sortie : exiger
-  que chaque connexion passe par votre fournisseur d'identité, et prouver
-  qu'un export d'audit n'a pas été modifié. Ils protègent une installation,
-  ils ont donc leur place ici.
+- **Exiger l'authentification unique** (depuis 1.4.0) : les membres ne se
+  connectent que par votre fournisseur d'identité ; les administrateurs de
+  l'organisation gardent un mot de passe pour pouvoir toujours se connecter.
+- **Export d'audit infalsifiable**, dès sa sortie : prouver qu'un export
+  d'audit n'a pas été modifié. Comme l'authentification unique exigée, il
+  protège une installation, il a donc sa place ici.
 
 ### Ce qu'une licence payante ajoute
 

@@ -6,12 +6,13 @@
 import React from "react";
 import { Form } from "react-bootstrap";
 import { FaDatabase, FaMemory, FaStream, FaCogs } from "react-icons/fa";
+import { useTranslation } from "react-i18next";
 
 const infraTypes = [
-    { id: "database", label: "Database", icon: FaDatabase },
-    { id: "cache", label: "Cache", icon: FaMemory },
-    { id: "queue", label: "Queue", icon: FaStream },
-    { id: "other", label: "Other", icon: FaCogs },
+    { id: "database", labelKey: "addService.database", icon: FaDatabase },
+    { id: "cache", labelKey: "addService.cache", icon: FaMemory },
+    { id: "queue", labelKey: "addService.queue", icon: FaStream },
+    { id: "other", labelKey: "addService.other", icon: FaCogs },
 ];
 
 const infraProviders = {
@@ -22,16 +23,17 @@ const infraProviders = {
 };
 
 const StepInfraDetails = ({ formData, updateFormData }) => {
+    const { t } = useTranslation();
     return (
         <div className="wizard-step-content">
-            <h5 className="wizard-step-title">Infrastructure Details</h5>
+            <h5 className="wizard-step-title">{t('addServiceWizard.infra.title')}</h5>
             <p className="wizard-step-subtitle">
-                Configure your infrastructure service.
+                {t('addServiceWizard.infra.subtitle')}
             </p>
 
             {/* Infrastructure Type */}
             <div className="wizard-form-section">
-                <span className="wizard-form-label d-block" id="wizard-infra-type">Type</span>
+                <span className="wizard-form-label d-block" id="wizard-infra-type">{t('services.type')}</span>
                 <div className="infra-type-pills" role="group" aria-labelledby="wizard-infra-type">
                     {infraTypes.map((type) => {
                         const Icon = type.icon;
@@ -46,7 +48,7 @@ const StepInfraDetails = ({ formData, updateFormData }) => {
                                 onClick={() => updateFormData({ infraType: type.id, infraProvider: '' })}
                             >
                                 <Icon className="me-2" />
-                                {type.label}
+                                {t(type.labelKey)}
                             </button>
                         );
                     })}
@@ -56,16 +58,16 @@ const StepInfraDetails = ({ formData, updateFormData }) => {
             {/* Provider Selection */}
             {formData.infraType && (
                 <div className="wizard-form-section">
-                    <label className="wizard-form-label" htmlFor="wizard-infradetails-1">Provider</label>
+                    <label className="wizard-form-label" htmlFor="wizard-infradetails-1">{t('addServiceWizard.infra.provider')}</label>
                     <Form.Select id="wizard-infradetails-1"
                         value={formData.infraProvider || ""}
                         onChange={(e) => updateFormData({ infraProvider: e.target.value })}
                         className="rounded-3"
                     >
-                        <option value="">Select provider...</option>
+                        <option value="">{t('addServiceWizard.infra.selectProvider')}</option>
                         {infraProviders[formData.infraType]?.map(provider => (
                             <option key={provider} value={provider.toLowerCase()}>
-                                {provider}
+                                {provider === "Custom" ? t('addService.custom') : provider}
                             </option>
                         ))}
                     </Form.Select>
@@ -74,10 +76,10 @@ const StepInfraDetails = ({ formData, updateFormData }) => {
 
             {/* Service Name */}
             <div className="wizard-form-section">
-                <label className="wizard-form-label" htmlFor="wizard-infradetails-2">Service Name *</label>
+                <label className="wizard-form-label" htmlFor="wizard-infradetails-2">{t('addServiceWizard.serviceNameRequired')}</label>
                 <Form.Control id="wizard-infradetails-2"
                     type="text"
-                    placeholder="e.g., User Database, Redis Cache"
+                    placeholder={t('addServiceWizard.infra.nameExample')}
                     value={formData.serviceName || ""}
                     onChange={(e) => updateFormData({ serviceName: e.target.value })}
                     className="rounded-3"
@@ -87,11 +89,11 @@ const StepInfraDetails = ({ formData, updateFormData }) => {
 
             {/* Description */}
             <div className="wizard-form-section">
-                <label className="wizard-form-label" htmlFor="wizard-infradetails-3">Description (optional)</label>
+                <label className="wizard-form-label" htmlFor="wizard-infradetails-3">{t('addServiceWizard.infra.descriptionOptional')}</label>
                 <Form.Control id="wizard-infradetails-3"
                     as="textarea"
                     rows={2}
-                    placeholder="Role and connections — used by AI for analysis"
+                    placeholder={t('addServiceWizard.infra.descriptionPlaceholder')}
                     value={formData.description || ""}
                     onChange={(e) => updateFormData({ description: e.target.value })}
                     className="rounded-3"

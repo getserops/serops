@@ -13,6 +13,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     Alert,
     Button,
@@ -32,12 +33,13 @@ import {
 import apiClient from '../../../services/api-client';
 
 const SERVICE_TYPES = [
-    { code: 'application', label: 'Application (code-based service)' },
-    { code: 'infrastructure', label: 'Infrastructure (DB, cache, queue)' },
-    { code: 'custom', label: 'Custom (legacy / manual entry)' },
+    { code: 'application', labelKey: 'linkServiceModal.type.application' },
+    { code: 'infrastructure', labelKey: 'linkServiceModal.type.infrastructure' },
+    { code: 'custom', labelKey: 'linkServiceModal.type.custom' },
 ];
 
 export default function LinkServiceModal({ open, onClose, onSaved }) {
+    const { t } = useTranslation();
     const [projects, setProjects] = useState([]);
     const [projectId, setProjectId] = useState('');
     const [name, setName] = useState('');
@@ -69,13 +71,13 @@ export default function LinkServiceModal({ open, onClose, onSaved }) {
                 }
             } catch (err) {
                 if (!cancelled) {
-                    setError('Failed to load projects');
+                    setError(t('linkServiceModal.loadFailed'));
                     setLoadingProjects(false);
                 }
             }
         })();
         return () => { cancelled = true; };
-    }, [open]);
+    }, [open, t]);
 
     useEffect(() => {
         if (!open) resetState();
@@ -104,7 +106,7 @@ export default function LinkServiceModal({ open, onClose, onSaved }) {
                             .map(([f, m]) => `${f}: ${Array.isArray(m) ? m.join(', ') : m}`)
                             .join('; ')
                         : null)
-                    || 'Failed to link service';
+                    || t('linkServiceModal.saveFailed');
             setError(message);
         } finally {
             setSaving(false);
@@ -119,24 +121,24 @@ export default function LinkServiceModal({ open, onClose, onSaved }) {
 
     return (
         <Dialog open={open} onClose={handleClose} fullWidth maxWidth="xs">
-            <DialogTitle>Link a service</DialogTitle>
+            <DialogTitle>{t('linkServiceStep.title')}</DialogTitle>
             <DialogContent dividers>
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
                 {loadingProjects ? (
-                    <CircularProgress aria-label="Loading" sx={{ mx: 'auto', display: 'block', my: 3 }} />
+                    <CircularProgress aria-label={t('onboarding.loading')} sx={{ mx: 'auto', display: 'block', my: 3 }} />
                 ) : projects.length === 0 ? (
                     <Alert severity="warning">
-                        No projects yet — create one before linking a service.
+                        {t('linkServiceModal.noProjects')}
                     </Alert>
                 ) : (
                     <>
                         <FormControl fullWidth sx={{ mb: 2 }}>
-                            <InputLabel id="ls-project-label">Project</InputLabel>
+                            <InputLabel id="ls-project-label">{t('globalIntegrations.project')}</InputLabel>
                             <Select
                                 labelId="ls-project-label"
                                 value={projectId}
-                                label="Project"
+                                label={t('globalIntegrations.project')}
                                 onChange={(e) => setProjectId(e.target.value)}
                             >
                                 {projects.map((p) => (
@@ -151,44 +153,43 @@ export default function LinkServiceModal({ open, onClose, onSaved }) {
                             fullWidth
                             autoFocus
                             sx={{ mb: 2 }}
-                            label="Service name"
+                            label={t('linkServiceModal.serviceName')}
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             inputProps={{ maxLength: 255 }}
-                            helperText="e.g. payments-api, checkout-worker, postgres-primary"
+                            helperText={t('linkServiceModal.serviceNameHelp')}
                         />
 
                         <FormControl fullWidth>
-                            <InputLabel id="ls-type-label">Service type</InputLabel>
+                            <InputLabel id="ls-type-label">{t('linkServiceModal.serviceType')}</InputLabel>
                             <Select
                                 labelId="ls-type-label"
                                 value={serviceType}
-                                label="Service type"
+                                label={t('linkServiceModal.serviceType')}
                                 onChange={(e) => setServiceType(e.target.value)}
                             >
-                                {SERVICE_TYPES.map((t) => (
-                                    <MenuItem key={t.code} value={t.code}>
-                                        {t.label}
+                                {SERVICE_TYPES.map((st) => (
+                                    <MenuItem key={st.code} value={st.code}>
+                                        {t(st.labelKey)}
                                     </MenuItem>
                                 ))}
                             </Select>
                             <FormHelperText>
-                                Application services can be linked to a Git repo
-                                later for deploy-correlation.
+                                {t('linkServiceModal.serviceTypeHelp')}
                             </FormHelperText>
                         </FormControl>
                     </>
                 )}
             </DialogContent>
             <DialogActions>
-                <Button onClick={handleClose} disabled={saving}>Cancel</Button>
+                <Button onClick={handleClose} disabled={saving}>{t('common.cancel')}</Button>
                 <Button
                     variant="contained"
                     onClick={handleSave}
                     disabled={!canSubmit()}
-                    startIcon={saving ? <CircularProgress aria-label="Loading" size={16} /> : null}
+                    startIcon={saving ? <CircularProgress aria-label={t('onboarding.loading')} size={16} /> : null}
                 >
-                    Link service
+                    {t('linkServiceStep.link')}
                 </Button>
             </DialogActions>
         </Dialog>

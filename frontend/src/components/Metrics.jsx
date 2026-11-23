@@ -177,6 +177,13 @@ const Metrics = () => {
         });
   };
 
+  // The filter values are compared in code; only their labels are translated.
+  const typeLabels = {
+    "Memory Usage": t("metrics.memoryUsage"),
+    "CPU Usage": t("metrics.cpuUsage"),
+    Issues: t("nav.issues"),
+  };
+
   const handleFilterChange = (key, value) => {
     if (key === "type") {
       if (value === "Logs") return;
@@ -241,12 +248,12 @@ const Metrics = () => {
         actions={
           <Dropdown onSelect={(value) => handleFilterChange("type", value)} className="filter-dropdown">
             <Dropdown.Toggle variant="light" className="d-flex align-items-center justify-content-between gap-2">
-              {filters.type}
+              {typeLabels[filters.type] || filters.type}
             </Dropdown.Toggle>
             <Dropdown.Menu>
-              <Dropdown.Item eventKey="Memory Usage">Memory Usage</Dropdown.Item>
-              <Dropdown.Item eventKey="CPU Usage">CPU Usage</Dropdown.Item>
-              <Dropdown.Item eventKey="Issues">Issues</Dropdown.Item>
+              <Dropdown.Item eventKey="Memory Usage">{t('metrics.memoryUsage')}</Dropdown.Item>
+              <Dropdown.Item eventKey="CPU Usage">{t('metrics.cpuUsage')}</Dropdown.Item>
+              <Dropdown.Item eventKey="Issues">{t('nav.issues')}</Dropdown.Item>
             </Dropdown.Menu>
           </Dropdown>
         }
@@ -336,8 +343,8 @@ const Metrics = () => {
                                 // value of it — "95% peak" with no service
                                 // attached is an observation, not a diagnosis.
                                 item?.payload?.service
-                                  ? `Memory Usage · ${item.payload.service}`
-                                  : 'Memory Usage',
+                                  ? `${t('metrics.memoryUsage')} · ${item.payload.service}`
+                                  : t('metrics.memoryUsage'),
                               ]}
                               labelFormatter={(timestamp) =>
                                 formatTimestamp(timestamp, false)
@@ -486,8 +493,8 @@ const Metrics = () => {
                                 // value of it — "95% peak" with no service
                                 // attached is an observation, not a diagnosis.
                                 item?.payload?.service
-                                  ? `CPU Usage · ${item.payload.service}`
-                                  : 'CPU Usage',
+                                  ? `${t('metrics.cpuUsage')} · ${item.payload.service}`
+                                  : t('metrics.cpuUsage'),
                               ]}
                               labelFormatter={(timestamp) =>
                                 formatTimestamp(timestamp, false)

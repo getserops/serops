@@ -1,4 +1,4 @@
-ID,Domain (CSA CCM v4),Question,Answer,Source
+ID,Domain (CSA CCM v4),Question,Answer (SerOps 1.5.2),Source
 A&A-01,Audit and assurance,"Do you hold an independent certification or audit report (SOC 2, ISO 27001)?",No. SerOps is software you run yourself; SerOps the company holds none of your production data.,Vendor facts (https://serops.ai/docs/legal/vendor-facts/)
 A&A-02,Audit and assurance,Has an external penetration test been done?,"Planned, not done yet. Its report will be available to customers under NDA.",Support and security (https://serops.ai/docs/security/support/)
 AIS-01,Application and interface security,Is every change tested automatically before release?,"Yes. The test suites run in CI on every change, and Community is also tested with the ee/ directories removed.","Testing (https://serops.ai/docs/development/testing/), license (https://serops.ai/docs/license/)"

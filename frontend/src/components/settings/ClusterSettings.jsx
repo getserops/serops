@@ -24,6 +24,8 @@ import ClusterService from '../../services/cluster.service';
 import WorkloadsByCluster from '../WorkloadsByCluster';
 import './SettingsLayout.css';
 
+// Labels are the English fallback of clusters.providerChoice.<code>
+// (product names have no key).
 const PROVIDER_CHOICES = [
     ['kubernetes', 'Generic Kubernetes'],
     ['eks', 'AWS EKS'],
@@ -244,7 +246,7 @@ const ClusterSettings = () => {
                                 onChange={(e) => setForm({ ...form, provider: e.target.value })}
                             >
                                 {PROVIDER_CHOICES.map(([code, label]) => (
-                                    <option key={code} value={code}>{label}</option>
+                                    <option key={code} value={code}>{t(`clusters.providerChoice.${code}`, label)}</option>
                                 ))}
                             </Form.Select>
                         </Form.Group>

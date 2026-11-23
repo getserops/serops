@@ -70,15 +70,15 @@ const Register = () => {
     const errors = {};
     const { user, organisation } = formData;
 
-    if (!user.first_name) errors.first_name = "First name is required";
-    if (!user.last_name) errors.last_name = "Last name is required";
-    if (!organisation.name) errors.name = "Company name is required";
+    if (!user.first_name) errors.first_name = t("register.firstNameRequired");
+    if (!user.last_name) errors.last_name = t("register.lastNameRequired");
+    if (!organisation.name) errors.name = t("register.companyRequired");
     // Invite code validation is handled server-side (only required when BETA_INVITE_CODE is set)
 
     if (!user.email) {
-      errors.email = "Email is required";
+      errors.email = t("register.emailRequired");
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) {
-      errors.email = "Invalid email format";
+      errors.email = t("register.invalidEmail");
     }
 
     setFieldErrors(errors);
@@ -91,13 +91,13 @@ const Register = () => {
     const passwordRegex = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{10,}$/;
 
     if (!user.password) {
-      errors.password = "Password is required";
+      errors.password = t("register.passwordRequired");
     } else if (!passwordRegex.test(user.password)) {
-      errors.password = "Must be 10+ chars, 1 uppercase, 1 lowercase, 1 number";
+      errors.password = t("register.passwordRule");
     }
 
     if (user.password !== user.password_confirmation) {
-      errors.password_confirmation = "Passwords do not match";
+      errors.password_confirmation = t("register.passwordsMismatch");
     }
 
     setFieldErrors(errors);
@@ -145,7 +145,7 @@ const Register = () => {
         }
       })
       .catch((error) => {
-        setError(describeRequestError(error, "Registration failed"));
+        setError(describeRequestError(error, t("register.failed")));
         setLoading(false);
       });
   };
@@ -156,11 +156,11 @@ const Register = () => {
         <div className="form-container">
           <div className="form-header">
             <BrandMark className="form-logo" />
-            <h2>{step === 1 ? "Create Account" : "Secure your account"}</h2>
+            <h2>{step === 1 ? t("register.createAccount") : t("register.secureTitle")}</h2>
             <p>
               {step === 1
-                ? "Enter your details to get started"
-                : "Set a strong password to protect your data"}
+                ? t("register.detailsSubtitle")
+                : t("register.passwordSubtitle")}
             </p>
           </div>
 
@@ -170,7 +170,7 @@ const Register = () => {
               <>
                 <div className="label-row register-name-row">
                   <div className="form-group register-name-field">
-                    <label htmlFor="register-first_name">First Name</label>
+                    <label htmlFor="register-first_name">{t("team.firstName")}</label>
                     <div className="input-wrapper">
                       <FaUser className="input-icon" />
                       <input
@@ -185,7 +185,7 @@ const Register = () => {
                     </div>
                   </div>
                   <div className="form-group register-name-field">
-                    <label htmlFor="register-last_name">Last Name</label>
+                    <label htmlFor="register-last_name">{t("team.lastName")}</label>
                     <div className="input-wrapper">
                       <input
                         id="register-last_name"
@@ -200,10 +200,10 @@ const Register = () => {
                   </div>
                 </div>
                 {(fieldErrors.first_name || fieldErrors.last_name) &&
-                  <div className="error-text">Name is required</div>}
+                  <div className="error-text">{t("register.nameRequired")}</div>}
 
                 <div className="form-group">
-                  <label htmlFor="register-email">Work Email</label>
+                  <label htmlFor="register-email">{t("register.workEmail")}</label>
                   <div className="input-wrapper">
                     <FaEnvelope className="input-icon" />
                     <input
@@ -220,7 +220,7 @@ const Register = () => {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="register-name">Company Name</label>
+                  <label htmlFor="register-name">{t("register.companyName")}</label>
                   <div className="input-wrapper">
                     <FaBuilding className="input-icon" />
                     <input
@@ -237,7 +237,7 @@ const Register = () => {
                 </div>
 
                 <button type="submit" className="submit-btn submit-btn-spaced">
-                  Continue <FaArrowRight className="btn-icon" />
+                  {t("register.continue")} <FaArrowRight className="btn-icon" />
                 </button>
               </>
             )}
@@ -245,18 +245,18 @@ const Register = () => {
             {step === 2 && (
               <>
                 <button type="button" onClick={handleBack} className="back-step-link">
-                  <FaArrowLeft /> Back to details
+                  <FaArrowLeft /> {t("register.backToDetails")}
                 </button>
 
                 <div className="form-group">
-                  <label htmlFor="register-password">Password</label>
+                  <label htmlFor="register-password">{t("auth.password")}</label>
                   <div className="input-wrapper">
                     <FaLock className="input-icon" />
                     <input
                       id="register-password"
                       type={hidePassword ? "password" : "text"}
                       name="password"
-                      placeholder="Create a strong password"
+                      placeholder={t("register.passwordPlaceholder")}
                       value={formData.user.password}
                       onChange={handleChange}
                       className={fieldErrors.password ? "error" : ""}
@@ -265,27 +265,27 @@ const Register = () => {
                     <button
                       type="button"
                       className="toggle-password"
-                      aria-label={hidePassword ? "Show password" : "Hide password"}
+                      aria-label={hidePassword ? t("login.showPassword") : t("login.hidePassword")}
                       onClick={() => setHidePassword(!hidePassword)}
                     >
                       {hidePassword ? <FaEyeSlash /> : <FaEye />}
                     </button>
                   </div>
                   <span className="field-hint">
-                    Must be at least 10 characters, include 1 uppercase, 1 lowercase letter and 1 number.
+                    {t("register.passwordHint")}
                   </span>
                   {fieldErrors.password && <span className="error-text">{fieldErrors.password}</span>}
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="register-password_confirmation">Confirm Password</label>
+                  <label htmlFor="register-password_confirmation">{t("register.confirmPassword")}</label>
                   <div className="input-wrapper">
                     <FaLock className="input-icon" />
                     <input
                       id="register-password_confirmation"
                       type="password"
                       name="password_confirmation"
-                      placeholder="Repeat password"
+                      placeholder={t("register.repeatPassword")}
                       value={formData.user.password_confirmation}
                       onChange={handleChange}
                       className={fieldErrors.password_confirmation ? "error" : ""}
@@ -298,24 +298,24 @@ const Register = () => {
                 {error && <div className="alert-error">{error}</div>}
 
                 <button type="submit" className="submit-btn submit-btn-spaced" disabled={loading}>
-                  {loading ? <span className="loading-spinner"></span> : "Create Account"}
+                  {loading ? <span className="loading-spinner"></span> : t("register.createAccount")}
                 </button>
               </>
             )}
 
             <div className="sso-divider">
-              <span>Already have an account?</span>
+              <span>{t("auth.hasAccount")}</span>
             </div>
 
             <button type="button" className="sso-btn" onClick={() => navigate('/login')}>
-              Sign In
+              {t("login.signIn")}
             </button>
 
           </form>
         </div>
 
         <div className="login-footer">
-          <span>By signing up, you agree to our Terms and Privacy Policy.</span>
+          <span>{t("register.agreeTerms")}</span>
         </div>
       </div>
     </div>

@@ -48,13 +48,13 @@ import './OnboardingWizard.css';
 // Steps rendered in the stepper header. Excludes 'welcome' + 'completed'
 // so the visual step count matches user-visible required work.
 const HEADER_STEPS = [
-    { code: 'connect_ai_provider', label: 'AI Model' },
-    { code: 'connect_observability', label: 'Observability' },
-    { code: 'create_project', label: 'Project' },
-    { code: 'link_service', label: 'Service' },
-    { code: 'connect_scm', label: 'Source Control' },
-    { code: 'connect_cicd', label: 'CI/CD' },
-    { code: 'waiting_for_first_analysis', label: 'First Analysis' },
+    { code: 'connect_ai_provider', labelKey: 'onboarding.steps.aiModel' },
+    { code: 'connect_observability', labelKey: 'onboarding.steps.observability' },
+    { code: 'create_project', labelKey: 'onboarding.steps.project' },
+    { code: 'link_service', labelKey: 'onboarding.steps.service' },
+    { code: 'connect_scm', labelKey: 'onboarding.steps.sourceControl' },
+    { code: 'connect_cicd', labelKey: 'onboarding.steps.cicd' },
+    { code: 'waiting_for_first_analysis', labelKey: 'onboarding.steps.firstAnalysis' },
 ];
 
 function renderStepBody(step, status, actions) {
@@ -135,7 +135,7 @@ export default function OnboardingWizard({ onComplete, onSkip }) {
         return (
             <Card className="onboarding-wizard loading">
                 <CardContent sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                    <CircularProgress aria-label="Loading" />
+                    <CircularProgress aria-label={t('onboarding.loading')} />
                 </CardContent>
             </Card>
         );
@@ -148,7 +148,7 @@ export default function OnboardingWizard({ onComplete, onSkip }) {
                 onClick={() => setMinimized(false)}
             >
                 <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, '&:last-child': { pb: 2 } }}>
-                    <CircularProgress aria-label="Setup progress"
+                    <CircularProgress aria-label={t('onboarding.setupProgress')}
                         variant="determinate"
                         value={status?.progress_percentage || 0}
                         size={40}
@@ -156,10 +156,10 @@ export default function OnboardingWizard({ onComplete, onSkip }) {
                     />
                     <Box sx={{ flex: 1 }}>
                         <Typography variant="body2" fontWeight={600}>
-                            Setup — {status?.progress_percentage || 0}%
+                            {t('onboarding.setupPercent', { percent: status?.progress_percentage || 0 })}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                            Click to expand
+                            {t('onboarding.clickToExpand')}
                         </Typography>
                     </Box>
                 </CardContent>
@@ -182,10 +182,10 @@ export default function OnboardingWizard({ onComplete, onSkip }) {
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
                     <Box>
                         <Typography variant="h5" fontWeight={600} gutterBottom>
-                            Getting Started
+                            {t('onboarding.title')}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Connect the pieces so we can run your first AI analysis.
+                            {t('onboarding.subtitle')}
                         </Typography>
                         {/* The wizard covers part of the page: it moves aside. */}
                         <MuiLink component={RouterLink} to={SAMPLE_PATH} variant="body2" onClick={() => setMinimized(true)}>
@@ -196,16 +196,16 @@ export default function OnboardingWizard({ onComplete, onSkip }) {
                         <IconButton
                             size="small"
                             onClick={() => setMinimized(true)}
-                            title="Minimize"
-                            aria-label="Minimize wizard"
+                            title={t('onboarding.minimize')}
+                            aria-label={t('onboarding.minimizeWizard')}
                         >
                             <FaArrowLeft />
                         </IconButton>
                         <IconButton
                             size="small"
                             onClick={dismiss}
-                            title="Dismiss wizard (reversible)"
-                            aria-label="Dismiss wizard"
+                            title={t('onboarding.dismissTitle')}
+                            aria-label={t('onboarding.dismissWizard')}
                         >
                             <FaTimes />
                         </IconButton>
@@ -214,8 +214,8 @@ export default function OnboardingWizard({ onComplete, onSkip }) {
 
                 {error && (
                     <Alert severity="error" sx={{ mb: 2 }}>
-                        {/* JSX auto-escapes — safe to render server-supplied string */}
-                        {error}
+                        {/* The hook stores a translation key */}
+                        {t(error)}
                     </Alert>
                 )}
 
@@ -223,7 +223,7 @@ export default function OnboardingWizard({ onComplete, onSkip }) {
                 <Box sx={{ mb: 3 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                         <Typography variant="caption" color="text.secondary">
-                            Progress
+                            {t('onboarding.progress')}
                         </Typography>
                         <Typography variant="caption" fontWeight={600}>
                             {status?.progress_percentage || 0}%
@@ -244,7 +244,7 @@ export default function OnboardingWizard({ onComplete, onSkip }) {
                         return (
                             <Step key={s.code} completed={isCompleted}>
                                 <StepLabel>
-                                    <Typography variant="caption">{s.label}</Typography>
+                                    <Typography variant="caption">{t(s.labelKey)}</Typography>
                                 </StepLabel>
                             </Step>
                         );

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Col, Form } from "react-bootstrap";
+import { useTranslation } from "react-i18next";
 
 function RegisterPart1({ formData, setFormData }) {
+  const { t } = useTranslation();
   const [formErrors, setFormErrors] = useState({});
   const [isFormComplete, setIsFormComplete] = useState(false);
 
@@ -22,7 +24,7 @@ function RegisterPart1({ formData, setFormData }) {
     if (!value.trim()) {
       setFormErrors((prevErrors) => ({
         ...prevErrors,
-        [name]: 'This field is required',
+        [name]: t('registerPart1.fieldRequired'),
       }));
     } else if (name === 'phone') {
       // Validation spécifique pour le champ "phone"
@@ -30,7 +32,7 @@ function RegisterPart1({ formData, setFormData }) {
       if (!phoneRegex.test(value)) {
         setFormErrors((prevErrors) => ({
           ...prevErrors,
-          [name]: 'Phone number must be exactly 8 digits',
+          [name]: t('registerPart1.phoneDigits'),
         }));
       } else {
         setFormErrors((prevErrors) => ({
@@ -66,7 +68,7 @@ function RegisterPart1({ formData, setFormData }) {
       <Form className='register1-frame'>
         <Form.Group className="form-field ">
           <Form.Label htmlFor="first_name" className="form-label">
-            First name
+            {t('profile.firstName')}
           </Form.Label>
           <Form.Control
             className={`form-control ${formErrors.first_name ? 'is-invalid' : ''}`}
@@ -75,7 +77,7 @@ function RegisterPart1({ formData, setFormData }) {
             id="first_name"
             name="first_name"
             required
-            placeholder="Enter your first name"
+            placeholder={t('registerPart1.firstNamePlaceholder')}
             value={formData.user.first_name}
             onChange={handleInputChange}
             onBlur={handleInputBlur}
@@ -85,7 +87,7 @@ function RegisterPart1({ formData, setFormData }) {
 
         <Form.Group className="form-field ">
           <Form.Label htmlFor="last_name" className="form-label">
-            Last name
+            {t('profile.lastName')}
           </Form.Label>
           <Form.Control
             className={`form-control ${formErrors.last_name ? 'is-invalid' : ''}`}
@@ -94,7 +96,7 @@ function RegisterPart1({ formData, setFormData }) {
             id="last_name"
             name="last_name"
             required
-            placeholder="Enter your last name"
+            placeholder={t('registerPart1.lastNamePlaceholder')}
             value={formData.user.last_name}
             onChange={handleInputChange}
             onBlur={handleInputBlur}
@@ -104,7 +106,7 @@ function RegisterPart1({ formData, setFormData }) {
 
         <Form.Group className="form-field ">
           <Form.Label htmlFor="emailaddress" className="form-label">
-            Email address
+            {t('profile.emailAddress')}
           </Form.Label>
           <Form.Control
             className={`form-control ${formErrors.email ? 'is-invalid' : ''}`}
@@ -113,7 +115,7 @@ function RegisterPart1({ formData, setFormData }) {
             id="email"
             name="email"
             required
-            placeholder="Enter your email"
+            placeholder={t('registerPart1.emailPlaceholder')}
             value={formData.user.email}
             onChange={handleInputChange}
             onBlur={handleInputBlur}
@@ -123,7 +125,7 @@ function RegisterPart1({ formData, setFormData }) {
 
         <Form.Group className="form-field ">
           <Form.Label htmlFor="organisation" className="form-label">
-            Company name
+            {t('registerPart1.companyName')}
           </Form.Label>
           <Form.Control
             className="form-control"
@@ -131,7 +133,7 @@ function RegisterPart1({ formData, setFormData }) {
             id="organisation"
             name="organisation"
             required
-            placeholder="Enter your company name"
+            placeholder={t('registerPart1.companyPlaceholder')}
             value={formData.organisation.name}
             onChange={(e) => {
               setFormData((prevFormData) => ({
@@ -147,7 +149,7 @@ function RegisterPart1({ formData, setFormData }) {
 
         <Form.Group className="form-field ">
           <Form.Label htmlFor="phone" className="form-label">
-            Phone Number
+            {t('profile.phoneNumber')}
           </Form.Label>
           <Form.Control
             className={`form-control ${formErrors.phone ? 'is-invalid' : ''}`}
@@ -156,7 +158,7 @@ function RegisterPart1({ formData, setFormData }) {
             id="phone"
             name="phone"
             required
-            placeholder="+216 | Enter your Phone Number"
+            placeholder={t('registerPart1.phonePlaceholder')}
             value={formData.user.phone}
             onChange={handleInputChange}
             onBlur={handleInputBlur}

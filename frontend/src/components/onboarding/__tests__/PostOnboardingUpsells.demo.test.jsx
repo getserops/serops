@@ -6,6 +6,7 @@ vi.mock('../../../services/api-client', () => ({
   default: { get: vi.fn(() => Promise.resolve({ data: [] })) },
 }));
 
+import '../../../i18n';
 import apiClient from '../../../services/api-client';
 import PostOnboardingUpsells from '../PostOnboardingUpsells';
 

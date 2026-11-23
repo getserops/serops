@@ -76,7 +76,7 @@ cluster, 2026-11-16). The `serops-data` passwords then go into the
 As on AKS: [secrets and values](aks.md#3-secrets-and-values), then
 
 ```bash
-helm install serops oci://ghcr.io/getserops/charts/serops --version 1.5.2 \
+helm install serops oci://ghcr.io/getserops/charts/serops --version 1.5.3 \
   -n serops -f gke-values.yaml --wait --timeout 15m
 kubectl -n serops get certificate serops-tls      # READY True after ~30 s
 ```

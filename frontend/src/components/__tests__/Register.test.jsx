@@ -2,6 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import en from '../../locales/en.json';
+
+// The real English strings, with {{values}} filled in, so the test reads
+// what a person reads.
+const translate = (dict) => (key, opts = {}) => {
+  const text = key.split('.').reduce((o, k) => o?.[k], dict);
+  if (typeof text !== 'string') return opts.defaultValue ?? key;
+  return text.replace(/\{\{(\w+)\}\}/g, (_, name) => opts[name] ?? '');
+};
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: translate(en) }) }));
 
 // A plain function, not a vi.fn: vitest reports a rejected promise returned
 // by a spy as a test failure even when the component catches it.

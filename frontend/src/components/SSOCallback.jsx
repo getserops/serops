@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AuthService from "../services/auth.service";
+import { useTranslation } from "react-i18next";
 
 /**
  * Landing page that the backend redirects to after a successful SSO
@@ -10,6 +11,7 @@ import AuthService from "../services/auth.service";
  * localStorage (matching the regular login flow).
  */
 const SSOCallback = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [error, setError] = useState(null);
 
@@ -23,7 +25,7 @@ const SSOCallback = () => {
 
         const { token, user } = response.data;
         if (!token) {
-          setError("SSO exchange returned no token.");
+          setError(t("ssoCallback.noToken"));
           return;
         }
 
@@ -34,7 +36,7 @@ const SSOCallback = () => {
         if (cancelled) return;
         const msg =
           err.response?.data?.error ||
-          "SSO sign-in could not be completed. Please try again.";
+          t("ssoCallback.notCompleted");
         setError(msg);
       }
     };
@@ -48,10 +50,10 @@ const SSOCallback = () => {
   if (error) {
     return (
       <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: "100vh" }}>
-        <h4 className="mb-3">SSO sign-in failed</h4>
+        <h4 className="mb-3">{t("ssoCallback.failed")}</h4>
         <p className="text-muted">{error}</p>
         <button className="btn btn-primary mt-3" onClick={() => navigate("/login")}>
-          Back to login
+          {t("ssoCallback.backToLogin")}
         </button>
       </div>
     );
@@ -60,7 +62,7 @@ const SSOCallback = () => {
   return (
     <div className="d-flex justify-content-center align-items-center" style={{ height: "100vh" }}>
       <div className="spinner-border text-primary" role="status">
-        <span className="visually-hidden">Completing SSO sign-in…</span>
+        <span className="visually-hidden">{t("ssoCallback.completing")}</span>
       </div>
     </div>
   );

@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from "react";
 import { Form, Spinner, Alert } from "react-bootstrap";
 import { FaGitlab, FaGithub, FaBitbucket, FaCheck, FaExclamationTriangle } from "react-icons/fa";
+import { useTranslation } from "react-i18next";
 import { IntegrationService } from "../../../services/integration.service";
 
 const scmProviders = [
@@ -23,6 +24,7 @@ const StepConnectRepo = ({
     verified,
     verificationMessage
 }) => {
+    const { t } = useTranslation();
     const [repos, setRepos] = useState([]);
     const [loadingRepos, setLoadingRepos] = useState(false);
     const [repoError, setRepoError] = useState(null);
@@ -66,7 +68,7 @@ const StepConnectRepo = ({
             }
         } catch (error) {
             console.error("Failed to fetch repos:", error);
-            setRepoError("Failed to fetch repositories");
+            setRepoError(t('addServiceWizard.connectRepo.fetchFailed'));
             setRepos([]);
         } finally {
             setLoadingRepos(false);
@@ -92,9 +94,9 @@ const StepConnectRepo = ({
 
     return (
         <div className="wizard-step-content">
-            <h5 className="wizard-step-title">Connect Code Repository</h5>
+            <h5 className="wizard-step-title">{t('addServiceWizard.connectRepo.title')}</h5>
             <p className="wizard-step-subtitle">
-                Select your code repository to connect to this service.
+                {t('addServiceWizard.connectRepo.subtitle')}
             </p>
 
             {/* An application whose code is elsewhere (or deployed by Argo CD,
@@ -105,7 +107,7 @@ const StepConnectRepo = ({
                 role="switch"
                 id="wizard-no-repo"
                 className="mb-3"
-                label="No repository in SerOps for this service"
+                label={t('addServiceWizard.connectRepo.noRepo')}
                 checked={!!formData.noRepo}
                 onChange={(e) => updateFormData({
                     noRepo: e.target.checked, integrationId: null, repositoryId: null, repositoryName: '',
@@ -114,7 +116,7 @@ const StepConnectRepo = ({
 
             {formData.noRepo && (
                 <div className="wizard-form-section">
-                    <label className="wizard-form-label" htmlFor="wizard-no-repo-name">Service Name *</label>
+                    <label className="wizard-form-label" htmlFor="wizard-no-repo-name">{t('addServiceWizard.serviceNameRequired')}</label>
                     <Form.Control id="wizard-no-repo-name"
                         type="text"
                         placeholder="payments"
@@ -123,7 +125,7 @@ const StepConnectRepo = ({
                         className="rounded-3"
                     />
                     <Form.Text className="text-muted">
-                        The name its logs and metrics use. You can connect a repository later.
+                        {t('addServiceWizard.connectRepo.noRepoHelp')}
                     </Form.Text>
                 </div>
             )}
@@ -131,7 +133,7 @@ const StepConnectRepo = ({
             {!formData.noRepo && (<>
             {/* Provider Selection */}
             <div className="wizard-form-section">
-                <span className="wizard-form-label d-block" id="wizard-scm-provider">Code Repository Provider</span>
+                <span className="wizard-form-label d-block" id="wizard-scm-provider">{t('addServiceWizard.connectRepo.provider')}</span>
                 <div className="provider-buttons" role="group" aria-labelledby="wizard-scm-provider">
                     {scmProviders.map((provider) => {
                         const Icon = provider.icon;
@@ -161,12 +163,12 @@ const StepConnectRepo = ({
 
             {/* Integration Selection */}
             <div className="wizard-form-section">
-                <label className="wizard-form-label" htmlFor="wizard-connectrepo-1">Integration</label>
+                <label className="wizard-form-label" htmlFor="wizard-connectrepo-1">{t('addService.integration')}</label>
                 {providerIntegrations.length === 0 ? (
                     <Alert variant="warning" className="d-flex align-items-center">
                         <FaExclamationTriangle className="me-2" />
-                        No {formData.scmProvider} integrations configured.
-                        <a href="/dash/settings/integrations" className="ms-1">Add one in Settings</a>
+                        {t('addServiceWizard.noIntegrations', { provider: formData.scmProvider })}
+                        <a href="/dash/settings/integrations" className="ms-1">{t('addServiceWizard.addOneInSettings')}</a>
                     </Alert>
                 ) : (
                     <Form.Select id="wizard-connectrepo-1"
@@ -178,7 +180,7 @@ const StepConnectRepo = ({
                         })}
                         className="rounded-3"
                     >
-                        <option value="">Select integration...</option>
+                        <option value="">{t('serviceForms.selectIntegration')}</option>
                         {providerIntegrations.map(integration => (
                             <option key={integration.id} value={integration.id}>
                                 {integration.name}
@@ -191,11 +193,11 @@ const StepConnectRepo = ({
             {/* Repository Selection */}
             {formData.integrationId && (
                 <div className="wizard-form-section">
-                    <label className="wizard-form-label" htmlFor="wizard-connectrepo-2">Repository</label>
+                    <label className="wizard-form-label" htmlFor="wizard-connectrepo-2">{t('serviceForms.repository')}</label>
                     {loadingRepos ? (
                         <div className="d-flex align-items-center text-muted">
                             <Spinner size="sm" className="me-2" />
-                            Loading repositories...
+                            {t('addServiceWizard.connectRepo.loadingRepos')}
                         </div>
                     ) : repoError ? (
                         <Alert variant="danger">{repoError}</Alert>
@@ -216,7 +218,7 @@ const StepConnectRepo = ({
                             }}
                             className="rounded-3"
                         >
-                            <option value="">Select repository...</option>
+                            <option value="">{t('addServiceWizard.connectRepo.selectRepo')}</option>
                             {repos.map(repo => (
                                 <option
                                     key={repo.id || repo.full_name}
@@ -229,7 +231,7 @@ const StepConnectRepo = ({
                     ) : (
                         <Form.Control
                             type="text"
-                            placeholder="Enter project ID or repository name"
+                            placeholder={t('addServiceWizard.connectRepo.repoPlaceholder')}
                             value={formData.repositoryId || ""}
                             onChange={(e) => updateFormData({
                                 repositoryId: e.target.value,
@@ -244,16 +246,16 @@ const StepConnectRepo = ({
             {/* Service Name */}
             {formData.repositoryId && (
                 <div className="wizard-form-section">
-                    <label className="wizard-form-label" htmlFor="wizard-connectrepo-3">Service Name (optional)</label>
+                    <label className="wizard-form-label" htmlFor="wizard-connectrepo-3">{t('addServiceWizard.connectRepo.serviceNameOptional')}</label>
                     <Form.Control id="wizard-connectrepo-3"
                         type="text"
-                        placeholder="Auto-filled from repository"
+                        placeholder={t('addServiceWizard.connectRepo.serviceNamePlaceholder')}
                         value={formData.serviceName || ""}
                         onChange={(e) => updateFormData({ serviceName: e.target.value })}
                         className="rounded-3"
                     />
                     <Form.Text className="text-muted">
-                        Leave empty to use the repository name
+                        {t('addServiceWizard.connectRepo.serviceNameHelp')}
                     </Form.Text>
                 </div>
             )}
@@ -265,11 +267,11 @@ const StepConnectRepo = ({
                 <div className="wizard-form-section">
                     {verifying ? (
                         <div className="verification-badge loading">
-                            <Spinner size="sm" /> Verifying connection...
+                            <Spinner size="sm" /> {t('addServiceWizard.connectRepo.verifying')}
                         </div>
                     ) : verified ? (
                         <div className="verification-badge success">
-                            <FaCheck /> Repository verified successfully
+                            <FaCheck /> {t('addServiceWizard.connectRepo.verified')}
                         </div>
                     ) : verificationMessage ? (
                         <div className="verification-badge error">

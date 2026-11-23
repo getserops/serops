@@ -24,6 +24,7 @@ import NeedsAttention from "./NeedsAttention";
 import CommandPalette from "./CommandPalette";
 import { OnboardingWizard, OnboardingResumeChip } from "./onboarding";
 import DemoBanner from './DemoBanner';
+import PhoneCollapse from './PhoneCollapse';
 import { usePermissions } from '../utils/permissions';
 import { isDemoUser } from '../utils/demo';
 
@@ -33,6 +34,8 @@ const Dashboard = () => {
   const location = useLocation();
   const isRootDashboard = location.pathname.replace(/\/+$/, "") === "/dash";
   const isSmallScreen = useMediaQuery("(max-width: 860px)");
+  // Phone: the panels under the analyses are reduced to their header.
+  const isPhone = useMediaQuery("(max-width: 767px)");
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(!isSmallScreen);
   const [showOnboarding, setShowOnboarding] = React.useState(true);
   // Setup is for users and admins; a viewer can't change it (the API says 403).
@@ -236,21 +239,29 @@ const Dashboard = () => {
               </div>
               {hasDeployments && (
                 <div className="overview-side">
-                  <RecentDeploymentsCard data={deploymentsData} loading={loadingDeployments} />
+                  <PhoneCollapse phone={isPhone} title={t('dashboard.recentDeployments')}>
+                    <RecentDeploymentsCard data={deploymentsData} loading={loadingDeployments} />
+                  </PhoneCollapse>
                 </div>
               )}
             </div>
 
             {/* What happened: the 7-day trend beside the causes. */}
             <div className="charts-grid overview-charts">
-              <TrendAnalysisChart data={trendData} loading={loadingTrends} />
-              <RootCausePie data={rootCauseData} loading={loadingRootCause} />
+              <PhoneCollapse phone={isPhone} title={t('dashboard.trendTitle')}>
+                <TrendAnalysisChart data={trendData} loading={loadingTrends} />
+              </PhoneCollapse>
+              <PhoneCollapse phone={isPhone} title={t('dashboard.rootCauseBreakdown')}>
+                <RootCausePie data={rootCauseData} loading={loadingRootCause} />
+              </PhoneCollapse>
             </div>
 
             {/* Where: one panel, the worst service first. Sentinel figures
                 are on Settings > Sentinel, correlation insights on Analyses,
                 workloads by cluster on Settings > Clusters. */}
-            <ServiceHealthHeatmap data={serviceHealthData} loading={loadingServiceHealth} />
+            <PhoneCollapse phone={isPhone} title={t('dashboard.serviceHealthMap')}>
+              <ServiceHealthHeatmap data={serviceHealthData} loading={loadingServiceHealth} />
+            </PhoneCollapse>
           </main>
         )}
 

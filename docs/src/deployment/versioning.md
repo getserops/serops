@@ -100,11 +100,11 @@ values:
 backend:
   image:
     repository: ghcr.io/getserops/backend
-    tag: "1.5.2"
+    tag: "1.5.3"
 frontend:
   image:
     repository: ghcr.io/getserops/frontend
-    tag: "1.5.2"
+    tag: "1.5.3"
 ```
 
 The Celery worker, Celery beat and the migration job run the backend image

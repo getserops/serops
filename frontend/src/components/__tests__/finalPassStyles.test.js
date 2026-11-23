@@ -46,3 +46,37 @@ describe('final pass: layout and tone', () => {
     expect(css).toMatch(/\.ai-provider-key-row \{ flex-wrap: wrap;/);
   });
 });
+
+// A6: 86 fields had text under 16 px on a phone or tablet.
+describe('fields on touch devices', () => {
+  const css = read('../styles/primitives.css');
+  const rule = css.match(/@media \(pointer: coarse\) \{\s*:is\(input, select, textarea\)[^{]*\{[^}]*\}/)?.[0] || '';
+
+  it('sets every text field, select and text area to 16 px, in one shared rule', () => {
+    expect(rule).toContain('font-size: 16px !important');
+    expect(rule).toMatch(/:not\(\[type="checkbox"\], \[type="radio"\]/);
+  });
+
+  it('leaves pinch zoom on', () => {
+    const html = fs.readFileSync(path.resolve(__dirname, '../../../index.html'), 'utf8');
+    const viewport = html.match(/<meta name="viewport"[^>]*>/)[0];
+    expect(viewport).not.toMatch(/user-scalable|maximum-scale/);
+  });
+});
+
+// A10: smaller phone and tablet items.
+describe('phones and tablets: smaller items', () => {
+  const css = read('../styles/primitives.css');
+
+  it('has no text under 12 px on a phone or tablet', () => {
+    expect(css).toMatch(/@media \(max-width: 1024px\) \{\s*:is\(html, :root\[data-theme\]\) :is\(\.app-nav-group-label, \.app-topbar-badge, \.feed-badge, \.feed-model, \.issue-affected-more\) \{ font-size: var\(--text-xs\); \}/);
+  });
+
+  it('marks the Analyses table as scrolling sideways and keeps its first two columns in place', () => {
+    const data = read('Data.jsx');
+    expect(data).toContain('<div className="ds-scroll-cue">');
+    expect(data).toContain('useScrollCue(tableWrapRef)');
+    expect(read('Data.css')).toMatch(/\.data-table-wrap \.modern-table :is\(th, td\):nth-child\(-n\+2\) \{ position: sticky;/);
+    expect(css).toMatch(/\.ds-scroll-cue:has\(> \[data-scroll="start"\]\)::after/);
+  });
+});

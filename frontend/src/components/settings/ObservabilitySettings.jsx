@@ -36,6 +36,7 @@ import {
     // Simple Icons dropped the AWS logo (react-icons 5.6+ ships without SiAmazonwebservices).
     FaAws,
 } from "react-icons/fa";
+import { useTranslation } from "react-i18next";
 import { describeRequestError } from "../../utils/apiError";
 import ObservabilityService from "../../services/observability.service";
 import ClusterService from "../../services/cluster.service";
@@ -43,7 +44,7 @@ import ChoiceGroup from "./ChoiceGroup";
 import IntegrationsSectionHeader from "./IntegrationsSectionHeader";
 import { usePermissions } from "../../utils/permissions";
 import { isDemoUser } from "../../utils/demo";
-import { liveTested, liveTestedDetail, liveTestedText } from "../../utils/integrationMaturity";
+import { liveTested, liveTestedDetail } from "../../utils/integrationMaturity";
 
 /* ─── Provider Metadata ──────────────────────────────────────────────── */
 
@@ -52,32 +53,32 @@ const PROVIDERS = {
         name: "Elasticsearch", icon: SiElasticsearch, color: "#FEC514",
         capabilities: ["logs"],
         fields: [
-            { name: "host", label: "Host URL", type: "url", placeholder: "http://elasticsearch:9200", required: true },
-            { name: "username", label: "Username", placeholder: "elastic" },
-            { name: "password", label: "Password", type: "password" },
-            { name: "extra_config.index_pattern", label: "Index pattern", placeholder: "logs-*, filebeat-*",
-              help: "Where your logs are stored. Leave empty to use SerOps' own indices, or else logs-*, filebeat-* and logstash-*." },
-            { name: "extra_config.verify_certs", label: "Verify TLS certificate", type: "checkbox", defaultChecked: true },
+            { name: "host", label: "observabilitySettings.field.hostUrl", type: "url", placeholder: "http://elasticsearch:9200", required: true },
+            { name: "username", label: "observabilitySettings.field.username", placeholder: "elastic" },
+            { name: "password", label: "observabilitySettings.field.password", type: "password" },
+            { name: "extra_config.index_pattern", label: "observabilitySettings.field.indexPattern", placeholder: "logs-*, filebeat-*",
+              help: "observabilitySettings.field.indexPatternHelp" },
+            { name: "extra_config.verify_certs", label: "observabilitySettings.field.verifyTls", type: "checkbox", defaultChecked: true },
         ],
     },
     opensearch: {
         name: "OpenSearch", icon: SiOpensearch, color: "#005EB8",
         capabilities: ["logs"],
         fields: [
-            { name: "host", label: "Host URL", type: "url", placeholder: "https://opensearch:9200", required: true },
-            { name: "username", label: "Username" },
-            { name: "password", label: "Password", type: "password" },
-            { name: "extra_config.index_pattern", label: "Index pattern", placeholder: "logs-*, filebeat-*",
-              help: "Where your logs are stored. Leave empty to use SerOps' own indices, or else logs-*, filebeat-* and logstash-*." },
-            { name: "extra_config.verify_certs", label: "Verify TLS certificate", type: "checkbox", defaultChecked: true },
+            { name: "host", label: "observabilitySettings.field.hostUrl", type: "url", placeholder: "https://opensearch:9200", required: true },
+            { name: "username", label: "observabilitySettings.field.username" },
+            { name: "password", label: "observabilitySettings.field.password", type: "password" },
+            { name: "extra_config.index_pattern", label: "observabilitySettings.field.indexPattern", placeholder: "logs-*, filebeat-*",
+              help: "observabilitySettings.field.indexPatternHelp" },
+            { name: "extra_config.verify_certs", label: "observabilitySettings.field.verifyTls", type: "checkbox", defaultChecked: true },
         ],
     },
     loki: {
         name: "Grafana Loki", icon: SiGrafana, color: "#F46800",
         capabilities: ["logs"],
         fields: [
-            { name: "host", label: "Loki URL", type: "url", placeholder: "http://loki:3100", required: true },
-            { name: "extra_config.tenant_id", label: "Tenant ID", placeholder: "default" },
+            { name: "host", label: "observabilitySettings.field.lokiUrl", type: "url", placeholder: "http://loki:3100", required: true },
+            { name: "extra_config.tenant_id", label: "observabilitySettings.field.tenantId", placeholder: "default" },
         ],
     },
     // Splunk, Google Cloud and Azure Monitor were only in the onboarding
@@ -86,84 +87,84 @@ const PROVIDERS = {
         name: "Splunk", icon: SiSplunk, color: "#65A637",
         capabilities: ["logs"],
         fields: [
-            { name: "host", label: "Splunk management URL", type: "url", placeholder: "https://splunk:8089", required: true },
-            { name: "password", label: "Auth token", type: "password", placeholder: "Splunk → Settings → Tokens", required: true },
-            { name: "extra_config.index", label: "Index", placeholder: "main" },
+            { name: "host", label: "observabilitySettings.field.splunkUrl", type: "url", placeholder: "https://splunk:8089", required: true },
+            { name: "password", label: "observabilitySettings.field.authToken", type: "password", placeholder: "Splunk → Settings → Tokens", required: true },
+            { name: "extra_config.index", label: "observabilitySettings.field.index", placeholder: "main" },
             // Self-signed management certificates are common on Splunk Enterprise.
-            { name: "extra_config.verify_ssl", label: "Verify TLS certificate", type: "checkbox", defaultChecked: true },
+            { name: "extra_config.verify_ssl", label: "observabilitySettings.field.verifyTls", type: "checkbox", defaultChecked: true },
         ],
     },
     prometheus: {
         name: "Prometheus", icon: SiPrometheus, color: "#E6522C",
         capabilities: ["metrics"],
         fields: [
-            { name: "host", label: "Prometheus URL", type: "url", placeholder: "http://prometheus:9090", required: true },
-            { name: "username", label: "Username", placeholder: "optional" },
-            { name: "password", label: "Password", type: "password" },
-            { name: "extra_config.bearer_token", label: "Bearer Token", type: "password", placeholder: "For Grafana Cloud, Thanos, etc." },
+            { name: "host", label: "observabilitySettings.field.prometheusUrl", type: "url", placeholder: "http://prometheus:9090", required: true },
+            { name: "username", label: "observabilitySettings.field.username", placeholderKey: "observabilitySettings.field.optional" },
+            { name: "password", label: "observabilitySettings.field.password", type: "password" },
+            { name: "extra_config.bearer_token", label: "observabilitySettings.field.bearerToken", type: "password", placeholderKey: "observabilitySettings.field.bearerGrafanaThanos" },
         ],
     },
     victoriametrics: {
         name: "VictoriaMetrics", icon: FaChartLine, color: "#621773",
         capabilities: ["metrics"],
         fields: [
-            { name: "host", label: "VM URL", type: "url", placeholder: "http://victoria:8428", required: true },
-            { name: "username", label: "Username", placeholder: "optional" },
-            { name: "password", label: "Password", type: "password" },
-            { name: "extra_config.bearer_token", label: "Bearer Token", type: "password", placeholder: "For managed VM Cloud" },
+            { name: "host", label: "observabilitySettings.field.vmUrl", type: "url", placeholder: "http://victoria:8428", required: true },
+            { name: "username", label: "observabilitySettings.field.username", placeholderKey: "observabilitySettings.field.optional" },
+            { name: "password", label: "observabilitySettings.field.password", type: "password" },
+            { name: "extra_config.bearer_token", label: "observabilitySettings.field.bearerToken", type: "password", placeholderKey: "observabilitySettings.field.bearerVmCloud" },
         ],
     },
     mimir: {
         name: "Grafana Mimir", icon: SiGrafana, color: "#FF5733",
         capabilities: ["metrics"],
         fields: [
-            { name: "host", label: "Mimir URL", type: "url", placeholder: "http://mimir:9009", required: true },
-            { name: "extra_config.tenant_id", label: "Tenant ID", placeholder: "default" },
-            { name: "username", label: "Username", placeholder: "optional" },
-            { name: "password", label: "Password", type: "password" },
-            { name: "extra_config.bearer_token", label: "Bearer Token", type: "password", placeholder: "For Grafana Cloud" },
+            { name: "host", label: "observabilitySettings.field.mimirUrl", type: "url", placeholder: "http://mimir:9009", required: true },
+            { name: "extra_config.tenant_id", label: "observabilitySettings.field.tenantId", placeholder: "default" },
+            { name: "username", label: "observabilitySettings.field.username", placeholderKey: "observabilitySettings.field.optional" },
+            { name: "password", label: "observabilitySettings.field.password", type: "password" },
+            { name: "extra_config.bearer_token", label: "observabilitySettings.field.bearerToken", type: "password", placeholderKey: "observabilitySettings.field.bearerGrafanaCloud" },
         ],
     },
     datadog: {
         name: "Datadog", icon: SiDatadog, color: "#632CA6",
         capabilities: ["logs", "metrics", "traces"],
         fields: [
-            { name: "host", label: "Datadog Site", placeholder: "datadoghq.com", required: true,
-              help: "The domain you sign in to: datadoghq.com, datadoghq.eu, us3.datadoghq.com, us5.datadoghq.com..." },
-            { name: "extra_config.api_key", label: "API Key", type: "password", required: true },
+            { name: "host", label: "observabilitySettings.field.datadogSite", placeholder: "datadoghq.com", required: true,
+              help: "observabilitySettings.field.datadogSiteHelp" },
+            { name: "extra_config.api_key", label: "observabilitySettings.field.apiKey", type: "password", required: true },
             // Searching logs and querying metrics need it, not only the API key.
-            { name: "extra_config.app_key", label: "Application Key", type: "password", required: true,
-              help: "An application key (not a personal access token) with logs_read_data, logs_read_index_data and timeseries_query." },
+            { name: "extra_config.app_key", label: "observabilitySettings.field.appKey", type: "password", required: true,
+              help: "observabilitySettings.field.appKeyHelp" },
         ],
     },
     cloudwatch: {
         name: "AWS CloudWatch", icon: FaAws, color: "#FF9900",
         capabilities: ["logs", "metrics"],
         fields: [
-            { name: "extra_config.aws_region", label: "AWS Region", placeholder: "us-east-1", required: true },
-            { name: "username", label: "Access Key ID", required: true },
-            { name: "password", label: "Secret Access Key", type: "password", required: true },
-            { name: "extra_config.log_groups", label: "Log groups", placeholder: "/ecs/shop-api, /aws/lambda/checkout",
-              help: "Comma-separated, up to 50. Leave empty to search the groups named after each project." },
+            { name: "extra_config.aws_region", label: "observabilitySettings.field.awsRegion", placeholder: "us-east-1", required: true },
+            { name: "username", label: "observabilitySettings.field.accessKeyId", required: true },
+            { name: "password", label: "observabilitySettings.field.secretAccessKey", type: "password", required: true },
+            { name: "extra_config.log_groups", label: "observabilitySettings.field.logGroups", placeholder: "/ecs/shop-api, /aws/lambda/checkout",
+              help: "observabilitySettings.field.logGroupsHelp" },
         ],
     },
     gcp: {
         name: "Google Cloud", icon: SiGooglecloud, color: "#4285F4",
         capabilities: ["logs", "metrics"],
         fields: [
-            { name: "extra_config.project_id", label: "Project ID", placeholder: "my-project", required: true },
-            { name: "password", label: "Service account key (JSON)", type: "password", placeholder: "Paste the key file's JSON", required: true },
+            { name: "extra_config.project_id", label: "observabilitySettings.field.projectId", placeholder: "my-project", required: true },
+            { name: "password", label: "observabilitySettings.field.gcpKey", type: "password", placeholderKey: "observabilitySettings.field.gcpKeyPlaceholder", required: true },
         ],
     },
     azure: {
         name: "Azure Monitor", icon: FaMicrosoft, color: "#0078D4",
         capabilities: ["logs", "metrics"],
         fields: [
-            { name: "extra_config.tenant_id", label: "Tenant ID", required: true },
-            { name: "extra_config.client_id", label: "Client ID", required: true },
-            { name: "password", label: "Client secret", type: "password", required: true },
-            { name: "extra_config.workspace_id", label: "Log Analytics workspace ID", placeholder: "For logs, and per-service AKS metrics" },
-            { name: "extra_config.default_resource_uri", label: "Default resource URI", placeholder: "For VM metrics; optional for AKS with a workspace" },
+            { name: "extra_config.tenant_id", label: "observabilitySettings.field.tenantId", required: true },
+            { name: "extra_config.client_id", label: "observabilitySettings.field.clientId", required: true },
+            { name: "password", label: "observabilitySettings.field.clientSecret", type: "password", required: true },
+            { name: "extra_config.workspace_id", label: "observabilitySettings.field.workspaceId", placeholderKey: "observabilitySettings.field.workspacePlaceholder" },
+            { name: "extra_config.default_resource_uri", label: "observabilitySettings.field.resourceUri", placeholderKey: "observabilitySettings.field.resourcePlaceholder" },
         ],
     },
     // Trace stores SerOps pulls from (traces.md). OTLP sent to SerOps
@@ -172,42 +173,40 @@ const PROVIDERS = {
         name: "Jaeger", icon: SiJaeger, color: "#66CFE3",
         capabilities: ["traces"],
         fields: [
-            { name: "host", label: "Jaeger query URL", type: "url", placeholder: "http://jaeger-query:16686", required: true },
-            { name: "username", label: "Username", placeholder: "optional" },
-            { name: "password", label: "Password", type: "password" },
-            { name: "extra_config.bearer_token", label: "Bearer Token", type: "password" },
+            { name: "host", label: "observabilitySettings.field.jaegerUrl", type: "url", placeholder: "http://jaeger-query:16686", required: true },
+            { name: "username", label: "observabilitySettings.field.username", placeholderKey: "observabilitySettings.field.optional" },
+            { name: "password", label: "observabilitySettings.field.password", type: "password" },
+            { name: "extra_config.bearer_token", label: "observabilitySettings.field.bearerToken", type: "password" },
         ],
     },
     zipkin: {
         name: "Zipkin", icon: FaProjectDiagram, color: "#FE7139",
         capabilities: ["traces"],
         fields: [
-            { name: "host", label: "Zipkin URL", type: "url", placeholder: "http://zipkin:9411", required: true },
-            { name: "username", label: "Username", placeholder: "optional" },
-            { name: "password", label: "Password", type: "password" },
-            { name: "extra_config.bearer_token", label: "Bearer Token", type: "password" },
+            { name: "host", label: "observabilitySettings.field.zipkinUrl", type: "url", placeholder: "http://zipkin:9411", required: true },
+            { name: "username", label: "observabilitySettings.field.username", placeholderKey: "observabilitySettings.field.optional" },
+            { name: "password", label: "observabilitySettings.field.password", type: "password" },
+            { name: "extra_config.bearer_token", label: "observabilitySettings.field.bearerToken", type: "password" },
         ],
     },
     tempo: {
         name: "Grafana Tempo", icon: SiGrafana, color: "#F46800",
         capabilities: ["traces"],
         fields: [
-            { name: "host", label: "Tempo URL", type: "url", placeholder: "http://tempo:3200", required: true },
-            { name: "extra_config.tenant_id", label: "Tenant ID", placeholder: "optional" },
-            { name: "username", label: "Username", placeholder: "optional" },
-            { name: "password", label: "Password", type: "password" },
-            { name: "extra_config.bearer_token", label: "Bearer Token", type: "password" },
+            { name: "host", label: "observabilitySettings.field.tempoUrl", type: "url", placeholder: "http://tempo:3200", required: true },
+            { name: "extra_config.tenant_id", label: "observabilitySettings.field.tenantId", placeholderKey: "observabilitySettings.field.optional" },
+            { name: "username", label: "observabilitySettings.field.username", placeholderKey: "observabilitySettings.field.optional" },
+            { name: "password", label: "observabilitySettings.field.password", type: "password" },
+            { name: "extra_config.bearer_token", label: "observabilitySettings.field.bearerToken", type: "password" },
         ],
     },
 };
 
-const CAP_LABELS = { logs: "log", metrics: "metric", traces: "trace" };
-
 // Chip tones from the design system (styles/design.css · Badges).
 const TIER_META = {
-    primary:  { label: "Primary",  tone: "ds-chip-brand" },
-    fallback: { label: "Fallback", tone: "ds-chip-warn" },
-    tertiary: { label: "Tertiary", tone: "ds-chip-neutral" },
+    primary:  { label: "observabilitySettings.tier.primary",  tone: "ds-chip-brand" },
+    fallback: { label: "observabilitySettings.tier.fallback", tone: "ds-chip-warn" },
+    tertiary: { label: "observabilitySettings.tier.tertiary", tone: "ds-chip-neutral" },
 };
 const TIER_ORDER = { primary: 0, fallback: 1, tertiary: 2 };
 
@@ -233,22 +232,26 @@ function setNestedValue(obj, path, value) {
 /* ─── Small display atoms ────────────────────────────────────────────── */
 
 function CapBadge({ cap }) {
+    const { t } = useTranslation();
     const tone = { logs: "ds-chip-ok", metrics: "ds-chip-info", traces: "ds-chip-brand" }[cap] || "ds-chip-neutral";
-    return <span className={`ds-chip ${tone}`}>{cap.charAt(0).toUpperCase() + cap.slice(1)}</span>;
+    return <span className={`ds-chip ${tone}`}>{t(`observabilitySettings.cap.${cap}`, cap.charAt(0).toUpperCase() + cap.slice(1))}</span>;
 }
 
 function StatusBadge({ status }) {
-    if (status === true)  return <span className="obs-status" style={{ color: "var(--tone-green-text)" }}><FaCheck /> Healthy</span>;
-    if (status === false) return <span className="obs-status" style={{ color: "var(--tone-red-text)" }}><FaTimes /> Unhealthy</span>;
+    const { t } = useTranslation();
+    if (status === true)  return <span className="obs-status" style={{ color: "var(--tone-green-text)" }}><FaCheck /> {t("observabilitySettings.healthy")}</span>;
+    if (status === false) return <span className="obs-status" style={{ color: "var(--tone-red-text)" }}><FaTimes /> {t("observabilitySettings.unhealthy")}</span>;
     return <span className="obs-status" style={{ color: "var(--text-tertiary)" }}>—</span>;
 }
 
 function TierBadge({ tier }) {
+    const { t } = useTranslation();
     const meta = TIER_META[tier] || TIER_META.primary;
-    return <span className={`ds-chip ${meta.tone}`}>{meta.label}</span>;
+    return <span className={`ds-chip ${meta.tone}`}>{t(meta.label)}</span>;
 }
 
 function ScopePills({ integration, clusterName }) {
+    const { t } = useTranslation();
     const scope = integration.scope || {};
     const items = [];
     if (scope.environment) items.push({ icon: <FaTag size={9} />, key: "env", val: scope.environment, tone: "ds-chip-brand" });
@@ -256,7 +259,7 @@ function ScopePills({ integration, clusterName }) {
     if (scope.region)      items.push({ icon: <FaGlobe size={9} />, key: "region", val: scope.region, tone: "ds-chip-neutral" });
     if (scope.namespace)   items.push({ icon: <FaCube size={9} />, key: "ns", val: scope.namespace, tone: "ds-chip-warn" });
     if (items.length === 0) {
-        return <span className="obs-unscoped">unscoped — serves any</span>;
+        return <span className="obs-unscoped">{t("observabilitySettings.unscoped")}</span>;
     }
     return (
         <div className="obs-scope-pills">
@@ -270,6 +273,7 @@ function ScopePills({ integration, clusterName }) {
 /* ─── Integration Form Modal (create + edit) ─────────────────────────── */
 
 function IntegrationFormModal({ show, onHide, capability, integration, clusters, onSaved }) {
+    const { t } = useTranslation();
     const isEdit = !!integration;
     const [selectedProvider, setSelectedProvider] = useState(null);
     const [form, setForm] = useState({});
@@ -347,7 +351,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
         // Namespace-requires-cluster mirrors the backend check —
         // stop the user before the round-trip.
         if (scope.namespace && !clusterId) {
-            toast.error("Namespace can only be set when a cluster is selected.");
+            toast.error(t("observabilitySettings.namespaceNeedsCluster"));
             return;
         }
         setSaving(true);
@@ -373,17 +377,17 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
 
             if (isEdit) {
                 await ObservabilityService.update(integration.id, payload);
-                toast.success("Integration updated");
+                toast.success(t("globalIntegrations.updated"));
             } else {
                 await ObservabilityService.create(payload);
-                toast.success("Integration created");
+                toast.success(t("globalIntegrations.created"));
             }
             onSaved();
             onHide();
         } catch (err) {
             // Any field's reason (a duplicate provider, a second primary):
             // only a few were read, so some failures said nothing (B15).
-            toast.error(describeRequestError(err, "Failed to save integration"));
+            toast.error(describeRequestError(err, t("observabilitySettings.saveFailed")));
         } finally {
             setSaving(false);
         }
@@ -391,21 +395,21 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
 
     async function handleTest() {
         if (!isEdit) {
-            toast.info("Save the integration first, then test.");
+            toast.info(t("observabilitySettings.saveFirst"));
             return;
         }
         setTesting(true);
         try {
             const result = await ObservabilityService.healthCheck(integration.id);
             const allOk = result.integrations?.every((r) => r.healthy);
-            if (allOk) toast.success("Connection healthy");
+            if (allOk) toast.success(t("observabilitySettings.connectionHealthy"));
             else {
                 const failing = result.integrations?.filter((r) => !r.healthy);
-                toast.error(`Health check failed: ${failing?.map((r) => r.message).join(", ")}`);
+                toast.error(t("observabilitySettings.healthCheckFailed", { messages: failing?.map((r) => r.message).join(", ") }));
             }
             onSaved();
         } catch {
-            toast.error("Connection test failed");
+            toast.error(t("observabilitySettings.connectionTestFailed"));
         } finally {
             setTesting(false);
         }
@@ -415,8 +419,8 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
         <Modal show={show} onHide={onHide} size="lg" centered>
             <Modal.Header closeButton>
                 <Modal.Title>
-                    {isEdit ? `Edit ${PROVIDERS[integration.provider]?.name || 'integration'}`
-                            : `New ${CAP_LABELS[capability]} provider`}
+                    {isEdit ? t("observabilitySettings.editTitle", { name: PROVIDERS[integration.provider]?.name || t("observabilitySettings.integrationFallbackName") })
+                            : t(`observabilitySettings.newTitle.${capability}`)}
                 </Modal.Title>
             </Modal.Header>
             <Modal.Body>
@@ -424,7 +428,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                 <ChoiceGroup
                     variant="cards"
                     className="mb-3"
-                    label="Provider"
+                    label={t("globalIntegrations.provider")}
                     value={selectedProvider}
                     onChange={handleSelectProvider}
                     options={filteredProviders.map(([code, meta]) => ({
@@ -433,7 +437,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                         disabled: isEdit && code !== integration.provider,
                         label: <span className="d-inline-flex align-items-center gap-2">{React.createElement(meta.icon, { size: 18, color: meta.color, "aria-hidden": true })}{meta.name}</span>,
                         description: liveTestedDetail(code) || undefined,
-                        badge: liveTested(code) && <span className="badge ds-chip ds-chip-ok" title={liveTestedText(code)}>Live-tested</span>,
+                        badge: liveTested(code) && <span className="badge ds-chip ds-chip-ok" title={t("observabilitySettings.liveTestedTitle", { detail: liveTestedDetail(code) })}>{t("observabilitySettings.liveTested")}</span>,
                     }))}
                 />
 
@@ -442,24 +446,24 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                         {/* Priority tier + cluster + scope */}
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
                             <Form.Group controlId="obs-tier">
-                                <Form.Label style={{ fontSize: 12, fontWeight: 600 }}>Priority tier</Form.Label>
+                                <Form.Label style={{ fontSize: 12, fontWeight: 600 }}>{t("observabilitySettings.priorityTier")}</Form.Label>
                                 <Form.Select value={tier} onChange={(e) => setTier(e.target.value)} size="sm">
-                                    <option value="primary">Primary — tried first</option>
-                                    <option value="fallback">Fallback — on primary error</option>
-                                    <option value="tertiary">Tertiary — last resort</option>
+                                    <option value="primary">{t("observabilitySettings.tierOption.primary")}</option>
+                                    <option value="fallback">{t("observabilitySettings.tierOption.fallback")}</option>
+                                    <option value="tertiary">{t("observabilitySettings.tierOption.tertiary")}</option>
                                 </Form.Select>
                             </Form.Group>
                             {clusters.length > 0 && (
                                 <Form.Group controlId="obs-cluster">
                                     <Form.Label style={{ fontSize: 12, fontWeight: 600 }}>
-                                        <FaServer style={{ marginRight: 4 }} />Cluster scope
+                                        <FaServer style={{ marginRight: 4 }} />{t("observabilitySettings.clusterScope")}
                                     </Form.Label>
                                     <Form.Select
                                         value={clusterId ?? ""}
                                         onChange={(e) => setClusterId(e.target.value ? parseInt(e.target.value, 10) : null)}
                                         size="sm"
                                     >
-                                        <option value="">Unscoped — serves any cluster</option>
+                                        <option value="">{t("observabilitySettings.unscopedAnyCluster")}</option>
                                         {clusters.map((c) => (
                                             <option key={c.id} value={c.id}>
                                                 {c.name} — {c.provider_display}{c.region ? ` (${c.region})` : ""}
@@ -473,7 +477,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16, padding: 12, background: "var(--bg-sunken)", borderRadius: 6 }}>
                             <Form.Group controlId="obs-env">
                                 <Form.Label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}>
-                                    <FaTag size={10} style={{ marginRight: 4 }} />Environment
+                                    <FaTag size={10} style={{ marginRight: 4 }} />{t("observabilitySettings.environment")}
                                 </Form.Label>
                                 <Form.Control size="sm" type="text" placeholder="production"
                                     value={scope.environment}
@@ -481,7 +485,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                             </Form.Group>
                             <Form.Group controlId="obs-region">
                                 <Form.Label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}>
-                                    <FaGlobe size={10} style={{ marginRight: 4 }} />Region
+                                    <FaGlobe size={10} style={{ marginRight: 4 }} />{t("observabilitySettings.region")}
                                 </Form.Label>
                                 <Form.Control size="sm" type="text" placeholder="us-east-1"
                                     value={scope.region}
@@ -489,8 +493,8 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                             </Form.Group>
                             <Form.Group controlId="obs-namespace">
                                 <Form.Label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}>
-                                    <FaCube size={10} style={{ marginRight: 4 }} />Namespace
-                                    {!clusterId && <>{" "}<span style={{ fontSize: 9, color: "var(--text-tertiary)" }}>(needs cluster)</span></>}
+                                    <FaCube size={10} style={{ marginRight: 4 }} />{t("observabilitySettings.namespace")}
+                                    {!clusterId && <>{" "}<span style={{ fontSize: 9, color: "var(--text-tertiary)" }}>{t("observabilitySettings.needsCluster")}</span></>}
                                 </Form.Label>
                                 <Form.Control size="sm" type="text" placeholder="payments"
                                     value={scope.namespace}
@@ -503,10 +507,10 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                             was API-only although the docs point here (B3). */}
                         {enabledCaps.includes("metrics") && (
                             <Form.Group controlId="obs-topology" style={{ marginBottom: 12 }}>
-                                <Form.Label style={{ fontSize: 12, fontWeight: 600 }}>Topology mode</Form.Label>
+                                <Form.Label style={{ fontSize: 12, fontWeight: 600 }}>{t("observabilitySettings.topologyMode")}</Form.Label>
                                 <Form.Select value={topology} onChange={(e) => setTopology(e.target.value)} size="sm">
-                                    <option value="vm">VM / bare metal: host-level metrics</option>
-                                    <option value="kubernetes">Kubernetes: container metrics grouped by service</option>
+                                    <option value="vm">{t("observabilitySettings.topologyVm")}</option>
+                                    <option value="kubernetes">{t("observabilitySettings.topologyKubernetes")}</option>
                                 </Form.Select>
                             </Form.Group>
                         )}
@@ -514,12 +518,12 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                         {/* Capabilities toggles for dual-cap providers */}
                         {providerMeta.capabilities.length > 1 && (
                             <div style={{ marginBottom: 14, padding: 10, backgroundColor: "var(--bg-sunken)", borderRadius: 6 }}>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginRight: 10 }}>Capabilities:</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginRight: 10 }}>{t("observabilitySettings.capabilities")}</span>
                                 {providerMeta.capabilities.map((cap) => (
                                     <label key={cap} style={{ marginRight: 14, cursor: "pointer", fontSize: 13 }}>
                                         <input type="checkbox" checked={enabledCaps.includes(cap)}
                                             onChange={() => toggleCap(cap)} style={{ marginRight: 4 }} />
-                                        {{ logs: "Log Provider", metrics: "Metric Provider", traces: "Trace Provider" }[cap]}
+                                        {t(`observabilitySettings.capProvider.${cap}`)}
                                     </label>
                                 ))}
                             </div>
@@ -531,7 +535,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                                 const value = getNestedValue(form, field.name);
                                 return (
                                     <Form.Check key={field.name} id={`obs-${field.name}`} type="checkbox" style={{ marginBottom: 12 }}
-                                        label={field.label}
+                                        label={t(field.label)}
                                         checked={value === "" || value === undefined ? !!field.defaultChecked : !!value}
                                         onChange={(e) => handleFieldChange(field.name, e.target.checked)} />
                                 );
@@ -543,18 +547,18 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
                                     : (integration?.secret_fields_set || []).includes(field.name.replace("extra_config.", ""))
                             );
                             const placeholder = hasStoredValue && !getNestedValue(form, field.name)
-                                ? "••••••••  (leave blank to keep)"
-                                : (field.placeholder || "");
+                                ? t("observabilitySettings.keepSecret")
+                                : (field.placeholderKey ? t(field.placeholderKey) : (field.placeholder || ""));
                             return (
                                 <Form.Group key={field.name} controlId={`obs-${field.name}`} style={{ marginBottom: 12 }}>
                                     <Form.Label style={{ fontSize: 12, fontWeight: 600 }}>
-                                        {field.label} {field.required && <span style={{ color: "var(--tone-red-text)" }}>*</span>}
+                                        {t(field.label)} {field.required && <span style={{ color: "var(--tone-red-text)" }}>*</span>}
                                     </Form.Label>
                                     <Form.Control type={field.type || "text"} size="sm"
                                         placeholder={placeholder}
                                         value={getNestedValue(form, field.name) || ""}
                                         onChange={(e) => handleFieldChange(field.name, e.target.value)} />
-                                    {field.help && <Form.Text muted>{field.help}</Form.Text>}
+                                    {field.help && <Form.Text muted>{t(field.help)}</Form.Text>}
                                 </Form.Group>
                             );
                         })}
@@ -564,12 +568,12 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
             <Modal.Footer>
                 {isEdit && (
                     <Button variant="outline-primary" size="sm" onClick={handleTest} disabled={testing} className="me-auto">
-                        {testing ? <><FaSpinner className="spin" /> Testing…</> : <><FaPlug /> Test</>}
+                        {testing ? <><FaSpinner className="spin" /> {t("observabilitySettings.testing")}</> : <><FaPlug /> {t("observabilitySettings.test")}</>}
                     </Button>
                 )}
-                <Button variant="secondary" onClick={onHide} size="sm">Cancel</Button>
+                <Button variant="secondary" onClick={onHide} size="sm">{t("common.cancel")}</Button>
                 <Button variant="primary" onClick={handleSave} disabled={saving || !selectedProvider} size="sm">
-                    {saving ? <><FaSpinner className="spin" /> Saving…</> : (isEdit ? "Update" : "Create")}
+                    {saving ? <><FaSpinner className="spin" /> {t("observabilitySettings.saving")}</> : (isEdit ? t("observabilitySettings.update") : t("observabilitySettings.create"))}
                 </Button>
             </Modal.Footer>
         </Modal>
@@ -579,6 +583,7 @@ function IntegrationFormModal({ show, onHide, capability, integration, clusters,
 /* ─── Integration Row + List ─────────────────────────────────────────── */
 
 function IntegrationRow({ integration, clusters, onEdit, onDelete }) {
+    const { t } = useTranslation();
     const meta = PROVIDERS[integration.provider];
     const Icon = meta?.icon || FaChartLine;
     const clusterName = clusters.find((c) => c.id === integration.cluster)?.name;
@@ -601,12 +606,12 @@ function IntegrationRow({ integration, clusters, onEdit, onDelete }) {
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                 <StatusBadge status={integration.last_health_status} />
                 {onEdit && (
-                    <Button variant="outline-secondary" size="sm" onClick={() => onEdit(integration)} title="Edit" aria-label="Edit">
+                    <Button variant="outline-secondary" size="sm" onClick={() => onEdit(integration)} title={t("common.edit")} aria-label={t("common.edit")}>
                         <FaEdit size={12} />
                     </Button>
                 )}
                 {onDelete && (
-                    <Button variant="outline-danger" size="sm" onClick={() => onDelete(integration)} title="Delete" aria-label="Delete">
+                    <Button variant="outline-danger" size="sm" onClick={() => onDelete(integration)} title={t("common.delete")} aria-label={t("common.delete")}>
                         <FaTrash size={12} />
                     </Button>
                 )}
@@ -616,6 +621,7 @@ function IntegrationRow({ integration, clusters, onEdit, onDelete }) {
 }
 
 function ProviderPanel({ capability, integrations, onRefresh }) {
+    const { t } = useTranslation();
     // Sources hold credentials: only admins add, edit or delete them (the API enforces it).
     // The demo lists the stores its analyses read, with nothing to add, edit or delete.
     const canManage = usePermissions()("integration.manage") && !isDemoUser();
@@ -640,13 +646,13 @@ function ProviderPanel({ capability, integrations, onRefresh }) {
 
     async function handleDelete(row) {
         const label = row.display_name || PROVIDERS[row.provider]?.name || row.provider;
-        if (!window.confirm(`Remove the ${row.priority_tier} ${label} integration?`)) return;
+        if (!window.confirm(t("observabilitySettings.confirmRemove", { tier: row.priority_tier, label }))) return;
         try {
             await ObservabilityService.delete(row.id);
-            toast.success("Integration removed");
+            toast.success(t("observabilitySettings.removed"));
             onRefresh();
         } catch {
-            toast.error("Failed to remove integration");
+            toast.error(t("observabilitySettings.removeFailed"));
         }
     }
 
@@ -656,14 +662,14 @@ function ProviderPanel({ capability, integrations, onRefresh }) {
     return (
         <div>
             <IntegrationsSectionHeader
-                title={{ logs: "Log Providers", metrics: "Metric Providers", traces: "Trace Providers" }[capability]}
+                title={t(`globalIntegrations.tabs.${capability}`)}
                 count={rows.length}
                 description={capability === "traces"
-                    ? "Trace stores SerOps pulls from. Traces sent to SerOps over OTLP need no provider."
-                    : "Ordered by priority tier. The batch pipeline tries primary first, then fallback, then tertiary."}
+                    ? t("observabilitySettings.descTraces")
+                    : t("observabilitySettings.descTiers")}
                 action={canManage && (
                     <Button variant="primary" onClick={openCreate}>
-                        <FaPlus aria-hidden="true" /> Add {CAP_LABELS[capability]} provider
+                        <FaPlus aria-hidden="true" /> {t(`observabilitySettings.add.${capability}`)}
                     </Button>
                 )}
             />
@@ -671,8 +677,8 @@ function ProviderPanel({ capability, integrations, onRefresh }) {
             {rows.length === 0 ? (
                 <div className="text-center py-5 text-muted">
                     <FaPlug size={40} className="mb-2 opacity-50" />
-                    <p>No {CAP_LABELS[capability]} providers configured yet.</p>
-                    <p className="small">{capability === "traces" ? "Traces sent over OTLP are still used." : "Using system default until you add one."}</p>
+                    <p>{t(`observabilitySettings.empty.${capability}`)}</p>
+                    <p className="small">{capability === "traces" ? t("observabilitySettings.emptyTracesNote") : t("observabilitySettings.emptyDefaultNote")}</p>
                 </div>
             ) : (
                 <div>

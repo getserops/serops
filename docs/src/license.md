@@ -33,17 +33,17 @@ For strictly internal use — even at a large company — the second obligation 
 
 ## When you might want a commercial license instead
 
-The AGPL is a great fit for most users. There are three scenarios where a commercial license from us is a better fit:
+The AGPL is a great fit for most users. Three cases need an agreement with us:
 
-1. Your organisation has a **policy against AGPL code** in its stack (Google and some Fortune 500 companies do). A commercial license removes the copyleft obligations.
-2. You want to **modify SerOps and offer it as a proprietary product** to third parties without open-sourcing your changes.
-3. You want **prioritised support or contractual guarantees** the AGPL cannot provide. Terms such as indemnification are discussed case by case.
+1. Your organisation's **policy rules out AGPL software**. Business includes a commercial license for internal use, as an alternative to the AGPL, for your organisation and the companies it controls.
+2. You want to **build a product on SerOps**, embed it, redistribute it or run it for clients. A Business or Enterprise license does not cover this: it needs a separate written agreement, on request, with no public price ([Enterprise Terms, section 4.3](legal/enterprise-terms.md#4-license-key-and-use)).
+3. You want **support or contractual terms**. Business comes with email support and the standard terms; an SLA, your own contract terms or a security review with your teams is Enterprise ([pricing](https://serops.ai/pricing)).
 
-If any of those apply, see [`LICENSE-COMMERCIAL.md`](https://github.com/getserops/serops/blob/main/LICENSE-COMMERCIAL.md) at the repository root for how to reach us.
+If any of those apply, write to **licensing@serops.ai**; [`LICENSE-COMMERCIAL.md`](https://github.com/getserops/serops/blob/main/LICENSE-COMMERCIAL.md) at the repository root says what to include.
 
 ## Enterprise code (`ee/` directories)
 
-Two directories, `backend/ee/` and `frontend/src/ee/`, hold SerOps Enterprise code under the [SerOps Enterprise License](https://github.com/getserops/serops/blob/main/backend/ee/LICENSE) instead of the AGPL. The code is readable; using it in production needs a paid subscription and its license key.
+Two directories, `backend/ee/` and `frontend/src/ee/`, hold SerOps Enterprise code under the [SerOps Enterprise License](https://github.com/getserops/serops/blob/main/backend/ee/LICENSE) instead of the AGPL. The code is readable; using it in production needs a paid license (Business or Enterprise) and its license key.
 
 - **SerOps Community is complete without them.** Delete both directories and you have SerOps under the AGPL only. CI tests it that way on every change.
 - **Enterprise only adds** governance features for large organisations. No Community feature moves to Enterprise: see the [open source promise](open-source-promise.md).

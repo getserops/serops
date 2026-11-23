@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, Button, Alert, Table } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
 import { FaExclamationTriangle, FaShieldAlt, FaPaperPlane, FaTimes } from 'react-icons/fa';
 import './SensitiveDataWarningModal.css';
 
@@ -24,6 +25,7 @@ const SensitiveDataWarningModal = ({
     onCancel,
     findings = []
 }) => {
+    const { t } = useTranslation();
     const getSeverityBadge = (severity) => {
         const colors = {
             critical: 'danger',
@@ -33,7 +35,7 @@ const SensitiveDataWarningModal = ({
         };
         return (
             <span className={`badge bg-${colors[severity] || 'secondary'}`}>
-                {severity}
+                {t(`sensitiveDataWarningModal.severity.${severity}`, { defaultValue: severity })}
             </span>
         );
     };
@@ -47,38 +49,38 @@ const SensitiveDataWarningModal = ({
 
     const getTypeLabel = (type) => {
         const labels = {
-            password: 'Password',
-            api_key: 'API Key',
-            aws_access_key: 'AWS Access Key',
-            aws_secret_key: 'AWS Secret Key',
-            jwt_token: 'JWT Token',
-            bearer_token: 'Bearer Token',
-            private_key: 'Private Key',
-            ssh_key: 'SSH Key',
-            gitlab_token: 'GitLab Token',
-            github_token: 'GitHub Token',
-            slack_token: 'Slack Token',
-            ai_provider_key: 'AI Provider Key',
-            google_api_key: 'Google API Key',
-            docker_login_password: 'Docker Login Password',
-            authorization_header: 'Authorization Header',
-            basic_auth: 'Basic Auth Credentials',
-            url_credentials: 'Password in URL',
-            generic_secret: 'Secret/Token',
-            email: 'Email Address',
-            phone_us: 'Phone Number',
-            phone_international: 'Phone Number',
-            ssn: 'Social Security Number',
-            credit_card: 'Credit Card',
-            credit_card_formatted: 'Credit Card',
-            connection_string: 'Database Connection',
-            database_url: 'Database URL',
-            s3_bucket: 'S3 Bucket',
-            private_ip: 'Internal IP',
-            public_ip: 'Public IP',
-            env_variable: 'Environment Variable',
+            password: 'sensitiveDataWarningModal.type.password',
+            api_key: 'sensitiveDataWarningModal.type.apiKey',
+            aws_access_key: 'sensitiveDataWarningModal.type.awsAccessKey',
+            aws_secret_key: 'sensitiveDataWarningModal.type.awsSecretKey',
+            jwt_token: 'sensitiveDataWarningModal.type.jwtToken',
+            bearer_token: 'sensitiveDataWarningModal.type.bearerToken',
+            private_key: 'sensitiveDataWarningModal.type.privateKey',
+            ssh_key: 'sensitiveDataWarningModal.type.sshKey',
+            gitlab_token: 'sensitiveDataWarningModal.type.gitlabToken',
+            github_token: 'sensitiveDataWarningModal.type.githubToken',
+            slack_token: 'sensitiveDataWarningModal.type.slackToken',
+            ai_provider_key: 'sensitiveDataWarningModal.type.aiProviderKey',
+            google_api_key: 'sensitiveDataWarningModal.type.googleApiKey',
+            docker_login_password: 'sensitiveDataWarningModal.type.dockerLoginPassword',
+            authorization_header: 'sensitiveDataWarningModal.type.authorizationHeader',
+            basic_auth: 'sensitiveDataWarningModal.type.basicAuth',
+            url_credentials: 'sensitiveDataWarningModal.type.urlCredentials',
+            generic_secret: 'sensitiveDataWarningModal.type.genericSecret',
+            email: 'sensitiveDataWarningModal.type.email',
+            phone_us: 'sensitiveDataWarningModal.type.phoneUs',
+            phone_international: 'sensitiveDataWarningModal.type.phoneInternational',
+            ssn: 'sensitiveDataWarningModal.type.ssn',
+            credit_card: 'sensitiveDataWarningModal.type.creditCard',
+            credit_card_formatted: 'sensitiveDataWarningModal.type.creditCardFormatted',
+            connection_string: 'sensitiveDataWarningModal.type.connectionString',
+            database_url: 'sensitiveDataWarningModal.type.databaseUrl',
+            s3_bucket: 'sensitiveDataWarningModal.type.s3Bucket',
+            private_ip: 'sensitiveDataWarningModal.type.privateIp',
+            public_ip: 'sensitiveDataWarningModal.type.publicIp',
+            env_variable: 'sensitiveDataWarningModal.type.envVariable',
         };
-        return labels[type] || type;
+        return labels[type] ? t(labels[type]) : type;
     };
 
     // Calculate severity summary
@@ -96,40 +98,40 @@ const SensitiveDataWarningModal = ({
             <Modal.Header className="warning-header">
                 <Modal.Title>
                     <FaExclamationTriangle className="me-2" />
-                    Sensitive Data Detected!
+                    {t('sensitiveDataWarningModal.title')}
                 </Modal.Title>
             </Modal.Header>
 
             <Modal.Body>
                 <Alert variant="warning" className="mb-3">
-                    <strong>Your message contains potentially sensitive information.</strong>
+                    <strong>{t('sensitiveDataWarningModal.intro')}</strong>
                     <br />
-                    <small>SerOps masks the values it detects before the message reaches the external AI service, but it may not catch everything.</small>
+                    <small>{t('sensitiveDataWarningModal.introHint')}</small>
                 </Alert>
 
                 {(criticalCount > 0 || highCount > 0) && (
                     <div className="severity-summary mb-3">
                         {criticalCount > 0 && (
                             <span className="badge bg-danger me-2">
-                                {criticalCount} Critical
+                                {t('sensitiveDataWarningModal.criticalCount', { n: criticalCount })}
                             </span>
                         )}
                         {highCount > 0 && (
                             <span className="badge bg-warning text-dark">
-                                {highCount} High Risk
+                                {t('sensitiveDataWarningModal.highCount', { n: highCount })}
                             </span>
                         )}
                     </div>
                 )}
 
-                <h6 className="mt-3">Detected Sensitive Data:</h6>
+                <h6 className="mt-3">{t('sensitiveDataWarningModal.detected')}</h6>
                 <div className="findings-table-container">
                     <Table size="sm" bordered hover className="findings-table">
                         <thead>
                             <tr>
-                                <th>Type</th>
-                                <th>Risk</th>
-                                <th>Preview</th>
+                                <th>{t('sensitiveDataWarningModal.col.type')}</th>
+                                <th>{t('sensitiveDataWarningModal.col.risk')}</th>
+                                <th>{t('sensitiveDataWarningModal.col.preview')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -154,20 +156,18 @@ const SensitiveDataWarningModal = ({
                 <Alert variant="info" className="mt-3 mb-0 info-alert">
                     <small>
                         <FaShieldAlt className="me-1" />
-                        <strong>What happens if I send anyway?</strong><br />
-                        The values listed above are masked before the message is sent,
-                        so the AI sees placeholders such as [REDACTED] instead.
-                        Anything SerOps did not detect is sent as written.
+                        <strong>{t('sensitiveDataWarningModal.whatIfTitle')}</strong><br />
+                        {t('sensitiveDataWarningModal.whatIfBody')}
                     </small>
                 </Alert>
             </Modal.Body>
 
             <Modal.Footer className="d-flex justify-content-between">
                 <Button variant="outline-secondary" onClick={onCancel}>
-                    <FaTimes className="me-1" /> Cancel & Edit
+                    <FaTimes className="me-1" /> {t('sensitiveDataWarningModal.cancelEdit')}
                 </Button>
                 <Button variant="warning" onClick={onSendAnyway}>
-                    <FaPaperPlane className="me-1" /> Send Anyway
+                    <FaPaperPlane className="me-1" /> {t('sensitiveDataWarningModal.sendAnyway')}
                 </Button>
             </Modal.Footer>
         </Modal>

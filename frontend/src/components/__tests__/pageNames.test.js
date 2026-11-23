@@ -60,9 +60,16 @@ describe('French wording', () => {
   it('has no label in English title case', () => {
     const names = new Set(('SerOps Kubernetes Slack Sentinel GitHub GitLab Jira PagerDuty Teams Microsoft Google OpenTelemetry Prometheus '
       + 'Loki Grafana Sentry Datadog Anthropic OpenAI Azure DevOps Docker Helm Git Claude Okta Entra Keycloak Community Business Enterprise '
-      + 'Entreprise OpenID Connect WebP Viewer User Admin Build/Release GitLab.com Pro Mo Webhook Bitbucket Jenkins Realm Ariane').split(' '));
+      + 'Entreprise OpenID Connect WebP Viewer User Admin Build/Release GitLab.com Pro Mo Webhook Bitbucket Jenkins Realm Ariane '
+      // Products and protocols named in the integration and AI settings.
+      + 'Gemini Mistral Ollama DeepSeek Splunk Thanos Mimir Jaeger Zipkin Tempo Cloud Redis Bearer Authorization Basic Auth '
+      + 'Events Log Analytics York Angeles').split(' '));
     const skip = new Set(['roles.builtinDesc', 'projectAccess.createTeamsFirst', 'settings.general.organisation.logoHint',
-      'security.protocolOidcDesc', 'security.discoveryUrlHint', 'globalIntegrations.integrationNamePlaceholder']);
+      'security.protocolOidcDesc', 'security.discoveryUrlHint', 'globalIntegrations.integrationNamePlaceholder',
+      // The provider's own menu, which is in English ("Settings → Access Tokens"), and example names.
+      'globalIntegrations.field.gitlabTokenHelp', 'globalIntegrations.field.azureTokenHelp',
+      'globalIntegrations.field.bitbucketPasswordHelp', 'globalIntegrations.field.jenkinsTokenHelp',
+      'createProjectModal.projectNameHelp', 'registerPart1.phonePlaceholder']);
     const flat = (obj, prefix = '') => Object.entries(obj).flatMap(([k, v]) => (
       typeof v === 'string' ? [[prefix + k, v]] : flat(v, `${prefix}${k}.`)));
     const found = [];
@@ -70,7 +77,8 @@ describe('French wording', () => {
       if (value.length > 60 || skip.has(key)) continue;
       const words = value.split(' ');
       words.slice(1).forEach((word, i) => {
-        if (word.startsWith('"') || /[.!?:]$/.test(words[i])) return;
+        // A menu path ("Paramètres → Intégrations") starts each step with a capital.
+        if (word.startsWith('"') || /[.!?:→|]$/.test(words[i])) return;
         const core = word.replace(/^[.,:;()«»"']+|[.,:;()«»"']+$/g, '').replace(/^[dlDL]['’]/, '');
         if (/^[A-ZÀ-Ý][a-zà-ÿ]{2,}/.test(core) && !/^[A-ZÀ-Ý][a-zà-ÿ]+[A-Z]/.test(core) && !names.has(core)) found.push(`${key}: ${value}`);
       });

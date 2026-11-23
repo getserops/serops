@@ -2,9 +2,11 @@ import React, { useState, useEffect } from "react";
 import { Table, Pagination } from "react-bootstrap";
 import { FaExclamationCircle } from "react-icons/fa";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import DataService from "../services/data.service";
 
 const BatchIssues = () => {
+  const { t } = useTranslation();
   const { batchId } = useParams();
   const [currentPage, setCurrentPage] = useState(1);
   const [issuesData, setIssuesData] = useState([]);
@@ -24,14 +26,14 @@ const BatchIssues = () => {
         if (!Array.isArray(issues)) {
           if (issues?.error?.includes("parsing analysis_text")) {
             const newError = {
-              message: "Invalid JSON format in batch analysis",
-              batch: issues.batchId || "Unknown analysis",
-              solution: "Check Elasticsearch index mapping and data format",
+              message: t('batchIssues.invalidJson'),
+              batch: issues.batchId || t('batchIssues.unknownAnalysis'),
+              solution: t('batchIssues.invalidJsonSolution'),
             };
             setIssuesData([newError]);
           } else {
             console.error("Issues is not an array:", issues);
-            setError("Failed to load issues data");
+            setError(t('batchIssues.loadFailed'));
             setIssuesData([]);
           }
           return;
@@ -39,7 +41,7 @@ const BatchIssues = () => {
         setIssuesData(issues);
       } catch (error) {
         console.error("Failed to fetch issues:", error);
-        setError(error.message || "An error occurred while fetching issues");
+        setError(error.message || t('batchIssues.fetchError'));
         setIssuesData([]);
       } finally {
         setLoading(false);
@@ -47,7 +49,7 @@ const BatchIssues = () => {
     };
 
     fetchIssues();
-  }, [batchId]);
+  }, [batchId, t]);
 
   const getSeverityColor = (severity) => {
     switch (severity?.toLowerCase()) {
@@ -85,7 +87,7 @@ const BatchIssues = () => {
   };
 
   if (loading) {
-    return <div className="text-center">Loading issues..</div>;
+    return <div className="text-center">{t('batchIssues.loading')}</div>;
   }
 
   if (error) {
@@ -114,18 +116,18 @@ const BatchIssues = () => {
       >
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h4 className="text-start mb-0">
-            Issues for Batch {batchId} ({issuesData.length})
+            {t('batchIssues.title', { batchId, n: issuesData.length })}
           </h4>
           <button
             className="btn btn-outline-primary btn-sm"
             onClick={() => navigate("/dash/issues")}
           >
-            View All Issues
+            {t('batchIssues.viewAll')}
           </button>
         </div>
 
         {issuesData.length === 0 ? (
-          <p>No issues found for batch {batchId}.</p>
+          <p>{t('batchIssues.empty', { batchId })}</p>
         ) : (
           <>
             <Table
@@ -137,14 +139,14 @@ const BatchIssues = () => {
             >
               <thead className="table-primary">
                 <tr>
-                  <th style={{ fontSize: "14px", width: "50%" }}>ERRORS</th>
-                  <th style={{ fontSize: "14px", width: "15%" }}>BATCH ID</th>
-                  <th style={{ fontSize: "14px", width: "15%" }}>SEVERITY</th>
+                  <th style={{ fontSize: "14px", width: "50%" }}>{t('batchIssues.col.errors')}</th>
+                  <th style={{ fontSize: "14px", width: "15%" }}>{t('batchIssues.col.batchId')}</th>
+                  <th style={{ fontSize: "14px", width: "15%" }}>{t('batchIssues.col.severity')}</th>
                   <th
                     style={{ fontSize: "14px", width: "20%" }}
                     className="text-primary"
                   >
-                    SOLUTION APPLIED
+                    {t('batchIssues.col.solutionApplied')}
                   </th>
                 </tr>
               </thead>
@@ -175,7 +177,7 @@ const BatchIssues = () => {
                           {issue.batch}
                         </td>
                         <td style={{ padding: "0.75rem", fontSize: "14px" }}>
-                          {issue.message.match(/^\[([^\]]+)\]/)?.[1] || "N/A"}
+                          {issue.message.match(/^\[([^\]]+)\]/)?.[1] || t('batchIssues.na')}
                         </td>
                         <td
                           style={{
@@ -186,14 +188,14 @@ const BatchIssues = () => {
                           className="text-primary text-decoration-none"
                           onClick={(e) => handleSolutionClick(issue, e)}
                         >
-                          Solution
+                          {t('batchIssues.solution')}
                         </td>
                       </tr>
                       {expandedIssue === issue.id && (
                         <tr>
                           <td colSpan="4" className="text-start bg-light">
                             <div style={{ padding: "1rem", fontSize: "14px" }}>
-                              <strong>Root Cause :</strong> {issue.root_cause || "No root cause available"}
+                              <strong>{t('batchIssues.rootCause')}</strong> {issue.root_cause || t('batchIssues.noRootCause')}
                             </div>
                           </td>
                         </tr>

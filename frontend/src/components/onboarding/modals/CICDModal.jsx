@@ -17,6 +17,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     Alert,
     Box,
@@ -53,13 +54,14 @@ const CICD_PROVIDER_TYPES = new Set([
 ]);
 
 const BINDING_TYPES = [
-    { code: 'build', label: 'Build pipeline' },
-    { code: 'deploy', label: 'Deployment pipeline' },
-    { code: 'test', label: 'Test pipeline' },
-    { code: 'release', label: 'Release pipeline' },
+    { code: 'build', labelKey: 'cicdModal.bindingType.build' },
+    { code: 'deploy', labelKey: 'cicdModal.bindingType.deploy' },
+    { code: 'test', labelKey: 'cicdModal.bindingType.test' },
+    { code: 'release', labelKey: 'cicdModal.bindingType.release' },
 ];
 
 export default function CICDModal({ open, onClose, onSaved }) {
+    const { t } = useTranslation();
     const [integrations, setIntegrations] = useState([]);
     const [services, setServices] = useState([]);
     const [integrationId, setIntegrationId] = useState('');
@@ -112,7 +114,7 @@ export default function CICDModal({ open, onClose, onSaved }) {
                     (p.services || []).forEach((s) => {
                         flat.push({
                             id: s.id,
-                            label: `${p.name} → ${s.name || s.subtype || 'service'}`,
+                            label: `${p.name} → ${s.name || s.subtype || t('scmModal.serviceFallback')}`,
                         });
                     });
                 });
@@ -124,13 +126,13 @@ export default function CICDModal({ open, onClose, onSaved }) {
                 setLoadingLists(false);
             } catch (err) {
                 if (!cancelled) {
-                    setError('Failed to load integrations or services');
+                    setError(t('scmModal.loadFailed'));
                     setLoadingLists(false);
                 }
             }
         })();
         return () => { cancelled = true; };
-    }, [open]);
+    }, [open, t]);
 
     useEffect(() => {
         if (!open) resetState();
@@ -168,7 +170,7 @@ export default function CICDModal({ open, onClose, onSaved }) {
                             .map(([f, m]) => `${f}: ${Array.isArray(m) ? m.join(', ') : m}`)
                             .join('; ')
                         : null)
-                    || 'Failed to save CI/CD binding';
+                    || t('cicdModal.saveFailed');
             setError(message);
         } finally {
             setSaving(false);
@@ -183,39 +185,37 @@ export default function CICDModal({ open, onClose, onSaved }) {
 
     return (
         <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-            <DialogTitle>Link a CI/CD pipeline</DialogTitle>
+            <DialogTitle>{t('cicdModal.title')}</DialogTitle>
             <DialogContent dividers>
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
                 {loadingLists ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-                        <CircularProgress aria-label="Loading" />
+                        <CircularProgress aria-label={t('onboarding.loading')} />
                     </Box>
                 ) : !hasIntegrations ? (
                     <Alert severity="info">
-                        You don't have any CI/CD provider integrations yet.
-                        Add one under{' '}
+                        {t('cicdModal.noIntegrationsBefore')}{' '}
                         <Link
                             href="/dash/settings/integrations"
                             underline="hover"
                         >
-                            Settings → Integrations
+                            {t('scmModal.settingsIntegrations')}
                         </Link>
-                        , then come back to link a pipeline to your service.
+                        {t('cicdModal.noIntegrationsAfter')}
                     </Alert>
                 ) : !hasServices ? (
                     <Alert severity="warning">
-                        No services found. Complete the "Link a service"
-                        step first.
+                        {t('scmModal.noServices')}
                     </Alert>
                 ) : (
                     <>
                         <FormControl fullWidth sx={{ mb: 2 }}>
-                            <InputLabel id="cicd-integration-label">Integration</InputLabel>
+                            <InputLabel id="cicd-integration-label">{t('addService.integration')}</InputLabel>
                             <Select
                                 labelId="cicd-integration-label"
                                 value={integrationId}
-                                label="Integration"
+                                label={t('addService.integration')}
                                 onChange={(e) => setIntegrationId(e.target.value)}
                             >
                                 {integrations.map((i) => (
@@ -227,11 +227,11 @@ export default function CICDModal({ open, onClose, onSaved }) {
                         </FormControl>
 
                         <FormControl fullWidth sx={{ mb: 2 }}>
-                            <InputLabel id="cicd-service-label">Service</InputLabel>
+                            <InputLabel id="cicd-service-label">{t('services.service')}</InputLabel>
                             <Select
                                 labelId="cicd-service-label"
                                 value={serviceId}
-                                label="Service"
+                                label={t('services.service')}
                                 onChange={(e) => setServiceId(e.target.value)}
                             >
                                 {services.map((s) => (
@@ -243,66 +243,65 @@ export default function CICDModal({ open, onClose, onSaved }) {
                         </FormControl>
 
                         <FormControl fullWidth sx={{ mb: 2 }}>
-                            <InputLabel id="cicd-type-label">Pipeline purpose</InputLabel>
+                            <InputLabel id="cicd-type-label">{t('cicdModal.purpose')}</InputLabel>
                             <Select
                                 labelId="cicd-type-label"
                                 value={bindingType}
-                                label="Pipeline purpose"
+                                label={t('cicdModal.purpose')}
                                 onChange={(e) => setBindingType(e.target.value)}
                             >
-                                {BINDING_TYPES.map((t) => (
-                                    <MenuItem key={t.code} value={t.code}>
-                                        {t.label}
+                                {BINDING_TYPES.map((b) => (
+                                    <MenuItem key={b.code} value={b.code}>
+                                        {t(b.labelKey)}
                                     </MenuItem>
                                 ))}
                             </Select>
                             <FormHelperText>
-                                A service can have multiple pipelines (build + deploy, etc.)
+                                {t('cicdModal.purposeHelp')}
                             </FormHelperText>
                         </FormControl>
 
                         <TextField
                             fullWidth
                             sx={{ mb: 2 }}
-                            label="Pipeline ID"
+                            label={t('cicdModal.pipelineId')}
                             value={pipelineId}
                             onChange={(e) => setPipelineId(e.target.value)}
-                            placeholder="e.g. numeric job ID, or GitHub workflow file path"
-                            helperText="Provider-specific identifier for the pipeline."
+                            placeholder={t('cicdModal.pipelineIdPlaceholder')}
+                            helperText={t('cicdModal.pipelineIdHelp')}
                         />
 
                         <TextField
                             fullWidth
                             sx={{ mb: 2 }}
-                            label="Pipeline name (optional)"
+                            label={t('cicdModal.pipelineNameOptional')}
                             value={pipelineName}
                             onChange={(e) => setPipelineName(e.target.value)}
                         />
 
                         <TextField
                             fullWidth
-                            label="Pipeline URL (optional)"
+                            label={t('cicdModal.pipelineUrlOptional')}
                             value={pipelineUrl}
                             onChange={(e) => setPipelineUrl(e.target.value)}
-                            placeholder="Link users click to jump to the pipeline"
+                            placeholder={t('cicdModal.pipelineUrlPlaceholder')}
                         />
 
                         <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 2 }}>
-                            AI will correlate incidents on the linked service
-                            with recent builds / deploys from this pipeline.
+                            {t('cicdModal.footnote')}
                         </Typography>
                     </>
                 )}
             </DialogContent>
             <DialogActions>
-                <Button onClick={handleClose} disabled={saving}>Cancel</Button>
+                <Button onClick={handleClose} disabled={saving}>{t('common.cancel')}</Button>
                 <Button
                     variant="contained"
                     onClick={handleSave}
                     disabled={!canSubmit()}
-                    startIcon={saving ? <CircularProgress aria-label="Loading" size={16} /> : null}
+                    startIcon={saving ? <CircularProgress aria-label={t('onboarding.loading')} size={16} /> : null}
                 >
-                    Link pipeline
+                    {t('cicdStep.link')}
                 </Button>
             </DialogActions>
         </Dialog>

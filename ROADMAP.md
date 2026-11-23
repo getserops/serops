@@ -25,8 +25,6 @@ Community ([open source promise, "How we decide"](https://serops.ai/docs/open-so
 - Two-factor authentication
   ([README, "What does not work yet"](README.md#what-does-not-work-yet);
   [open source promise](https://serops.ai/docs/open-source-promise/)).
-- Enforced single sign-on: every sign-in goes through your identity provider
-  ([open source promise](https://serops.ai/docs/open-source-promise/)).
 - Tamper-evident audit export: proof that an audit export was not altered
   ([open source promise](https://serops.ai/docs/open-source-promise/);
   [security questionnaire, LOG-03](https://serops.ai/docs/legal/security-questionnaire/)).

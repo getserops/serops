@@ -1,7 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { PAGES } from './pages';
+import fs from 'node:fs';
+import path from 'node:path';
+import { PAGES, RESPONSIVE_PAGES, RESPONSIVE_WIDTHS } from './pages';
 import { FLOWS } from './flows';
+import { measure } from './responsive';
 
 const open = async (page: Page, path: string, theme: 'light' | 'dark' = 'light') => {
   await page.addInitScript((t) => {
@@ -227,3 +230,71 @@ test.describe('table columns line up with their header', () => {
     });
   }
 });
+
+// Phone, tablet and small laptop (work order of 22 Nov 2026). At 375, 768,
+// 1024 and 1280 px, in both themes: the page does not scroll sideways,
+// nothing in a table or a card is cut by a parent with hidden overflow, and
+// at the two touch widths a field has text of 16 px or more and everything
+// a finger presses is at least 24 by 24 px (a primary action 44 px high).
+// RESPONSIVE_OUT=<folder> also saves a full-page picture and the findings
+// of every screen and width.
+const ENFORCED = {
+  sideways: true,
+  clipped: true,
+  fields: true,
+  targets: true,
+  primary: true,
+};
+const OUT = process.env.RESPONSIVE_OUT;
+
+for (const theme of ['light', 'dark'] as const) {
+  for (const [width, height] of RESPONSIVE_WIDTHS) {
+    const touch = width <= 768;
+    test.describe(`responsive ${width} px (${theme})`, () => {
+      test.use({ viewport: { width, height }, isMobile: touch, hasTouch: touch });
+      for (const [name, url] of RESPONSIVE_PAGES) {
+        test(`${name}`, async ({ page }, info) => {
+          await open(page, url, theme);
+          const found = await page.evaluate(measure);
+          if (!touch) { found.fields = []; found.targets = []; found.primary = []; }
+          const picture = await page.screenshot({ fullPage: true });
+          await info.attach(`${name}-${width}-${theme}.png`, { body: picture, contentType: 'image/png' });
+          await info.attach('findings.json', { body: JSON.stringify(found, null, 2), contentType: 'application/json' });
+          if (OUT) {
+            const dir = path.join(OUT, theme, String(width));
+            fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(path.join(dir, `${name}.png`), picture);
+            fs.writeFileSync(path.join(dir, `${name}.json`), JSON.stringify(found, null, 2));
+          }
+          for (const [check, on] of Object.entries(ENFORCED)) {
+            const list = found[check as keyof typeof found];
+            if (on) expect.soft(list, `${check} on ${url} at ${width} px (${theme})`).toEqual([]);
+            else if (list.length) info.annotations.push({ type: `${check}, not enforced yet`, description: `${list.length}: ${list.slice(0, 5).join('; ')}` });
+          }
+        });
+      }
+    });
+  }
+}
+
+// A3: on a phone and a tablet the top bar stays on screen after scrolling,
+// so the menu is reachable without scrolling back up.
+for (const [width, height] of RESPONSIVE_WIDTHS.filter(([w]) => w <= 768)) {
+  test.describe(`top bar stays in place (${width} px)`, () => {
+    test.use({ viewport: { width, height }, isMobile: true, hasTouch: true });
+    for (const [name, url] of RESPONSIVE_PAGES.filter(([n]) => ['dashboard', 'issues', 'settings-ai'].includes(n))) {
+      test(`${name}`, async ({ page }) => {
+        await open(page, url);
+        await page.evaluate(() => window.scrollTo(0, 700));
+        await page.waitForTimeout(300);
+        const bar = await page.evaluate(() => {
+          const r = document.querySelector('.app-topbar .app-topbar-menu')!.getBoundingClientRect();
+          return { scrolled: window.scrollY, top: Math.round(r.top), bottom: Math.round(r.bottom) };
+        });
+        test.skip(bar.scrolled < 100, 'page too short to scroll');
+        expect(bar.top, `menu button after scrolling ${url}`).toBeGreaterThanOrEqual(0);
+        expect(bar.bottom).toBeLessThanOrEqual(height);
+      });
+    }
+  });
+}

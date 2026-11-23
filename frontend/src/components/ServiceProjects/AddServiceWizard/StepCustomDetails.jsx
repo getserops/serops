@@ -5,21 +5,23 @@
 
 import React from "react";
 import { Form } from "react-bootstrap";
+import { useTranslation } from "react-i18next";
 
 const StepCustomDetails = ({ formData, updateFormData }) => {
+    const { t } = useTranslation();
     return (
         <div className="wizard-step-content">
-            <h5 className="wizard-step-title">Custom Service Details</h5>
+            <h5 className="wizard-step-title">{t('addServiceWizard.custom.title')}</h5>
             <p className="wizard-step-subtitle">
-                Enter details for your custom or legacy service.
+                {t('addServiceWizard.custom.subtitle')}
             </p>
 
             {/* Service Name */}
             <div className="wizard-form-section">
-                <label className="wizard-form-label" htmlFor="wizard-customdetails-1">Service Name *</label>
+                <label className="wizard-form-label" htmlFor="wizard-customdetails-1">{t('addServiceWizard.serviceNameRequired')}</label>
                 <Form.Control id="wizard-customdetails-1"
                     type="text"
-                    placeholder="e.g., Legacy Payment Gateway"
+                    placeholder={t('addServiceWizard.custom.namePlaceholder')}
                     value={formData.serviceName || ""}
                     onChange={(e) => updateFormData({ serviceName: e.target.value })}
                     className="rounded-3"
@@ -29,11 +31,11 @@ const StepCustomDetails = ({ formData, updateFormData }) => {
 
             {/* Description */}
             <div className="wizard-form-section">
-                <label className="wizard-form-label" htmlFor="wizard-customdetails-2">Description</label>
+                <label className="wizard-form-label" htmlFor="wizard-customdetails-2">{t('addService.description')}</label>
                 <Form.Control id="wizard-customdetails-2"
                     as="textarea"
                     rows={3}
-                    placeholder="What this service does and key dependencies — used by AI for analysis"
+                    placeholder={t('serviceForms.descriptionPlaceholder')}
                     value={formData.description || ""}
                     onChange={(e) => updateFormData({ description: e.target.value })}
                     className="rounded-3"

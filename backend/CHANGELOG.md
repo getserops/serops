@@ -7,6 +7,10 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.5.3] - 2026-11-23
+
+No backend change. Released with frontend 1.5.3 so that the versions match.
+
 ## [1.5.2] - 2026-11-22
 
 No backend change. Released with frontend 1.5.2 so that the versions match.

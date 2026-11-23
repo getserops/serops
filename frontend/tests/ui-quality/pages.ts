@@ -43,3 +43,27 @@ export const PAGES: [string, string][] = [
   // Enterprise (src/ee/): visible to the demo admin of a single-organisation install.
   ['settings-license', '/dash/settings/license'],
 ];
+
+// Phone and tablet checks (work order of 22 Nov 2026): the screens people
+// open on a phone, at the four widths where a layout changes.
+export const RESPONSIVE_WIDTHS: [number, number][] = [[375, 812], [768, 1024], [1024, 768], [1280, 800]];
+export const RESPONSIVE_PAGES: [string, string][] = [
+  ['dashboard', '/dash'],
+  ['issues', '/dash/issues'],
+  ['data', '/dash/data'],
+  ['batch', `/dash/data/details/${BATCH}`],
+  ['batch-traces', `/dash/traces/batch/${BATCH}`],
+  ['investigate', '/dash/investigate'],
+  ['chat', '/dash/chat'],
+  ['traces', '/dash/traces'],
+  ['profile', '/dash/profile'],
+  ['settings', '/dash/settings'],
+  ['settings-ai', '/dash/settings/ai'],
+  ['settings-audit', '/dash/settings/audit'],
+  ['settings-clusters', '/dash/settings/clusters'],
+  // Settings pages of the paid features (src/ee/), as the demo shows them.
+  ['settings-roles', '/dash/settings/roles'],
+  ['settings-audit-streaming', '/dash/settings/audit-streaming'],
+  ['settings-security', '/dash/settings/security'],
+  ['settings-license', '/dash/settings/license'],
+];

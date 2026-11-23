@@ -175,7 +175,7 @@ const ServiceProjects = () => {
                                 <td className="ps-4 fw-medium text-dark">
                                   {service.name ||
                                     service.scm_binding?.repository_name ||
-                                    `Service #${service.id}`}
+                                    t('services.fallbackName', { id: service.id })}
                                 </td>
                                 <td>
                                   <span className="ds-chip ds-chip-neutral">

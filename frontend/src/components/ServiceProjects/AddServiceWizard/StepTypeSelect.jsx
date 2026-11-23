@@ -5,35 +5,37 @@
 
 import React from "react";
 import { FaCode, FaServer, FaEdit, FaChevronRight } from "react-icons/fa";
+import { useTranslation } from "react-i18next";
 
 const serviceTypes = [
     {
         id: "application",
         icon: FaCode,
-        title: "Application",
-        description: "Microservices, APIs, backends, frontends with code repository and CI/CD connections",
+        titleKey: "services.typeApplication",
+        descriptionKey: "addServiceWizard.typeSelect.applicationDesc",
         color: "#0d6efd"
     },
     {
         id: "infrastructure",
         icon: FaServer,
-        title: "Infrastructure",
-        description: "Databases, caches, message queues, and other non-code services",
+        titleKey: "addService.infrastructure",
+        descriptionKey: "addServiceWizard.typeSelect.infrastructureDesc",
         color: "#198754"
     },
     {
         id: "custom",
         icon: FaEdit,
-        title: "Custom",
-        description: "Manual service entry for legacy systems or external services",
+        titleKey: "addService.custom",
+        descriptionKey: "addServiceWizard.typeSelect.customDesc",
         color: "#6c757d"
     }
 ];
 
 const StepTypeSelect = ({ selectedType, onTypeSelect }) => {
+    const { t } = useTranslation();
     return (
         <div className="wizard-step-content">
-            <h5 className="wizard-step-title">What type of service are you adding?</h5>
+            <h5 className="wizard-step-title">{t('addServiceWizard.typeSelect.title')}</h5>
 
             <div className="type-selection-grid">
                 {serviceTypes.map((type) => {
@@ -56,8 +58,8 @@ const StepTypeSelect = ({ selectedType, onTypeSelect }) => {
                                 <Icon />
                             </div>
                             <div className="type-card-content">
-                                <div className="type-card-title">{type.title}</div>
-                                <p className="type-card-description">{type.description}</p>
+                                <div className="type-card-title">{t(type.titleKey)}</div>
+                                <p className="type-card-description">{t(type.descriptionKey)}</p>
                             </div>
                             <div className="type-card-arrow">
                                 <FaChevronRight />

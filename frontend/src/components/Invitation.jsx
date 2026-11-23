@@ -5,8 +5,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import { FaEnvelope } from "react-icons/fa";
 import AuthService from "../services/auth.service";
 import BrandMark from './BrandMark';
+import { useTranslation } from "react-i18next";
 
 function Invitation() {
+  const { t } = useTranslation();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
@@ -26,7 +28,7 @@ function Invitation() {
         setSuccess(true);
       })
       .catch((err) => {
-        setError(describeRequestError(err, "Invitation failed"));
+        setError(describeRequestError(err, t("invitation.failed")));
       })
       .finally(() => setLoading(false));
   }, [string]);
@@ -42,13 +44,13 @@ function Invitation() {
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
               <FaEnvelope size={36} style={{ color: 'var(--primary-500)' }} />
             </div>
-            <h2>Accept invitation</h2>
+            <h2>{t("invitation.title")}</h2>
             <p>
               {loading
-                ? "Processing your invitation…"
+                ? t("invitation.processing")
                 : success
-                ? "Your invitation is accepted. Set a password to finish."
-                : "We couldn't process your invitation."}
+                ? t("invitation.accepted")
+                : t("invitation.couldNotProcess")}
             </p>
           </div>
 
@@ -63,13 +65,13 @@ function Invitation() {
               onClick={handleSetPassword}
               style={{ marginTop: '1rem' }}
             >
-              Set password
+              {t("passwordPages.setPassword")}
             </button>
           )}
         </div>
 
         <div className="login-footer">
-          <span>&copy; {new Date().getFullYear()} SerOps. All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} SerOps. {t('login.allRightsReserved')}</span>
         </div>
       </div>
     </div>

@@ -98,6 +98,10 @@
   --page-max: 1280px;
   --sidebar-w: 232px;
   --topbar-h: 56px;
+  /* Touch: the height of anything a finger presses, and the floor for the
+     smallest target (WCAG 2.5.8). Used under @media (pointer: coarse). */
+  --tap-min: 44px;
+  --tap-floor: 24px;
   --bs-body-font-family: var(--font-sans);
   --bs-border-radius: 8px;
 }
@@ -570,6 +574,13 @@
 }
 .page-header-subtitle { margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.5; }
 .page-header-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* Phones: title and actions only, so the content starts near the top. */
+@media (max-width: 767px) {
+  .page-header { margin-bottom: 12px; align-items: center; }
+  .page-header-subtitle { display: none; }
+  /* The action sits beside a short title instead of under it. */
+  .page-header-text { flex-basis: 140px; }
+}
 
 /* Live indicator used next to auto-refreshing data */
 .live-dot {

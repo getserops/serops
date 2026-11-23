@@ -402,7 +402,9 @@ const DeploymentsPanel = ({ projectId, environments = [] }) => {
     );
 };
 
-const ScopePills = ({ row }) => (
+const ScopePills = ({ row }) => {
+    const { t } = useTranslation();
+    return (
     <div className="d-flex flex-wrap gap-1">
         {row.environment_name && (
             <Badge bg="primary" className="d-inline-flex align-items-center gap-1 rounded-pill">
@@ -425,9 +427,10 @@ const ScopePills = ({ row }) => (
             </Badge>
         )}
         {!row.environment_name && !row.cluster_name && !row.region && !row.namespace && (
-            <span className="text-muted small">unscoped</span>
+            <span className="text-muted small">{t('deployments.unscoped')}</span>
         )}
     </div>
-);
+    );
+};
 
 export default DeploymentsPanel;

@@ -27,6 +27,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Alert, Box, Button, Stack } from '@mui/material';
 import { FaCodeBranch, FaCog } from 'react-icons/fa';
 
@@ -34,6 +35,7 @@ import apiClient from '../../services/api-client';
 import { isDemoUser } from '../../utils/demo';
 
 export default function PostOnboardingUpsells() {
+    const { t } = useTranslation();
     const [state, setState] = useState({
         loading: true,
         hasSCM: true,   // Default to true so we don't flash the upsell
@@ -87,12 +89,11 @@ export default function PostOnboardingUpsells() {
                                 href="/dash/settings/integrations"
                                 sx={{ fontWeight: 600 }}
                             >
-                                Connect
+                                {t('postOnboardingUpsells.connect')}
                             </Button>
                         }
                     >
-                        Add a source-control integration to correlate this
-                        analysis with recent commits and diffs.
+                        {t('postOnboardingUpsells.scm')}
                     </Alert>
                 )}
                 {!state.hasCICD && (
@@ -106,12 +107,11 @@ export default function PostOnboardingUpsells() {
                                 href="/dash/settings/integrations"
                                 sx={{ fontWeight: 600 }}
                             >
-                                Connect
+                                {t('postOnboardingUpsells.connect')}
                             </Button>
                         }
                     >
-                        Add a CI/CD integration so AI can spot when incidents
-                        line up with recent builds or deploys.
+                        {t('postOnboardingUpsells.cicd')}
                     </Alert>
                 )}
             </Stack>

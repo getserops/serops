@@ -11,6 +11,7 @@ import React from "react";
 import { Form, Button, Card, Spinner, Alert, Badge } from "react-bootstrap";
 import { FaPlus, FaTrash, FaSync, FaPlug, FaExternalLinkAlt } from "react-icons/fa";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { IntegrationService } from "../../services/integration.service";
 
 /**
@@ -56,6 +57,7 @@ const BindingSelector = ({
     disabled = false,
     label,
 }) => {
+    const { t } = useTranslation();
     const [selectedIntegrationId, setSelectedIntegrationId] = React.useState("");
     const [repos, setRepos] = React.useState([]);
     const [loading, setLoading] = React.useState(false);
@@ -90,7 +92,7 @@ const BindingSelector = ({
             }
         } catch (err) {
             console.error("Failed to load repos:", err);
-            setError("Failed to load repositories");
+            setError(t('serviceForms.loadReposFailed'));
             setRepos([]);
         } finally {
             setLoading(false);
@@ -145,16 +147,16 @@ const BindingSelector = ({
             <Alert variant="info" className="d-flex align-items-center gap-2">
                 <FaPlug className="flex-shrink-0" />
                 <div className="flex-grow-1">
-                    <strong>No {type.toUpperCase()} integrations configured.</strong>
+                    <strong>{t('bindingSelector.noIntegrations', { type: type.toUpperCase() })}</strong>
                     <p className="mb-0 small">
-                        Connect an integration to enable {type === "scm" ? "repository" : "pipeline"} binding.
+                        {type === "scm" ? t('bindingSelector.connectRepoHint') : t('bindingSelector.connectPipelineHint')}
                     </p>
                 </div>
                 <Link
                     to="/dash/settings/integrations"
                     className="btn btn-sm btn-outline-primary d-flex align-items-center gap-1"
                 >
-                    <span>Add Integration</span>
+                    <span>{t('globalIntegrations.addIntegration')}</span>
                     <FaExternalLinkAlt size={10} />
                 </Link>
             </Alert>
@@ -173,7 +175,7 @@ const BindingSelector = ({
                     disabled={disabled}
                     className="flex-grow-1"
                 >
-                    <option value="">Select Integration...</option>
+                    <option value="">{t('bindingSelector.selectIntegration')}</option>
                     {filteredIntegrations.map(int => (
                         <option key={int.id} value={int.id}>
                             {int.name} ({PROVIDER_NAMES[int.provider_type]})
@@ -192,7 +194,7 @@ const BindingSelector = ({
                         value=""
                     >
                         <option value="">
-                            {loading ? "Loading..." : error ? "Error loading" : `Select ${type === "scm" ? "Repository" : "Pipeline"}...`}
+                            {loading ? t('common.loading') : error ? t('bindingSelector.errorLoading') : type === "scm" ? t('bindingSelector.selectRepository') : t('bindingSelector.selectPipeline')}
                         </option>
                         {repos.map(repo => (
                             <option key={repo.id || repo.full_name} value={repo.id || repo.full_name}>
@@ -204,7 +206,7 @@ const BindingSelector = ({
                         variant="outline-secondary"
                         onClick={fetchRepos}
                         disabled={loading}
-                        title="Refresh"
+                        title={t('data.refresh')}
                     >
                         {loading ? <Spinner size="sm" animation="border" /> : <FaSync />}
                     </Button>

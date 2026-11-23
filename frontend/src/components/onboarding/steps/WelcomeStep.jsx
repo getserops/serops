@@ -6,10 +6,12 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Box, Button, Card, CardContent, Typography } from '@mui/material';
 import { FaArrowRight, FaCog } from 'react-icons/fa';
 
 export default function WelcomeStep({ onContinue }) {
+    const { t } = useTranslation();
     return (
         <Card variant="outlined">
             <CardContent>
@@ -19,13 +21,10 @@ export default function WelcomeStep({ onContinue }) {
                     </Box>
                     <Box sx={{ flex: 1 }}>
                         <Typography variant="h6" fontWeight={600} gutterBottom>
-                            Welcome to SerOps
+                            {t('welcomeStep.title')}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Let's connect your first AI model and log source
-                            so we can run your first analysis. The wizard
-                            watches your workspace as you go — no need to
-                            confirm each step.
+                            {t('welcomeStep.intro')}
                         </Typography>
                     </Box>
                 </Box>
@@ -35,7 +34,7 @@ export default function WelcomeStep({ onContinue }) {
                         onClick={onContinue}
                         endIcon={<FaArrowRight />}
                     >
-                        Get Started
+                        {t('welcomeStep.getStarted')}
                     </Button>
                 </Box>
             </CardContent>

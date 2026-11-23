@@ -4,7 +4,7 @@
 /* ---------- Popover shell ---------- */
 .notification-panel-overlay {
     position: fixed;
-    top: calc(var(--topbar-h, 56px) + 8px);
+    top: calc(var(--topbar-real-h, var(--topbar-h)) + 8px);
     right: 16px;
     width: min(440px, calc(100vw - 32px));
     max-height: min(640px, calc(100vh - 96px));

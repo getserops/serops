@@ -10,6 +10,73 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.5.3] - 2026-11-23
+
+### Fixed
+
+- **French: the rest of the interface**: about 890 sentences, labels and
+  messages outside the Issues page were written in the code and stayed in
+  English in the French interface: integrations and AI providers settings,
+  routing rules, incident channels, observability, the add-service wizard and
+  service details, onboarding, sign-up and password pages, Analyses, the
+  analysis page and its timeline, the sensitive-data warning, chat, Sentinel
+  figures, the top bar, and the server-error messages of the sign-in forms.
+  They are in the translation files; the English text is unchanged. A test now
+  fails on a new message, accessible name or title written in English in a
+  component.
+- **Phones, Analyses (A9)**: each analysis was a 318 px card of ten stacked
+  lines. It is a 136 px card: project, status and the link on the first line;
+  time, environment, trigger and issue count on the second; the identifier and
+  the Sentinel decision behind "Details".
+- **Phones and tablets, tap targets (A7)**: on touch devices, buttons, menu
+  rows, tabs, pickers, fields and row actions are 44 px high, and nothing is
+  under 24 by 24 px. On Issues, 39 of 43 controls were under 44 px; now only
+  the row checkboxes are (24 px, in a 44 px cell). One block in the shared
+  styles; a mouse keeps the compact sizes. The Traces filters wrap two per
+  line below 1,200 px.
+- **Phones, Overview (A4)**: six panels stacked made a 4,837 px page, the
+  service health map alone 1,587 px. "Needs attention now", the three numbers
+  and the recent analyses stay open; recent deployments, the 7-day trend, the
+  root causes and service health show their title and one-line summary and
+  open on a tap. Service health is one line per service, the worst first. The
+  page is 2,601 px.
+- **Phones and tablets, navigation (A3)**: the top bar left the screen with
+  the page, so the menu was out of reach after scrolling. It stays in place up
+  to 860 px, and a link to a place in the page stops under it.
+- **Phones, first screen (A2)**: the page started at 369 px (Overview) and 352
+  px (settings) on a 382 by 791 phone. The demo banner is one line with the
+  rest behind "More" (it can still be closed); the top bar is one row, with
+  the environment and cluster pickers behind one button; the page header drops
+  its subtitle; the read-only note of the demo's settings is one line. The
+  page now starts at 151 to 177 px.
+- **Phones and tablets, smaller items (A10)**: no text under 12 px up to 1,024
+  px (menu group labels, unread count, feed badges, "+2"); the Analyses table,
+  which scrolls sideways on a tablet, shows a soft edge where more columns are
+  and keeps the checkbox and the time in place; the menu drawer takes the
+  focus when it opens, keeps Tab inside, closes on Escape, gives the focus
+  back to the menu button and stops the page behind from scrolling.
+- **Phones, Issues cards (A8)**: the cards showed "1 day ago" and "1×" with no
+  label, because the header row is hidden. Each value carries the name of its
+  column, as on the other stacked tables.
+- **Phones and tablets, fields (A6)**: 86 fields had text under 16 px, which
+  makes an iPhone zoom in on focus. One shared rule sets every text field,
+  select and text area to 16 px on touch devices. Pinch zoom stays on; a mouse
+  keeps the compact sizes. The Issues filters take a line each when their
+  label needs it.
+- **Phones, chat (A5)**: the message box ended below the screen (803 px on a
+  791 px screen). The chat is sized from the measured height of the top bar
+  and of the demo banner, and from the screen a person really sees, so the box
+  stays above the on-screen keyboard. No stylesheet assumes a 56 px top bar
+  any more.
+- **Phones and tablets, Issues table (A1)**: between 768 and about 1,090 px
+  the Description column was 0 px wide, and at 768 px the Actions column lay
+  outside the card, which cut it. The list now picks its layout from the width
+  of its own card: every column; the same columns trimmed (1,280 px:
+  Description 246 px, was 198); Last seen and Occurrences as a line under the
+  description, with their sort controls in the Description header (1,024 px);
+  one card per issue where no table fits. Description always has 240 px or
+  more, and the card no longer hides overflow. Unchanged from 1,366 px.
+
 ## [1.5.2] - 2026-11-22
 
 ### Added

@@ -33,6 +33,7 @@ import { formatAbsolute } from '../../utils/dates';
  * the modal is the ONLY time it will ever be shown.
  */
 const AlertIngestSecretButton = () => {
+    const { t } = useTranslation();
     const [status, setStatus] = React.useState(null);
     const [rotated, setRotated] = React.useState(null);   // plaintext once
     const [busy, setBusy] = React.useState(false);
@@ -50,20 +51,16 @@ const AlertIngestSecretButton = () => {
     React.useEffect(() => { refresh(); }, [refresh]);
 
     const rotate = async () => {
-        if (status?.has_secret && !window.confirm(
-            'Rotating supersedes the current alert-ingest secret immediately. '
-            + 'Existing Alertmanager / Grafana / Datadog webhooks will stop '
-            + 'working until you paste the new token into them. Continue?'
-        )) return;
+        if (status?.has_secret && !window.confirm(t('incidentChannels.rotateConfirm'))) return;
         setBusy(true);
         try {
             const r = await SettingsService.rotateAlertIngestSecret();
             setRotated(r);
             setModalOpen(true);
             await refresh();
-            toast.success('Alert-ingest secret rotated');
+            toast.success(t('incidentChannels.secretRotated'));
         } catch (e) {
-            toast.error('Rotation failed');
+            toast.error(t('incidentChannels.rotationFailed'));
         } finally {
             setBusy(false);
         }
@@ -76,37 +73,34 @@ const AlertIngestSecretButton = () => {
                 onClick={rotate}
                 disabled={busy}
                 aria-label={status?.has_secret
-                    ? 'Rotate alert-ingest secret'
-                    : 'Generate alert-ingest secret'}
+                    ? t('incidentChannels.rotateSecretAria')
+                    : t('incidentChannels.generateSecretAria')}
                 title={status?.has_secret
-                    ? `Prefix: ${status.prefix}. Last rotated: ${status.rotated_at || 'never'}`
-                    : 'Generate a per-org alert-ingest bearer secret'}
+                    ? t('incidentChannels.secretTooltip', { prefix: status.prefix, rotatedAt: status.rotated_at || t('incidentChannels.never') })
+                    : t('incidentChannels.generateSecretTooltip')}
             >
                 <FaKey className="me-1" aria-hidden="true" />
-                {status?.has_secret ? 'Rotate ingest secret' : 'Generate ingest secret'}
+                {status?.has_secret ? t('incidentChannels.rotateIngestSecret') : t('incidentChannels.generateIngestSecret')}
             </Button>
 
             <Modal show={modalOpen} onHide={() => setModalOpen(false)} centered>
                 <Modal.Header closeButton>
-                    <Modal.Title>Your new alert-ingest secret</Modal.Title>
+                    <Modal.Title>{t('incidentChannels.newSecretTitle')}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Alert variant="warning">
-                        <strong>Copy this now.</strong> SerOps will never show it
-                        again. Use it as the Bearer token in your Alertmanager /
-                        Grafana / Datadog webhook Authorization header. Sentry
-                        signs its webhooks instead: see the Real-time Alerts docs.
+                        <strong>{t('incidentChannels.copyNow')}</strong> {t('incidentChannels.copyNowDetail')}
                     </Alert>
                     {rotated && (
                         <>
-                            <Form.Label>Secret (plaintext)</Form.Label>
+                            <Form.Label>{t('incidentChannels.secretPlaintext')}</Form.Label>
                             <Form.Control
                                 as="textarea" rows={2} readOnly value={rotated.plaintext}
                                 onFocus={(e) => e.target.select()}
                                 className="ds-mono"
                             />
                             <p className="small mt-2 text-muted">
-                                Rotated at {rotated.rotated_at}
+                                {t('incidentChannels.rotatedAt', { time: rotated.rotated_at })}
                             </p>
                         </>
                     )}
@@ -116,13 +110,13 @@ const AlertIngestSecretButton = () => {
                         variant="secondary"
                         onClick={() => {
                             navigator.clipboard.writeText(rotated?.plaintext || '');
-                            toast.info('Copied to clipboard');
+                            toast.info(t('incidentChannels.copiedToClipboard'));
                         }}
                     >
-                        Copy
+                        {t('incidentChannels.copy')}
                     </Button>
                     <Button variant="primary" onClick={() => setModalOpen(false)}>
-                        I've saved it
+                        {t('incidentChannels.savedIt')}
                     </Button>
                 </Modal.Footer>
             </Modal>
@@ -137,6 +131,7 @@ const AlertIngestSecretButton = () => {
  * labels or the service names.
  */
 const UnmatchedAlertsNotice = () => {
+    const { t } = useTranslation();
     const [unmatched, setUnmatched] = React.useState(null);
 
     React.useEffect(() => {
@@ -151,11 +146,10 @@ const UnmatchedAlertsNotice = () => {
     return (
         <Alert variant="warning" data-testid="unmatched-alerts">
             <strong>
-                {unmatched.count} alert{unmatched.count === 1 ? '' : 's'} in the last {unmatched.days} days
-                matched no service and {unmatched.count === 1 ? 'was' : 'were'} not analysed.
+                {t(unmatched.count === 1 ? 'incidentChannels.unmatchedOne' : 'incidentChannels.unmatchedMany', { n: unmatched.count, days: unmatched.days })}
             </strong>{' '}
-            Put the service name in the alert&apos;s <code>service</code> or <code>service_name</code> label,
-            or add the service to a project.
+            {t('incidentChannels.unmatchedFixBefore')} <code>service</code> {t('incidentChannels.unmatchedFixOr')} <code>service_name</code>{' '}
+            {t('incidentChannels.unmatchedFixAfter')}
             <ul className="mb-0 mt-2 small">
                 {(unmatched.latest || []).map((a) => (
                     <li key={`${a.source}-${a.received_at}-${a.alertname}`}>
@@ -178,9 +172,9 @@ const KIND_CHOICES = [
     ['email', 'Email'],
 ];
 const TRIGGER_CHOICES = [
-    ['batch_analyzed', 'Any batch analyzed'],
-    ['alert_triggered', 'Alert-triggered batch analyzed'],
-    ['critical_issue', 'Batch produced ≥1 critical issue'],
+    ['batch_analyzed', 'incidentChannels.triggerAnyBatch'],
+    ['alert_triggered', 'incidentChannels.triggerAlertBatch'],
+    ['critical_issue', 'incidentChannels.triggerCriticalIssue'],
 ];
 const SEVERITY_CHOICES = ['', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
@@ -304,7 +298,7 @@ const IncidentChannelsSettings = () => {
             if (res.ok) {
                 toast.success(t('incidentChannels.testSent'));
             } else {
-                toast.error(t('incidentChannels.testFailed') + ': ' + (res.message || ''));
+                toast.error(t('incidentChannels.testFailedWith', { message: res.message || '' }));
             }
             await load();
         } catch {
@@ -373,14 +367,14 @@ const IncidentChannelsSettings = () => {
                                 <td data-label={t('incidentChannels.kind')}>{c.kind_display}</td>
                                 <td data-label={t('incidentChannels.triggers')}>
                                     {(c.trigger_events || []).length === 0
-                                        ? <span className="text-muted small">any</span>
+                                        ? <span className="text-muted small">{t('incidentChannels.anyTrigger')}</span>
                                         : c.trigger_events.map((t) => (
                                             <Badge bg="light" text="dark" key={t} className="me-1">
                                                 {t}
                                             </Badge>
                                         ))}
                                 </td>
-                                <td data-label={t('incidentChannels.minSeverity')}>{c.min_severity || <span className="text-muted small">any</span>}</td>
+                                <td data-label={t('incidentChannels.minSeverity')}>{c.min_severity || <span className="text-muted small">{t('incidentChannels.anySeverity')}</span>}</td>
                                 <td data-label={t('incidentChannels.status')}>
                                     {c.is_active
                                         ? <Badge bg="success">{t('common.active') || 'Active'}</Badge>
@@ -448,7 +442,7 @@ const IncidentChannelsSettings = () => {
                                 disabled={!!editing}
                             >
                                 {KIND_CHOICES.map(([code, label]) => (
-                                    <option key={code} value={code}>{label}</option>
+                                    <option key={code} value={code}>{t(`incidentChannels.kindLabel.${code}`, label)}</option>
                                 ))}
                             </Form.Select>
                         </Form.Group>
@@ -484,8 +478,8 @@ const IncidentChannelsSettings = () => {
                                         placeholder={editing?.has_api_key
                                             ? t('incidentChannels.leaveBlankUnchanged')
                                             : (form.kind === 'pagerduty'
-                                                ? 'Events API v2 integration key'
-                                                : 'OpsGenie API key')}
+                                                ? t('incidentChannels.pagerdutyKeyPlaceholder')
+                                                : t('incidentChannels.opsgenieKeyPlaceholder'))}
                                         required={!editing}
                                     />
                                 </Form.Group>
@@ -530,7 +524,7 @@ const IncidentChannelsSettings = () => {
                                     key={code}
                                     type="checkbox"
                                     id={`trig-${code}`}
-                                    label={label}
+                                    label={t(label)}
                                     checked={form.trigger_events.includes(code)}
                                     onChange={(e) => {
                                         const next = e.target.checked
@@ -552,7 +546,7 @@ const IncidentChannelsSettings = () => {
                                 onChange={(e) => setForm({ ...form, min_severity: e.target.value })}
                             >
                                 {SEVERITY_CHOICES.map((s) => (
-                                    <option key={s || 'any'} value={s}>{s || 'any'}</option>
+                                    <option key={s || 'any'} value={s}>{s || t('incidentChannels.anySeverity')}</option>
                                 ))}
                             </Form.Select>
                         </Form.Group>

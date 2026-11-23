@@ -112,6 +112,7 @@ nav:
   - Getting Started:
     - Quick Start: getting-started/quick-start-self-hosted.md
     - First Project: getting-started/first-project.md
+    - Replay Your Last Incident: getting-started/replay-past-incident.md
     - Onboarding Wizard: getting-started/onboarding.md
   - Deployment:
     - System Requirements: deployment/requirements.md

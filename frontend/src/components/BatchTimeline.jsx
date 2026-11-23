@@ -89,19 +89,20 @@ const EventRow = ({ event }) => {
 };
 
 const EventDetail = ({ event }) => {
+    const { t } = useTranslation();
     const d = event.detail || {};
     if (event.kind === 'deploy' && d.sha) {
         return (
             <div className="small text-muted mt-1">
-                <code>{d.sha}</code> — {d.author} on {d.branch || 'main'}
-                {d.files_changed ? ` — ${d.files_changed} file(s)` : ''}
+                <code>{d.sha}</code> — {t('timeline.authorOnBranch', { author: d.author, branch: d.branch || 'main' })}
+                {d.files_changed ? ` — ${t('timeline.filesChanged', { n: d.files_changed })}` : ''}
             </div>
         );
     }
     if (event.kind === 'span_error' && d.trace_id) {
         return (
             <div className="small text-muted mt-1">
-                Trace{' '}
+                {t('timeline.trace')}{' '}
                 {/* A trace that was not stored has no page to open. */}
                 {tracePath(d) ? (
                     <Link to={tracePath(d)} className="text-decoration-none">
@@ -118,7 +119,7 @@ const EventDetail = ({ event }) => {
     if (event.kind === 'metric_anomaly') {
         return (
             <div className="small text-muted mt-1">
-                Duration: {d.duration_seconds ? `${d.duration_seconds}s` : '—'}
+                {t('timeline.duration')} {d.duration_seconds ? `${d.duration_seconds}s` : '—'}
             </div>
         );
     }
@@ -197,7 +198,7 @@ const BatchTimeline = () => {
                     <>
                         {t('timeline.eventCount', { count: events.length })}
                         {causalPairs.length > 0 && (
-                            <span className="ms-3">{causalPairs.length} causal {causalPairs.length === 1 ? 'pair' : 'pairs'}</span>
+                            <span className="ms-3">{causalPairs.length === 1 ? t('timeline.causalPair', { n: causalPairs.length }) : t('timeline.causalPairs', { n: causalPairs.length })}</span>
                         )}
                     </>
                 )}
@@ -209,7 +210,7 @@ const BatchTimeline = () => {
                         <div className="ds-empty-state-icon">
                             <FaClock />
                         </div>
-                        <div className="ds-empty-state-title">Nothing on the timeline yet</div>
+                        <div className="ds-empty-state-title">{t('timeline.emptyTitle')}</div>
                         <div className="ds-empty-state-body">
                             {t('timeline.empty')}
                         </div>
@@ -236,19 +237,19 @@ const BatchTimeline = () => {
                             <span className="small text-muted text-uppercase fw-semibold">
                                 {t('timeline.eventList', 'Event list')}
                                 {filterActive && (
-                                    <span className="text-primary ms-2">· filtered</span>
+                                    <span className="text-primary ms-2">· {t('timeline.filtered')}</span>
                                 )}
                             </span>
                             <span className="small text-muted">
                                 {filterActive
-                                    ? `${listEvents.length} of ${events.length}`
+                                    ? t('timeline.filteredCount', { shown: listEvents.length, total: events.length })
                                     : t('timeline.eventCount', { count: events.length })}
                             </span>
                         </Card.Header>
                         <Card.Body>
                             {listEvents.length === 0 ? (
                                 <div className="text-muted small text-center py-3">
-                                    No events match the current filters.
+                                    {t('timeline.noMatch')}
                                 </div>
                             ) : (
                                 <ul className="list-unstyled mb-0">

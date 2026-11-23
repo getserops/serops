@@ -23,11 +23,12 @@ import { usePermissions } from '../../utils/permissions';
 
 
 // What kind of API a provider speaks, in words. The row used to show the
-// Python class name (ClaudeAdapter, GenericOpenAIAdapter).
+// Python class name (ClaudeAdapter, GenericOpenAIAdapter). The values are
+// translation keys.
 const ADAPTER_LABELS = {
-    GenericOpenAIAdapter: 'OpenAI-compatible API',
-    GeminiAdapter: 'Google Gemini API',
-    ClaudeAdapter: 'Anthropic Claude API',
+    GenericOpenAIAdapter: 'ai.adapter.openai',
+    GeminiAdapter: 'ai.adapter.gemini',
+    ClaudeAdapter: 'ai.adapter.claude',
 };
 export const adapterLabel = (adapterClass) => ADAPTER_LABELS[String(adapterClass || '').split('.').pop()] || '';
 
@@ -95,15 +96,15 @@ const AISettings = () => {
             setSaving(true);
             if (editingProvider) {
                 await SettingsService.updateAIProvider(editingProvider.id, providerForm);
-                toast.success('Provider updated');
+                toast.success(t('ai.providerUpdated'));
             } else {
                 await SettingsService.createAIProvider(providerForm);
-                toast.success('Provider created');
+                toast.success(t('ai.providerCreated'));
             }
             setShowProviderModal(false);
             fetchData(); // Refresh list
         } catch (error) {
-            toast.error(error.response?.data?.error || 'Failed to save provider');
+            toast.error(error.response?.data?.error || t('ai.providerSaveFailed'));
         } finally {
             setSaving(false);
         }
@@ -112,20 +113,20 @@ const AISettings = () => {
     const handleSaveProviderWrapper = async (providerData) => {
         try {
             await SettingsService.updateAIProvider(providerData.id, providerData);
-            toast.success('Status updated');
+            toast.success(t('ai.statusUpdated'));
             fetchData();
         } catch (error) {
-            toast.error('Failed to update status');
+            toast.error(t('ai.statusUpdateFailed'));
         }
     };
 
     const handleDeleteProvider = async (id) => {
         try {
             await SettingsService.deleteAIProvider(id);
-            toast.success('Provider deleted');
+            toast.success(t('ai.providerDeleted'));
             fetchData();
         } catch (error) {
-            toast.error('Failed to delete provider');
+            toast.error(t('ai.providerDeleteFailed'));
         }
     };
 
@@ -372,10 +373,10 @@ const AISettings = () => {
                     <table className="table settings-table table-stack table-stack-block ai-providers-table">
                         <thead>
                             <tr>
-                                <th style={{ width: '25%' }}>Provider</th>
-                                <th style={{ width: '15%' }}>Status</th>
-                                <th style={{ width: '40%' }}>Configuration (API Key & URL)</th>
-                                <th style={{ width: '20%' }}>Actions</th>
+                                <th style={{ width: '25%' }}>{t('ai.colProvider')}</th>
+                                <th style={{ width: '15%' }}>{t('ai.colStatus')}</th>
+                                <th style={{ width: '40%' }}>{t('ai.colConfig')}</th>
+                                <th style={{ width: '20%' }}>{t('common.actions')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -393,15 +394,15 @@ const AISettings = () => {
                                                 <span className="fw-semibold">{provider.display_name}</span>
                                             </div>
                                             {adapterLabel(provider.adapter_class) && (
-                                                <div className="small text-muted">{adapterLabel(provider.adapter_class)}</div>
+                                                <div className="small text-muted">{t(adapterLabel(provider.adapter_class))}</div>
                                             )}
                                             <div className="small text-muted">{provider.default_model}</div>
                                         </td>
                                         <td>
                                             <div className="d-flex flex-column gap-2">
                                                 {provider.is_active ?
-                                                    <Badge bg="success" className="align-self-start">Active</Badge> :
-                                                    <Badge bg="secondary" className="align-self-start">Inactive</Badge>
+                                                    <Badge bg="success" className="align-self-start">{t('common.active')}</Badge> :
+                                                    <Badge bg="secondary" className="align-self-start">{t('common.inactive')}</Badge>
                                                 }
                                                 {keyStatus.badge && <div className="mt-1">{keyStatus.badge}</div>}
                                             </div>
@@ -415,7 +416,7 @@ const AISettings = () => {
                                                     <Form.Control
                                                         type="text"
                                                         placeholder={t('ai.baseUrlPlaceholder', { example: '' })}
-                                                        aria-label={`${provider.display_name} Base URL`}
+                                                        aria-label={t('ai.baseUrlAria', { provider: provider.display_name })}
                                                         // The organisation's saved URL, else the provider default
                                                         // (the field showed the default after saving, B9).
                                                         value={urlInputs[provider.name] !== undefined ? urlInputs[provider.name] : (keyStatus.baseUrl || provider.api_base_url || '')}
@@ -425,10 +426,10 @@ const AISettings = () => {
 
                                                 {/* Key Input */}
                                                 <InputGroup size="sm">
-                                                    <InputGroup.Text id={`key-addon-${provider.id}`} style={{ width: '60px' }}>Key</InputGroup.Text>
+                                                    <InputGroup.Text id={`key-addon-${provider.id}`} style={{ width: '60px' }}>{t('ai.key')}</InputGroup.Text>
                                                     <Form.Control
                                                         type={isKeyVisible ? 'text' : 'password'}
-                                                        aria-label={`${provider.display_name} API key`}
+                                                        aria-label={t('ai.apiKeyAria', { provider: provider.display_name })}
                                                         placeholder={provider.requires_api_key === false ? t('ai.noKeyNeeded', 'No key needed') : (keyStatus.hasKey ? '••••••••' : t('ai.enterApiKey'))}
                                                         value={inputValue}
                                                         onChange={(e) => handleKeyInputChange(provider.name, e.target.value)}
@@ -450,7 +451,7 @@ const AISettings = () => {
                                                 {(keyStatus.hasKey || provider.requires_api_key === false || inputValue) && (
                                                     <div className="d-flex justify-content-between align-items-center small mt-1 ai-provider-key-row">
                                                         <span className="text-muted text-truncate" style={{ maxWidth: '200px' }}>
-                                                            {keyStatus.hasKey && keyStatus.maskedKey && <>Key: <code style={{ wordBreak: "break-all" }}>{keyStatus.maskedKey}</code></>}
+                                                            {keyStatus.hasKey && keyStatus.maskedKey && <>{t('ai.keyLabel')} <code style={{ wordBreak: "break-all" }}>{keyStatus.maskedKey}</code></>}
                                                         </span>
                                                         <div className="d-flex gap-2">
                                                             {/* Before saving too (B8): it tests what is typed. */}
@@ -461,7 +462,7 @@ const AISettings = () => {
                                                                 onClick={() => handleTestConnection(provider.name)}
                                                                 disabled={!!testing[provider.name]}
                                                             >
-                                                                {testing[provider.name] ? 'Testing...' : 'Test Connection'}
+                                                                {testing[provider.name] ? t('ai.testing') : t('ai.testConnection')}
                                                             </Button>
                                                             {keyStatus.hasKey && (
                                                             <Button
@@ -470,7 +471,7 @@ const AISettings = () => {
                                                                 className="p-0 text-danger"
                                                                 onClick={() => { setDeleteProvider(provider); setShowDeleteModal(true); }}
                                                             >
-                                                                {provider.requires_api_key === false ? 'Delete' : 'Delete Key'}
+                                                                {provider.requires_api_key === false ? t('common.delete') : t('ai.deleteKey')}
                                                             </Button>
                                                             )}
                                                         </div>
@@ -482,13 +483,13 @@ const AISettings = () => {
                                             <div className="d-flex gap-2">
                                                 {isStaff && (
                                                 <Button variant="outline-secondary" size="sm" onClick={() => { setEditingProvider(provider); setShowProviderModal(true); }}>
-                                                    Edit Config
+                                                    {t('ai.editConfig')}
                                                 </Button>
                                                 )}
 
                                                 {isStaff && !provider.is_system && (
                                                     <Button variant="outline-danger" size="sm" onClick={() => {
-                                                        if (confirm('Are you sure you want to delete this provider?')) {
+                                                        if (confirm(t('ai.deleteProviderConfirm'))) {
                                                             handleDeleteProvider(provider.id);
                                                         }
                                                     }}>
@@ -542,48 +543,48 @@ const AISettings = () => {
             {/* Provider Add/Edit Modal */}
             <Modal show={showProviderModal} onHide={() => setShowProviderModal(false)} centered size="lg">
                 <Modal.Header closeButton>
-                    <Modal.Title>{editingProvider ? "Edit Provider" : "Add New Provider"}</Modal.Title>
+                    <Modal.Title>{editingProvider ? t('ai.editProvider') : t('ai.addNewProvider')}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
                         <div className="row">
                             <div className="col-md-6 mb-3">
-                                <Form.Label>Internal Name (ID)</Form.Label>
+                                <Form.Label>{t('ai.internalName')}</Form.Label>
                                 <Form.Control
                                     type="text"
                                     value={providerForm.name}
                                     onChange={e => setProviderForm({ ...providerForm, name: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
                                     disabled={editingProvider}
-                                    placeholder="e.g. ollama_local"
+                                    placeholder={t('ai.internalNamePlaceholder')}
                                 />
-                                <Form.Text className="text-muted">Unique identifier.</Form.Text>
+                                <Form.Text className="text-muted">{t('ai.internalNameHelp')}</Form.Text>
                             </div>
                             <div className="col-md-6 mb-3">
-                                <Form.Label>Display Name</Form.Label>
+                                <Form.Label>{t('ai.displayName')}</Form.Label>
                                 <Form.Control
                                     type="text"
                                     value={providerForm.display_name}
                                     onChange={e => setProviderForm({ ...providerForm, display_name: e.target.value })}
-                                    placeholder="e.g. Local Ollama"
+                                    placeholder={t('ai.displayNamePlaceholder')}
                                 />
                             </div>
                         </div>
 
                         <div className="mb-3">
-                            <Form.Label>Adapter Type</Form.Label>
+                            <Form.Label>{t('ai.adapterType')}</Form.Label>
                             <Form.Select
                                 value={providerForm.adapter_class}
                                 onChange={e => setProviderForm({ ...providerForm, adapter_class: e.target.value })}
                             >
-                                <option value="ai_model.adapters.openai_generic.GenericOpenAIAdapter">OpenAI Compatible (Mistral, Ollama, DeepSeek)</option>
+                                <option value="ai_model.adapters.openai_generic.GenericOpenAIAdapter">{t('ai.adapterOpenAICompatible')}</option>
                                 <option value="ai_model.adapters.gemini.GeminiAdapter">Google Gemini</option>
                                 <option value="ai_model.adapters.claude.ClaudeAdapter">Anthropic Claude</option>
                             </Form.Select>
-                            <Form.Text className="text-muted">Select "OpenAI Compatible" for most self-hosted models.</Form.Text>
+                            <Form.Text className="text-muted">{t('ai.adapterHelp')}</Form.Text>
                         </div>
 
                         <div className="mb-3">
-                            <Form.Label>API Base URL</Form.Label>
+                            <Form.Label>{t('ai.apiBaseUrl')}</Form.Label>
                             <Form.Control
                                 type="text"
                                 value={providerForm.api_base_url}
@@ -593,27 +594,27 @@ const AISettings = () => {
                         </div>
 
                         <div className="mb-3">
-                            <Form.Label>Default Model Name</Form.Label>
+                            <Form.Label>{t('ai.defaultModelName')}</Form.Label>
                             <Form.Control
                                 type="text"
                                 value={providerForm.default_model}
                                 onChange={e => setProviderForm({ ...providerForm, default_model: e.target.value })}
-                                placeholder="e.g. llama3"
+                                placeholder={t('ai.defaultModelPlaceholder')}
                             />
                         </div>
 
                         <Form.Check
                             type="checkbox"
-                            label="Active"
+                            label={t('common.active')}
                             checked={providerForm.is_active}
                             onChange={e => setProviderForm({ ...providerForm, is_active: e.target.checked })}
                         />
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowProviderModal(false)}>Close</Button>
+                    <Button variant="secondary" onClick={() => setShowProviderModal(false)}>{t('common.close')}</Button>
                     <Button variant="primary" onClick={handleSaveProvider} disabled={saving}>
-                        {saving ? 'Saving...' : 'Save Provider'}
+                        {saving ? t('ai.saving') : t('ai.saveProvider')}
                     </Button>
                 </Modal.Footer>
             </Modal>

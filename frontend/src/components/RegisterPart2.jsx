@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Col, Form} from "react-bootstrap";
+import { useTranslation } from "react-i18next";
 
 
 function RegisterPart2({ formData, setFormData }) {
+  const { t } = useTranslation();
   const [isPasswordValid, setIsPasswordValid] = useState(true);
   const [isConfirmPasswordValid, setIsConfirmPasswordValid] = useState(true);
 
@@ -46,7 +48,7 @@ function RegisterPart2({ formData, setFormData }) {
 
         <Form.Group className="form-field "  >
           <Form.Label htmlFor="password" className="form-label">
-            Password
+            {t('auth.password')}
           </Form.Label>
           <Form.Control
             className={`form-control ${isPasswordValid? '' : 'border border-danger'}`}
@@ -54,14 +56,14 @@ function RegisterPart2({ formData, setFormData }) {
             type="password"
             id="password"
             required
-            placeholder="Enter your password"
+            placeholder={t('login.passwordPlaceholder')}
             value={formData.user.password}
             onChange={handlePasswordChange}
             onBlur={() => validatePassword(formData.user.password)}
           />
           {!isPasswordValid && (
             <p className="text-danger mt-1" style={{ wordWrap: 'break-word' , maxWidth: '300px'}} >
-              The password must have at least 10 characters with 1 lowercase, 1 uppercase, and 1 number.
+              {t('registerPart2.passwordRule')}
             </p>
           )}
         </Form.Group>
@@ -69,7 +71,7 @@ function RegisterPart2({ formData, setFormData }) {
 
         <Form.Group className={`form-field ${isPasswordValid ? 'mt-3' : ''}`}>
           <Form.Label htmlFor="confirmPassword" className="form-label">
-            Repeat your password
+            {t('registerPart2.repeatPassword')}
           </Form.Label>
           <Form.Control
             className={`form-control ${isConfirmPasswordValid ? '' : 'border border-danger'}`}
@@ -77,13 +79,13 @@ function RegisterPart2({ formData, setFormData }) {
             type="password"
             id="password_confirmation"
             required
-            placeholder="Repeat your password"
+            placeholder={t('registerPart2.repeatPassword')}
             value={formData.user.password_confirmation}
             onChange={handleConfirmPasswordChange}
             onBlur={() => validateConfirmPassword(formData.user.password_confirmation)}
           />
           {!isConfirmPasswordValid && (
-            <p className="text-danger mt-1">Passwords do not match.</p>
+            <p className="text-danger mt-1">{t('registerPart2.passwordsMismatch')}</p>
           )}
         </Form.Group>
 

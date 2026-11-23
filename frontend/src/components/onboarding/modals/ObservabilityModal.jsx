@@ -18,7 +18,8 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { liveTested, liveTestedText } from '../../../utils/integrationMaturity';
+import { useTranslation } from 'react-i18next';
+import { liveTested, liveTestedDetail } from '../../../utils/integrationMaturity';
 import {
     Alert,
     Box,
@@ -53,13 +54,12 @@ const HOST_PLACEHOLDERS = {
 
 // What a source without logs is for, in the provider list: trace stores were
 // all labelled "metrics only" (E4).
-const notLogsLabel = (caps) => (caps.includes('metrics') ? 'metrics only' : 'traces only');
+const notLogsLabel = (caps, t) => (caps.includes('metrics') ? t('observabilityModal.metricsOnly') : t('observabilityModal.tracesOnly'));
 
-const LOGS_ONLY_WARNING =
-    "SerOps needs at least one logs-capable source to run AI analysis. " +
-    "You can add metric-only sources later for correlation.";
+const LOGS_ONLY_WARNING = 'observabilityModal.logsRequired';
 
 export default function ObservabilityModal({ open, onClose, onSaved }) {
+    const { t } = useTranslation();
     const [providers, setProviders] = useState([]);
     const [providerCode, setProviderCode] = useState('');
     const [displayName, setDisplayName] = useState('');
@@ -112,13 +112,13 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                 }
             } catch (err) {
                 if (!cancelled) {
-                    setError('Failed to load observability providers');
+                    setError(t('observabilityModal.loadFailed'));
                     setLoadingProviders(false);
                 }
             }
         })();
         return () => { cancelled = true; };
-    }, [open]);
+    }, [open, t]);
 
     useEffect(() => {
         if (!open) resetState();
@@ -216,7 +216,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                             .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
                             .join('; ')
                         : null)
-                    || 'Failed to save integration';
+                    || t('observabilitySettings.saveFailed');
             setError(message);
         } finally {
             setSaving(false);
@@ -243,9 +243,9 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
             setTestResult({
                 ok: allHealthy,
                 message: allHealthy
-                    ? 'Connection successful — integration saved.'
+                    ? t('observabilityModal.connectionSaved')
                     : ((health.integrations || []).map((r) => r.message).filter(Boolean).join('; ')
-                       || 'Health check reported issues.'),
+                       || t('observabilityModal.healthIssues')),
                 savedId: created.id,
             });
             // Regardless of health, the integration is saved and the
@@ -261,7 +261,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                             .map(([f, m]) => `${f}: ${Array.isArray(m) ? m.join(', ') : m}`)
                             .join('; ')
                         : null)
-                    || 'Test failed';
+                    || t('incidentChannels.testFailed');
             setTestResult({ ok: false, message });
         } finally {
             setTesting(false);
@@ -276,7 +276,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
 
     return (
         <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-            <DialogTitle>Connect an observability source</DialogTitle>
+            <DialogTitle>{t('observabilityStep.title')}</DialogTitle>
             <DialogContent dividers>
                 {error && (
                     <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
@@ -284,16 +284,16 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
 
                 {loadingProviders ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-                        <CircularProgress aria-label="Loading" />
+                        <CircularProgress aria-label={t('onboarding.loading')} />
                     </Box>
                 ) : (
                     <>
                         <FormControl fullWidth sx={{ mb: 2 }}>
-                            <InputLabel id="obs-provider-label">Provider</InputLabel>
+                            <InputLabel id="obs-provider-label">{t('globalIntegrations.provider')}</InputLabel>
                             <Select
                                 labelId="obs-provider-label"
                                 value={providerCode}
-                                label="Provider"
+                                label={t('globalIntegrations.provider')}
                                 onChange={(e) => {
                                     setProviderCode(e.target.value);
                                     setTestResult(null);
@@ -309,13 +309,13 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                             disabled={!supportsLogs}
                                         >
                                             {p.name}
-                                            {supportsLogs && liveTested(p.code) && ` — ${liveTestedText(p.code)}`}
-                                            {!supportsLogs && ` (${notLogsLabel(p.capabilities)}: add it later in Settings → Integrations)`}
+                                            {supportsLogs && liveTested(p.code) && ` — ${t('observabilitySettings.liveTestedTitle', { detail: liveTestedDetail(p.code) })}`}
+                                            {!supportsLogs && ` ${t('observabilityModal.notLogsSuffix', { kind: notLogsLabel(p.capabilities, t) })}`}
                                         </MenuItem>
                                     );
                                 })}
                             </Select>
-                            <FormHelperText>{LOGS_ONLY_WARNING}</FormHelperText>
+                            <FormHelperText>{t(LOGS_ONLY_WARNING)}</FormHelperText>
                         </FormControl>
 
                         {selectedProvider && (
@@ -323,15 +323,15 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                 <TextField
                                     fullWidth
                                     sx={{ mb: 2 }}
-                                    label="Display name"
+                                    label={t('observabilityModal.displayName')}
                                     value={displayName}
                                     onChange={(e) => setDisplayName(e.target.value)}
-                                    helperText="Shown wherever this integration is referenced."
+                                    helperText={t('observabilityModal.displayNameHelp')}
                                 />
 
                                 <FormControl component="fieldset" sx={{ mb: 2 }}>
                                     <Typography variant="caption" color="text.secondary">
-                                        Capabilities
+                                        {t('observabilityModal.capabilities')}
                                     </Typography>
                                     <FormGroup row>
                                         {supportsLogs && (
@@ -342,7 +342,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                                         onChange={() => toggleCapability('logs')}
                                                     />
                                                 }
-                                                label="Logs"
+                                                label={t('observabilitySettings.cap.logs')}
                                             />
                                         )}
                                         {supportsMetrics && (
@@ -353,7 +353,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                                         onChange={() => toggleCapability('metrics')}
                                                     />
                                                 }
-                                                label="Metrics"
+                                                label={t('observabilitySettings.cap.metrics')}
                                             />
                                         )}
                                     </FormGroup>
@@ -364,30 +364,30 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                         <TextField
                                             fullWidth
                                             sx={{ mb: 2 }}
-                                            label="Project ID"
+                                            label={t('observabilitySettings.field.projectId')}
                                             required
                                             value={gcpProject}
                                             onChange={(e) => setGcpProject(e.target.value)}
                                             placeholder="my-project"
-                                            helperText="The Google Cloud project your logs and metrics are in."
+                                            helperText={t('observabilityModal.gcpProjectHelp')}
                                         />
                                         <TextField
                                             fullWidth
                                             sx={{ mb: 1 }}
                                             type="password"
-                                            label="Service account key (JSON)"
+                                            label={t('observabilitySettings.field.gcpKey')}
                                             required
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
                                             autoComplete="new-password"
                                             spellCheck={false}
-                                            placeholder="Paste the key file's JSON"
-                                            helperText="A key of a service account with the Logs Viewer and Monitoring Viewer roles."
+                                            placeholder={t('observabilitySettings.field.gcpKeyPlaceholder')}
+                                            helperText={t('observabilityModal.gcpKeyHelp')}
                                         />
                                         <FormControlLabel
                                             sx={{ mb: 2 }}
                                             control={<Checkbox checked={onGke} onChange={(e) => setOnGke(e.target.checked)} />}
-                                            label="My services run on GKE (Kubernetes)"
+                                            label={t('observabilityModal.onGke')}
                                         />
                                     </>
                                 )}
@@ -395,18 +395,18 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                 {!isGcp && <TextField
                                     fullWidth
                                     sx={{ mb: 2 }}
-                                    label="Host URL"
+                                    label={t('observabilitySettings.field.hostUrl')}
                                     value={host}
                                     onChange={(e) => setHost(e.target.value)}
                                     placeholder={HOST_PLACEHOLDERS[providerCode] || 'https://host:port'}
-                                    helperText="Provider endpoint. Not needed for AWS, Google Cloud or Azure."
+                                    helperText={t('observabilityModal.hostHelp')}
                                 />}
 
                                 {isAws && (
                                     <TextField
                                         fullWidth
                                         sx={{ mb: 2 }}
-                                        label="AWS Region"
+                                        label={t('observabilitySettings.field.awsRegion')}
                                         value={awsRegion}
                                         onChange={(e) => setAwsRegion(e.target.value)}
                                         placeholder="us-east-1"
@@ -417,13 +417,13 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                     <TextField
                                         fullWidth
                                         sx={{ mb: 2 }}
-                                        label={isAws ? 'Log groups (optional)' : 'Index pattern (optional)'}
+                                        label={isAws ? t('observabilityModal.logGroupsOptional') : t('observabilityModal.indexPatternOptional')}
                                         value={logLocation}
                                         onChange={(e) => setLogLocation(e.target.value)}
                                         placeholder={isAws ? '/ecs/shop-api, /aws/lambda/checkout' : 'logs-*, filebeat-*'}
                                         helperText={isAws
-                                            ? 'Comma-separated. Empty: the groups named after each project.'
-                                            : "Where your logs are stored. Empty: SerOps' own indices, or else logs-*, filebeat-* and logstash-*."}
+                                            ? t('observabilityModal.logGroupsHelp')
+                                            : t('observabilityModal.indexPatternHelp')}
                                     />
                                 )}
 
@@ -431,7 +431,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                 <TextField
                                     fullWidth
                                     sx={{ mb: 2 }}
-                                    label={isAws ? 'Access Key ID' : 'Username (optional)'}
+                                    label={isAws ? t('observabilitySettings.field.accessKeyId') : t('observabilityModal.usernameOptional')}
                                     required={isAws}
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
@@ -442,7 +442,7 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                     fullWidth
                                     sx={{ mb: 2 }}
                                     type="password"
-                                    label={isAws ? 'Secret Access Key' : 'Password (optional)'}
+                                    label={isAws ? t('observabilitySettings.field.secretAccessKey') : t('observabilityModal.passwordOptional')}
                                     required={isAws}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
@@ -454,25 +454,25 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
                                     fullWidth
                                     sx={{ mb: 1 }}
                                     type="password"
-                                    label="API Key (optional)"
+                                    label={t('observabilityModal.apiKeyOptional')}
                                     value={apiKey}
                                     onChange={(e) => setApiKey(e.target.value)}
                                     autoComplete="new-password"
                                     spellCheck={false}
-                                    helperText="Only some providers use API keys (Datadog, cloud services)."
+                                    helperText={t('observabilityModal.apiKeyHelp')}
                                 />}
                                 </>}
                                 {providerCode === 'datadog' && <TextField
                                     fullWidth
                                     sx={{ mb: 1 }}
                                     type="password"
-                                    label="Application Key"
+                                    label={t('observabilitySettings.field.appKey')}
                                     required
                                     value={appKey}
                                     onChange={(e) => setAppKey(e.target.value)}
                                     autoComplete="new-password"
                                     spellCheck={false}
-                                    helperText="An application key with logs_read_data, logs_read_index_data and timeseries_query."
+                                    helperText={t('observabilityModal.appKeyHelp')}
                                 />}
                             </>
                         )}
@@ -490,22 +490,22 @@ export default function ObservabilityModal({ open, onClose, onSaved }) {
             </DialogContent>
             <DialogActions>
                 <Button onClick={handleClose} disabled={saving || testing}>
-                    Cancel
+                    {t('common.cancel')}
                 </Button>
                 <Button
                     onClick={handleTest}
                     disabled={!canSubmit()}
-                    startIcon={testing ? <CircularProgress aria-label="Loading" size={16} /> : null}
+                    startIcon={testing ? <CircularProgress aria-label={t('onboarding.loading')} size={16} /> : null}
                 >
-                    Save &amp; test
+                    {t('observabilityModal.saveAndTest')}
                 </Button>
                 <Button
                     variant="contained"
                     onClick={handleSave}
                     disabled={!canSubmit()}
-                    startIcon={saving ? <CircularProgress aria-label="Loading" size={16} /> : null}
+                    startIcon={saving ? <CircularProgress aria-label={t('onboarding.loading')} size={16} /> : null}
                 >
-                    Save
+                    {t('common.save')}
                 </Button>
             </DialogActions>
         </Dialog>

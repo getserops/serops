@@ -69,7 +69,7 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 8px;
-    min-height: var(--topbar-h, 56px);
+    min-height: var(--topbar-h);
     padding: 8px 32px;
     background: var(--bg-card);
     border-bottom: 1px solid var(--border-default);
@@ -1023,3 +1023,123 @@ a.metric-kpi:focus-visible { outline: 2px solid var(--brand-fill); outline-offse
 .correlation-strip-title svg { color: var(--text-tertiary); }
 .correlation-strip-facts { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-5); margin: 0; padding: 0; list-style: none; }
 .correlation-strip-window { margin-left: auto; color: var(--text-tertiary); }
+
+/* =============================================================
+   Phones: the first screen (work order A2). Banner on one line with the
+   rest behind "More", top bar in one row, so the page starts near the top.
+   ============================================================= */
+.demo-banner-more { display: none; }
+.app-topbar-filters { display: none; }
+/* The wrapper takes no part in the layout above a phone. */
+.app-topbar-pickers { display: contents; }
+.app-topbar-filters.has-filter::after {
+    content: "";
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--brand-fill);
+}
+@media (max-width: 767px) {
+    .demo-banner:not(.is-expanded) { flex-wrap: nowrap; justify-content: flex-start; padding: 6px 8px 6px 16px; }
+    .demo-banner:not(.is-expanded) .demo-banner-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .demo-banner:not(.is-expanded) .demo-banner-selfhost { display: none; }
+    .demo-banner-more {
+        display: inline-flex;
+        flex: none;
+        align-items: center;
+        padding: 0 var(--space-2);
+        min-height: 24px;
+        border: 0;
+        background: transparent;
+        color: var(--text-link);
+        font: inherit;
+        font-weight: 600;
+        text-decoration: underline;
+        cursor: pointer;
+    }
+    .demo-banner-close { flex: none; margin-left: 0; }
+    /* Their press area is taller than the line (touch rules): it reaches
+       past the banner instead of making the banner taller. */
+    .demo-banner-more, .demo-banner-close { margin-block: calc((var(--tap-floor) - var(--tap-min)) / 2); }
+
+    .app-topbar { flex-wrap: nowrap; padding-block: var(--space-1); }
+    .app-topbar-filters { display: inline-flex; }
+    .app-topbar-pickers { display: none; }
+    .app-topbar-pickers.is-open {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        padding: var(--space-2) var(--space-4);
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border-default);
+        box-shadow: var(--shadow-md);
+    }
+}
+
+/* =============================================================
+   Phones and tablets: the top bar stays in place while the page scrolls
+   (work order A3), so the menu is always one tap away.
+   ============================================================= */
+@media (max-width: 860px) {
+    /* clip, not hidden: "hidden" made this box the scroll container of the
+       sticky bar, which then left the screen with the page. */
+    .dashboard-main { overflow-x: clip; }
+    /* A link to a place in the page stops under the bar, not behind it. */
+    html { scroll-padding-top: calc(var(--topbar-real-h, var(--topbar-h)) + var(--space-2)); }
+}
+
+/* =============================================================
+   Phones: the Overview is short (work order A4). "Needs attention" and the
+   recent analyses stay open; the panels under them show their header (the
+   title and its one-line summary) and open on a tap (PhoneCollapse.jsx).
+   ============================================================= */
+.phone-collapse { position: relative; min-width: 0; }
+.phone-collapse + .phone-collapse, .overview-charts + .phone-collapse { margin-top: 0; }
+.phone-collapse-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    width: 56px;
+    height: 56px;
+    padding: 20px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+/* Collapsed: the whole header is the button. */
+.phone-collapse.is-collapsed .phone-collapse-toggle { width: 100%; height: 100%; }
+.phone-collapse.is-open .phone-collapse-toggle svg { transform: rotate(180deg); }
+.phone-collapse-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.phone-collapse.is-collapsed .chart-card > :not(.chart-header) { display: none; }
+.phone-collapse .chart-card .chart-header { padding-right: 36px; }
+.phone-collapse.is-collapsed .chart-card .chart-header { margin-bottom: 0; }
+.overview-charts + .phone-collapse { margin-top: 24px; }
+
+/* Service health on a phone: one line per service, the worst first (the
+   order of the tiles), instead of a 180 px tile each. */
+@media (max-width: 767px) {
+    .heatmap-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .heatmap-tile {
+        flex-direction: row;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-2) var(--space-3);
+        border-width: 0 0 1px;
+        border-radius: 0;
+    }
+    .heatmap-tile .tile-name { flex: 1 1 auto; min-width: 0; }
+    .heatmap-tile .tile-score, .heatmap-tile .tile-issues { flex: none; }
+}

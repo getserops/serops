@@ -9,6 +9,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     Alert,
     Button,
@@ -23,6 +24,7 @@ import {
 import apiClient from '../../../services/api-client';
 
 export default function CreateProjectModal({ open, onClose, onSaved }) {
+    const { t } = useTranslation();
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [saving, setSaving] = useState(false);
@@ -61,7 +63,7 @@ export default function CreateProjectModal({ open, onClose, onSaved }) {
                             .map(([f, m]) => `${f}: ${Array.isArray(m) ? m.join(', ') : m}`)
                             .join('; ')
                         : null)
-                    || 'Failed to create project';
+                    || t('createProjectModal.saveFailed');
             setError(message);
         } finally {
             setSaving(false);
@@ -76,7 +78,7 @@ export default function CreateProjectModal({ open, onClose, onSaved }) {
 
     return (
         <Dialog open={open} onClose={handleClose} fullWidth maxWidth="xs">
-            <DialogTitle>Create your first project</DialogTitle>
+            <DialogTitle>{t('createProjectStep.title')}</DialogTitle>
             <DialogContent dividers>
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
@@ -84,34 +86,34 @@ export default function CreateProjectModal({ open, onClose, onSaved }) {
                     fullWidth
                     autoFocus
                     sx={{ mb: 2 }}
-                    label="Project name"
+                    label={t('createProjectModal.projectName')}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     // Trim on blur is user-friendly but we also trim on
                     // submit — server also validates.
                     inputProps={{ maxLength: 255 }}
-                    helperText="e.g. Payments Backend, Ingestion Pipeline"
+                    helperText={t('createProjectModal.projectNameHelp')}
                 />
 
                 <TextField
                     fullWidth
                     multiline
                     rows={2}
-                    label="Description (optional)"
+                    label={t('createProjectModal.descriptionOptional')}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     inputProps={{ maxLength: 500 }}
                 />
             </DialogContent>
             <DialogActions>
-                <Button onClick={handleClose} disabled={saving}>Cancel</Button>
+                <Button onClick={handleClose} disabled={saving}>{t('common.cancel')}</Button>
                 <Button
                     variant="contained"
                     onClick={handleSave}
                     disabled={!canSubmit()}
-                    startIcon={saving ? <CircularProgress aria-label="Loading" size={16} /> : null}
+                    startIcon={saving ? <CircularProgress aria-label={t('onboarding.loading')} size={16} /> : null}
                 >
-                    Create project
+                    {t('createProjectStep.create')}
                 </Button>
             </DialogActions>
         </Dialog>

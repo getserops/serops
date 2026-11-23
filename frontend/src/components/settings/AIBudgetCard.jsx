@@ -149,7 +149,7 @@ const AIBudgetCard = () => {
                                         aria-valuenow={Math.min(100, pct)}
                                         aria-valuemin={0}
                                         aria-valuemax={100}
-                                        aria-label={`${pct.toFixed(1)}% of monthly budget used`}
+                                        aria-label={t('ai.budgetUsedAria', { pct: pct.toFixed(1) })}
                                     />
                                 </div>
                                 <div className="mt-2">
@@ -212,7 +212,7 @@ const AIBudgetCard = () => {
                                         placeholder={t('ai.budgetInputPlaceholder', 'Leave blank for unlimited')}
                                         value={budgetInput}
                                         onChange={(e) => setBudgetInput(e.target.value)}
-                                        aria-label="Monthly AI budget in USD"
+                                        aria-label={t('ai.budgetInputAria')}
                                     />
                                     <Form.Text className="text-muted">
                                         {t('ai.budgetInputHelp', 'Hard cap on AI API spend per calendar month. Rule-based issue creation continues after the cap.')}
@@ -228,7 +228,7 @@ const AIBudgetCard = () => {
                                         max="100"
                                         value={warnInput}
                                         onChange={(e) => setWarnInput(e.target.value)}
-                                        aria-label="Budget warn threshold percent"
+                                        aria-label={t('ai.warnPctAria')}
                                     />
                                     <Form.Text className="text-muted">
                                         {t('ai.warnPctHelp', 'Show a warning banner once spend crosses this fraction of the cap. Default 80%.')}

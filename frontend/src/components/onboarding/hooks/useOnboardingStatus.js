@@ -62,7 +62,7 @@ export function useOnboardingStatus({ enabled = true } = {}) {
             // We only surface other errors — network, 5xx, etc.
             if (err?.response?.status !== 401) {
                 failureCountRef.current += 1;
-                setError('Failed to load onboarding status');
+                setError('onboarding.statusLoadFailed');  // a translation key, shown with t()
             }
             return null;
         } finally {

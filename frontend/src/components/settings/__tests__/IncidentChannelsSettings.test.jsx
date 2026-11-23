@@ -2,8 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import en from '../../../locales/en.json';
+
+// The real English strings, with {{values}} filled in, so the test reads
+// what a person reads.
+const translate = (key, opts = {}) => {
+  const text = key.split('.').reduce((o, k) => o?.[k], en);
+  if (typeof text !== 'string') return typeof opts === 'string' ? opts : (opts.defaultValue ?? key);
+  return text.replace(/\{\{(\w+)\}\}/g, (_, name) => opts[name] ?? '');
+};
+const i18n = { t: translate };
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key) => key }),
+  useTranslation: () => i18n,
 }));
 vi.mock('react-toastify', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
@@ -32,11 +42,11 @@ describe('IncidentChannelsSettings', () => {
 
   it('an Email channel asks for recipients and saves them as extra_config.to', async () => {
     render(<IncidentChannelsSettings />);
-    await userEvent.click(await screen.findByRole('button', { name: /incidentChannels.new/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /New channel/ }));
     await userEvent.type(screen.getByPlaceholderText('SRE Slack'), 'On-call email');
     const kind = screen.getAllByRole('combobox')[0];
     await userEvent.selectOptions(kind, 'email');
-    await userEvent.type(screen.getByLabelText('incidentChannels.recipients'), 'sre@acme.test, oncall@acme.test');
+    await userEvent.type(screen.getByLabelText('Recipients'), 'sre@acme.test, oncall@acme.test');
     await userEvent.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
     expect(create.mock.calls[0][0]).toMatchObject({
@@ -64,13 +74,13 @@ describe('IncidentChannelsSettings', () => {
   it('shows no notice when every alert matched', async () => {
     SettingsService.getAlertIngestSecret.mockResolvedValue({ unmatched_alerts: { count: 0, days: 7, latest: [] } });
     render(<IncidentChannelsSettings />);
-    await screen.findByRole('button', { name: /incidentChannels.new/ });
+    await screen.findByRole('button', { name: /New channel/ });
     expect(screen.queryByTestId('unmatched-alerts')).toBeNull();
   });
 
   it('Slack does not show the recipients field', async () => {
     render(<IncidentChannelsSettings />);
-    await userEvent.click(await screen.findByRole('button', { name: /incidentChannels.new/ }));
-    expect(screen.queryByLabelText('incidentChannels.recipients')).toBeNull();
+    await userEvent.click(await screen.findByRole('button', { name: /New channel/ }));
+    expect(screen.queryByLabelText('Recipients')).toBeNull();
   });
 });

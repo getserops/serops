@@ -454,3 +454,69 @@
     border-radius: 4px;
   }
 }
+
+/* Where the table is wider than its box (tablets, small laptops) it scrolls
+   sideways: the checkbox and the time of each analysis stay in place. The
+   second column starts where the first one ends (--sticky-offset, measured
+   by hooks/useScrollCue.js). */
+@media (min-width: 768px) {
+  .data-table-wrap .modern-table :is(th, td):nth-child(-n+2) { position: sticky; z-index: 1; }
+  .data-table-wrap .modern-table th:nth-child(-n+2) { z-index: 2; }
+  .data-table-wrap .modern-table :is(th, td):first-child { left: 0; }
+  .data-table-wrap .modern-table :is(th, td):nth-child(2) { left: var(--sticky-offset, 60px); }
+  .data-table-wrap .modern-table td:nth-child(-n+2) { background: var(--bg-card); }
+  .data-table-wrap .modern-table tbody tr:hover td:nth-child(-n+2) { background: var(--primary-50); }
+  .data-table-wrap .modern-table td[colspan] { position: static; }
+}
+
+/* The "Details" button exists for the phone card only. */
+.data-row-more { display: none !important; }
+
+/* Phones (work order A9): an analysis was a 318 px card of ten stacked
+   lines. Now: project and status on the first line, the time, environment,
+   trigger and issue count on the second, the identifier and the Sentinel
+   decision behind "Details". */
+@media (max-width: 767px) {
+  .data-compact tbody tr.data-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-2) var(--space-3);
+  }
+  .data-compact tbody tr.data-row > td {
+    display: block;
+    flex: 0 0 auto;
+    width: auto !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    text-align: left !important;
+    white-space: normal !important;
+  }
+  .data-compact tbody tr.data-row > td::before { content: none; }
+  .data-compact tr.data-row > .data-cell-select { order: 0; }
+  .data-compact tr.data-row > .data-cell-project { order: 1; flex: 1 1 calc(100% - 220px); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap !important; font-weight: 600 !important; }
+  .data-compact tr.data-row > .data-cell-status { order: 2; }
+  /* The cell steps aside: the link and "Details" are placed in the card
+     on their own. */
+  .data-compact tbody tr.data-row > .data-cell-open { display: contents; }
+  .data-compact tr.data-row .view-btn { order: 3; }
+  .data-compact tr.data-row > .data-cell-time { order: 4; color: var(--text-secondary); }
+  .data-compact tr.data-row > .data-cell-env { order: 5; color: var(--text-secondary); }
+  .data-compact tr.data-row > .data-cell-trigger { order: 6; }
+  .data-compact tr.data-row > .data-cell-issues { order: 7; }
+  .data-compact tr.data-row .data-row-more { order: 8; display: inline-flex !important; margin-left: auto; }
+  .data-compact tr.data-row > :is(.data-cell-id, .data-cell-sentinel) { order: 9; display: none; flex: 1 1 100%; overflow-wrap: anywhere; }
+  .data-compact tr.data-row.is-expanded > :is(.data-cell-id, .data-cell-sentinel) { display: block; max-width: 100% !important; }
+  /* The values that do not explain themselves keep the name of their column. */
+  .data-compact tr.data-row > :is(.data-cell-issues, .data-cell-id, .data-cell-sentinel)::before {
+    content: attr(data-label);
+    display: inline;
+    margin-right: var(--space-2);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}

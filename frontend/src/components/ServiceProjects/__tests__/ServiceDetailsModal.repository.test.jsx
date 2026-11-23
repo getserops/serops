@@ -26,15 +26,15 @@ describe('ServiceDetailsModal — connect a repository later', () => {
     addSCMBinding.mockResolvedValue({ id: 9 });
     const onRefresh = vi.fn();
     render(<ServiceDetailsModal show service={{ id: 7, name: 'payments', cicd_bindings: [] }} onHide={() => {}} onRefresh={onRefresh} />);
-    userEvent.click(screen.getByRole('button', { name: /Connect repository/ }));
-    const integration = await screen.findByRole('combobox', { name: 'Integration' });
+    userEvent.click(screen.getByRole('button', { name: /services\.connectRepository/ }));
+    const integration = await screen.findByRole('combobox', { name: 'addService.integration' });
     await waitFor(() => expect(integration.querySelectorAll('option').length).toBe(2));  // SCM integrations only
     userEvent.selectOptions(integration, '5');
-    const repository = screen.getByRole('combobox', { name: 'Repository' });
+    const repository = screen.getByRole('combobox', { name: 'serviceForms.repository' });
     await waitFor(() => expect(repository.querySelectorAll('option').length).toBe(2));
     userEvent.selectOptions(repository, '144');
-    userEvent.click(screen.getByRole('button', { name: 'Connect' }));
-    expect(await screen.findByText('Repository connected.')).toBeInTheDocument();
+    userEvent.click(screen.getByRole('button', { name: 'services.connect' }));
+    expect(await screen.findByText('services.repoConnected')).toBeInTheDocument();
     expect(addSCMBinding).toHaveBeenCalledWith(7, expect.objectContaining({
       integration: '5', repository_id: 144, repository_name: 'acme/payments', default_branch: 'main',
     }));
@@ -44,6 +44,6 @@ describe('ServiceDetailsModal — connect a repository later', () => {
   it('offers nothing to connect once a repository is linked', () => {
     render(<ServiceDetailsModal show service={{ id: 7, name: 'payments', cicd_bindings: [],
       scm_binding: { id: 1, provider_type: 'github', repository_name: 'acme/payments' } }} onHide={() => {}} />);
-    expect(screen.queryByRole('button', { name: /Connect repository/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /services\.connectRepository/ })).not.toBeInTheDocument();
   });
 });

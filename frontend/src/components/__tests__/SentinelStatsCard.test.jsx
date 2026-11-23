@@ -1,9 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import SentinelStatsCard from '../SentinelStatsCard';
+import en from '../../locales/en.json';
 
+// The real English strings, with {{values}} filled in, so the test reads
+// what a person reads.
+const translate = (key, opts = {}) => {
+  const text = key.split('.').reduce((o, k) => o?.[k], en);
+  if (typeof text !== 'string') return key;
+  return text.replace(/\{\{(\w+)\}\}/g, (_, name) => opts[name] ?? '');
+};
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key) => key }),
+  useTranslation: () => ({ t: translate }),
 }));
 
 const signIn = (user) => window.localStorage.getItem.mockImplementation(

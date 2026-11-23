@@ -13,6 +13,7 @@ import {
     CircularProgress,
     Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { FaArrowRight, FaCog } from 'react-icons/fa';
 
 import CICDModal from '../modals/CICDModal';
@@ -20,6 +21,7 @@ import CICDModal from '../modals/CICDModal';
 const STEP = 'connect_cicd';
 
 export default function CICDStep({ status, onDone, onSkip }) {
+    const { t } = useTranslation();
     const [open, setOpen] = useState(false);
     const [skipping, setSkipping] = useState(false);
     const [error, setError] = useState(null);
@@ -30,7 +32,7 @@ export default function CICDStep({ status, onDone, onSkip }) {
         try {
             await onSkip(STEP);
         } catch (err) {
-            setError(err?.response?.data?.error || 'Could not skip this step');
+            setError(err?.response?.data?.error || t('scmStep.skipFailed'));
         } finally {
             setSkipping(false);
         }
@@ -46,12 +48,10 @@ export default function CICDStep({ status, onDone, onSkip }) {
                         </Box>
                         <Box sx={{ flex: 1 }}>
                             <Typography variant="h6" fontWeight={600} gutterBottom>
-                                Connect CI/CD (optional)
+                                {t('cicdStep.title')}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                                Link a build or deploy pipeline so AI can
-                                correlate incidents with recent deployments.
-                                You can skip this and add it later from Settings.
+                                {t('cicdStep.intro')}
                             </Typography>
                         </Box>
                     </Box>
@@ -63,9 +63,9 @@ export default function CICDStep({ status, onDone, onSkip }) {
                             variant="outlined"
                             onClick={handleSkip}
                             disabled={skipping || open}
-                            startIcon={skipping ? <CircularProgress aria-label="Loading" size={16} /> : null}
+                            startIcon={skipping ? <CircularProgress aria-label={t('onboarding.loading')} size={16} /> : null}
                         >
-                            Skip for now
+                            {t('scmStep.skip')}
                         </Button>
                         <Button
                             variant="contained"
@@ -73,7 +73,7 @@ export default function CICDStep({ status, onDone, onSkip }) {
                             disabled={skipping}
                             endIcon={<FaArrowRight />}
                         >
-                            Link pipeline
+                            {t('cicdStep.link')}
                         </Button>
                     </Box>
                 </CardContent>

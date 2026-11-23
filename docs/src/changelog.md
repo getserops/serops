@@ -16,6 +16,45 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.5.3] - 2026-11-23
+
+The web app on a phone and a tablet, and the rest of the French interface.
+On a computer with a full-width window nothing changes. No backend change
+and no database migration.
+
+Set `SEROPS_VERSION=1.5.3` or `--version 1.5.3`. Upgrading from 1.5.2 needs
+nothing else.
+
+### Added
+
+- **Docs**: [Replay your last incident](getting-started/replay-past-incident.md),
+  linked from the quick-start.
+
+### Changed
+
+- **Docs**: the open source promise, the roadmap and the license page say
+  what has shipped and what the Terms say; the preamble of the contributor
+  agreement (CLA.md) matches them.
+
+### Fixed
+
+- **Phones and tablets**: the page starts on the first screen (within 200 px
+  instead of about 360 on a phone); the top bar stays in place up to 860 px;
+  the Overview keeps "Needs attention now", the three key numbers and the
+  recent analyses open and folds the other panels; each analysis is a
+  two-line card; the Issues list picks its layout from the width it has, and
+  its description is never 0 px wide; on touch devices controls are 44 px
+  high and nothing is under 24 by 24 px; text fields are 16 px, so an iPhone
+  no longer zooms in on focus; the chat box stays above the on-screen
+  keyboard; no text under 12 px up to 1,024 px; the menu drawer keeps the
+  focus and closes on Escape. A mouse keeps the compact sizes.
+- **French**: about 890 sentences, labels and messages that stayed in
+  English in the French interface are translated. The English text is
+  unchanged. Product names, codes, filter syntax and text from the server
+  stay as they are.
+
+---
+
 ## [1.5.2] - 2026-11-22
 
 A clearer web app: a shorter Overview, one colour rule, dates in your time

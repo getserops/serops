@@ -5,8 +5,10 @@ import { FaLock } from "react-icons/fa";
 import AuthService from "../services/auth.service";
 import { describeRequestError } from "../utils/apiError";
 import BrandMark from './BrandMark';
+import { useTranslation } from "react-i18next";
 
 const Password = () => {
+  const { t } = useTranslation();
   const [password_confirmation, setPassword_confirmation] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,7 +29,7 @@ const Password = () => {
     setError("");
 
     if (!invitationToken) {
-      setError("Invitation link expired. Please re-open your invitation email.");
+      setError(t("passwordPages.linkExpired"));
       setLoading(false);
       return;
     }
@@ -46,7 +48,7 @@ const Password = () => {
         setTimeout(() => navigate("/login"), 2000);
       })
       .catch((err) => {
-        setError(describeRequestError(err, "Wrong password"));
+        setError(describeRequestError(err, t("passwordPages.wrongPassword")));
         setLoading(false);
       });
   };
@@ -57,19 +59,19 @@ const Password = () => {
         <div className="form-container">
           <div className="form-header">
             <BrandMark className="form-logo" />
-            <h2>Set your password</h2>
-            <p>Choose a strong password to finish activating your account.</p>
+            <h2>{t("passwordPages.title")}</h2>
+            <p>{t("passwordPages.subtitle")}</p>
           </div>
 
           <form onSubmit={submit} className="login-form">
             <div className="form-group">
-              <label htmlFor="password">Password</label>
+              <label htmlFor="password">{t("auth.password")}</label>
               <div className="input-wrapper">
                 <FaLock className="input-icon" />
                 <input
                   type="password"
                   id="password"
-                  placeholder="Enter your password"
+                  placeholder={t("login.passwordPlaceholder")}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="new-password"
@@ -78,13 +80,13 @@ const Password = () => {
             </div>
 
             <div className="form-group">
-              <label htmlFor="password_confirmation">Confirm password</label>
+              <label htmlFor="password_confirmation">{t("passwordPages.confirm")}</label>
               <div className="input-wrapper">
                 <FaLock className="input-icon" />
                 <input
                   type="password"
                   id="password_confirmation"
-                  placeholder="Rewrite your password"
+                  placeholder={t("passwordPages.rewrite")}
                   value={password_confirmation}
                   onChange={(e) => setPassword_confirmation(e.target.value)}
                   autoComplete="new-password"
@@ -95,7 +97,7 @@ const Password = () => {
             {error && <div className="alert-error"><span>{error}</span></div>}
             {success && (
               <div className="alert-success">
-                <span>Your password has been set. Redirecting to sign in…</span>
+                <span>{t("passwordPages.done")}</span>
               </div>
             )}
 
@@ -104,13 +106,13 @@ const Password = () => {
               className="submit-btn"
               disabled={!password || !password_confirmation || loading}
             >
-              {loading ? <span className="loading-spinner"></span> : "Set password"}
+              {loading ? <span className="loading-spinner"></span> : t("passwordPages.setPassword")}
             </button>
           </form>
         </div>
 
         <div className="login-footer">
-          <span>&copy; {new Date().getFullYear()} SerOps. All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} SerOps. {t('login.allRightsReserved')}</span>
         </div>
       </div>
     </div>

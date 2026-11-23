@@ -4,7 +4,7 @@ SerOps is published under the [GNU Affero General Public License v3](./LICENSE) 
 
 You may want a **commercial license instead** if one of these describes your situation:
 
-1. **AGPL policy conflict** — your organisation prohibits AGPL-licensed dependencies in its production stack (this is common at Google, some large banks, and other enterprises with strict license review). A commercial license removes the AGPL copyleft obligations.
+1. **Your organisation's policy rules out AGPL software.** Business includes a commercial license for internal use, as an alternative to the AGPL, for your organisation and the companies it controls.
 
 2. **Running SerOps for clients, embedding it in a product or redistributing it** — this is a separate agreement, on request, with no public price. A Business or Enterprise license covers only your own organisation and the companies it controls.
 
@@ -14,10 +14,10 @@ You may want a **commercial license instead** if one of these describes your sit
 
 | Where | License | What it means |
 |-------|---------|---------------|
-| Everything except the `ee/` directories | AGPL-3.0 | SerOps Community: the complete product, free |
+| Everything except the `ee/` directories | AGPL-3.0 | SerOps Community: the full root cause analysis, free in production |
 | `backend/ee/`, `frontend/src/ee/` | [SerOps Enterprise License](backend/ee/LICENSE) | Source-available; production use needs a paid license (Business or Enterprise) and its license key |
 
-The two don't mix: Community code never depends on `ee/` (CI deletes it and runs every test), and a commercial license covers both the copyleft opt-out for the AGPL code and, when bought, the Enterprise features. No Community feature ever moves into `ee/`; see the [open source promise](https://serops.ai/docs/open-source-promise/).
+The two don't mix: Community code never depends on `ee/` (CI deletes it and runs every test). A Business or Enterprise license includes both: the commercial license for internal use, instead of the AGPL, and the paid features. No Community feature ever moves into `ee/`; see the [open source promise](https://serops.ai/docs/open-source-promise/).
 
 ## How to reach us
 
@@ -40,10 +40,10 @@ A commercial license does not:
 
 ## What it does do
 
-- releases you from the AGPL copyleft obligations for the version and modifications you buy the license for
-- provides a written commercial agreement your legal team can point at
-- unlocks any support / SLA package you also purchase
+- lets your organisation and the companies it controls use SerOps for their own internal use under a commercial license instead of the AGPL, for the term of the license
+- gives your legal team written terms to point at: the [SerOps Enterprise Terms](https://serops.ai/docs/legal/enterprise-terms/), as they are (Business) or changed in your order (Enterprise)
+- comes with email support (Business) or the SLA written into your contract (Enterprise)
 
 ---
 
-*This document is a stub. Contract terms are negotiated per customer.*
+The terms of every paid license are the [SerOps Enterprise Terms](https://serops.ai/docs/legal/enterprise-terms/). An Enterprise order can change or add to them.

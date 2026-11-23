@@ -218,7 +218,7 @@ const AuditLogSettings = () => {
                                     <option value="">{t('auditLog.allUsers')}</option>
                                     {teamMembers.map((member) => (
                                         <option key={member.id} value={member.id}>
-                                            {member.email || member.username || `User ${member.id}`}
+                                            {member.email || member.username || t('auditLog.userFallback', { id: member.id })}
                                         </option>
                                     ))}
                                 </select>

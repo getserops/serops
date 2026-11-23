@@ -14,7 +14,7 @@ your own framework. Download it as a spreadsheet:
 its operation and your data are yours, so many controls written for hosted
 services are answered *Not applicable*. Every *Yes* is backed by the document
 in the last column. *Not yet* and *Planned* mean exactly that. These answers
-describe SerOps 1.5.1. Accepting them as they are keeps you on Business;
+describe SerOps 1.5.2. Accepting them as they are keeps you on Business;
 your own questionnaire filled in is Enterprise
 ([pricing](https://serops.ai/pricing)).
 

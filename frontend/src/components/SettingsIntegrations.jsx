@@ -71,7 +71,9 @@ import { usePermissions } from "../utils/permissions";
 import { isDemoUser } from "../utils/demo";
 import { formatAbsolute, formatRelative } from '../utils/dates';
 
-// Provider configuration with specific credential fields and token URLs
+// Provider configuration with specific credential fields and token URLs.
+// Field labels and hints are translation keys (a hint that is only the
+// provider's own menu path stays as it is: t returns it unchanged).
 const PROVIDERS = {
     gitlab: {
         name: "GitLab",
@@ -82,8 +84,8 @@ const PROVIDERS = {
         tokenUrl: (baseUrl) => `${baseUrl || 'https://gitlab.com'}/-/user_settings/personal_access_tokens`,
         tokenHelp: "Create with 'api' scope",
         fields: [
-            { name: "base_url", label: "GitLab URL", type: "url", placeholder: "https://gitlab.com", required: false, help: "Leave blank for gitlab.com, or enter your self-hosted URL" },
-            { name: "access_token", label: "Personal Access Token", type: "password", required: true, help: "Create at Settings → Access Tokens with api scope" },
+            { name: "base_url", label: "globalIntegrations.gitlabUrl", type: "url", placeholder: "https://gitlab.com", required: false, help: "globalIntegrations.field.gitlabUrlHelp" },
+            { name: "access_token", label: "globalIntegrations.personalAccessToken", type: "password", required: true, help: "globalIntegrations.field.gitlabTokenHelp" },
         ],
     },
     github: {
@@ -98,8 +100,8 @@ const PROVIDERS = {
         tokenUrl: () => "https://github.com/settings/personal-access-tokens/new",
         tokenHelp: "Fine-grained token for your repositories, read-only: Contents, Pull requests, Actions, Deployments (Webhooks read and write to set up the webhook)",
         fields: [
-            { name: "base_url", label: "GitHub URL", type: "url", placeholder: "https://github.com", required: false, help: "Leave blank for github.com, or enter GitHub Enterprise URL" },
-            { name: "access_token", label: "Personal Access Token", type: "password", required: true, help: "Settings → Developer settings → Personal access tokens → Fine-grained tokens" },
+            { name: "base_url", label: "globalIntegrations.field.githubUrl", type: "url", placeholder: "https://github.com", required: false, help: "globalIntegrations.field.githubUrlHelp" },
+            { name: "access_token", label: "globalIntegrations.personalAccessToken", type: "password", required: true, help: "Settings → Developer settings → Personal access tokens → Fine-grained tokens" },
         ],
     },
     azure_devops: {
@@ -112,9 +114,9 @@ const PROVIDERS = {
         tokenUrl: (_, org) => `https://dev.azure.com/${org || '_'}/_usersSettings/tokens`,
         tokenHelp: "Create with 'Code (Read)' and 'Build (Read)' scopes",
         fields: [
-            { name: "organization", label: "Organization", type: "text", required: true, placeholder: "my-org", help: "Your Azure DevOps organization name" },
-            { name: "project", label: "Project (optional)", type: "text", required: false, placeholder: "my-project", help: "Leave blank to access all projects" },
-            { name: "access_token", label: "Personal Access Token", type: "password", required: true, help: "Create at User Settings → Personal Access Tokens" },
+            { name: "organization", label: "globalIntegrations.organization", type: "text", required: true, placeholder: "my-org", help: "globalIntegrations.field.azureOrgHelp" },
+            { name: "project", label: "globalIntegrations.field.projectOptional", type: "text", required: false, placeholder: "my-project", help: "globalIntegrations.field.azureProjectHelp" },
+            { name: "access_token", label: "globalIntegrations.personalAccessToken", type: "password", required: true, help: "globalIntegrations.field.azureTokenHelp" },
         ],
     },
     bitbucket: {
@@ -126,9 +128,9 @@ const PROVIDERS = {
         tokenUrl: () => "https://bitbucket.org/account/settings/app-passwords/",
         tokenHelp: "Create an App Password with repository read access",
         fields: [
-            { name: "base_url", label: "Bitbucket URL", type: "url", placeholder: "https://bitbucket.org", required: false, help: "Leave blank for bitbucket.org, or enter Bitbucket Server URL" },
-            { name: "username", label: "Username", type: "text", required: true, help: "Your Bitbucket username" },
-            { name: "app_password", label: "App Password", type: "password", required: true, help: "Create at Personal Settings → App Passwords" },
+            { name: "base_url", label: "globalIntegrations.field.bitbucketUrl", type: "url", placeholder: "https://bitbucket.org", required: false, help: "globalIntegrations.field.bitbucketUrlHelp" },
+            { name: "username", label: "globalIntegrations.username", type: "text", required: true, help: "globalIntegrations.field.bitbucketUsernameHelp" },
+            { name: "app_password", label: "globalIntegrations.appPassword", type: "password", required: true, help: "globalIntegrations.field.bitbucketPasswordHelp" },
         ],
     },
     jenkins: {
@@ -141,9 +143,9 @@ const PROVIDERS = {
         tokenUrl: (baseUrl, _org, creds) => `${baseUrl || ''}/user/${creds?.username || 'me'}/security`,
         tokenHelp: "Create an API Token at User → Configure",
         fields: [
-            { name: "base_url", label: "Jenkins URL", type: "url", required: true, placeholder: "https://jenkins.company.com", help: "Your Jenkins server URL" },
-            { name: "username", label: "Username", type: "text", required: true, help: "Jenkins user with API access" },
-            { name: "api_token", label: "API Token", type: "password", required: true, help: "Create at User → Configure → API Token" },
+            { name: "base_url", label: "globalIntegrations.jenkinsUrl", type: "url", required: true, placeholder: "https://jenkins.company.com", help: "globalIntegrations.field.jenkinsUrlHelp" },
+            { name: "username", label: "globalIntegrations.username", type: "text", required: true, help: "globalIntegrations.field.jenkinsUsernameHelp" },
+            { name: "api_token", label: "globalIntegrations.apiToken", type: "password", required: true, help: "globalIntegrations.field.jenkinsTokenHelp" },
         ],
     },
     // GitOps controllers send deployments to SerOps: no URL, no credentials.
@@ -310,16 +312,16 @@ const SettingsIntegrations = () => {
 
     const handleSync = async (integration) => {
         try {
-            toast.info("Syncing...");
+            toast.info(t("globalIntegrations.syncing"));
             await axios.post(
                 `/api/providers/integrations/${integration.id}/sync/`,
                 {},
                 { headers: { Authorization: `Token ${localStorage.getItem("token")}` } }
             );
-            toast.success("Sync completed!");
+            toast.success(t("globalIntegrations.syncCompleted"));
             fetchIntegrations();
         } catch (err) {
-            toast.error("Sync failed");
+            toast.error(t("globalIntegrations.syncFailed"));
         }
     };
 
@@ -356,13 +358,13 @@ const SettingsIntegrations = () => {
 
             setConnectionTestResult({
                 success: true,
-                message: response.data.message || "Connection successful!",
+                message: response.data.message || t("globalIntegrations.connectionSuccessful"),
                 user_info: response.data.user_info
             });
         } catch (err) {
             setConnectionTestResult({
                 success: false,
-                message: err.response?.data?.message || err.response?.data?.error || "Connection failed"
+                message: err.response?.data?.message || err.response?.data?.error || t("globalIntegrations.connectionFailed")
             });
         } finally {
             setTestingConnection(false);
@@ -533,9 +535,7 @@ const SettingsIntegrations = () => {
         if (provider.receiveOnly) {
             return (
                 <p className="mb-0 small">
-                    {provider.name} sends deployments to SerOps, so there is nothing to connect to.
-                    Next, add a Deployment pipeline with this integration to the service it deploys:
-                    that gives the webhook URL and secret to put in {provider.name}.
+                    {t("globalIntegrations.receiveOnlyHelp", { provider: provider.name })}
                 </p>
             );
         }
@@ -548,8 +548,8 @@ const SettingsIntegrations = () => {
                 <Form.Group className="mb-3" key={field.name} controlId={`integration-${field.name}`}>
                     <div className="d-flex align-items-center justify-content-between">
                         <Form.Label>
-                            {field.label}
-                            {!field.required && <span className="text-muted ms-1">(optional)</span>}
+                            {t(field.label)}
+                            {!field.required && <span className="text-muted ms-1">{t("common.optional")}</span>}
                         </Form.Label>
                         {/* Token generation link for password fields (outside the label) */}
                         {field.type === "password" && getTokenUrl && (
@@ -559,7 +559,7 @@ const SettingsIntegrations = () => {
                                 rel="noopener noreferrer"
                                 className="small text-decoration-none mb-2"
                             >
-                                Generate token <FaExternalLinkAlt size={10} className="ms-1" aria-hidden="true" />
+                                {t("globalIntegrations.generateToken")} <FaExternalLinkAlt size={10} className="ms-1" aria-hidden="true" />
                             </a>
                         )}
                     </div>
@@ -567,7 +567,7 @@ const SettingsIntegrations = () => {
                         <Form.Control
                             type={field.type}
                             name={field.name}
-                            placeholder={isEditing && field.type === "password" ? "Leave blank to keep existing" : field.placeholder}
+                            placeholder={isEditing && field.type === "password" ? t("globalIntegrations.keepExisting") : field.placeholder}
                             value={formData.credentials[field.name] || ""}
                             onChange={handleInputChange}
                             required={!isEditing && field.required}
@@ -585,7 +585,7 @@ const SettingsIntegrations = () => {
                     {field.help && (
                         <Form.Text className="text-muted d-flex align-items-center gap-1">
                             {field.type === "password" ? <FaLock size={10} /> : <FaInfoCircle size={10} />}
-                            {field.help}
+                            {t(field.help)}
                         </Form.Text>
                     )}
                 </Form.Group>
@@ -603,7 +603,7 @@ const SettingsIntegrations = () => {
             >
                 <span className="d-flex align-items-center gap-2">
                     <FaInfoCircle className="text-muted" />
-                    <small className="text-muted">Provider Capabilities</small>
+                    <small className="text-muted">{t("globalIntegrations.providerCapabilities")}</small>
                 </span>
                 {showCapabilityMatrix ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
             </div>
@@ -612,10 +612,10 @@ const SettingsIntegrations = () => {
                     <table className="table table-sm table-borderless mb-0" style={{ fontSize: "0.85rem" }}>
                         <thead>
                             <tr className="text-muted">
-                                <th>Provider</th>
+                                <th>{t("globalIntegrations.provider")}</th>
                                 <th className="text-center">SCM</th>
                                 <th className="text-center">CI/CD</th>
-                                <th className="text-center">Deploy</th>
+                                <th className="text-center">{t("globalIntegrations.capDeploy")}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -777,7 +777,7 @@ const SettingsIntegrations = () => {
                                                                     test a connection say nothing true there. */}
                                                                 {int.created_at && !demo && <OverlayTrigger
                                                                     placement="top"
-                                                                    overlay={<Tooltip>Created: {formatAbsolute(int.created_at)}</Tooltip>}
+                                                                    overlay={<Tooltip>{t("globalIntegrations.createdAt", { date: formatAbsolute(int.created_at) })}</Tooltip>}
                                                                 >
                                                                     <span className="d-flex align-items-center gap-1">
                                                                         <FaClock size={10} />
@@ -793,26 +793,26 @@ const SettingsIntegrations = () => {
                                                             className="d-flex align-items-center gap-1 px-2 py-1"
                                                         >
                                                             {verified ? <FaCheck size={10} /> : <FaSync size={10} />}
-                                                            {verified ? "Active" : "Pending"}
+                                                            {verified ? t("globalIntegrations.active") : t("globalIntegrations.pending")}
                                                         </Badge>
                                                         {!demo && <Dropdown align="end">
                                                             <Dropdown.Toggle
                                                                 variant="link"
                                                                 className="text-muted p-1"
                                                                 style={{ boxShadow: "none" }}
-                                                                aria-label={`Actions for ${int.name}`}
-                                                                title={`Actions for ${int.name}`}
+                                                                aria-label={t("globalIntegrations.actionsFor", { name: int.name })}
+                                                                title={t("globalIntegrations.actionsFor", { name: int.name })}
                                                             >
                                                                 <FaEllipsisV size={14} aria-hidden="true" />
                                                             </Dropdown.Toggle>
                                                             <Dropdown.Menu>
                                                                 {canManage && (
                                                                 <Dropdown.Item onClick={() => openEdit(int)}>
-                                                                    <FaEdit className="me-2" />Edit
+                                                                    <FaEdit className="me-2" />{t("common.edit")}
                                                                 </Dropdown.Item>
                                                                 )}
                                                                 <Dropdown.Item onClick={() => handleSync(int)}>
-                                                                    <FaSync className="me-2" />Sync Now
+                                                                    <FaSync className="me-2" />{t("globalIntegrations.syncNow")}
                                                                 </Dropdown.Item>
                                                                 {canManage && <Dropdown.Divider />}
                                                                 {canManage && (
@@ -820,7 +820,7 @@ const SettingsIntegrations = () => {
                                                                     className="text-danger"
                                                                     onClick={() => { setSelected(int); setShowDeleteModal(true); }}
                                                                 >
-                                                                    <FaTrash className="me-2" />Delete
+                                                                    <FaTrash className="me-2" />{t("common.delete")}
                                                                 </Dropdown.Item>
                                                                 )}
                                                             </Dropdown.Menu>
@@ -840,7 +840,7 @@ const SettingsIntegrations = () => {
                                                         >
                                                             {c === "scm" && "SCM"}
                                                             {c === "cicd" && "CI/CD"}
-                                                            {c === "deployments" && "Deployments"}
+                                                            {c === "deployments" && t("globalIntegrations.capDeployments")}
                                                         </Badge>
                                                     ))}
                                                 </div>
@@ -861,7 +861,7 @@ const SettingsIntegrations = () => {
                                                                 <div className="fw-bold text-primary" style={{ fontSize: "1.25rem" }}>
                                                                     {usage.services_count || 0}
                                                                 </div>
-                                                                <div className="text-muted small">Services</div>
+                                                                <div className="text-muted small">{t("globalIntegrations.servicesCount")}</div>
                                                             </div>
                                                             {usage.last_sync && (
                                                                 <>
@@ -869,7 +869,7 @@ const SettingsIntegrations = () => {
                                                                     <div>
                                                                         <div className="d-flex align-items-center gap-1 text-muted small">
                                                                             <FaHistory size={10} />
-                                                                            Last sync
+                                                                            {t("globalIntegrations.lastSync")}
                                                                         </div>
                                                                         <div className="small fw-medium">{formatTimeAgo(usage.last_sync)}</div>
                                                                     </div>
@@ -879,7 +879,7 @@ const SettingsIntegrations = () => {
                                                         {usage.services_count > 0 && (
                                                             <a href="#" className="small text-decoration-none d-flex align-items-center gap-1">
                                                                 <FaLink size={10} />
-                                                                View services
+                                                                {t("globalIntegrations.viewServices")}
                                                             </a>
                                                         )}
                                                     </div>
@@ -893,9 +893,9 @@ const SettingsIntegrations = () => {
                                                     disabled={isVer}
                                                 >
                                                     {isVer ? (
-                                                        <><Spinner size="sm" animation="border" className="me-2" />Verifying...</>
+                                                        <><Spinner size="sm" animation="border" className="me-2" />{t("globalIntegrations.verifying")}</>
                                                     ) : (
-                                                        <><FaSync size={12} className="me-2" />Verify Connection</>
+                                                        <><FaSync size={12} className="me-2" />{t("globalIntegrations.verifyConnection")}</>
                                                     )}
                                                 </Button>}
                                             </Card.Body>
@@ -943,11 +943,11 @@ const SettingsIntegrations = () => {
                             <div>
                                 {/* Integration Name */}
                                 <Form.Group className="mb-3 mt-4" controlId="integration-name">
-                                    <Form.Label>Integration Name</Form.Label>
+                                    <Form.Label>{t("globalIntegrations.integrationName")}</Form.Label>
                                     <Form.Control
                                         type="text"
                                         name="name"
-                                        placeholder={`e.g., Company ${PROVIDERS[formData.provider_type]?.name}`}
+                                        placeholder={t("globalIntegrations.namePlaceholder", { provider: PROVIDERS[formData.provider_type]?.name })}
                                         value={formData.name}
                                         onChange={handleInputChange}
                                         required
@@ -955,7 +955,7 @@ const SettingsIntegrations = () => {
                                     {!PROVIDERS[formData.provider_type]?.receiveOnly && (
                                     <Form.Text className="text-muted">
                                         <FaInfoCircle size={10} className="me-1" />
-                                        Tip: Enter a URL below and we'll auto-suggest a name
+                                        {t("globalIntegrations.nameTip")}
                                     </Form.Text>
                                     )}
                                 </Form.Group>
@@ -964,7 +964,7 @@ const SettingsIntegrations = () => {
                                 <div className="p-3 bg-light rounded-3 mb-3">
                                     <h6 className="mb-3 d-flex align-items-center gap-2">
                                         {React.createElement(PROVIDERS[formData.provider_type]?.icon || FaCloud, { size: 18, style: { color: PROVIDERS[formData.provider_type]?.color } })}
-                                        {PROVIDERS[formData.provider_type]?.name} Configuration
+                                        {t("globalIntegrations.providerConfiguration", { provider: PROVIDERS[formData.provider_type]?.name })}
                                     </h6>
                                     {renderProviderFields()}
                                 </div>
@@ -977,12 +977,12 @@ const SettingsIntegrations = () => {
                                     >
                                         {connectionTestResult.success ? <FaCheckCircle /> : <FaExclamationCircle />}
                                         <div>
-                                            <strong>{connectionTestResult.success ? "Connection successful!" : "Connection failed"}</strong>
+                                            <strong>{connectionTestResult.success ? t("globalIntegrations.connectionSuccessful") : t("globalIntegrations.connectionFailed")}</strong>
                                             {connectionTestResult.message && (
                                                 <div className="small">{connectionTestResult.message}</div>
                                             )}
                                             {connectionTestResult.user_info?.username && (
-                                                <div className="small">Connected as: {connectionTestResult.user_info.username}</div>
+                                                <div className="small">{t("globalIntegrations.connectedAs", { username: connectionTestResult.user_info.username })}</div>
                                             )}
                                         </div>
                                     </Alert>
@@ -992,7 +992,7 @@ const SettingsIntegrations = () => {
                                 {!PROVIDERS[formData.provider_type]?.receiveOnly && (
                                 <Alert variant="info" className="py-2 d-flex align-items-center gap-2 small border-0">
                                     <FaLock />
-                                    Credentials are encrypted at rest (Fernet: AES-128 with HMAC-SHA256).
+                                    {t("globalIntegrations.encryptedNote")}
                                 </Alert>
                                 )}
                             </div>
@@ -1012,9 +1012,9 @@ const SettingsIntegrations = () => {
                                 className="d-flex align-items-center gap-2"
                             >
                                 {testingConnection ? (
-                                    <><Spinner size="sm" animation="border" />Testing...</>
+                                    <><Spinner size="sm" animation="border" />{t("globalIntegrations.testing")}</>
                                 ) : (
-                                    <><FaFlask />Test Connection</>
+                                    <><FaFlask />{t("globalIntegrations.testConnection")}</>
                                 )}
                             </Button>
                             )}
@@ -1022,7 +1022,7 @@ const SettingsIntegrations = () => {
                             <div className="d-flex gap-2">
                                 <Button variant="light" onClick={() => setShowModal(false)} className="px-4">{t("common.cancel", "Cancel")}</Button>
                                 <Button variant="primary" type="submit" disabled={saving} className="px-4">
-                                    {saving ? <Spinner size="sm" animation="border" /> : isEditing ? "Save Changes" : "Create Integration"}
+                                    {saving ? <Spinner size="sm" animation="border" /> : isEditing ? t("common.saveChanges") : t("globalIntegrations.createIntegration")}
                                 </Button>
                             </div>
                         </div>
@@ -1032,22 +1032,22 @@ const SettingsIntegrations = () => {
 
             {/* Delete Modal */}
             <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)} centered>
-                <Modal.Header closeButton className="border-bottom-0"><Modal.Title>Delete Integration</Modal.Title></Modal.Header>
+                <Modal.Header closeButton className="border-bottom-0"><Modal.Title>{t("globalIntegrations.deleteIntegration")}</Modal.Title></Modal.Header>
                 <Modal.Body>
-                    <p>Delete <strong>{selected?.name}</strong>?</p>
+                    <p>{t("globalIntegrations.deletePromptBefore")} <strong>{selected?.name}</strong>{t("globalIntegrations.deletePromptAfter")}</p>
                     <Alert variant="warning" className="mb-0 d-flex align-items-start gap-2">
                         <FaInfoCircle className="mt-1" />
                         <div>
-                            <strong>Warning:</strong> This action cannot be undone.
+                            <strong>{t("globalIntegrations.warningLabel")}</strong> {t("globalIntegrations.cannotUndo")}
                             {integrationUsage[selected?.id]?.services_count > 0 && (
-                                <> {integrationUsage[selected?.id]?.services_count} service(s) using this integration will need to be reconfigured.</>
+                                <> {t("globalIntegrations.servicesReconfigure", { n: integrationUsage[selected?.id]?.services_count })}</>
                             )}
                         </div>
                     </Alert>
                 </Modal.Body>
                 <Modal.Footer className="border-top-0">
-                    <Button variant="light" onClick={() => setShowDeleteModal(false)}>Cancel</Button>
-                    <Button variant="danger" onClick={handleDelete}>Delete</Button>
+                    <Button variant="light" onClick={() => setShowDeleteModal(false)}>{t("common.cancel")}</Button>
+                    <Button variant="danger" onClick={handleDelete}>{t("common.delete")}</Button>
                 </Modal.Footer>
             </Modal>
 

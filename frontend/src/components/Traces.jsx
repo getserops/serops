@@ -114,7 +114,7 @@ const Traces = () => {
             <div className="ds-card traces-card">
             <Form onSubmit={applyFilters} className="traces-filters">
                 <div className="row g-2 align-items-end">
-                    <div className="col-md-3">
+                    <div className="col-md-6 col-xl-3">
                         <Form.Label className="mb-1 small" htmlFor="traces-service">{t('traces.dashboard.service')}</Form.Label>
                         <Form.Select id="traces-service"
                             value={filters.service}
@@ -124,7 +124,7 @@ const Traces = () => {
                             {services.map((s) => <option key={s} value={s}>{s}</option>)}
                         </Form.Select>
                     </div>
-                    <div className="col-md-2">
+                    <div className="col-md-6 col-xl-2">
                         <Form.Label className="mb-1 small" htmlFor="traces-status">{t('traces.dashboard.status')}</Form.Label>
                         <Form.Select id="traces-status"
                             value={filters.status}
@@ -136,7 +136,7 @@ const Traces = () => {
                             <option value="UNSET">UNSET</option>
                         </Form.Select>
                     </div>
-                    <div className="col-md-2">
+                    <div className="col-md-6 col-xl-2">
                         <Form.Label className="mb-1 small" htmlFor="traces-min-duration">{t('traces.dashboard.minDuration')}</Form.Label>
                         <Form.Control
                             id="traces-min-duration"
@@ -147,7 +147,7 @@ const Traces = () => {
                             placeholder="ms"
                         />
                     </div>
-                    <div className="col-md-2">
+                    <div className="col-md-6 col-xl-2">
                         <Form.Label className="mb-1 small" htmlFor="traces-since">{t('traces.dashboard.since')}</Form.Label>
                         <Form.Control
                             id="traces-since"
@@ -156,7 +156,7 @@ const Traces = () => {
                             onChange={(e) => setFilters({ ...filters, since: e.target.value, page: 1 })}
                         />
                     </div>
-                    <div className="col-md-2">
+                    <div className="col-md-6 col-xl-2">
                         <Form.Label className="mb-1 small" htmlFor="traces-until">{t('traces.dashboard.until')}</Form.Label>
                         <Form.Control
                             id="traces-until"
@@ -165,7 +165,7 @@ const Traces = () => {
                             onChange={(e) => setFilters({ ...filters, until: e.target.value, page: 1 })}
                         />
                     </div>
-                    <div className="col-md-1 d-grid">
+                    <div className="col-md-6 col-xl-1 d-grid">
                         <Button variant="outline-secondary" type="button" onClick={resetFilters}
                                 aria-label={t('traces.dashboard.resetFilters')} title={t('traces.dashboard.resetFilters')}>
                             <FaFilter />

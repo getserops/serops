@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useCluster } from "../context/ClusterContext";
 import useFilterUrlSync from "../hooks/useFilterUrlSync";
+import useScrollCue from "../hooks/useScrollCue";
 import PostmortemModal from "./PostmortemModal";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import PageHeader from "./PageHeader";
@@ -27,6 +28,16 @@ const Data = () => {
   const navigate = useNavigate();
   const isDetailRoute = location.pathname.includes("/details/");
   const searchInputRef = useRef(null);
+  // Tablet: the table scrolls sideways; say so (A10).
+  const tableWrapRef = useRef(null);
+  // Phone: a card shows the key facts; "Details" shows the rest (A9).
+  const [expandedRows, setExpandedRows] = useState(() => new Set());
+  const toggleRow = (id) => setExpandedRows((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  useScrollCue(tableWrapRef);
   // Read the composed filter via useCluster (aliased to useDeployment).
   // Prefer ``currentCluster?.id`` over raw ``clusterId`` so we never
   // forward an ID that doesn't match a loaded cluster — that's what
@@ -151,7 +162,7 @@ const Data = () => {
                 : item.model_name;
         }
         // Use project_name from API if available, fallback to extracting from batch_id
-        const projectName = item.project_name || extractProjectNameFromBatch(item.batch_id) || "Unknown Project";
+        const projectName = item.project_name || extractProjectNameFromBatch(item.batch_id) || t('data.unknownProject', "Unknown Project");
 
         return {
           id: item.batch_id,
@@ -304,10 +315,11 @@ const Data = () => {
 
     try {
       const result = await DataService.reanalyzeBatches(selectedBatchIds, model, mode);
-      const verb = mode === 'primary' ? 'Re-running primary analysis' : 'Comparing';
       setNotification({
         type: 'info',
-        message: `${verb} with ${model} on ${selectedBatchIds.length} batch(es)…`,
+        message: mode === 'primary'
+          ? t('data.reanalyze.primaryQueued', { model, n: selectedBatchIds.length })
+          : t('data.reanalyze.compareQueued', { model, n: selectedBatchIds.length }),
       });
       setSelectedBatches({});
 
@@ -318,7 +330,7 @@ const Data = () => {
           if (Date.now() - started > 120_000) {
             setNotification({
               type: 'warning',
-              message: `Still running with ${model}. Refresh the batch to check on it manually.`,
+              message: t('data.reanalyze.stillRunning', { model }),
             });
             return;
           }
@@ -330,17 +342,14 @@ const Data = () => {
               if (mode === 'primary') {
                 setNotification({
                   type: 'success',
-                  message: (
-                    `${model} finished — primary analysis updated with ${issueCount} issue(s). `
-                    + `View them in the Issues tab or on the batch detail page.`
-                  ),
+                  message: t('data.reanalyze.primaryDone', { model, issueCount }),
                   cta: { label: t('data.viewAnalysis', 'View analysis'), href: `/dash/data/details/${firstBatchId}` },
                 });
               } else {
                 setNotification({
                   type: 'success',
-                  message: `${model} finished — ${issueCount} issue(s) added to comparison.`,
-                  cta: { label: 'Open comparison', href: `/dash/data/details/${firstBatchId}?compare=true` },
+                  message: t('data.reanalyze.compareDone', { model, issueCount }),
+                  cta: { label: t('data.reanalyze.openComparison'), href: `/dash/data/details/${firstBatchId}?compare=true` },
                 });
               }
               return;
@@ -354,7 +363,7 @@ const Data = () => {
       console.error('Error reanalyzing batches:', error);
       setNotification({
         type: 'error',
-        message: `Error: ${error.response?.data?.error || error.message}`,
+        message: t('data.errorMessage', { message: error.response?.data?.error || error.message }),
       });
     } finally {
       setIsAnalyzing(false);
@@ -372,7 +381,7 @@ const Data = () => {
       if (history.analysis_count < 2) {
         setNotification({
           type: 'warning',
-          message: 'This batch has only one analysis result. Use "Re-Analyze with Model" to generate a second analysis with a different model, then compare.'
+          message: t('data.onlyOneAnalysis')
         });
         return;
       }
@@ -383,7 +392,7 @@ const Data = () => {
       console.error('Error viewing comparison:', error);
       setNotification({
         type: 'error',
-        message: `Error: ${error.message}`
+        message: t('data.errorMessage', { message: error.message })
       });
     }
   };
@@ -610,43 +619,43 @@ const Data = () => {
                   )}
                 </Dropdown.Toggle>
                 <Dropdown.Menu>
-                  <Dropdown.Header>Re-run primary analysis (updates Issues)</Dropdown.Header>
+                  <Dropdown.Header>{t('data.menu.rerunPrimaryHeader')}</Dropdown.Header>
                   {availableModels.length > 0 ? (
                     availableModels.map((model) => (
                       <Dropdown.Item
                         key={`primary-${model.id}`}
                         onClick={() => handleReanalyze(model.id, 'primary')}
                       >
-                        Re-run with {model.name}
+                        {t('data.menu.rerunWith', { model: model.name })}
                       </Dropdown.Item>
                     ))
                   ) : (
                     <Dropdown.Item disabled className="text-muted small">
-                      No AI provider configured
+                      {t('data.menu.noProvider')}
                     </Dropdown.Item>
                   )}
                   <Dropdown.Divider />
-                  <Dropdown.Header>Compare against another model (keeps primary)</Dropdown.Header>
+                  <Dropdown.Header>{t('data.menu.compareHeader')}</Dropdown.Header>
                   {availableModels.length > 0 && availableModels.map((model) => (
                     <Dropdown.Item
                       key={`compare-${model.id}`}
                       onClick={() => handleReanalyze(model.id, 'compare')}
                     >
-                      Compare with {model.name}
+                      {t('data.menu.compareWith', { model: model.name })}
                     </Dropdown.Item>
                   ))}
                   <Dropdown.Divider />
                   <Dropdown.Item onClick={handleSendToIA}>
-                    Chat about Batch
+                    {t('data.menu.chatAboutBatch')}
                   </Dropdown.Item>
                   {selectedBatchCount === 1 && (
                     <>
                       <Dropdown.Divider />
                       <Dropdown.Item onClick={handleViewComparison}>
-                        Open comparison view
+                        {t('data.menu.openComparisonView')}
                       </Dropdown.Item>
                       <Dropdown.Item onClick={() => setPostmortemBatchId(selectedBatchIds[0])}>
-                        Generate post-mortem draft
+                        {t('data.menu.generatePostmortem')}
                       </Dropdown.Item>
                     </>
                   )}
@@ -654,8 +663,9 @@ const Data = () => {
               </Dropdown>
             </div>
 
-            <div className="table-responsive data-table-wrap">
-              <table className="modern-table table-stack">
+            <div className="ds-scroll-cue">
+            <div className="table-responsive data-table-wrap" ref={tableWrapRef}>
+              <table className="modern-table table-stack data-compact">
                 <thead>
                   <tr>
                     <th style={{ width: "60px" }}></th>
@@ -691,26 +701,26 @@ const Data = () => {
                           const reasonMatch = item.model_name.match(/\(([^)]+)\)/);
                           const reasonCode = reasonMatch ? reasonMatch[1] : null;
                           const tooltipMap = {
-                            'TRUNCATED': 'AI response was truncated (hit output token limit)',
-                            'QUOTA_EXCEEDED': 'AI provider quota or rate limit reached',
-                            'OUT_OF_CREDIT': 'AI provider account has no credit left',
-                            'SPEND_LIMIT': 'AI provider account reached its spending limit',
-                            'OVERLOADED': 'AI provider overloaded',
-                            'SERVER_ERROR': 'AI provider server error',
-                            'REDACTION_FAILED': 'Redaction failed, nothing was sent to the AI',
-                            'AUTH_ERROR': 'API authentication failed',
-                            'NETWORK_ERROR': 'Connection to AI service failed',
-                            'TIMEOUT': 'AI request timed out',
-                            'PARSE ERROR': 'AI response could not be parsed as JSON',
+                            'TRUNCATED': t('data.failReason.truncated'),
+                            'QUOTA_EXCEEDED': t('data.failReason.quotaExceeded'),
+                            'OUT_OF_CREDIT': t('data.failReason.outOfCredit'),
+                            'SPEND_LIMIT': t('data.failReason.spendLimit'),
+                            'OVERLOADED': t('data.failReason.overloaded'),
+                            'SERVER_ERROR': t('data.failReason.serverError'),
+                            'REDACTION_FAILED': t('data.failReason.redactionFailed'),
+                            'AUTH_ERROR': t('data.failReason.authError'),
+                            'NETWORK_ERROR': t('data.failReason.networkError'),
+                            'TIMEOUT': t('data.failReason.timeout'),
+                            'PARSE ERROR': t('data.failReason.parseError'),
                           };
-                          const tooltip = reasonCode ? (tooltipMap[reasonCode] || reasonCode) : 'AI analysis failed';
-                          return <span className="status-badge failed" title={tooltip}>Failed</span>;
+                          const tooltip = reasonCode ? (tooltipMap[reasonCode] || reasonCode) : t('data.failReason.generic');
+                          return <span className="status-badge failed" title={tooltip}>{t('data.statusBadge.failed')}</span>;
                         }
                         if (item.issue_count > 0 || item.analyzed_at) {
-                          return <span className="status-badge analyzed" title={item.model && item.model !== "Not found" ? item.model : undefined}>Analyzed</span>;
+                          return <span className="status-badge analyzed" title={item.model && item.model !== "Not found" ? item.model : undefined}>{t('data.statusBadge.analyzed')}</span>;
                         }
                         if (item.ai_skipped) {
-                          return <span className="status-badge skipped">Skipped</span>;
+                          return <span className="status-badge skipped">{t('data.statusBadge.skipped')}</span>;
                         }
                         // Sentinel put the batch in shadow/quiet mode
                         // and the AI pipeline deliberately did not run.
@@ -718,38 +728,38 @@ const Data = () => {
                         // which read as "waiting for a worker" — users
                         // opened them expecting an in-flight analysis.
                         if (item.sentinel_decision === 'shadow') {
-                          return <span className="status-badge skipped" title="Sentinel is in shadow (observe-only) mode — AI analysis was not dispatched">Sentinel: Shadow</span>;
+                          return <span className="status-badge skipped" title={t('data.statusBadge.sentinelShadowHint')}>{t('data.statusBadge.sentinelShadow')}</span>;
                         }
                         if (item.sentinel_decision === 'quiet') {
-                          return <span className="status-badge skipped" title="Sentinel classified this batch as Quiet — AI analysis was skipped to save cost">Sentinel: Quiet</span>;
+                          return <span className="status-badge skipped" title={t('data.statusBadge.sentinelQuietHint')}>{t('data.statusBadge.sentinelQuiet')}</span>;
                         }
-                        return <span className="status-badge pending">Pending</span>;
+                        return <span className="status-badge pending">{t('data.statusBadge.pending')}</span>;
                       };
 
                       return (
-                        <tr key={item.id}>
-                          <td>
+                        <tr key={item.id} className={`data-row${expandedRows.has(item.id) ? ' is-expanded' : ''}`}>
+                          <td className="data-cell-select">
                             <input
                               type="checkbox"
                               className="custom-checkbox"
-                              aria-label={`Select batch ${item.batch}`}
+                              aria-label={t('data.selectBatch', { batch: item.batch })}
                               checked={!!selectedBatches[item.id]}
                               onChange={() => handleSelectBatch(item.id)}
                             />
                           </td>
-                          <td data-label={t('data.timestamp')} title={item.timestampFull}>{highlightSearchTerm(item.timestamp)}</td>
-                          <td data-label={t('data.analysisId', 'Analysis ID')} className="ds-mono" style={{ whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.batch}>
+                          <td className="data-cell-time" data-label={t('data.timestamp')} title={item.timestampFull}>{highlightSearchTerm(item.timestamp)}</td>
+                          <td data-label={t('data.analysisId', 'Analysis ID')} className="ds-mono data-cell-id" style={{ whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.batch}>
                             {highlightSearchTerm(item.batch)}
                           </td>
-                          <td data-label={t('projects.title')} style={{ fontWeight: "500" }}>
+                          <td className="data-cell-project" data-label={t('projects.title')} style={{ fontWeight: "500" }}>
                             {highlightSearchTerm(item.project_name)}
                           </td>
-                          <td data-label={t('data.environment')}>
+                          <td className="data-cell-env" data-label={t('data.environment')}>
                             <span style={{ textTransform: 'capitalize' }}>
                               {item.environment || 'production'}
                             </span>
                           </td>
-                          <td data-label={t('data.trigger')}>
+                          <td className="data-cell-trigger" data-label={t('data.trigger')}>
                             {/* What created the batch, then what Sentinel decided:
                                 two different things (a scheduled run Sentinel let
                                 through is not an alert). */}
@@ -758,7 +768,7 @@ const Data = () => {
                               return <span className={`ds-chip ${trig.klass}`}>{t(trig.label, trig.fallback)}</span>;
                             })()}
                           </td>
-                          <td data-label={t('data.sentinel', 'Sentinel')}>
+                          <td className="data-cell-sentinel" data-label={t('data.sentinel', 'Sentinel')}>
                             {(() => {
                               const outcome = sentinelOutcome(item);
                               if (!outcome) return <span className="text-secondary" title={t('batchTrigger.sentinel.notConsultedHint', 'An investigation always runs the AI')}>{t('batchTrigger.sentinel.notConsulted', 'Not consulted')}</span>;
@@ -766,7 +776,7 @@ const Data = () => {
                               return <span className={`sentinel-badge ${outcome.klass}`} title={tooltip}>{t(outcome.label, outcome.fallback)}</span>;
                             })()}
                           </td>
-                          <td data-label={t('issues.title')}>
+                          <td className="data-cell-issues" data-label={t('issues.title')}>
                             {item.issue_count > 0 ? (
                               <span
                                 className="fw-bold text-danger clickable-issue"
@@ -776,10 +786,10 @@ const Data = () => {
                                 {item.issue_count}
                               </span>
                             ) : (
-                              <span className="text-secondary">None</span>
+                              <span className="text-secondary">{t('common.none')}</span>
                             )}
                           </td>
-                          <td data-label={t('data.status')}>
+                          <td className="data-cell-status" data-label={t('data.status')}>
                             <div className="d-flex align-items-center gap-2">
                               {/* The model is in the badge's tooltip and on the analysis
                                   page: printed here it pushed Actions out of the table
@@ -787,11 +797,17 @@ const Data = () => {
                               {getStatusBadge()}
                             </div>
                           </td>
-                          <td className="text-end">
+                          <td className="text-end data-cell-open">
                             <Link to={`/dash/data/details/${item.id}`} className="view-btn"
                                   aria-label={t('data.openBatch', { id: item.id })} title={t('data.openBatch', { id: item.id })}>
                               <FaEye size={18} />
                             </Link>
+                            {/* Phone only: the rest of the card. In this cell, so the
+                                table keeps its ten columns everywhere else. */}
+                            <button type="button" className="btn btn-link btn-sm p-0 data-row-more" aria-expanded={expandedRows.has(item.id)}
+                                    onClick={() => toggleRow(item.id)}>
+                              {t('data.details')}
+                            </button>
                           </td>
                         </tr>
                       );
@@ -800,15 +816,16 @@ const Data = () => {
                 </tbody>
               </table>
             </div>
+            </div>
 
             <div className="pagination-footer">
               <div className="pagination-info">
                 {pagination && typeof pagination.offset !== 'undefined' ? (
                   <>
-                    Showing <strong>{pagination.offset + 1}-{Math.min(pagination.offset + data.length, pagination.total)}</strong> of <strong>{pagination.total}</strong>
+                    {t('common.showing')} <strong>{pagination.offset + 1}-{Math.min(pagination.offset + data.length, pagination.total)}</strong> {t('common.of')} <strong>{pagination.total}</strong>
                   </>
                 ) : (
-                  <>Page {currentPage}</>
+                  <>{t('data.pageN', { page: currentPage })}</>
                 )}
               </div>
 

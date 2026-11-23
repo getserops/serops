@@ -31,22 +31,23 @@ const PROVIDER_NAMES = {
  * Guides users to Settings to add an integration
  */
 const IntegrationPrompt = ({ providerType }) => {
+    const { t } = useTranslation();
     const providerName = PROVIDER_NAMES[providerType] || providerType;
 
     return (
         <Alert variant="info" className="mb-3 d-flex align-items-center gap-2">
             <FaPlug className="flex-shrink-0" />
             <div className="flex-grow-1">
-                <strong>No {providerName} integration configured.</strong>
+                <strong>{t('serviceForms.noIntegration', { provider: providerName })}</strong>
                 <p className="mb-0 small">
-                    Connect a global integration to enable repository discovery.
+                    {t('serviceForms.connectGlobalHint')}
                 </p>
             </div>
             <Link
                 to="/dash/settings/integrations"
                 className="btn btn-sm btn-outline-primary d-flex align-items-center gap-1"
             >
-                <span>Add Integration</span>
+                <span>{t('globalIntegrations.addIntegration')}</span>
                 <FaExternalLinkAlt size={10} />
             </Link>
         </Alert>
@@ -64,6 +65,7 @@ const IntegrationSelector = ({
     providerType,
     switchId
 }) => {
+    const { t } = useTranslation();
     const hasIntegrations = integrations && integrations.length > 0;
     const [useIntegration, setUseIntegration] = React.useState(hasIntegrations);
     const providerName = PROVIDER_NAMES[providerType] || providerType;
@@ -93,7 +95,7 @@ const IntegrationSelector = ({
             <Form.Check
                 type="switch"
                 id={switchId}
-                label={`Use Global ${providerName} Integration`}
+                label={t('serviceForms.useGlobalIntegration', { provider: providerName })}
                 checked={useIntegration}
                 onChange={handleModeSwitch}
                 className="mb-2 fw-bold"
@@ -141,6 +143,7 @@ const useIntegrationMode = (integrations, formData, handleChange) => {
  * Fetches repos dynamically and handles loading/error states
  */
 const RepoSelector = ({ integrationId, value, onChange, placeholder }) => {
+    const { t } = useTranslation();
     const [repos, setRepos] = React.useState([]);
     const [loading, setLoading] = React.useState(false);
     const [error, setError] = React.useState(null);
@@ -169,7 +172,7 @@ const RepoSelector = ({ integrationId, value, onChange, placeholder }) => {
             }
         } catch (err) {
             console.error("Failed to load repos:", err);
-            setError("Failed to load repositories");
+            setError(t('serviceForms.loadReposFailed'));
             setRepos([]);
         } finally {
             setLoading(false);
@@ -181,7 +184,7 @@ const RepoSelector = ({ integrationId, value, onChange, placeholder }) => {
     return (
         <Form.Group className="mb-3">
             <Form.Label>
-                Select Repository <span className="text-danger">*</span>
+                {t('serviceForms.selectRepository')} <span className="text-danger">*</span>
             </Form.Label>
             <div className="d-flex gap-2">
                 <Form.Select
@@ -195,7 +198,7 @@ const RepoSelector = ({ integrationId, value, onChange, placeholder }) => {
                     isInvalid={!!error}
                 >
                     <option value="">
-                        {loading ? "Loading..." : error ? "Error loading repos" : placeholder}
+                        {loading ? t('common.loading') : error ? t('serviceForms.loadReposError') : placeholder}
                     </option>
                     {safeRepos.map(repo => (
                         <option key={repo.id || repo.full_name} value={repo.id || repo.full_name}>
@@ -207,7 +210,7 @@ const RepoSelector = ({ integrationId, value, onChange, placeholder }) => {
                     variant="outline-secondary"
                     onClick={fetchRepos}
                     disabled={loading}
-                    title="Refresh Repositories"
+                    title={t('serviceForms.refreshRepositories')}
                 >
                     {loading ? <Spinner size="sm" animation="border" /> : <FaSync />}
                 </Button>
@@ -220,16 +223,18 @@ const RepoSelector = ({ integrationId, value, onChange, placeholder }) => {
 /**
  * CustomServiceForm - Form for creating a custom service
  */
-export const CustomServiceForm = ({ formData, handleChange }) => (
+export const CustomServiceForm = ({ formData, handleChange }) => {
+    const { t } = useTranslation();
+    return (
     <div className="custom-service-form">
         <Form.Group className="mb-3">
             <Form.Label>
-                Service Name <span className="text-danger">*</span>
+                {t('addService.serviceName')} <span className="text-danger">*</span>
             </Form.Label>
             <Form.Control
                 type="text"
                 name="name"
-                placeholder="Enter service name"
+                placeholder={t('addService.serviceNamePlaceholder')}
                 value={formData.name}
                 onChange={handleChange}
                 className="rounded-3"
@@ -238,12 +243,12 @@ export const CustomServiceForm = ({ formData, handleChange }) => (
         </Form.Group>
 
         <Form.Group className="mb-3">
-            <Form.Label>Description</Form.Label>
+            <Form.Label>{t('addService.description')}</Form.Label>
             <Form.Control
                 as="textarea"
                 rows={4}
                 name="description"
-                placeholder="What this service does and key dependencies — used by AI for analysis"
+                placeholder={t('serviceForms.descriptionPlaceholder')}
                 value={formData.description}
                 onChange={handleChange}
                 className="rounded-3"
@@ -254,21 +259,24 @@ export const CustomServiceForm = ({ formData, handleChange }) => (
             </div>
         </Form.Group>
     </div>
-);
+    );
+};
 
 /**
  * InfrastructureForm - Form for infrastructure services (database, cache, queue)
  */
-export const InfrastructureForm = ({ formData, handleChange }) => (
+export const InfrastructureForm = ({ formData, handleChange }) => {
+    const { t } = useTranslation();
+    return (
     <div className="infrastructure-service-form">
         <Form.Group className="mb-3">
             <Form.Label>
-                Service Name <span className="text-danger">*</span>
+                {t('addService.serviceName')} <span className="text-danger">*</span>
             </Form.Label>
             <Form.Control
                 type="text"
                 name="name"
-                placeholder="Enter service name (e.g., Main Database)"
+                placeholder={t('serviceForms.namePlaceholderDatabase')}
                 value={formData.name}
                 onChange={handleChange}
                 className="rounded-3"
@@ -280,12 +288,12 @@ export const InfrastructureForm = ({ formData, handleChange }) => (
             <Col md={8}>
                 <Form.Group className="mb-3">
                     <Form.Label>
-                        Host <span className="text-muted">(optional)</span>
+                        {t('serviceForms.host')} <span className="text-muted">{t('common.optional')}</span>
                     </Form.Label>
                     <Form.Control
                         type="text"
                         name="host"
-                        placeholder="e.g., redis or db.example.com"
+                        placeholder={t('serviceForms.hostPlaceholder')}
                         value={formData.host}
                         onChange={handleChange}
                         className="rounded-3"
@@ -294,7 +302,7 @@ export const InfrastructureForm = ({ formData, handleChange }) => (
             </Col>
             <Col md={4}>
                 <Form.Group className="mb-3">
-                    <Form.Label>Port</Form.Label>
+                    <Form.Label>{t('serviceForms.port')}</Form.Label>
                     <Form.Control
                         type="text"
                         name="port"
@@ -308,18 +316,19 @@ export const InfrastructureForm = ({ formData, handleChange }) => (
         </Row>
 
         <Form.Group className="mb-3">
-            <Form.Label>Health Check URL</Form.Label>
+            <Form.Label>{t('serviceForms.healthCheckUrl')}</Form.Label>
             <Form.Control
                 type="text"
                 name="health_check_url"
-                placeholder="Optional health check endpoint"
+                placeholder={t('serviceForms.healthCheckPlaceholder')}
                 value={formData.health_check_url}
                 onChange={handleChange}
                 className="rounded-3"
             />
         </Form.Group>
     </div>
-);
+    );
+};
 
 /**
  * GitLabForm - Form for GitLab integration with verification
@@ -333,6 +342,7 @@ export const GitLabForm = ({
     verificationMessage,
     integrations = []
 }) => {
+    const { t } = useTranslation();
     const { hasIntegrations, useIntegration, handleModeSwitch } = useIntegrationMode(
         integrations, formData, handleChange
     );
@@ -345,7 +355,7 @@ export const GitLabForm = ({
                     <Form.Check
                         type="switch"
                         id="use-gitlab-int"
-                        label="Use Global GitLab Integration"
+                        label={t('serviceForms.useGlobalIntegration', { provider: 'GitLab' })}
                         checked={useIntegration}
                         onChange={(e) => handleModeSwitch(e.target.checked)}
                         className="mb-2 fw-bold"
@@ -375,34 +385,34 @@ export const GitLabForm = ({
                         if (!formData.name) handleChange({ target: { name: 'name', value: repo.name } });
                         handleChange({ target: { name: 'gitlab_url', value: repo.url } });
                     }}
-                    placeholder="Select GitLab Project..."
+                    placeholder={t('serviceForms.selectGitlabProject')}
                 />
             )}
 
             {!useIntegration && (
                 <Form.Group className="mb-3">
-                    <Form.Label>GitLab URL <span className="text-danger">*</span></Form.Label>
+                    <Form.Label>{t('services.gitlabUrl')} <span className="text-danger">*</span></Form.Label>
                     <Form.Control type="url" name="gitlab_url" placeholder="https://gitlab.com" value={formData.gitlab_url} onChange={handleChange} className="rounded-3" required={!useIntegration} />
                 </Form.Group>
             )}
 
             <Form.Group className="mb-3">
-                <Form.Label>Project ID <span className="text-danger">*</span></Form.Label>
-                <Form.Control type="text" name="project_id" placeholder="Enter GitLab project ID" value={formData.project_id} onChange={handleChange} className="rounded-3" required />
-                <Form.Text className="text-muted">Find this in your GitLab project settings</Form.Text>
+                <Form.Label>{t('services.projectId')} <span className="text-danger">*</span></Form.Label>
+                <Form.Control type="text" name="project_id" placeholder={t('serviceForms.gitlabProjectIdPlaceholder')} value={formData.project_id} onChange={handleChange} className="rounded-3" required />
+                <Form.Text className="text-muted">{t('serviceForms.gitlabProjectIdHelp')}</Form.Text>
             </Form.Group>
 
             <Form.Group className="mb-3">
-                <Form.Label>Service Name</Form.Label>
-                <Form.Control type="text" name="name" placeholder="Optional - defaults to GitLab project name" value={formData.name} onChange={handleChange} className="rounded-3" />
-                <Form.Text className="text-muted">Leave empty to use the GitLab project name</Form.Text>
+                <Form.Label>{t('addService.serviceName')}</Form.Label>
+                <Form.Control type="text" name="name" placeholder={t('serviceForms.gitlabNamePlaceholder')} value={formData.name} onChange={handleChange} className="rounded-3" />
+                <Form.Text className="text-muted">{t('serviceForms.gitlabNameHelp')}</Form.Text>
             </Form.Group>
 
             {!useIntegration && (
                 <Form.Group className="mb-3">
-                    <Form.Label>Access Token <span className="text-danger">*</span></Form.Label>
-                    <Form.Control type="password" name="access_token" placeholder="Enter GitLab access token" value={formData.access_token} onChange={handleChange} className="rounded-3" required={!useIntegration} />
-                    <Form.Text className="text-muted">Personal or project access token with api scope</Form.Text>
+                    <Form.Label>{t('globalIntegrations.accessToken')} <span className="text-danger">*</span></Form.Label>
+                    <Form.Control type="password" name="access_token" placeholder={t('serviceForms.gitlabTokenPlaceholder')} value={formData.access_token} onChange={handleChange} className="rounded-3" required={!useIntegration} />
+                    <Form.Text className="text-muted">{t('serviceForms.gitlabTokenHelp')}</Form.Text>
                 </Form.Group>
             )}
 
@@ -410,9 +420,9 @@ export const GitLabForm = ({
             <div className="border rounded-3 p-3 mb-3 bg-light">
                 <div className="d-flex justify-content-between align-items-center">
                     <div>
-                        <strong>Verify GitLab Connection</strong>
+                        <strong>{t('serviceForms.verifyConnection', { provider: 'GitLab' })}</strong>
                         <p className="text-muted small mb-0">
-                            Test your credentials before adding
+                            {t('serviceForms.verifyHint')}
                         </p>
                     </div>
                     <Button
@@ -424,12 +434,12 @@ export const GitLabForm = ({
                         {verifying ? (
                             <>
                                 <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                                Verifying...
+                                {t('serviceForms.verifying')}
                             </>
                         ) : projectVerified ? (
-                            <>✓ Verified</>
+                            <>✓ {t('serviceForms.verifiedLabel')}</>
                         ) : (
-                            "Verify"
+                            t('serviceForms.verify')
                         )}
                     </Button>
                 </div>
@@ -458,6 +468,7 @@ export const GitHubForm = ({
     verificationMessage,
     integrations = []
 }) => {
+    const { t } = useTranslation();
     const { hasIntegrations, useIntegration, handleModeSwitch } = useIntegrationMode(
         integrations, formData, handleChange
     );
@@ -470,7 +481,7 @@ export const GitHubForm = ({
                     <Form.Check
                         type="switch"
                         id="use-github-integration"
-                        label="Use Global GitHub Integration"
+                        label={t('serviceForms.useGlobalIntegration', { provider: 'GitHub' })}
                         checked={useIntegration}
                         onChange={(e) => handleModeSwitch(e.target.checked)}
                         className="mb-2 fw-bold"
@@ -499,13 +510,13 @@ export const GitHubForm = ({
                         handleChange({ target: { name: 'github_repo', value: repo.full_name } });
                         if (!formData.name) handleChange({ target: { name: 'name', value: repo.name } });
                     }}
-                    placeholder="Select GitHub Repository..."
+                    placeholder={t('serviceForms.selectRepoPlaceholder', { provider: 'GitHub' })}
                 />
             )}
 
             <Form.Group className="mb-3">
                 <Form.Label>
-                    Repository <span className="text-danger">*</span>
+                    {t('serviceForms.repository')} <span className="text-danger">*</span>
                 </Form.Label>
                 <Form.Control
                     type="text"
@@ -517,32 +528,32 @@ export const GitHubForm = ({
                     required
                 />
                 <Form.Text className="text-muted">
-                    Format: owner/repository-name (e.g., microsoft/vscode)
+                    {t('serviceForms.githubRepoFormat')}
                 </Form.Text>
             </Form.Group>
 
             {!useIntegration && (
                 <Form.Group className="mb-3">
                     <Form.Label>
-                        Access Token <span className="text-danger">*</span>
+                        {t('globalIntegrations.accessToken')} <span className="text-danger">*</span>
                     </Form.Label>
                     <Form.Control
                         type="password"
                         name="github_token"
-                        placeholder="Enter GitHub Personal Access Token"
+                        placeholder={t('serviceForms.githubTokenPlaceholder')}
                         value={formData.github_token}
                         onChange={handleChange}
                         className="rounded-3"
                         required={!useIntegration}
                     />
                     <Form.Text className="text-muted">
-                        Personal access token with <code>repo</code> scope.{" "}
+                        {t('serviceForms.githubTokenHelpBefore')}<code>repo</code>{t('serviceForms.tokenScopeAfter')}{" "}
                         <a
                             href="https://github.com/settings/tokens/new"
                             target="_blank"
                             rel="noopener noreferrer"
                         >
-                            Create one here
+                            {t('serviceForms.createOneHere')}
                         </a>
                     </Form.Text>
                 </Form.Group>
@@ -552,9 +563,9 @@ export const GitHubForm = ({
             <div className="border rounded-3 p-3 mb-3 bg-light">
                 <div className="d-flex justify-content-between align-items-center">
                     <div>
-                        <strong>Verify GitHub Connection</strong>
+                        <strong>{t('serviceForms.verifyConnection', { provider: 'GitHub' })}</strong>
                         <p className="text-muted small mb-0">
-                            Test your credentials before adding
+                            {t('serviceForms.verifyHint')}
                         </p>
                     </div>
                     <Button
@@ -566,12 +577,12 @@ export const GitHubForm = ({
                         {verifying ? (
                             <>
                                 <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                                Verifying...
+                                {t('serviceForms.verifying')}
                             </>
                         ) : projectVerified ? (
-                            <>✓ Verified</>
+                            <>✓ {t('serviceForms.verifiedLabel')}</>
                         ) : (
-                            "Verify"
+                            t('serviceForms.verify')
                         )}
                     </Button>
                 </div>
@@ -600,6 +611,7 @@ export const BitbucketForm = ({
     verificationMessage,
     integrations = []
 }) => {
+    const { t } = useTranslation();
     const { hasIntegrations, useIntegration, handleModeSwitch } = useIntegrationMode(
         integrations, formData, handleChange
     );
@@ -612,7 +624,7 @@ export const BitbucketForm = ({
                     <Form.Check
                         type="switch"
                         id="use-bb-int"
-                        label="Use Global Bitbucket Integration"
+                        label={t('serviceForms.useGlobalIntegration', { provider: 'Bitbucket' })}
                         checked={useIntegration}
                         onChange={(e) => handleModeSwitch(e.target.checked)}
                         className="mb-2 fw-bold"
@@ -641,21 +653,21 @@ export const BitbucketForm = ({
                         handleChange({ target: { name: 'bitbucket_repo', value: repo.full_name } });
                         if (!formData.name) handleChange({ target: { name: 'name', value: repo.name } });
                     }}
-                    placeholder="Select Bitbucket Repository..."
+                    placeholder={t('serviceForms.selectRepoPlaceholder', { provider: 'Bitbucket' })}
                 />
             )}
 
             <Form.Group className="mb-3">
-                <Form.Label>Repository <span className="text-danger">*</span></Form.Label>
+                <Form.Label>{t('serviceForms.repository')} <span className="text-danger">*</span></Form.Label>
                 <Form.Control type="text" name="bitbucket_repo" placeholder="workspace/repository-name" value={formData.bitbucket_repo} onChange={handleChange} className="rounded-3" required />
-                <Form.Text className="text-muted">Format: workspace/repository-name (e.g., atlassian/bitbucket)</Form.Text>
+                <Form.Text className="text-muted">{t('serviceForms.bitbucketRepoFormat')}</Form.Text>
             </Form.Group>
 
             {!useIntegration && (
                 <Form.Group className="mb-3">
-                    <Form.Label>OAuth2 Access Token <span className="text-danger">*</span></Form.Label>
-                    <Form.Control type="password" name="bitbucket_token" placeholder="Enter Bitbucket OAuth2 Access Token" value={formData.bitbucket_token} onChange={handleChange} className="rounded-3" required={!useIntegration} />
-                    <Form.Text className="text-muted">OAuth2 token with <code>repository:read</code> scope.</Form.Text>
+                    <Form.Label>{t('serviceForms.oauth2AccessToken')} <span className="text-danger">*</span></Form.Label>
+                    <Form.Control type="password" name="bitbucket_token" placeholder={t('serviceForms.bitbucketTokenPlaceholder')} value={formData.bitbucket_token} onChange={handleChange} className="rounded-3" required={!useIntegration} />
+                    <Form.Text className="text-muted">{t('serviceForms.bitbucketTokenHelpBefore')}<code>repository:read</code>{t('serviceForms.tokenScopeAfter')}</Form.Text>
                 </Form.Group>
             )}
 
@@ -663,9 +675,9 @@ export const BitbucketForm = ({
             <div className="border rounded-3 p-3 mb-3 bg-light">
                 <div className="d-flex justify-content-between align-items-center">
                     <div>
-                        <strong>Verify Bitbucket Connection</strong>
+                        <strong>{t('serviceForms.verifyConnection', { provider: 'Bitbucket' })}</strong>
                         <p className="text-muted small mb-0">
-                            Test your credentials before adding
+                            {t('serviceForms.verifyHint')}
                         </p>
                     </div>
                     <Button
@@ -677,12 +689,12 @@ export const BitbucketForm = ({
                         {verifying ? (
                             <>
                                 <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                                Verifying...
+                                {t('serviceForms.verifying')}
                             </>
                         ) : projectVerified ? (
-                            <>✓ Verified</>
+                            <>✓ {t('serviceForms.verifiedLabel')}</>
                         ) : (
-                            "Verify"
+                            t('serviceForms.verify')
                         )}
                     </Button>
                 </div>
@@ -711,6 +723,7 @@ export const AzureDevOpsForm = ({
     verificationMessage,
     integrations = []
 }) => {
+    const { t } = useTranslation();
     const { hasIntegrations, useIntegration, handleModeSwitch } = useIntegrationMode(
         integrations, formData, handleChange
     );
@@ -723,7 +736,7 @@ export const AzureDevOpsForm = ({
                     <Form.Check
                         type="switch"
                         id="use-azure-int"
-                        label="Use Global Azure DevOps Integration"
+                        label={t('serviceForms.useGlobalIntegration', { provider: 'Azure DevOps' })}
                         checked={useIntegration}
                         onChange={(e) => handleModeSwitch(e.target.checked)}
                         className="mb-2 fw-bold"
@@ -751,18 +764,18 @@ export const AzureDevOpsForm = ({
             {!useIntegration && (
                 <>
                     <Form.Group className="mb-3">
-                        <Form.Label>Organization <span className="text-danger">*</span></Form.Label>
+                        <Form.Label>{t('globalIntegrations.organization')} <span className="text-danger">*</span></Form.Label>
                         <Form.Control type="text" name="azure_organization" placeholder="your-organization" value={formData.azure_organization} onChange={handleChange} className="rounded-3" required={!useIntegration} />
                     </Form.Group>
 
                     <Form.Group className="mb-3">
-                        <Form.Label>Project <span className="text-danger">*</span></Form.Label>
+                        <Form.Label>{t('globalIntegrations.project')} <span className="text-danger">*</span></Form.Label>
                         <Form.Control type="text" name="azure_project" placeholder="your-project" value={formData.azure_project} onChange={handleChange} className="rounded-3" required={!useIntegration} />
                     </Form.Group>
 
                     <Form.Group className="mb-3">
-                        <Form.Label>Personal Access Token <span className="text-danger">*</span></Form.Label>
-                        <Form.Control type="password" name="azure_pat" placeholder="Enter Azure DevOps PAT" value={formData.azure_pat} onChange={handleChange} className="rounded-3" required={!useIntegration} />
+                        <Form.Label>{t('globalIntegrations.personalAccessToken')} <span className="text-danger">*</span></Form.Label>
+                        <Form.Control type="password" name="azure_pat" placeholder={t('serviceForms.azurePatPlaceholder')} value={formData.azure_pat} onChange={handleChange} className="rounded-3" required={!useIntegration} />
                     </Form.Group>
                 </>
             )}
@@ -771,9 +784,9 @@ export const AzureDevOpsForm = ({
             <div className="border rounded-3 p-3 mb-3 bg-light">
                 <div className="d-flex justify-content-between align-items-center">
                     <div>
-                        <strong>Verify Azure DevOps Connection</strong>
+                        <strong>{t('serviceForms.verifyConnection', { provider: 'Azure DevOps' })}</strong>
                         <p className="text-muted small mb-0">
-                            Test your credentials before adding
+                            {t('serviceForms.verifyHint')}
                         </p>
                     </div>
                     <Button
@@ -785,12 +798,12 @@ export const AzureDevOpsForm = ({
                         {verifying ? (
                             <>
                                 <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                                Verifying...
+                                {t('serviceForms.verifying')}
                             </>
                         ) : projectVerified ? (
-                            <>✓ Verified</>
+                            <>✓ {t('serviceForms.verifiedLabel')}</>
                         ) : (
-                            "Verify"
+                            t('serviceForms.verify')
                         )}
                     </Button>
                 </div>
@@ -811,6 +824,7 @@ export const AzureDevOpsForm = ({
  * JenkinsForm - Form for Jenkins CI/CD integration
  */
 export const JenkinsForm = ({ formData, handleChange, integrations = [] }) => {
+    const { t } = useTranslation();
     const { hasIntegrations, useIntegration, handleModeSwitch } = useIntegrationMode(
         integrations, formData, handleChange
     );
@@ -823,7 +837,7 @@ export const JenkinsForm = ({ formData, handleChange, integrations = [] }) => {
                     <Form.Check
                         type="switch"
                         id="use-jenkins-int"
-                        label="Use Global Jenkins Integration"
+                        label={t('serviceForms.useGlobalIntegration', { provider: 'Jenkins' })}
                         checked={useIntegration}
                         onChange={(e) => handleModeSwitch(e.target.checked)}
                         className="mb-2 fw-bold"
@@ -846,12 +860,12 @@ export const JenkinsForm = ({ formData, handleChange, integrations = [] }) => {
 
             <Form.Group className="mb-3">
                 <Form.Label>
-                    Service Name <span className="text-danger">*</span>
+                    {t('addService.serviceName')} <span className="text-danger">*</span>
                 </Form.Label>
                 <Form.Control
                     type="text"
                     name="name"
-                    placeholder="Enter service name (e.g., Main Pipeline)"
+                    placeholder={t('serviceForms.namePlaceholderPipeline')}
                     value={formData.name}
                     onChange={handleChange}
                     className="rounded-3"
@@ -863,7 +877,7 @@ export const JenkinsForm = ({ formData, handleChange, integrations = [] }) => {
                 <>
                     <Form.Group className="mb-3">
                         <Form.Label>
-                            Jenkins URL <span className="text-danger">*</span>
+                            {t('serviceForms.jenkinsUrl')} <span className="text-danger">*</span>
                         </Form.Label>
                         <Form.Control
                             type="url"
@@ -875,34 +889,34 @@ export const JenkinsForm = ({ formData, handleChange, integrations = [] }) => {
                             required={!useIntegration}
                         />
                         <Form.Text className="text-muted">
-                            The base URL of your Jenkins server
+                            {t('serviceForms.jenkinsUrlHelp')}
                         </Form.Text>
                     </Form.Group>
 
                     <Form.Group className="mb-3">
                         <Form.Label>
-                            API Token <span className="text-danger">*</span>
+                            {t('globalIntegrations.apiToken')} <span className="text-danger">*</span>
                         </Form.Label>
                         <Form.Control
                             type="password"
                             name="jenkins_token"
-                            placeholder="Enter Jenkins API token"
+                            placeholder={t('serviceForms.jenkinsTokenPlaceholder')}
                             value={formData.jenkins_token}
                             onChange={handleChange}
                             className="rounded-3"
                             required={!useIntegration}
                         />
                         <Form.Text className="text-muted">
-                            API token for authentication. Generate from Jenkins → User → Configure → API Token
+                            {t('serviceForms.jenkinsTokenHelp')}
                         </Form.Text>
                     </Form.Group>
 
                     <Form.Group className="mb-3">
-                        <Form.Label>Username</Form.Label>
+                        <Form.Label>{t('services.username')}</Form.Label>
                         <Form.Control
                             type="text"
                             name="jenkins_username"
-                            placeholder="Jenkins username (optional)"
+                            placeholder={t('serviceForms.jenkinsUsernamePlaceholder')}
                             value={formData.jenkins_username}
                             onChange={handleChange}
                             className="rounded-3"
@@ -912,17 +926,17 @@ export const JenkinsForm = ({ formData, handleChange, integrations = [] }) => {
             )}
 
             <Form.Group className="mb-3">
-                <Form.Label>Job/Pipeline Name</Form.Label>
+                <Form.Label>{t('serviceForms.jobPipelineName')}</Form.Label>
                 <Form.Control
                     type="text"
                     name="jenkins_job"
-                    placeholder="e.g., my-project/main"
+                    placeholder={t('serviceForms.jenkinsJobPlaceholder')}
                     value={formData.jenkins_job}
                     onChange={handleChange}
                     className="rounded-3"
                 />
                 <Form.Text className="text-muted">
-                    Specific job or pipeline to monitor (leave empty for all jobs)
+                    {t('serviceForms.jenkinsJobHelp')}
                 </Form.Text>
             </Form.Group>
         </div>
@@ -994,13 +1008,13 @@ export const CICDBindingForm = ({
         <div className="cicd-binding-form mt-3 p-3 border rounded-3 bg-light">
             <h6 className="mb-3 d-flex align-items-center">
                 <FaCogs className="me-2 text-primary" />
-                {providerNames[cicdProvider] || "CI/CD"} Pipeline
+                {t('serviceForms.providerPipeline', { provider: providerNames[cicdProvider] || "CI/CD" })}
             </h6>
 
             {/* Integration Selection */}
             <Form.Group className="mb-3">
                 <Form.Label className="small fw-medium">
-                    {providerNames[cicdProvider]} Integration
+                    {t('serviceForms.providerIntegration', { provider: providerNames[cicdProvider] ?? "" })}
                 </Form.Label>
                 <Form.Select
                     name="cicd_integration_id"
@@ -1008,7 +1022,7 @@ export const CICDBindingForm = ({
                     onChange={handleChange}
                     className="rounded-3"
                 >
-                    <option value="">Select integration...</option>
+                    <option value="">{t('serviceForms.selectIntegration')}</option>
                     {cicdIntegrations.map(integration => (
                         <option key={integration.id} value={integration.id}>
                             {integration.name}
@@ -1019,24 +1033,24 @@ export const CICDBindingForm = ({
 
             {/* Pipeline Type */}
             <Form.Group className="mb-3">
-                <Form.Label className="small fw-medium">Pipeline Type</Form.Label>
+                <Form.Label className="small fw-medium">{t('serviceForms.pipelineType')}</Form.Label>
                 <Form.Select
                     name="cicd_type"
                     value={formData.cicd_type || "build"}
                     onChange={handleChange}
                     className="rounded-3"
                 >
-                    <option value="build">Build Pipeline</option>
-                    <option value="deploy">Deployment Pipeline</option>
-                    <option value="test">Test Pipeline</option>
-                    <option value="release">Release Pipeline</option>
+                    <option value="build">{t('serviceForms.buildPipeline')}</option>
+                    <option value="deploy">{t('serviceForms.deploymentPipeline')}</option>
+                    <option value="test">{t('serviceForms.testPipeline')}</option>
+                    <option value="release">{t('serviceForms.releasePipeline')}</option>
                 </Form.Select>
             </Form.Group>
 
             {/* Pipeline ID/Name - depends on provider */}
             {cicdProvider === "jenkins" && pipelines.length > 0 ? (
                 <Form.Group className="mb-3">
-                    <Form.Label className="small fw-medium">Job/Pipeline</Form.Label>
+                    <Form.Label className="small fw-medium">{t('serviceForms.jobPipeline')}</Form.Label>
                     <Form.Select
                         name="cicd_pipeline_id"
                         value={formData.cicd_pipeline_id || ""}
@@ -1044,7 +1058,7 @@ export const CICDBindingForm = ({
                         className="rounded-3"
                         disabled={fetchingPipelines}
                     >
-                        <option value="">Select job...</option>
+                        <option value="">{t('serviceForms.selectJob')}</option>
                         {pipelines.map(job => (
                             <option key={job.name} value={job.name}>
                                 {job.name}
@@ -1054,11 +1068,11 @@ export const CICDBindingForm = ({
                 </Form.Group>
             ) : cicdProvider === "azure_devops" ? (
                 <Form.Group className="mb-3">
-                    <Form.Label className="small fw-medium">Pipeline Name</Form.Label>
+                    <Form.Label className="small fw-medium">{t('serviceForms.pipelineName')}</Form.Label>
                     <Form.Control
                         type="text"
                         name="cicd_pipeline_name"
-                        placeholder="e.g., My-Service-Build"
+                        placeholder={t('serviceForms.pipelineNamePlaceholder')}
                         value={formData.cicd_pipeline_name || ""}
                         onChange={handleChange}
                         className="rounded-3"
@@ -1068,7 +1082,7 @@ export const CICDBindingForm = ({
                 // GitLab/GitHub - Pipeline auto-detected from repo
                 <Form.Text className="text-muted d-block mb-3">
                     <FaInfoCircle className="me-1" />
-                    Pipeline will be auto-detected from your repository configuration.
+                    {t('serviceForms.pipelineAutoDetected')}
                 </Form.Text>
             )}
 
@@ -1076,7 +1090,7 @@ export const CICDBindingForm = ({
             <Form.Check
                 type="switch"
                 id="cicd-auto-trigger"
-                label="Auto-trigger on code push"
+                label={t('serviceForms.autoTrigger')}
                 checked={formData.cicd_auto_trigger !== false}
                 onChange={(e) => handleChange({
                     target: { name: "cicd_auto_trigger", value: e.target.checked }

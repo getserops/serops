@@ -1,8 +1,16 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import en from '../../locales/en.json';
 
-const i18n = vi.hoisted(() => ({ t: (key, fallback) => (typeof fallback === 'string' ? fallback : key) }));
+const i18n = vi.hoisted(() => ({ t: null }));
+// The real English strings, with {{values}} filled in, so the test reads
+// what a person reads.
+i18n.t = (key, opts = {}) => {
+  const text = key.split('.').reduce((o, k) => o?.[k], en);
+  if (typeof text !== 'string') return typeof opts === 'string' ? opts : (opts.defaultValue ?? key);
+  return text.replace(/\{\{(\w+)\}\}/g, (_, name) => opts[name] ?? '');
+};
 vi.mock('react-i18next', () => ({ useTranslation: () => i18n }));
 vi.mock('react-toastify', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } }));
 const ROWS = [{ id: 1, name: 'Fleet GitHub', provider_type: 'github', category: 'devops', display_url: 'https://github.com',

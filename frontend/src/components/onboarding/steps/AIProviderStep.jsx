@@ -7,12 +7,14 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Box, Button, Card, CardContent, Typography } from '@mui/material';
 import { FaArrowRight, FaRobot } from 'react-icons/fa';
 
 import AIProviderModal from '../modals/AIProviderModal';
 
 export default function AIProviderStep({ status, onDone }) {
+    const { t } = useTranslation();
     const [open, setOpen] = useState(false);
 
     const handleSaved = async () => {
@@ -31,13 +33,10 @@ export default function AIProviderStep({ status, onDone }) {
                         </Box>
                         <Box sx={{ flex: 1 }}>
                             <Typography variant="h6" fontWeight={600} gutterBottom>
-                                Choose your AI model
+                                {t('aiProviderStep.title')}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                                SerOps supports Gemini, Claude, OpenAI, DeepSeek,
-                                and Ollama (local). Pick one and add your key —
-                                we'll encrypt it at rest and use it for every
-                                batch analysis.
+                                {t('aiProviderStep.intro')}
                             </Typography>
                         </Box>
                     </Box>
@@ -47,7 +46,7 @@ export default function AIProviderStep({ status, onDone }) {
                             onClick={() => setOpen(true)}
                             endIcon={<FaArrowRight />}
                         >
-                            Configure AI provider
+                            {t('aiProviderStep.configure')}
                         </Button>
                     </Box>
                 </CardContent>
