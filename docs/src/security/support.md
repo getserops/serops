@@ -88,15 +88,15 @@ find these signatures), replace the tag with the one you pull:
 
 ```bash
 # Signature
-cosign verify ghcr.io/getserops/backend:1.5.4 \
+cosign verify ghcr.io/getserops/backend:1.5.5 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/docker\.yml@refs/tags/v'
 
 # Provenance: which commit and workflow built it
-gh attestation verify oci://ghcr.io/getserops/backend:1.5.4 --owner getserops
+gh attestation verify oci://ghcr.io/getserops/backend:1.5.5 --owner getserops
 
 # SBOM attached to the image
-docker buildx imagetools inspect ghcr.io/getserops/backend:1.5.4 \
+docker buildx imagetools inspect ghcr.io/getserops/backend:1.5.5 \
   --format '{{ json .SBOM }}'
 ```
 

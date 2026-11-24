@@ -8,7 +8,7 @@ import { isDemoUser } from "../../utils/demo";
 import { commitPath } from "../../utils/linkTargets";
 import { headline } from "../../utils/sentences";
 import { statusChipClass, severityChipClass } from "../../utils/tones";
-import { severityLabel } from "../../utils/severityLabel";
+import { severityLabel, confidenceLabel } from "../../utils/severityLabel";
 import { formatAbsolute } from '../../utils/dates';
 
 const MINUTE = 60 * 1000;
@@ -106,7 +106,7 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
           <div><dt>{t("issues.panel.firstSeen")}</dt><dd>{when(issue.created_at)}</dd></div>
           <div><dt>{t("issues.panel.lastSeen")}</dt><dd>{when(issue.last_seen_at)}</dd></div>
           <div><dt>{t("issues.panel.occurrences")}</dt><dd>{issue.occurrence_count ?? 1}×</dd></div>
-          {issue.confidence && <div><dt>{t("issues.panel.confidence")}</dt><dd>{issue.confidence_display || issue.confidence}</dd></div>}
+          {issue.confidence && <div><dt>{t("issues.panel.confidence")}</dt><dd>{confidenceLabel(t, issue.confidence, issue.confidence_display)}</dd></div>}
         </dl>
 
         {summary && (

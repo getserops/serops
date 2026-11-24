@@ -818,6 +818,12 @@
   .chat-textarea::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 :is(html, :root[data-theme]) .chat-container-modern { max-width: none; }
+/* A phone held sideways or a short screen (375 x 457): the card cut off its
+   own bottom, the message box with it, and nothing scrolled. Below 640 px of
+   height the card takes the height of what it holds and the page scrolls. */
+@media (max-width: 767px) and (max-height: 639px) {
+  :is(html, :root[data-theme]) .chat-container-modern { height: auto; min-height: 0; }
+}
 
 /* ============ MARKDOWN TABLES IN ANSWERS ============ */
 

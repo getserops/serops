@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
     sendChatMessage,
     getChatHistory,
@@ -22,6 +23,7 @@ import SettingsService from "../services/settings.service";
 import { formatAnalysisResult } from "../services/data.service";
 import { scanMessageForSensitiveData } from "../services/redaction.service";
 import { isDemoUser } from '../utils/demo';
+import { confidenceLabel } from '../utils/severityLabel';
 
 /**
  * Parse root cause from various formats (JSON, Python dict, string)
@@ -162,6 +164,7 @@ const processMessagesNormally = (messages, formatted) => {
  */
 export const useChatIssues = () => {
     const location = useLocation();
+    const { t } = useTranslation();
     const issueContext = location.state?.issueContext;
     const analysisResult = location.state?.analysisResult;
     const { sessionId } = location.state || {};
@@ -180,7 +183,8 @@ export const useChatIssues = () => {
     if (issueContext) {
         const confidenceLevel = getConfidenceLevel(issueContext.root_cause);
         const confidenceSection = confidenceLevel
-            ? `\n\n**Confidence Level:**\n${confidenceLevel}`
+            // Shown only; the text sent to the AI is built apart and stays as it is.
+            ? `\n\n**Confidence Level:**\n${confidenceLabel(t, confidenceLevel)}`
             : "";
 
         contextMessages.push({
@@ -203,7 +207,7 @@ export const useChatIssues = () => {
                 {
                     id: -1,
                     sender: "bot",
-                    text: "Hi, how can I help you with your technical issues today?",
+                    text: t("chat.greeting"),
                     timestamp: new Date().toISOString(),
                 },
             ]
@@ -409,15 +413,15 @@ export const useChatIssues = () => {
             // a fallback (for instance a stale login payload). Shown once,
             // in the banner: it is a deliberate block, not a model reply.
             if (error.code === 'demo_read_only') {
-                setError("This live demo is read-only. Self-host SerOps to try chat with your own data.");
+                setError(t("chat.demoReadOnly"));
                 return;
             }
 
-            setError(`Error with ${selectedModel}: ${error.message}`);
+            setError(t("chat.errorWith", { model: selectedModel, message: error.message }));
             setMessages((prev) => [...prev, {
                 id: Date.now() + 1,
                 sender: "bot",
-                text: `Sorry, an error occurred with ${selectedModel}. Please try again.`,
+                text: t("chat.errorReply", { model: selectedModel }),
                 isError: true,
                 model: selectedModel,
                 timestamp: new Date().toISOString(),
@@ -425,7 +429,7 @@ export const useChatIssues = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [selectedModel, currentSessionId, issueContext, analysisResult]);
+    }, [selectedModel, currentSessionId, issueContext, analysisResult, t]);
 
     // Send message handler with sensitive data scan
     const handleSend = async () => {
@@ -593,14 +597,14 @@ export const useChatIssues = () => {
                     {
                         id: -1,
                         sender: "bot",
-                        text: "Hi, how can I help you with your technical issues today?",
+                        text: t("chat.greeting"),
                         timestamp: new Date().toISOString(),
                     },
                 ]);
             }
         } catch (error) {
             console.error("Failed to delete chat session:", error);
-            setError("Failed to delete chat session");
+            setError(t("chat.deleteFailed"));
         }
     };
 
@@ -611,7 +615,8 @@ export const useChatIssues = () => {
         analysisResult,
 
         // State
-        messages,
+        // The greeting in the language shown now, also after a switch.
+        messages: messages.map((m) => (m.id === -1 && m.sender === "bot" ? { ...m, text: t("chat.greeting") } : m)),
         input,
         setInput,
         selectedModel,

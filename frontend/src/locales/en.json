@@ -540,7 +540,11 @@
       "informedByOne": "Informed by {{n}} past resolution on this project",
       "informedByMany": "Informed by {{n}} past resolutions on this project",
       "andMore": "and {{n}} more"
-    }
+    },
+    "greeting": "Hi, how can I help you with your technical issues today?",
+    "errorWith": "Error with {{model}}: {{message}}",
+    "errorReply": "Sorry, an error occurred with {{model}}. Please try again.",
+    "deleteFailed": "Failed to delete chat session"
   },
   "projects": {
     "title": "Projects",
@@ -725,7 +729,8 @@
       "confidenceLevel": {
         "high": "High",
         "medium": "Medium",
-        "low": "Low"
+        "low": "Low",
+        "unknown": "Unknown"
       },
       "evidence": "How the AI got there",
       "corrCommit": "Commit {{value}}",

@@ -199,7 +199,7 @@ const SpanTable = ({ rows, showMessage }) => {
                     <td>
                         {/* A trace that was not stored has no page to open. */}
                         {tracePath(span) ? (
-                            <Link to={tracePath(span)} className="text-decoration-none">
+                            <Link to={tracePath(span)} className="text-decoration-none ds-row-link">
                                 <code>{String(span.trace_id).slice(0, 12)}…</code>
                             </Link>
                         ) : span.trace_id ? (

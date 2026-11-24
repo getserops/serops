@@ -14,6 +14,7 @@ import { needsAction, severityTone } from "../utils/tones";
 import { useCluster } from "../context/ClusterContext";
 import useFilterUrlSync from "../hooks/useFilterUrlSync";
 import { headline } from "../utils/sentences";
+import { confidenceLabel } from "../utils/severityLabel";
 import { tracePath } from "../utils/linkTargets";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import "./Issues.css";
@@ -408,7 +409,7 @@ const Issues = () => {
       const firstCommit = linkedCommits[0];
       const commitSha = typeof firstCommit === 'object' ? firstCommit.sha : String(firstCommit);
       const displaySha = commitSha ? commitSha.substring(0, 8) : t('issues.list.corr.unknownSha');
-      const tooltipText = `${t('issues.list.corr.commit', { sha: displaySha })}${confidence ? ` (${confidence})` : ''}`;
+      const tooltipText = `${t('issues.list.corr.commit', { sha: displaySha })}${confidence ? ` (${confidenceLabel(t, confidence)})` : ''}`;
       badges.push(
         <OverlayTrigger key="commit" overlay={<Tooltip>{tooltipText}</Tooltip>}>
           <Badge bg="purple" className="me-1 d-inline-flex align-items-center" style={{ backgroundColor: '#7c3aed', cursor: 'pointer' }}>

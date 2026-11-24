@@ -227,6 +227,16 @@
     text-align: left;
   }
   .table-stack td > * { min-width: 0; max-width: 100%; }
+  /* A card that stands for one record with its own page (an analysis, a
+     trace) opens it from anywhere on the card: the record's link, marked
+     ds-row-link, covers the card. Controls inside keep their own action. */
+  .table-stack tr:has(.ds-row-link) { position: relative; cursor: pointer; }
+  .table-stack tr:has(.ds-row-link) td { position: static !important; }
+  .table-stack .ds-row-link { position: static !important; }
+  .table-stack .ds-row-link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+  .table-stack tr:has(.ds-row-link) :is(a, button, input, select, label, [role="button"], .clickable-issue):not(.ds-row-link) { position: relative; z-index: 1; }
+  .table-stack tr:has(.ds-row-link:focus-visible) { outline: 2px solid var(--brand-fill); outline-offset: 2px; }
+  .table-stack .ds-row-link:focus-visible { outline: none; }
   .table-stack td:not([data-label])::before { content: none; }
   .table-stack td:not([data-label]) { justify-content: flex-start; text-align: left !important; flex-wrap: wrap; }
   /* Buttons keep their size: in a labelled cell they used to shrink into
@@ -317,7 +327,7 @@
   :is(.ds-btn, .btn, .investigate-chip, .feed-view-all):not(.btn-close, .d-block, .w-100) { display: inline-flex; align-items: center; justify-content: center; }
   .app-topbar-user { min-width: var(--tap-min) !important; justify-content: center; }
   /* Icon buttons and row actions: square. */
-  :is(.app-topbar-icon, .tap-target, .page-btn, .app-sidebar-collapse, .phone-collapse-toggle, .demo-banner-close, .history-toggle-btn, .send-button) {
+  :is(.app-topbar-icon, .tap-target, .page-btn, .app-sidebar-collapse, .phone-collapse-toggle, .demo-banner-close, .history-toggle-btn, .send-button, .notification-icon-btn, .notification-close-btn) {
     min-width: var(--tap-min) !important;
     min-height: var(--tap-min) !important;
   }

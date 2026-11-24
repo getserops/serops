@@ -11,6 +11,15 @@ const resources = {
     fr: { translation: fr }
 };
 
+// The page's lang attribute follows the language shown (screen readers,
+// hyphenation, translation tools): at start and on every switch.
+export const setPageLang = (lng) => {
+    if (typeof document === 'undefined') return;
+    const code = String(i18n.resolvedLanguage || lng || 'en').split('-')[0];
+    document.documentElement.setAttribute('lang', code);
+};
+i18n.on('languageChanged', setPageLang);
+
 i18n
     .use(LanguageDetector)
     .use(initReactI18next)

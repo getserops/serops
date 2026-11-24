@@ -59,7 +59,7 @@ describe("confidenceLabel", () => {
       expect(confidenceLabel(t, "HIGH", "High")).toBe("Élevée");
       expect(confidenceLabel(t, "MEDIUM", "Medium")).toBe("Moyenne");
       expect(confidenceLabel(t, "low", "Low")).toBe("Faible");
-      expect(confidenceLabel(t, "UNKNOWN", "Unknown")).toBe("Unknown");
+      expect(confidenceLabel(t, "UNKNOWN", "Unknown")).toBe("Inconnue");
     } finally {
       await i18n.changeLanguage("en");
     }

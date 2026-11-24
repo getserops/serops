@@ -967,6 +967,42 @@
    "Actions" header, also when they sit in a flex group. */
 :is(.ds-settings-section-flush, .settings-table, .projects-card, .traces-card) td:last-child > :is(.d-flex, .btn-group) { justify-content: flex-end; }
 .traces-card .ds-table-footer { padding-left: 20px; padding-right: 20px; }
+/* Traces on a phone: a compact card, as the Analyses cards. The operation
+   and the status on the first line; service, duration and spans on the
+   second; the start time and the trace id, which opens the trace, on the
+   third. Only the span count keeps its column name. */
+@media (max-width: 767px) {
+  .traces-compact tbody tr {
+    display: flex !important;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-2) var(--space-3) !important;
+  }
+  .traces-card .traces-compact tbody tr > td {
+    display: block;
+    flex: 0 0 auto;
+    width: auto !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    text-align: left !important;
+  }
+  .traces-compact tbody tr > td::before { content: none; }
+  /* Three lines: operation and status; service, duration and spans; start
+     time and trace id. The row's ::before and ::after break the lines. */
+  .traces-compact tbody tr::before,
+  .traces-compact tbody tr::after { content: ""; flex: 1 1 100%; height: 0; }
+  .traces-compact tbody tr::before { order: 3; }
+  .traces-compact tbody tr::after { order: 7; }
+  .traces-compact .trace-cell-op { order: 1; flex: 1 1 0; min-width: 0; font-weight: 600; white-space: nowrap !important; overflow: hidden; text-overflow: ellipsis; }
+  .traces-compact .trace-cell-status { order: 2; }
+  .traces-compact .trace-cell-service { order: 4; }
+  .traces-compact .trace-cell-duration { order: 5; color: var(--text-secondary); }
+  .traces-compact .trace-cell-spans { order: 6; color: var(--text-secondary); }
+  .traces-compact .trace-cell-spans::before { content: attr(data-label) !important; display: inline; margin-right: var(--space-1); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; }
+  .traces-compact .trace-cell-start { order: 8; }
+  .traces-compact .trace-cell-id { order: 9; margin-left: auto; font-size: var(--text-xs); }
+}
 
 /* The SerOps mark is a complete SVG (square and S); no box behind it. */
 :is(html, :root[data-theme]) :is(.serops-mark.app-sidebar-mark, .serops-mark.brand-mark-icon) { background: none; border-radius: 0; display: block; flex: none; width: auto; object-fit: contain; }

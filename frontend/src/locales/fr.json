@@ -540,7 +540,11 @@
       "informedByOne": "Basé sur {{n}} résolution passée de ce projet",
       "informedByMany": "Basé sur {{n}} résolutions passées de ce projet",
       "andMore": "et {{n}} de plus"
-    }
+    },
+    "greeting": "Bonjour, comment puis-je vous aider avec vos problèmes techniques aujourd'hui ?",
+    "errorWith": "Erreur avec {{model}} : {{message}}",
+    "errorReply": "Désolé, une erreur s'est produite avec {{model}}. Veuillez réessayer.",
+    "deleteFailed": "Impossible de supprimer la conversation"
   },
   "projects": {
     "title": "Projets",
@@ -725,7 +729,8 @@
       "confidenceLevel": {
         "high": "Élevée",
         "medium": "Moyenne",
-        "low": "Faible"
+        "low": "Faible",
+        "unknown": "Inconnue"
       },
       "evidence": "Comment l’IA y est arrivée",
       "corrCommit": "Commit {{value}}",

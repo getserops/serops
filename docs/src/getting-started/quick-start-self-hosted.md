@@ -242,7 +242,7 @@ set the new version first:
 docker compose exec postgres pg_dump -U serops serops > backup-$(date +%F).sql
 
 # 2. Set the release you want in .env (see the releases page), e.g.
-#    SEROPS_VERSION=1.5.4
+#    SEROPS_VERSION=1.5.5
 
 # 3. Pull and restart — the backend applies migrations on start
 git pull

@@ -10,6 +10,56 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.5.5] - 2026-11-24
+
+### Fixed
+
+- **Overview: one arrangement for the three key numbers**: at 1280 px and
+  wider, Open critical, Open issues and System Health were laid out three ways
+  (number top-left, number centred, gauge left with the status far right). All
+  three now show icon and name on top, the value under them on the left, then
+  the status; on System Health the status sits beside the gauge.
+- **Scripts and styles compressed behind a proxy**: with a proxy in front
+  (Caddy on the live site), nginx sent the scripts and stylesheets
+  uncompressed: 2.57 MB instead of 0.80 MB on a first visit to an analysis
+  page, about 13 s instead of 4 s on a slow phone connection. They are now
+  gzipped whatever sits in front.
+- **French: an unknown confidence**: when the AI gave no confidence, the issue
+  panel and the analysis page read "Unknown" in French. It now reads
+  "Inconnue".
+- **Tables at 1280 px (C8)**: the Analyses table (1,042 px, 1,067 in French,
+  in 982) and the log table of an analysis (984 in 942) scrolled sideways.
+  Below 1440 px the Analyses cells have 12 px of side padding instead of 16,
+  and a log line with no space in it may break; both now fit. 1440 px and
+  wider are unchanged.
+- **Traces cards on a phone (C7)**: each trace took 242 px, one line per
+  column with its name. It is now a compact card like the Analyses ones:
+  operation and status, then service, duration and spans, then start time and
+  trace id.
+- **Notification buttons on touch (C6)**: the mark-as-read and remove buttons
+  of the notifications were 28 px. On touch screens they are now 44 px square,
+  like the other icon buttons.
+- **Chat on a short screen (C5)**: on a phone held sideways (375 x 457) the
+  chat card cut off its own bottom, the message box with it, and nothing
+  scrolled. Below 640 px of height the card now takes the height of what it
+  holds and the page scrolls; taller screens are unchanged.
+- **Chat in French (C3)**: the chat greeted a French user in English ("Hi, how
+  can I help you…"), and its error messages were English too. They are in the
+  translation files; the greeting follows a language switch. The AI's
+  confidence (High, Medium, Low) now reads Élevée, Moyenne, Faible in the
+  issue panel, the chat's issue summary and the commit hint of the issues
+  list, as on the analysis page. The text the AI writes, and the text sent
+  to it, are unchanged.
+- **Page language (C2)**: the page always said it was in English
+  (`lang="en"`), so a screen reader read the French interface with English
+  pronunciation. The `lang` attribute now follows the language shown, at start
+  and on every switch.
+- **Phones: cards open on tap (C1)**: an analysis or a trace shown as a card
+  opened only from a small icon or the trace id. Tapping anywhere on the card
+  now opens it; the checkbox, "Details", the issue count and the links inside
+  keep their own action, and the keyboard opens it from the card's link. Same
+  on the traces of one analysis. Issues cards already opened on tap.
+
 ## [1.5.4] - 2026-11-24
 
 ### Fixed

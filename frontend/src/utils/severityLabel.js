@@ -11,9 +11,9 @@ export function severityLabel(t, value) {
   return String(label).toUpperCase();
 }
 
-// How sure the AI is (HIGH, MEDIUM, LOW), in the user's language, written as
+// How sure the AI is (HIGH, MEDIUM, LOW, or UNKNOWN when it did not say), in the user's language, written as
 // the server words it ("High"). French agrees with "Confiance": "Élevée".
-const CONFIDENCE = new Set(["high", "medium", "low"]);
+const CONFIDENCE = new Set(["high", "medium", "low", "unknown"]);
 
 export function confidenceLabel(t, value, fallback) {
   const key = String(value ?? "").trim().toLowerCase();

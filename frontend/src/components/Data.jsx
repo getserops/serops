@@ -798,7 +798,7 @@ const Data = () => {
                             </div>
                           </td>
                           <td className="text-end data-cell-open">
-                            <Link to={`/dash/data/details/${item.id}`} className="view-btn"
+                            <Link to={`/dash/data/details/${item.id}`} className="view-btn ds-row-link"
                                   aria-label={t('data.openBatch', { id: item.id })} title={t('data.openBatch', { id: item.id })}>
                               <FaEye size={18} />
                             </Link>

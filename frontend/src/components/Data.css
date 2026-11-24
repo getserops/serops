@@ -520,3 +520,12 @@
     letter-spacing: 0.04em;
   }
 }
+
+/* C8 (1.5.5): at 1280 px the ten columns needed 1,042 px (1,067 in French)
+   in a 982 px box and the table scrolled sideways. Below 1440 px the cells
+   keep 12 px on each side instead of 16; from 1440 nothing changes. */
+@media (min-width: 768px) and (max-width: 1439px) {
+  :is(html, :root[data-theme]) .data-table-wrap .modern-table.data-compact :is(th, td) { padding-left: var(--space-3); padding-right: var(--space-3); }
+  :is(html, :root[data-theme]) .data-table-wrap .modern-table.data-compact :is(th, td):first-child { padding-left: var(--space-4); }
+  :is(html, :root[data-theme]) .data-table-wrap .modern-table.data-compact :is(th, td):last-child { padding-right: var(--space-4); }
+}

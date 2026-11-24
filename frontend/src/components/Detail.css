@@ -78,6 +78,9 @@
    over its column (they were 6 px apart). */
 @media (min-width: 768px) {
   :is(html, :root[data-theme]) .detail-logs-table :is(th, td) { padding: 10px 12px; }
+  /* C8 (1.5.5): a log line with no space in it (a JSON body) held the table
+     at 984 px in a 942 px box at 1280; it may now break anywhere. */
+  :is(html, :root[data-theme]) .detail-logs-table td.detail-log-message { overflow-wrap: anywhere; }
 }
 /* The note above the log table starts where the first column's text starts
    (the cells' 12px left padding). */

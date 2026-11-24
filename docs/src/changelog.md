@@ -16,6 +16,35 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.5.5] - 2026-11-24
+
+Fixes in the web app: scripts and stylesheets compressed behind a proxy, the
+Overview's three key numbers, phones and tablets, and French. No backend
+change and no database migration.
+
+Set `SEROPS_VERSION=1.5.5` or `--version 1.5.5`. Upgrading from 1.5.4 needs
+nothing else.
+
+### Fixed
+
+- **Compression behind a proxy**: the frontend container sent its scripts and
+  stylesheets uncompressed whenever a proxy sat in front of it (2.57 MB
+  instead of 0.80 MB on a first visit to an analysis page). They are now
+  gzipped whatever sits in front. The quick-start and the local demo already
+  compressed in their own Caddy; the gain is for a Helm install behind an
+  ingress that does not compress, or any proxy of your own.
+- **Overview**: Open critical, Open issues and System Health share one
+  arrangement from 1280 px.
+- **Phones and tablets**: an analysis or trace card opens on a tap anywhere on
+  it; traces are compact cards on a phone; notification buttons are 44 px on
+  touch screens; the chat fits a phone held sideways; the Analyses and log
+  tables fit at 1280 px.
+- **French**: the chat's greeting and errors, the AI's confidence everywhere
+  it shows ("Élevée", "Moyenne", "Faible", "Inconnue"), and the page language
+  for screen readers.
+
+---
+
 ## [1.5.4] - 2026-11-24
 
 Fixes in the web app: the System Health gauge, and the severity chips and

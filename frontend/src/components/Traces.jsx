@@ -186,7 +186,7 @@ const Traces = () => {
                 </div>
             ) : (
                 <>
-                    <Table hover responsive className="align-middle table-stack">
+                    <Table hover responsive className="align-middle table-stack traces-compact">
                         <thead>
                             <tr>
                                 <th>{t('traces.dashboard.trace')}</th>
@@ -201,20 +201,20 @@ const Traces = () => {
                         <tbody>
                             {traces.map((tr) => (
                                 <tr key={tr.trace_id}>
-                                    <td data-label={t('traces.dashboard.trace')}>
+                                    <td className="trace-cell-id" data-label={t('traces.dashboard.trace')}>
                                         <Link
                                             to={`/dash/traces/${tr.trace_id}`}
-                                            className="text-decoration-none"
+                                            className="text-decoration-none ds-row-link"
                                         >
                                             <code>{tr.trace_id.slice(0, 16)}…</code>
                                         </Link>
                                     </td>
-                                    <td data-label={t('traces.dashboard.service')}>{tr.root_service_name || '—'}</td>
-                                    <td data-label={t('traces.dashboard.operation')} className="text-truncate" style={{ maxWidth: 280 }}>
+                                    <td className="trace-cell-service" data-label={t('traces.dashboard.service')}>{tr.root_service_name || '—'}</td>
+                                    <td data-label={t('traces.dashboard.operation')} className="text-truncate trace-cell-op" style={{ maxWidth: 280 }}>
                                         {tr.root_operation || '—'}
                                     </td>
-                                    <td data-label={t('traces.dashboard.duration')}>{formatMs(tr.duration_ms)}</td>
-                                    <td data-label={t('traces.dashboard.spans')}>
+                                    <td className="trace-cell-duration" data-label={t('traces.dashboard.duration')}>{formatMs(tr.duration_ms)}</td>
+                                    <td className="trace-cell-spans" data-label={t('traces.dashboard.spans')}>
                                         {tr.span_count}
                                         {tr.error_span_count > 0 && (
                                             <span className="text-danger ms-2 small">
@@ -222,8 +222,8 @@ const Traces = () => {
                                             </span>
                                         )}
                                     </td>
-                                    <td data-label={t('traces.dashboard.status')}>{statusBadge(tr.status_code)}</td>
-                                    <td data-label={t('traces.dashboard.startedAt')} className="small text-muted" title={formatAbsolute(tr.start_time)}>{formatDate(tr.start_time)}</td>
+                                    <td className="trace-cell-status" data-label={t('traces.dashboard.status')}>{statusBadge(tr.status_code)}</td>
+                                    <td data-label={t('traces.dashboard.startedAt')} className="small text-muted trace-cell-start" title={formatAbsolute(tr.start_time)}>{formatDate(tr.start_time)}</td>
                                 </tr>
                             ))}
                         </tbody>
