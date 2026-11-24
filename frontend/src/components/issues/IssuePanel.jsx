@@ -8,6 +8,7 @@ import { isDemoUser } from "../../utils/demo";
 import { commitPath } from "../../utils/linkTargets";
 import { headline } from "../../utils/sentences";
 import { statusChipClass, severityChipClass } from "../../utils/tones";
+import { severityLabel } from "../../utils/severityLabel";
 import { formatAbsolute } from '../../utils/dates';
 
 const MINUTE = 60 * 1000;
@@ -40,8 +41,7 @@ export function StatusChip({ status, t }) {
 // The severity in the user's language, in capitals as before ("CRITICAL").
 export function SeverityChip({ severity, status, t }) {
   const s = (severity || "").toLowerCase();
-  const label = s ? t(`issues.${s}`, { defaultValue: severity }) : "N/A";
-  return <span className={severityChipClass(severity, status)}>{label.toUpperCase()}</span>;
+  return <span className={severityChipClass(severity, status)}>{s ? severityLabel(t, severity) : "N/A"}</span>;
 }
 
 /**

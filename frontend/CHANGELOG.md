@@ -10,6 +10,29 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.5.4] - 2026-11-24
+
+### Fixed
+
+- **French: confidence on the analysis page**: the AI's confidence beside the
+  root cause read "High", "Medium" or "Low" in the French interface. It now
+  reads "Élevée", "Moyenne" or "Faible"; English is unchanged.
+- **French: severity chips**: the severity and log-level chips of the
+  Overview's "Needs attention" panel, the analysis page (header, issue list,
+  log level column) and the batch timeline showed the server's English value
+  ("CRITICAL") in the French interface. They now use the existing words of the
+  Issues page ("CRITIQUE", "AVERTISSEMENT", "ERREUR"); a level the app has no
+  word for (FATAL, DEBUG) is shown as sent. A test fails on a severity written
+  straight into a component.
+- **Overview, System Health gauge**: the half-circle was drawn in an 80 px box
+  pulled into a 60 px space, so its ends were cut by the bottom edge of the
+  card, and its unfilled track used the card's own background colour,
+  invisible in dark theme. The whole half-circle is now inside the card's
+  padding, the track uses the border token (visible in light and dark), and on
+  a card too narrow for the status (two per row at 768 px, or "Avertissement"
+  at 1,280 px) the status goes under the gauge instead of past the card's
+  edge.
+
 ## [1.5.3] - 2026-11-23
 
 ### Fixed

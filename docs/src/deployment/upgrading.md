@@ -78,6 +78,11 @@ upgrades are safe with a brief restart.
 
 Releases that need something from you after upgrading. Migrations run on their own (`docker compose up` / the Helm migrate job).
 
+### 1.5.4: web app changes only
+
+- **Nothing to do.** No migration, no new setting and no changed default: set the version and restart. Chart 0.2.6 changes `appVersion` only.
+- **Going back to 1.5.3**: set the version back. There is no database step.
+
 ### 1.5.3: web app changes only
 
 - **Nothing to do.** No migration, no new setting and no changed default: set the version and restart. Chart 0.2.5 changes `appVersion` only.
@@ -184,7 +189,7 @@ For example:
 
 ```bash
 # Upgrade to a specific version
-./scripts/upgrade.sh 1.5.3
+./scripts/upgrade.sh 1.5.4
 
 # Upgrade to the latest version
 ./scripts/upgrade.sh
@@ -214,7 +219,7 @@ If you prefer to upgrade manually:
 If upgrading to a specific version, edit `.env`:
 
 ```env
-SEROPS_VERSION=1.5.3
+SEROPS_VERSION=1.5.4
 ```
 
 ### Step 3: Pull New Images

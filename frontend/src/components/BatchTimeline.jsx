@@ -26,6 +26,7 @@ import {
     FaTools, FaProjectDiagram,
 } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
+import { severityLabel } from '../utils/severityLabel';
 import DataService from '../services/data.service';
 import { tracePath } from '../utils/linkTargets';
 import BatchTimelineChart from './BatchTimelineChart';
@@ -50,18 +51,19 @@ const KIND_META = {
     },
 };
 
-const severityBadge = (severity) => {
+const severityBadge = (severity, t) => {
     const map = {
         ERROR: 'danger', WARNING: 'warning', CRITICAL: 'danger',
         FATAL: 'danger', INFO: 'info',
     };
     const bg = map[severity] || 'secondary';
-    return <Badge bg={bg} className="ms-2">{severity}</Badge>;
+    return <Badge bg={bg} className="ms-2">{severityLabel(t, severity)}</Badge>;
 };
 
 const formatTime = (iso) => formatRelative(iso);
 
 const EventRow = ({ event }) => {
+    const { t } = useTranslation();
     const meta = KIND_META[event.kind] || KIND_META.log;
     return (
         <li className="d-flex mb-3">
@@ -77,7 +79,7 @@ const EventRow = ({ event }) => {
                         {event.service && (
                             <span className="text-muted small me-2">{event.service}</span>
                         )}
-                        {severityBadge(event.severity)}
+                        {severityBadge(event.severity, t)}
                     </div>
                     <small className="text-muted" title={formatAbsolute(event.time, { fallback: '' })}><FaClock className="me-1" />{formatTime(event.time)}</small>
                 </div>

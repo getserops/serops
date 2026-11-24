@@ -722,6 +722,11 @@
       "pendingBody": "L’IA n’a pas encore analysé cette période.",
       "rootCause": "Cause racine",
       "confidence": "Confiance",
+      "confidenceLevel": {
+        "high": "Élevée",
+        "medium": "Moyenne",
+        "low": "Faible"
+      },
       "evidence": "Comment l’IA y est arrivée",
       "corrCommit": "Commit {{value}}",
       "corrMetric": "Métrique : {{value}}",

@@ -722,6 +722,11 @@
       "pendingBody": "The AI has not analysed this window yet.",
       "rootCause": "Root cause",
       "confidence": "Confidence",
+      "confidenceLevel": {
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low"
+      },
       "evidence": "How the AI got there",
       "corrCommit": "Commit {{value}}",
       "corrMetric": "Metric: {{value}}",

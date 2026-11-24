@@ -8,6 +8,7 @@ import { investigateLink } from "./issues/IssuePanel";
 import { isDemoUser } from "../utils/demo";
 import { headline as cutHeadline, splitSteps } from "../utils/sentences";
 import { severityChipClass } from "../utils/tones";
+import { severityLabel } from "../utils/severityLabel";
 import "./NeedsAttention.css";
 
 
@@ -113,7 +114,7 @@ const NeedsAttention = ({ environment, clusterId }) => {
   if (!URGENT.has(severity)) {
     return (
       <section className={`attention-card attention-compact attention-${severity.toLowerCase()}`} aria-label={t("dashboard.attention.title")}>
-        <span className={severityChipClass(severity)}>{top.severity}</span>
+        <span className={severityChipClass(severity)}>{severityLabel(t, top.severity)}</span>
         <Link to={`/dash/issues?id=${top.id}`} className="attention-compact-title" title={top.description}>{headline(top)}</Link>
         {top.component && <span className="ds-mono attention-rest-svc">{top.component}</span>}
         <Link to="/dash/issues?status=OPEN" className="attention-all">
@@ -134,7 +135,7 @@ const NeedsAttention = ({ environment, clusterId }) => {
 
       <div className="attention-top">
         <div className="attention-meta">
-          <span className={severityChipClass(severity)}>{top.severity}</span>
+          <span className={severityChipClass(severity)}>{severityLabel(t, top.severity)}</span>
           {top.component && <span className="ds-mono">{top.component}</span>}
           {top.environment && <span>{top.environment}</span>}
           {top.project_name && <span>{top.project_name}</span>}
@@ -173,7 +174,7 @@ const NeedsAttention = ({ environment, clusterId }) => {
         <ul className="attention-rest">
           {rest.map((issue) => (
             <li key={issue.id}>
-              <span className={severityChipClass(issue.severity)}>{issue.severity}</span>
+              <span className={severityChipClass(issue.severity)}>{severityLabel(t, issue.severity)}</span>
               <Link to={`/dash/issues?id=${issue.id}`} title={issue.description}>{headline(issue)}</Link>
               {issue.component && <span className="ds-mono attention-rest-svc">{issue.component}</span>}
             </li>

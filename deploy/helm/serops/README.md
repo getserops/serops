@@ -18,7 +18,7 @@ your own for production:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.5.3 \
+  --version 1.5.4 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set django.encryptionKey="$(openssl rand -base64 32 | tr '+/' '-_')" \
@@ -159,6 +159,11 @@ reachable. Egress is open by default because SerOps queries the observability
 providers, SCM and AI endpoints you configure, on their own hosts and ports;
 narrow `networkPolicy.egress` once you know them. The policies need a CNI
 that enforces NetworkPolicy; set `networkPolicy.enabled=false` to skip them.
+
+## Upgrading to chart 0.2.6
+
+* Nothing to do. Only `appVersion` changed (1.5.4); no template and no value
+  did. SerOps 1.5.4 has no database migration.
 
 ## Upgrading to chart 0.2.5
 

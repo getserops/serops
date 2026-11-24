@@ -716,21 +716,24 @@
 
 .health-content {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
 }
 
 .health-chart {
     position: relative;
+    flex: none;
+    /* The box of the half-circle (GAUGE in HealthScoreCard.jsx): the whole
+       arc is inside it, so nothing reaches the card's edge. */
     width: 120px;
     height: 60px;
-    /* Half pie height */
-    margin-top: -10px;
 }
 
 .health-score-overlay {
     position: absolute;
-    bottom: -5px;
+    bottom: 2px;
     left: 0;
     width: 100%;
     text-align: center;
@@ -744,6 +747,9 @@
 
 .health-details {
     text-align: right;
+    /* Shrinks to its longest word first; only on a card too narrow for the
+       status word (two per row at 768 px) does it go under the gauge. */
+    flex: 1 1 0;
 }
 
 .health-status {

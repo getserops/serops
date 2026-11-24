@@ -16,6 +16,27 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.5.4] - 2026-11-24
+
+Fixes in the web app: the System Health gauge, and the severity chips and
+the confidence word in French. No backend change and no database migration.
+
+Set `SEROPS_VERSION=1.5.4` or `--version 1.5.4`. Upgrading from 1.5.3 needs
+nothing else.
+
+### Fixed
+
+- **Overview, System Health**: the gauge's half-circle fits inside its card;
+  before, its ends were cut by the card's bottom edge. Its unfilled part is
+  visible in both themes, and on a narrow card the status goes under the
+  gauge instead of past the card's edge.
+- **French**: the severity and log-level chips on the Overview, the analysis
+  page and the batch timeline are in French ("CRITIQUE", "AVERTISSEMENT",
+  "ERREUR") instead of the server's English value. The AI's confidence beside
+  the root cause reads "Élevée", "Moyenne" or "Faible".
+
+---
+
 ## [1.5.3] - 2026-11-23
 
 The web app on a phone and a tablet, and the rest of the French interface.

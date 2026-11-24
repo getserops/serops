@@ -6,6 +6,12 @@ import { useTranslation } from "react-i18next";
 // Text on white needs darker shades of the gauge colours (WCAG AA).
 const TEXT = { '#06d6a0': 'var(--tone-green-text)', '#ef476f': 'var(--tone-red-text)', '#ffd166': 'var(--tone-amber-text)' };
 
+// The half-circle is drawn inside its own box: centre on the bottom edge
+// minus a small gap, so the whole arc stays inside the card. The unfilled
+// track uses the hairline-border token, visible on the card in both themes.
+export const GAUGE = { width: 120, height: 60, outerRadius: 50, innerRadius: 35, gap: 4 };
+export const GAUGE_TRACK = "var(--border-hover)";
+
 const HealthScoreCard = ({ score, status, loading }) => {
     const { t } = useTranslation();
     // Determine color based on score
@@ -25,7 +31,7 @@ const HealthScoreCard = ({ score, status, loading }) => {
     // Value is score, Remainder is 100 - score
     const data = [
         { name: "Score", value: score, color: color },
-        { name: "Remainder", value: 100 - score, color: "var(--bg-sunken)" }
+        { name: "Remainder", value: 100 - score, color: GAUGE_TRACK }
     ];
 
     if (loading) {
@@ -49,16 +55,16 @@ const HealthScoreCard = ({ score, status, loading }) => {
                 <div className="health-chart">
                     {/* Decorative gauge: the score is written out beside it. */}
                     <div aria-hidden="true" inert>
-                    <ResponsiveContainer width={120} height={80}>
-                        <PieChart>
+                    <ResponsiveContainer width={GAUGE.width} height={GAUGE.height}>
+                        <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                             <Pie
                                 data={data}
-                                cx="50%"
-                                cy="100%"
+                                cx={GAUGE.width / 2}
+                                cy={GAUGE.height - GAUGE.gap}
                                 startAngle={180}
                                 endAngle={0}
-                                innerRadius={35}
-                                outerRadius={50}
+                                innerRadius={GAUGE.innerRadius}
+                                outerRadius={GAUGE.outerRadius}
                                 paddingAngle={0}
                                 dataKey="value"
                                 stroke="none"

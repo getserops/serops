@@ -102,7 +102,7 @@ kubectl apply -f deploy/cloud/common/cluster-issuer.yaml
 As on AKS: [secrets and values](aks.md#3-secrets-and-values), then
 
 ```bash
-helm install serops oci://ghcr.io/getserops/charts/serops --version 1.5.3 \
+helm install serops oci://ghcr.io/getserops/charts/serops --version 1.5.4 \
   -n serops -f eks-values.yaml --wait --timeout 15m
 kubectl -n serops get certificate serops-tls      # READY True
 ```

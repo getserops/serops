@@ -31,6 +31,7 @@ import { useNavigate } from 'react-router-dom';
 import { tracePath } from '../utils/linkTargets';
 import { Form } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
+import { severityLabel } from '../utils/severityLabel';
 import { FaSearchPlus, FaSearchMinus, FaExpand } from 'react-icons/fa';
 import { formatAbsolute } from '../utils/dates';
 
@@ -654,7 +655,7 @@ const BatchTimelineChart = ({
                                 >
                                     {laneLabel(hover.event.kind)}
                                 </span>
-                                {hover.event.severity && <span className="badge bg-light text-dark me-2">{hover.event.severity}</span>}
+                                {hover.event.severity && <span className="badge bg-light text-dark me-2">{severityLabel(t, hover.event.severity)}</span>}
                                 {hover.event.service && <span className="text-muted small">{hover.event.service}</span>}
                             </div>
                             <div className="small mt-1">{hover.event.summary || '—'}</div>

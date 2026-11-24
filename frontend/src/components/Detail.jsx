@@ -20,6 +20,7 @@ import { splitCodeNotes } from "../utils/codeNotes";
 import { batchTrigger, sentinelOutcome, sentinelReasonLabels } from "../utils/batchTrigger";
 import { incidentStatus } from "../utils/incidentStatus";
 import { severityChipClass } from "../utils/tones";
+import { severityLabel, confidenceLabel } from "../utils/severityLabel";
 import { commitPath, tracePath, logsTrimmed } from "../utils/linkTargets";
 import { formatAbsolute, formatRelative, zoneLabel } from '../utils/dates';
 
@@ -509,7 +510,7 @@ const Detail = () => {
         badges={batchMeta && (
           <>
             <span className={`ds-chip ds-dot ${status.klass}`}>{status.label}</span>
-            {primary?.severity && <span className={severityChipClass(primary.severity, primary.status)}>{primary.severity}</span>}
+            {primary?.severity && <span className={severityChipClass(primary.severity, primary.status)}>{severityLabel(t, primary.severity)}</span>}
           </>
         )}
         subtitle={batchMeta && (
@@ -572,10 +573,10 @@ const Detail = () => {
                   <div className="incident-confidence">
                     {t('detail.incident.confidence')}
                     <div className="incident-confidence-bar" role="img"
-                         aria-label={`${t('detail.incident.confidence')}: ${primary.confidence_display || confidence}`}>
+                         aria-label={`${t('detail.incident.confidence')}: ${confidenceLabel(t, confidence, primary.confidence_display)}`}>
                       <div style={{ width: `${CONFIDENCE_FILL[confidence]}%`, background: CONFIDENCE_TONE[confidence] }} />
                     </div>
-                    <strong>{primary.confidence_display || confidence}</strong>
+                    <strong>{confidenceLabel(t, confidence, primary.confidence_display)}</strong>
                   </div>
                 )}
               </div>
@@ -792,7 +793,7 @@ const Detail = () => {
                 }}
               >
                 <span className={severityChipClass(issue.severity, issue.status)} style={{ marginTop: 2 }}>
-                  {issue.severity}
+                  {severityLabel(t, issue.severity)}
                 </span>
                 {issue.status && <span style={{ marginTop: 2 }}><StatusChip status={issue.status} t={t} /></span>}
                 <div className="detail-issue-text" style={{ flexGrow: 1, minWidth: 0 }}>
@@ -1147,7 +1148,7 @@ const Detail = () => {
                       : (item.type || '').toLowerCase() === 'warning' ? 'ds-chip-warn'
                       : 'ds-chip-neutral'
                   }`}>
-                    {(item.type || 'info').toUpperCase()}
+                    {severityLabel(t, item.type || 'info')}
                   </span>
                 </td>
                 <td data-label={t('detail.colService', 'Service')} style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
