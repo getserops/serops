@@ -8,9 +8,9 @@ Configure how SerOps handles issue deduplication, muting, and auto-resolution at
 
 ## Overview
 
-Issue Settings control noise reduction behaviour across your organisation. These settings apply to all projects and determine how SerOps groups similar issues, how long muted issues stay silent, and whether old issues are automatically resolved.
+Issue Settings control noise reduction behaviour across your organisation. These settings apply to all projects and determine how SerOps groups similar issues and which resolved issues the AI sees as context. The muting and auto-resolution settings are stored but have no effect in 1.5.5 (see below).
 
-Access these settings via **Settings > Data Management**.
+Access these settings via **Settings > Data retention**.
 
 ## Configuration Options
 
@@ -30,26 +30,24 @@ When enabled, SerOps groups issues with the same fingerprint to avoid creating d
 
 ### Muting
 
-When an issue is muted, notifications are suppressed for the configured duration.
+When an issue is muted, its notifications stop until someone reopens it. The duration chosen in the mute dialog is stored on the issue, but in 1.5.5 nothing ends the mute when it runs out.
 
 | Setting | Default | Options | Description |
 |---------|---------|---------|-------------|
-| **Default Mute Duration** | `7 days` | 1, 7, 30, or Forever (0) | Default duration when a user clicks "Mute" on an issue |
+| **Default Mute Duration** | `7 days` | 1, 7, 30, or Forever (0) | Stored, but not used in 1.5.5 |
 
 !!! note
-    Individual mute actions can override the default duration. The setting controls the pre-selected value in the mute dialog.
+    The mute dialog always pre-selects 7 days and offers 1, 7, 30 or 90 days, or Forever, whatever this setting says.
 
 ### Auto-Resolution
 
-Automatically resolve issues that have not been detected for a specified number of days.
+!!! warning "Not applied in 1.5.5"
+    The **Auto-Resolve** toggle is on the page and its value is stored, but no job reads it: SerOps does not resolve issues automatically, whatever it is set to. Issues stay open until someone resolves them.
 
 | Setting | Default | Options | Description |
 |---------|---------|---------|-------------|
-| **Auto-Resolve Enabled** | `false` | On / Off | Automatically resolve stale issues |
-| **Auto-Resolve After** | `7 days` | Any positive integer | Days without detection before an issue is auto-resolved |
-
-!!! warning
-    Enabling auto-resolve means issues may close without human review. This is best suited for non-critical environments or teams that triage issues daily.
+| **Auto-Resolve Enabled** | `false` | On / Off | Stored, not applied |
+| **Auto-Resolve After** | `7 days` | A number of days (API only) | Stored, not applied |
 
 ### Recent Resolutions Context
 
@@ -120,6 +118,8 @@ PUT /api/settings/issues/
   "memory_max_items": 3
 }
 ```
+
+`default_mute_duration_days`, `auto_resolve_enabled` and `auto_resolve_after_days` are stored but have no effect in 1.5.5.
 
 **Validation:**
 

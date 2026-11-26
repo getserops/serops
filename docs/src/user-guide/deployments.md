@@ -23,7 +23,7 @@ SerOps runs its batch pipeline once per active deployment. Multi-region, multi-c
 
 ## When you don't
 
-Small SMB projects with one env × one cluster × one region need exactly one deployment. SerOps auto-creates it when the environment is first created — no user action required. The Deployments tab on the Project detail page stays hidden until you actually need it (progressive disclosure).
+Small SMB projects with one env × one cluster × one region need exactly one deployment. SerOps auto-creates it when the environment is first created — no user action required. The Deployments tab on the Project detail page shows as soon as the project has one deployment, so it is there once an environment exists.
 
 ## How the auto-created deployment works
 

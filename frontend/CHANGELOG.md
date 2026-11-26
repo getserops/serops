@@ -10,6 +10,58 @@ means backend + frontend + Helm chart appVersion all match.
 
 ## [Unreleased]
 
+## [1.5.6] - 2026-11-26
+
+### Changed
+
+- **The Overview, clear at a glance** (the approved mock-up): one status
+  card replaces the two number tiles and the health gauge, with a sentence
+  ("3 of 19 services have an open critical issue") and a bar of one square
+  per service: open issue, affected by one, healthy. "Needs attention now"
+  shows the three worst open issues in the same shape: what is broken, why,
+  the first step and how many more. **Services** lists every service by name
+  in the three groups, each name opening its issues, in place of the
+  12-tile map and its percentages. Recent analyses show when, the sentence
+  and the severity, without the model name and the environment. The week is
+  two small panels, issues per day and the causes as one bar in place of the
+  donut. The "affected" group fills in once the server sends `affected_by`
+  (1.5.6); before that it is empty. On a phone, Services, Recent analyses,
+  Recent deployments and the two week panels show only their header, as in
+  1.5.5; the status and "Needs attention now" stay open. A service name two
+  projects share shows its project ("notifier · Fleet") in the tag and the
+  square's tooltip, once the server sends `project_name`.
+
+- **The issue panel puts the answer first**: it opens on the rest of the
+  summary (three lines, with "Show more"), then the root cause (its first two
+  sentences, with "Show more"), then the recommended action as numbered steps,
+  all shown. On a resolved issue whose cause the team corrected, the
+  confirmed cause shows in full with "What fixed it" right under it, and what
+  the AI had said is folded behind its own title. "Why the AI thinks so" is
+  folded, with the confidence on its title line. The dates and the count move to one line at the end, and show
+  last seen only when it differs from first seen, and the count only when
+  above 1. No text is removed: folded text stays in the page, and the resolve
+  form still starts from the whole root cause and action.
+
+### Fixed
+
+- **The sign-up page when sign-up is closed**: once the first organisation
+  existed, the server refused new sign-ups but `/register` still showed the
+  form, and the visitor learnt it only at the last step. The page now asks the
+  server first; when sign-up is closed it says so and offers a link to sign
+  in, with no form. If the server cannot be reached or does not answer within
+  4 seconds, the form shows as before. Invitation links are not affected.
+- **Single sign-on names the right command**: on an install with several
+  organisations, the email domains hint said to run `manage.py
+  sso_email_domains`; the command is `manage.py sso_domains`. A test now
+  checks that every command the interface names exists.
+- **Min severity offers the levels issues carry**: the "Min severity"
+  dropdowns of delivery channels and routing rules offered LOW, MEDIUM and
+  HIGH, which no issue carries. They now offer Any, Info, Warning and
+  Critical, in the user's language. A floor saved with an old value shows its
+  equivalent (Low as Info, Medium as Warning, High as Critical) and keeps
+  working without being re-saved. Saving the form stores the new word (INFO,
+  WARNING, CRITICAL); this needs the 1.5.6 server.
+
 ## [1.5.5] - 2026-11-24
 
 ### Fixed

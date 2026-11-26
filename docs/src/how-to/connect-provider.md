@@ -39,7 +39,7 @@ Integrations store your SCM credentials once and let you reuse them across all p
 
 4. Enter a descriptive **Name** (e.g., "Company GitLab")
 5. Paste your access token
-6. Click **Save**
+6. Click **Create Integration**
 
 !!! tip
     Use a dedicated service account for the access token rather than a personal account. This avoids token invalidation when team members leave.
@@ -49,7 +49,7 @@ Integrations store your SCM credentials once and let you reuse them across all p
 ## Step 2: Create a Project
 
 1. Navigate to **Projects**
-2. Click **+ New Project**
+2. Click **New Project**
 3. Enter a **Project Name** (e.g., "Payment Service")
 4. Configure **Environments** -- toggle on the environments you use (development, staging, production) and set branch patterns:
 
@@ -59,15 +59,15 @@ Integrations store your SCM credentials once and let you reuse them across all p
     | Staging | `staging, release-candidate/*` |
     | Development | `develop, dev, feature/*` |
 
-5. Click **Create**
+5. Click **Create Project**
 
 ---
 
 ## Step 3: Add a Service Using the Integration
 
 1. Open your newly created project
-2. Click **+ Add Service**
-3. Toggle **"Use Global Integration"** ON
+2. Click **Add new Service**
+3. Toggle **Use Global GitLab Integration** ON (the label names your provider)
 4. Select your saved integration from the dropdown
 5. Enter the **Project ID** (GitLab) or **Repository** (GitHub, e.g., `owner/repo-name`)
 6. Click **Verify** to test the connection
@@ -141,7 +141,7 @@ See **[Configure Data Collection Agents](configure-data-collection.md)** for the
 Once data starts flowing:
 
 1. Navigate to the **Analyses** page
-2. You should see your first batch appear within the configured `BATCH_GENERATION_INTERVAL` (default: 60 seconds)
+2. You should see your first batch appear within the batch interval (default: 15 minutes; set per organisation in **Settings > Data retention**)
 3. The batch will show:
     - Environment badge (Production, Staging, or Development)
     - Number of log entries included
@@ -163,7 +163,7 @@ Once data starts flowing:
 | No batches appear | Service name mismatch | Ensure the `service_name` in your logs matches the registered service name exactly |
 | No deployments shown | Token scope insufficient | Verify the access token has `api` scope (GitLab), or Actions and Deployments read access (GitHub fine-grained token) |
 | Webhook not firing | URL unreachable | Ensure your SerOps instance is accessible from the SCM provider's network |
-| "Unknown" status | Database naming | Check the [Troubleshooting](../troubleshooting.md) page for database table name issues |
+| "Unknown" status | Database migrations | Check that the database migrations are current; see [Troubleshooting](../troubleshooting.md#data-pipeline) |
 
 ---
 

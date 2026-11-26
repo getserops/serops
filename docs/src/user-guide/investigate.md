@@ -59,7 +59,7 @@ still sees everything, and still notifies on-call as usual.
 - Role **User** or **Admin**. Viewers can follow investigations but not
   start them.
 - Two investigations running at a time and ten an hour per organisation.
-- The monthly AI budget applies (Settings → AI).
+- The monthly AI budget applies (Settings → AI Providers).
 - A window with no data ends as **No data**, with the count per source,
   rather than silently.
 

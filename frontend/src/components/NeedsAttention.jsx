@@ -1,81 +1,71 @@
-import React, { useLayoutEffect, useRef, useState } from "react";
+import React, { useId } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { FaArrowRight, FaCheckCircle, FaFileAlt, FaSearch } from "react-icons/fa";
+import { FaArrowRight, FaCheckCircle } from "react-icons/fa";
 import dataService from "../services/data.service";
-import { investigateLink } from "./issues/IssuePanel";
-import { isDemoUser } from "../utils/demo";
-import { headline as cutHeadline, splitSteps } from "../utils/sentences";
+import { headline as cutHeadline, firstSentence, splitSteps } from "../utils/sentences";
 import { severityChipClass } from "../utils/tones";
 import { severityLabel } from "../utils/severityLabel";
 import "./NeedsAttention.css";
+import "./overview/Overview.css";
 
-
-// Only these get the full card; a warning gets one line so it doesn't
-// dominate the page.
-const URGENT = new Set(["CRITICAL", "HIGH"]);
-
-// How many steps of "What to do" show before "Show more".
-const STEPS_SHOWN = 3;
-
-// A paragraph held to a few lines (CSS line clamp) with "Show more" when
-// the text does not fit. The whole text stays in the page; only its display
-// is limited.
-const Clamped = ({ text, t }) => {
-  const ref = useRef(null);
-  const [open, setOpen] = useState(false);
-  const [overflows, setOverflows] = useState(false);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el || open) return undefined;
-    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 1);
-    measure();
-    if (typeof ResizeObserver === "undefined") return undefined;
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [text, open]);
-  return (
-    <>
-      <p ref={ref} className={open ? undefined : "attention-clamp-3"}>{text}</p>
-      {(overflows || open) && (
-        <button type="button" className="attention-more" aria-expanded={open} onClick={() => setOpen(!open)}>
-          {t(open ? "dashboard.attention.showLess" : "dashboard.attention.showMore")}
-        </button>
-      )}
-    </>
-  );
-};
-
-// "What to do" as numbered steps, one sentence each; the first three show.
-const Steps = ({ text, t }) => {
-  const [open, setOpen] = useState(false);
-  const steps = splitSteps(text);
-  if (steps.length < 2) return <p>{text}</p>;
-  const shown = open ? steps : steps.slice(0, STEPS_SHOWN);
-  return (
-    <>
-      <ol className="attention-steps">
-        {shown.map((step, i) => <li key={i}>{step}</li>)}
-      </ol>
-      {steps.length > STEPS_SHOWN && (
-        <button type="button" className="attention-more" aria-expanded={open} onClick={() => setOpen(!open)}>
-          {t(open ? "dashboard.attention.showLess" : "dashboard.attention.showMore")}
-        </button>
-      )}
-    </>
-  );
-};
 
 // Headline and rows show the first sentence of the description, cut at a
 // word boundary when it is very long; the full text is on the issue and in
 // the tooltip.
 const headline = (issue) => cutHeadline(issue.description) || issue.description;
 
+// One open issue, in the same shape for each (1.5.6): who, what is broken
+// (two lines), why (the first sentence of the root cause, three lines), the
+// first step of the action and how many more the issue holds. The cuts are
+// at sentence ends; the whole text is on the issue.
+const IssueRow = ({ issue, first, t }) => {
+  const severity = (issue.severity || "").toUpperCase();
+  const affected = Array.isArray(issue.affected_services) ? issue.affected_services : [];
+  const why = firstSentence(issue.root_cause);
+  const steps = splitSteps(issue.recommendation);
+  const place = [issue.project_name, issue.environment].filter(Boolean).join(" · ");
+  const to = `/dash/issues?id=${issue.id}`;
+  const titleId = useId();
+  return (
+    <article className={`ds-card glance-issue glance-issue-${severity.toLowerCase() || "unknown"}`}>
+      <div className="glance-issue-who">
+        <span className={severityChipClass(issue.severity)}>{severityLabel(t, issue.severity)}</span>
+        {issue.component && <span className="ds-mono glance-issue-service">{issue.component}</span>}
+        {affected.length > 0 && <span className="glance-issue-place">{t("issues.panel.alsoAffects", { services: affected.join(", ") })}</span>}
+        {place && <span className="glance-issue-place">{place}</span>}
+      </div>
+      <div className="glance-issue-what">
+        <h3 className="glance-label">{t("dashboard.glance.whatIsBroken")}</h3>
+        <Link to={to} id={titleId} className="glance-issue-title glance-clamp-2" title={issue.description}>{headline(issue)}</Link>
+        {why && (
+          <>
+            <h3 className="glance-label glance-label-why">{t("dashboard.attention.why")}</h3>
+            <p className="glance-issue-why glance-clamp-3">{why}</p>
+          </>
+        )}
+      </div>
+      {steps.length > 0 && (
+        <div className="glance-issue-step">
+          <h3 className="glance-label">{t("dashboard.glance.firstStep")}</h3>
+          <p className="glance-step">{steps[0]}</p>
+          {steps.length > 1 && <p className="glance-more-steps">{t("dashboard.glance.moreSteps", { count: steps.length - 1 })}</p>}
+        </div>
+      )}
+      <div className="glance-issue-action">
+        <Link to={to} className={`ds-btn ds-btn-sm ${first ? "ds-btn-primary" : "ds-btn-secondary"}`}
+          aria-describedby={titleId}>
+          {t("dashboard.attention.openIssue")}
+        </Link>
+      </div>
+    </article>
+  );
+};
+
 /**
- * The Overview opens on what is broken now: the most severe open issue
- * with its root cause and recommended action, then the numbers below.
+ * The Overview opens on what is broken now: the three worst open issues,
+ * each with what is broken, why and the first step.
  */
 const NeedsAttention = ({ environment, clusterId }) => {
   const { t } = useTranslation();
@@ -108,79 +98,15 @@ const NeedsAttention = ({ environment, clusterId }) => {
     );
   }
 
-  const [top, ...rest] = issues;
-  const severity = (top.severity || "").toUpperCase();
-
-  if (!URGENT.has(severity)) {
-    return (
-      <section className={`attention-card attention-compact attention-${severity.toLowerCase()}`} aria-label={t("dashboard.attention.title")}>
-        <span className={severityChipClass(severity)}>{severityLabel(t, top.severity)}</span>
-        <Link to={`/dash/issues?id=${top.id}`} className="attention-compact-title" title={top.description}>{headline(top)}</Link>
-        {top.component && <span className="ds-mono attention-rest-svc">{top.component}</span>}
-        <Link to="/dash/issues?status=OPEN" className="attention-all">
-          {t("dashboard.attention.viewOpen", { count: total })} <FaArrowRight size={11} aria-hidden="true" />
-        </Link>
-      </section>
-    );
-  }
-
   return (
-    <section className={`attention-card attention-${severity.toLowerCase()}`} aria-label={t("dashboard.attention.title")}>
-      <div className="attention-head">
-        <h2 className="attention-kicker">{t("dashboard.attention.title")}</h2>
+    <section className="glance-attention" aria-labelledby="glance-attention-title">
+      <div className="glance-section-head">
+        <h2 id="glance-attention-title" className="glance-section-title">{t("dashboard.attention.title")}</h2>
         <Link to="/dash/issues?status=OPEN" className="attention-all">
           {t("dashboard.attention.viewOpen", { count: total })} <FaArrowRight size={11} aria-hidden="true" />
         </Link>
       </div>
-
-      <div className="attention-top">
-        <div className="attention-meta">
-          <span className={severityChipClass(severity)}>{severityLabel(t, top.severity)}</span>
-          {top.component && <span className="ds-mono">{top.component}</span>}
-          {top.environment && <span>{top.environment}</span>}
-          {top.project_name && <span>{top.project_name}</span>}
-        </div>
-        <Link to={`/dash/issues?id=${top.id}`} className="attention-issue-title" title={top.description}>{headline(top)}</Link>
-
-        <div className="attention-grid">
-          <div>
-            <h3 className="attention-label">{t("dashboard.attention.why")}</h3>
-            <Clamped text={top.root_cause || t("issues.panel.noRootCause")} t={t} />
-          </div>
-          {top.recommendation && (
-            <div>
-              <h3 className="attention-label">{t("dashboard.attention.whatToDo")}</h3>
-              <Steps text={top.recommendation} t={t} />
-            </div>
-          )}
-        </div>
-
-        <div className="attention-actions">
-          <Link to={`/dash/issues?id=${top.id}`} className="ds-btn ds-btn-primary ds-btn-sm">{t("dashboard.attention.openIssue")}</Link>
-          {top.batch_id_str && (
-            <Link to={`/dash/data/details/${top.batch_id_str}`} className="ds-btn ds-btn-secondary ds-btn-sm">
-              <FaFileAlt size={11} aria-hidden="true" /> {t("issues.panel.openAnalysis")}
-            </Link>
-          )}
-          {!isDemoUser() && (
-            <Link to={investigateLink(top)} className="ds-btn ds-btn-secondary ds-btn-sm">
-              <FaSearch size={11} aria-hidden="true" /> {t("issues.panel.investigate")}
-            </Link>
-          )}
-        </div>
-      </div>
-
-      {rest.length > 0 && (
-        <ul className="attention-rest">
-          {rest.map((issue) => (
-            <li key={issue.id}>
-              <span className={severityChipClass(issue.severity)}>{severityLabel(t, issue.severity)}</span>
-              <Link to={`/dash/issues?id=${issue.id}`} title={issue.description}>{headline(issue)}</Link>
-              {issue.component && <span className="ds-mono attention-rest-svc">{issue.component}</span>}
-            </li>
-          ))}
-        </ul>
-      )}
+      {issues.map((issue, i) => <IssueRow key={issue.id} issue={issue} first={i === 0} t={t} />)}
     </section>
   );
 };

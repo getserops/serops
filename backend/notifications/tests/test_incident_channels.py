@@ -75,9 +75,10 @@ class IncidentChannelModelTest(TestCase):
         c = IncidentNotificationChannel(
             organisation=self.org, name='x', kind='slack', min_severity='HIGH',
         )
-        self.assertFalse(c.meets_severity('LOW'))
-        self.assertFalse(c.meets_severity('MEDIUM'))
-        self.assertTrue(c.meets_severity('HIGH'))
+        # A floor stored as HIGH (before 1.5.6) means Critical; issues
+        # carry CRITICAL / WARNING / INFO.
+        self.assertFalse(c.meets_severity('INFO'))
+        self.assertFalse(c.meets_severity('WARNING'))
         self.assertTrue(c.meets_severity('CRITICAL'))
 
     def test_encryption_round_trip(self):

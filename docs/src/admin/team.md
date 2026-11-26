@@ -9,7 +9,7 @@ Three pages under **Settings** control who can do what, the same split as Grafan
 | Page | What it is for |
 |------|----------------|
 | **Users** | Invite people, change their role, remove them |
-| **Roles** | The built-in roles, and custom roles built from individual permissions |
+| **Roles** (SerOps Enterprise) | The built-in roles, and custom roles built from individual permissions |
 | **Teams** | Groups of users that restricted projects are opened to |
 
 Only users with the `team.manage` permission (admins, by default) see these pages.

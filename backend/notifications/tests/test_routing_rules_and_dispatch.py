@@ -60,19 +60,18 @@ class RoutingRuleMatchingTest(TestCase):
 
     def test_severity_floor(self):
         r = self._rule(min_severity='HIGH')
-        self.assertFalse(r.matches(event='batch_analyzed', severity='MEDIUM',
+        self.assertFalse(r.matches(event='batch_analyzed', severity='WARNING',
                                    environment='prod', service='checkout'))
-        self.assertTrue(r.matches(event='batch_analyzed', severity='HIGH',
-                                  environment='prod', service='checkout'))
         self.assertTrue(r.matches(event='batch_analyzed', severity='CRITICAL',
                                   environment='prod', service='checkout'))
 
-    def test_unknown_severity_does_not_block(self):
+    def test_no_or_unknown_severity_blocks_a_set_floor(self):
+        # 1.5.6: with a floor set, no issue or an unknown severity does not fire.
         r = self._rule(min_severity='HIGH')
-        self.assertTrue(r.matches(event='batch_analyzed', severity='',
-                                  environment='prod', service='checkout'))
-        self.assertTrue(r.matches(event='batch_analyzed', severity='WHATEVER',
-                                  environment='prod', service='checkout'))
+        self.assertFalse(r.matches(event='batch_analyzed', severity='',
+                                   environment='prod', service='checkout'))
+        self.assertFalse(r.matches(event='batch_analyzed', severity='WHATEVER',
+                                   environment='prod', service='checkout'))
 
 
 class DispatcherRoutingWalkTest(TestCase):

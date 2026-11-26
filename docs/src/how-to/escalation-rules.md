@@ -32,7 +32,7 @@ graph TD
 - Escalation timers start when the issue is **created**
 - **Acknowledging** the issue at any point stops the escalation chain
 - Rules can target specific projects or apply to **all projects** in the organisation
-- Rules can be set for `CRITICAL` or `WARNING` severity levels
+- Only `CRITICAL` issues escalate. The API also accepts a rule for `WARNING`, but in 1.5.5 such a rule never fires
 
 ---
 
@@ -45,7 +45,7 @@ notifications go, are managed in **Alerts & routing**.
 | Field | Required | Description |
 |-------|----------|-------------|
 | `project` | No | Project ID, or `null` for all projects |
-| `severity` | Yes | `CRITICAL` or `WARNING` |
+| `severity` | Yes | `CRITICAL` (`WARNING` is accepted but never fires) |
 | `level_1_delay_minutes` | Yes | Minutes before notifying project admins (default 15) |
 | `level_2_delay_minutes` | Yes | Minutes before notifying all org admins (default 45) |
 | `is_active` | Yes | Whether the rule is enabled |
@@ -61,7 +61,7 @@ notifications go, are managed in **Alerts & routing**.
 
 ```bash
 curl -X POST https://api.yourdomain.com/api/notification/escalation-rules/ \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Token YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "project": 1,
@@ -94,7 +94,7 @@ Omit the `project` field to apply the rule to all projects:
 
 ```bash
 curl -X POST https://api.yourdomain.com/api/notification/escalation-rules/ \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Token YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "severity": "CRITICAL",
@@ -108,14 +108,14 @@ curl -X POST https://api.yourdomain.com/api/notification/escalation-rules/ \
 
 ```bash
 curl https://api.yourdomain.com/api/notification/escalation-rules/ \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Token YOUR_TOKEN"
 ```
 
 ### Update a Rule
 
 ```bash
 curl -X PUT https://api.yourdomain.com/api/notification/escalation-rules/1/ \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Token YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "level_1_delay_minutes": 10,
@@ -127,14 +127,14 @@ curl -X PUT https://api.yourdomain.com/api/notification/escalation-rules/1/ \
 
 ```bash
 curl -X DELETE https://api.yourdomain.com/api/notification/escalation-rules/1/ \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Token YOUR_TOKEN"
 ```
 
 ---
 
 ## Stopping Escalation with Acknowledgment
 
-Any user can acknowledge an issue to stop its escalation chain:
+Any user who can update issues can acknowledge an issue to stop its escalation chain:
 
 === "UI"
 
@@ -145,8 +145,8 @@ Any user can acknowledge an issue to stop its escalation chain:
 === "API"
 
     ```bash
-    curl -X POST https://api.yourdomain.com/api/data/issues/{issue_id}/acknowledge/ \
-      -H "Authorization: Bearer YOUR_TOKEN"
+    curl -X POST https://api.yourdomain.com/api/notification/issues/{issue_id}/acknowledge/ \
+      -H "Authorization: Token YOUR_TOKEN"
     ```
 
 !!! info
@@ -194,14 +194,6 @@ For staging or low-priority environments:
 ## Uniqueness Constraint
 
 Each combination of organisation + project + severity must be unique. You cannot create two `CRITICAL` escalation rules for the same project. To change timing, update the existing rule.
-
-If you attempt to create a duplicate rule, the API returns:
-
-```json
-{
-  "detail": "Escalation rule for this project and severity already exists."
-}
-```
 
 ---
 

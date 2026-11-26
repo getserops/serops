@@ -7,6 +7,18 @@ starting from `v1.0.0` (see [versioning guide](https://serops.ai/docs/deployment
 
 ## [Unreleased]
 
+## [1.5.6] - 2026-11-26
+
+### Changed
+
+- **Service health returns every service**: `GET /api/data/analytics/service-health/` returns every registered service, worst first, up to 200 (before: the 12 worst), with `total_services`. Each entry also carries `project_name`, which tells apart two services of the same name in different projects, and `affected_by`: the components of the open issues of the service's project that name the service among their affected services, under the same organisation, environment and cluster filters, matched in any case and never the service itself (`affected_by_name` in `Data/health.py`). `affected_by` costs one query for the whole answer and `project_name` none (the project was already loaded). No migration.
+- **Demo seed**: `seed_demo_org` adds one delivery channel, "Acme on-call (Slack)" (minimum severity Critical), and one routing rule, "Production critical to on-call" (minimum severity Critical, environment production), that sends to it. The channel's webhook is the demo placeholder, which the dispatcher never sends to and the API never returns; reseeding writes the channel again and keeps one rule.
+
+### Fixed
+
+- **Minimum severity filters**: the floor of delivery channels and routing rules was ordered `LOW, MEDIUM, HIGH, CRITICAL`, while issues carry `CRITICAL`, `WARNING`, `INFO` or `UNKNOWN`, and an unknown value let the notification through, so a floor never blocked anything. One ordering is now used by both (`severity_meets_floor` in `notifications/models.py`): `INFO` < `WARNING` < `CRITICAL`, with the older `LOW`, `MEDIUM` and `HIGH` read as `INFO`, `WARNING` and `CRITICAL`, so no migration is needed. With a floor set, an analysis with no issue or with an `UNKNOWN` top issue does not fire. A stored floor of any other value is treated as no floor and logged once as a warning. The API accepts the six words in any case and stores them in upper case. This changes what existing installs receive.
+- **`create_superadmin` applies the sign-up form's password rule**: at least 10 characters with an upper-case letter, a lower-case letter and a number, plus the server's password validators, whether the password comes from the prompt, `--password` or `ADMIN_PASSWORD` (`Users/password_rules.py`). Before, any 8 characters were accepted.
+
 ## [1.5.5] - 2026-11-24
 
 No backend change. Released with frontend 1.5.5 so that the versions match.

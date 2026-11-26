@@ -26,6 +26,11 @@ Given a version `MAJOR.MINOR.PATCH`:
 Breaking changes are always announced in a **preceding minor** with
 deprecation warnings before the major bump removes them.
 
+Security releases have been exceptions to this table: 1.2.2 and 1.5.1
+are patches that add migrations, and 1.5.1 removes an API endpoint. The
+[upgrade notes](upgrading.md#upgrade-notes) list what each release
+needs from you.
+
 ## Version components
 
 A running SerOps deployment has three versioned pieces:
@@ -33,12 +38,14 @@ A running SerOps deployment has three versioned pieces:
 | Piece | What it is | Where the version lives |
 |---|---|---|
 | **App version** | The SerOps release itself (backend + frontend as a coordinated pair) | `SEROPS_VERSION` env var → image tag |
-| **Helm chart version** | The packaging format for K8s installs | `Chart.yaml:version` (independent of app version — bump on chart change alone) |
-| **Helm appVersion** | The default SerOps app version the chart pulls | `Chart.yaml:appVersion` (matches the app release we tested the chart against) |
+| **Helm chart version** | The packaging format for K8s installs | The published chart's version is the release's version: chart 1.5.6 deploys SerOps 1.5.6 |
+| **Helm appVersion** | The default SerOps app version the chart pulls | The same release number |
 
-Chart version bumps independently: a chart-only fix (e.g. a values
-template bug) can ship as `chart-0.1.5 / app-1.0.0` without a new app
-release.
+The chart is published with the release tag as both its version and its
+`appVersion` (`helm package --version --app-version` in the release
+workflow). `Chart.yaml` in the source tree carries its own number (0.2.x),
+bumped on each chart change; the upgrade notes quote it. Installing from
+`oci://ghcr.io/getserops/charts/serops`, you only see the release number.
 
 ## How to check what you're running
 
@@ -100,15 +107,15 @@ values:
 backend:
   image:
     repository: ghcr.io/getserops/backend
-    tag: "1.5.5"
+    tag: "1.5.6"
 frontend:
   image:
     repository: ghcr.io/getserops/frontend
-    tag: "1.5.5"
+    tag: "1.5.6"
 ```
 
 The Celery worker, Celery beat and the migration job run the backend image
-and follow `backend.image` (chart 0.2.2 and later), so the whole
+and follow `backend.image` (since 1.5.0), so the whole
 installation runs one release.
 
 **Never rely on `:latest` in production.** Rolling latest defeats
@@ -117,15 +124,15 @@ and Helm chart both use explicit tags by design.
 
 ## Docker tag matrix
 
-Every published release ships four Docker tags for the same image:
+Every published release ships five Docker tags for the same image:
 
 | Tag | Example | Use case |
 |---|---|---|
 | `MAJOR.MINOR.PATCH` | `1.0.0` | Exact pin (recommended for production) |
+| `vMAJOR.MINOR.PATCH` | `v1.0.0` | The git tag's name; same image as `1.0.0` |
 | `MAJOR.MINOR` | `1.0` | Auto-pick latest patch — safe for patch-level auto-updates |
-| `MAJOR` | `1` | Auto-pick latest minor — accepts new features silently |
 | `latest` | `latest` | Convenience only. **Do not use in production.** |
-| `sha-<7chars>` | `sha-a1b2c3d` | Reproducibility for CI/CD pipelines |
+| short commit sha | `a1b2c3d` | Reproducibility for CI/CD pipelines |
 
 ## Rollback
 
@@ -151,9 +158,9 @@ helm rollback serops 3 -n serops
 !!! danger "Rollback across a MINOR that includes a migration"
     Downgrading past a Django migration boundary requires restoring
     the pre-migration database backup. See
-    [Backup & Restore](backup-restore.md). Rollback within the same
-    MINOR (patch downgrade) is always safe because patches never
-    change schemas.
+    [Backup & Restore](backup-restore.md). A patch downgrade is safe
+    only when no release in between added a migration; the
+    [upgrade notes](upgrading.md#upgrade-notes) name each one.
 
 ## Release cadence
 

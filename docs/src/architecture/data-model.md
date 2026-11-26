@@ -43,7 +43,7 @@ erDiagram
 | `ProjectDeployment` | `Projects` | **One row per (environment × cluster × region × namespace).** The unit batches are generated for. |
 | `AIAnalyzedBatch` | `Data` | One analysis run over a time window of telemetry for one deployment. |
 | `Issue` | `Data` | A de-duplicated finding produced by a batch. |
-| `AlertEvent` | `Data` | An inbound alert from Alertmanager / Grafana / Datadog, optionally linked to the batch it triggered. |
+| `AlertEvent` | `Data` | An inbound alert from Alertmanager / Grafana / Datadog / Sentry, optionally linked to the batch it triggered. |
 
 ### Why `ProjectDeployment` exists
 
@@ -171,8 +171,8 @@ erDiagram
     Trace ||--o{ Span : "composed of"
 ```
 
-`Trace` is keyed on the 32-character W3C trace ID as its primary key, and
-denormalises root service, root operation, duration, span count and error-span
+`Trace` has a surrogate primary key; its 32-character W3C trace ID is unique
+per organisation, on `(organisation, trace_id)`. It denormalises root service, root operation, duration, span count and error-span
 count so list views never need to aggregate. `Span` carries the OpenTelemetry
 shape — `span_id`, `parent_span_id`, kind, status, plus free-form `attributes`
 and `events` JSON.
@@ -224,7 +224,7 @@ filters; `ProjectSubscription` is an explicit per-project opt-in.
 | `OrganisationAISettings` | Per-org default and fallback provider, monthly budget and warning threshold. |
 | `OrganisationAPIKey` | Per-org provider credentials, Fernet-encrypted. There is deliberately no environment-variable fallback — see [Data Protection](../security/data-protection.md). |
 | `SentinelConfig` | Triage thresholds: error-spike multiplier, z-score threshold, max quiet batches, and whether the pre-creation gate may drop batches before they are persisted. |
-| `IssueSettings` | De-duplication window, auto-resolve behaviour, and issue-memory retention. |
+| `IssueSettings` | De-duplication window, issue-memory retention, and the mute and auto-resolve settings (stored, not applied in 1.5.5). |
 | `RetentionPolicy` | Batch and audit-log retention, cleanup cadence, and the per-org batch generation interval. |
 | `OnboardingStatus` | Wizard progress. Completion is **computed from real database state**, not self-attested, so the wizard reflects reality even when setup happened via the API. |
 

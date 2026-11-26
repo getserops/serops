@@ -51,7 +51,7 @@ To support diverse AI providers (Gemini, DeepSeek, Claude, local LLMs), SerOps u
 
 ### Architecture
 The system decouples the core logic from specific provider implementations:
-1.  **AIModelProvider (DB)**: Stores configuration (name, base_url, adapter_class).
+1.  **AIModelProvider (DB)**: Stores configuration (name, api_base_url, adapter_class).
 2.  **BaseProviderAdapter**: Abstract interface defining the contract (`generate`, `normalize_error`).
 3.  **AdapterRegistry**: Dynamically loads adapter classes at runtime based on the DB configuration.
 
@@ -65,12 +65,12 @@ response = adapter.generate(prompt, config=..., api_key=...)
 
 ### Supported Adapters
 -   `GeminiAdapter`: Native Google Gemini integration.
--   `ClaudeAdapter`: Native Anthropic SDK integration (`anthropic` library). Defaults to `claude-sonnet-4-20250514`; override via `default_model` in the provider's DB config.
+-   `ClaudeAdapter`: Native Anthropic SDK integration (`anthropic` library). Defaults to `claude-sonnet-5-5`; override via `default_model` in the provider's DB config.
 -   `GenericOpenAIAdapter`: Compatible with **OpenAI**, **DeepSeek**, **Mistral**, and **Ollama** (local) via the OpenAI-compatible API.
 
 ## Recent Resolutions Context
 
-When a batch is analyzed, SerOps optionally injects recently resolved issues from the same project into the AI prompt as diagnostic context. This gives the model a sense of the project's recent failure modes without adding any new infrastructure (no vector DB, no external embedding service).
+When a batch is analyzed, SerOps optionally injects recently resolved issues from the same project into the AI prompt as diagnostic context. This gives the model a sense of the project's recent failure modes without adding any new infrastructure (no vector DB: embeddings are stored in PostgreSQL, and come from the organisation's own AI provider when it offers an embeddings API, otherwise from local lexical similarity).
 
 ```
 [Batch logs + metrics + correlations]   ← evidence
@@ -85,7 +85,7 @@ When a batch is analyzed, SerOps optionally injects recently resolved issues fro
 2. Prefer matches in the same environment as the current batch; fall back to other environments to fill remaining slots
 3. Cap at `memory_max_items` (default 3) so the prompt stays bounded
 
-The feature is alert-agnostic and recency-based in v1 — relevance ranking via PostgreSQL full-text search or pgvector is a planned upgrade. See [Issue Settings](../admin/issue-settings.md#recent-resolutions-context) for configuration.
+The feature is alert-agnostic. Memories are ranked by similarity to the batch's log digest (through the organisation's own AI provider when it offers embeddings, otherwise local lexical similarity), with same environment, team-confirmed root causes and recency as tiebreaks. With nothing to compare against, the most recent resolved issues are used. See [Issue Settings](../admin/issue-settings.md#recent-resolutions-context) for configuration.
 
 ## Admin Monitoring
 

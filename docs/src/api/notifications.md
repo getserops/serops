@@ -38,7 +38,7 @@ scoped to the caller's organisation.
   "name": "SRE Slack",
   "kind": "slack",
   "webhook_url_input": "https://hooks.slack.com/services/T000/B000/XXXX",
-  "min_severity": "HIGH",
+  "min_severity": "WARNING",
   "is_active": true
 }
 ```
@@ -74,6 +74,8 @@ PATCH  /api/notification/routing-rules/{id}/
 DELETE /api/notification/routing-rules/{id}/
 ```
 
+Admin only (`alerting.manage`), for reads too.
+
 **Create request:**
 
 ```json
@@ -91,7 +93,7 @@ DELETE /api/notification/routing-rules/{id}/
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `min_severity` | string | `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`. Empty = any severity. |
+| `min_severity` | string | `INFO`, `WARNING`, `CRITICAL`. Empty = any severity. `LOW`, `MEDIUM` and `HIGH` are still accepted and count as `INFO`, `WARNING` and `CRITICAL`. With a value set, an analysis with no issue does not fire. |
 | `environments` | array | Environment names. Empty = every environment. |
 | `services` | array | Service names. Empty = every service. |
 | `event_types` | array | Subset of `batch_analyzed`, `alert_triggered`, `critical_issue`. Empty = every event. |
@@ -128,7 +130,7 @@ Returns a single notification by ID.
 ### Mark All as Read
 
 ```
-POST /api/notification/mark-all-as-read/
+PUT /api/notification/mark-all-as-read/
 ```
 
 Marks all unread notifications as read for the authenticated user.
@@ -186,12 +188,19 @@ PATCH /api/notification/preferences/
 ```json
 {
   "email_enabled": true,
-  "severity_filter": ["CRITICAL", "WARNING"],
+  "in_app_enabled": true,
+  "notify_critical": true,
+  "notify_warning": true,
+  "notify_info": false,
+  "quiet_hours_enabled": true,
   "quiet_hours_start": "22:00",
   "quiet_hours_end": "08:00",
+  "timezone": "Europe/Paris",
   "digest_frequency": "daily"
 }
 ```
+
+Only fields you include are changed. `digest_frequency` is `immediate`, `hourly`, `daily` or `weekly`. Quiet hours apply only when `quiet_hours_enabled` is `true`.
 
 ---
 
@@ -215,9 +224,11 @@ POST /api/notification/subscriptions/
 
 ```json
 {
-  "project_id": 1
+  "project": 1
 }
 ```
+
+Optional: `notify_critical`, `notify_warning`, `notify_info` and `email_override`.
 
 ### Unsubscribe from Project
 
@@ -247,7 +258,7 @@ Stops the escalation chain for this issue. Once acknowledged, no further escalat
 GET /api/notification/escalation-rules/
 ```
 
-Returns all configured escalation rules for the organisation.
+Returns all configured escalation rules for the organisation. Admin only (`alerting.manage`), for reads too.
 
 ### Create Escalation Rule
 
@@ -259,13 +270,15 @@ POST /api/notification/escalation-rules/
 
 ```json
 {
-  "level": 1,
-  "delay_minutes": 15,
-  "target_role": "admin"
+  "project": 1,
+  "severity": "CRITICAL",
+  "level_1_delay_minutes": 15,
+  "level_2_delay_minutes": 45,
+  "is_active": true
 }
 ```
 
-Defines an escalation step. When an issue goes unacknowledged for `delay_minutes`, the notification escalates to users with `target_role`.
+One rule per organisation, project and severity. Leave `project` empty (`null`) to cover every project. When an open `CRITICAL` issue is still unacknowledged `level_1_delay_minutes` after it was created, the organisation's admins are notified (level 1), and again at `level_2_delay_minutes` (level 2). `level_2_delay_minutes` must be greater than `level_1_delay_minutes`. Only `CRITICAL` issues are escalated.
 
 ---
 

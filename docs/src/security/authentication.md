@@ -1,6 +1,6 @@
 ---
 seo_title: "Authentication and SSO (OIDC)"
-description: "Sign in to SerOps with email and password or single sign-on (OIDC) with Keycloak, Okta, Azure AD or Google, per organisation."
+description: "Sign in to SerOps with email and password or single sign-on (OIDC) with any OpenID Connect provider, per organisation."
 ---
 # Authentication & Single Sign-On (SSO)
 
@@ -8,14 +8,11 @@ SerOps signs people in with email and password or with OpenID Connect single sig
 
 ## Registration
 
-New organizations can sign up directly via the Registration page. The process is streamlined for efficiency:
+New organizations can sign up on the Registration page while registration is open. By default, once the first organization exists, sign-up closes: the Registration page says so and offers sign-in, with no form, and the server refuses new sign-ups (`403 registration_disabled`). [`REGISTRATION_ENABLED`](../deployment/configuration.md#public-access-control) keeps it open or closed. The process is streamlined for efficiency:
 
 1.  **Basic Details**: Enter your Full Name and Work Email.
 2.  **Organization**: Provide your Company Name.
 3.  **Security**: Set a strong password.
-
-> [!NOTE]
-> We have removed the requirement for a phone number to speed up the onboarding process.
 
 ## Single Sign-On (SSO)
 
@@ -28,7 +25,7 @@ SerOps supports Single Sign-On through **OpenID Connect (OIDC)**, so you can man
 Navigate to **Settings > Security > Single Sign-On** to configure your provider.
 
 #### OpenID Connect (OIDC)
-Ideal for modern providers like **Okta**, **Azure AD**, **Google Workspace**, or **Keycloak**.
+Works with any OpenID Connect provider that has a discovery URL. **Okta** and **Google Workspace** have not yet been tested ([compatibility](../integrations/compatibility.md)).
 
 **Required Fields:**
 *   **Client ID**: From your IdP application.

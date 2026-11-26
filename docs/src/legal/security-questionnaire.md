@@ -14,7 +14,7 @@ your own framework. Download it as a spreadsheet:
 its operation and your data are yours, so many controls written for hosted
 services are answered *Not applicable*. Every *Yes* is backed by the document
 in the last column. *Not yet* and *Planned* mean exactly that. These answers
-describe SerOps 1.5.2. Accepting them as they are keeps you on Business;
+describe SerOps 1.5.5. Accepting them as they are keeps you on Business;
 your own questionnaire filled in is Enterprise
 ([pricing](https://serops.ai/pricing)).
 
@@ -30,8 +30,8 @@ your own questionnaire filled in is Enterprise
 | BCR-01 | Business continuity | What happens to customers if the vendor stops trading? | The product keeps running: license keys are checked offline. The full source is public (Community under AGPL-3.0, the paid features under the SerOps Enterprise License). | [Vendor facts](vendor-facts.md#continuity) |
 | BCR-02 | Business continuity | Are customer data backed up? | Not applicable: the data is in your PostgreSQL. The docs describe backup and restore. | [Backup and restore](../deployment/backup-restore.md) |
 | CCC-01 | Change control | Are releases versioned and documented? | Yes. Semantic versioning and a changelog for every release. | [Versioning](../deployment/versioning.md), [changelog](../changelog.md) |
-| CCC-02 | Change control | Can the customer verify what it installs? | Yes. Images and the Helm chart are signed with cosign and carry an SBOM and SLSA provenance. | [Support and security](../security/support.md) |
-| CEK-01 | Cryptography and key management | Are secrets encrypted at rest? | Yes. AI keys, integration credentials and webhook URLs are encrypted with a key you hold (`SEROPS_ENCRYPTION_KEY`) and never returned by the API. | [Data protection](../security/data-protection.md#secrets-at-rest) |
+| CCC-02 | Change control | Can the customer verify what it installs? | Yes. Images and the Helm chart are signed with cosign; the images carry an SBOM and SLSA provenance. | [Support and security](../security/support.md) |
+| CEK-01 | Cryptography and key management | Are secrets encrypted at rest? | Partly. AI keys, integration credentials and webhook URLs are encrypted with a key you hold (`SEROPS_ENCRYPTION_KEY`) and never returned by the API. SCM and custom service tokens, infrastructure service connection strings and webhook signing secrets are stored in plain text. | [Data protection](../security/data-protection.md#secrets-at-rest) |
 | CEK-02 | Cryptography and key management | Is data encrypted in transit? | You terminate TLS at your ingress or proxy; the Compose distribution includes Caddy for TLS. | [Production deployment](../deployment/production.md) |
 | CEK-03 | Cryptography and key management | How are passwords stored? | Django's salted PBKDF2 hashing. | Django default, `backend/api/settings.py` |
 | DCS-01 | Datacenter security | Physical security of the hosting facilities? | Not applicable: SerOps runs on your infrastructure. | [Security overview](../security/overview.md#architecture) |
@@ -48,7 +48,7 @@ your own questionnaire filled in is Enterprise
 | IAM-05 | Identity and access management | Is access role-based? | Yes. Admin, user and viewer; custom roles and per-project access with a paid license. | [Team](../admin/team.md) |
 | IAM-06 | Identity and access management | Do sessions time out? | Yes, after an inactivity period the admin sets, 8 hours by default. | [Authentication](../security/authentication.md#session-management) |
 | IAM-07 | Identity and access management | Are failed sign-ins limited? | Yes, rate-limited per account and address. | [Authentication](../security/authentication.md#token-authentication) |
-| IPY-01 | Interoperability and portability | Can data be exported? | Yes. Audit logs and analyses export to CSV; everything is in your PostgreSQL. | [Compliance](../security/compliance.md) |
+| IPY-01 | Interoperability and portability | Can data be exported? | Yes. The audit log exports to CSV; everything is in your PostgreSQL. | [Compliance](../security/compliance.md) |
 | IVS-01 | Infrastructure and virtualisation security | Do the containers run as non-root? | Yes (backend user 10001, front end user 101). | `backend/Dockerfile`, `frontend/Dockerfile` |
 | IVS-02 | Infrastructure and virtualisation security | Is network access restricted on Kubernetes? | Partly. The Helm chart enables a NetworkPolicy by default: inbound traffic only from your ingress controller; outbound is open by default, because SerOps connects to the backends you configure, and you can narrow it. | [Helm chart](../deployment/helm.md) |
 | IVS-03 | Infrastructure and virtualisation security | Are tenants isolated? | Yes, at the query level, with automated tests. | [Multi-tenancy](../architecture/multi-tenancy.md) |

@@ -18,7 +18,7 @@ your own for production:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.5.5 \
+  --version 1.5.6 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set django.encryptionKey="$(openssl rand -base64 32 | tr '+/' '-_')" \
@@ -159,6 +159,16 @@ reachable. Egress is open by default because SerOps queries the observability
 providers, SCM and AI endpoints you configure, on their own hosts and ports;
 narrow `networkPolicy.egress` once you know them. The policies need a CNI
 that enforces NetworkPolicy; set `networkPolicy.enabled=false` to skip them.
+
+## Upgrading to chart 0.2.8
+
+* The chart now sets `SERVER_URL` (the public URL plus `/api`) and
+  `BASE_URL` (the public URL), from `django.publicUrl` or the first ingress
+  host, next to `API_URL` and `REACT_URL`. Before, both were unset on Helm,
+  so the webhook URL SerOps registers in GitLab and the links in
+  notification emails started with `None/`. A value you set under
+  `backend.env` still wins. `appVersion` is 1.5.6, which has no database
+  migration.
 
 ## Upgrading to chart 0.2.7
 

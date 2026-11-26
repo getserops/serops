@@ -14,17 +14,15 @@ Global integrations define the connection to an external provider (e.g., GitLab,
 GET /api/providers/integrations/provider-types/
 ```
 
-Returns the catalogue of supported SCM/CI-CD provider types and their required credential fields. Use this to render the "Add Integration" form.
+Returns the catalogue of supported SCM/CI-CD provider types, with their capabilities and default URL. Use this to render the "Add Integration" form.
 
-**Response:**
+**Response:** a list, one entry per provider type.
 
 ```json
-{
-  "types": [
-    {"code": "gitlab", "name": "GitLab", "fields": ["base_url", "access_token"]},
-    {"code": "github", "name": "GitHub", "fields": ["access_token"]}
-  ]
-}
+[
+  {"code": "gitlab", "name": "GitLab", "capabilities": ["scm", "cicd", "deployments", "issues"], "default_url": "https://gitlab.com"},
+  {"code": "jenkins", "name": "Jenkins", "capabilities": ["cicd", "deployments"], "default_url": ""}
+]
 ```
 
 ## List Integrations
@@ -89,7 +87,7 @@ Tests the connection without persisting the integration. Use this to validate cr
 POST /api/providers/integrations/{id}/verify/
 ```
 
-Re-tests the stored credentials and updates the `verified_at` timestamp.
+Re-tests the stored credentials and updates `verification_status` and the `last_verified_at` timestamp.
 
 ## Health Check (Single Integration)
 
@@ -97,7 +95,7 @@ Re-tests the stored credentials and updates the `verified_at` timestamp.
 POST /api/providers/integrations/{id}/health-check/
 ```
 
-Runs a live connectivity check against the stored credentials and updates `last_health_check` + `last_health_status` on the record.
+Runs a live connectivity check against the stored credentials and returns `healthy`, `latency_ms` and `error`. It updates `verification_status` and `last_verified_at` on the record.
 
 ## Health Check (All Integrations)
 
@@ -113,7 +111,7 @@ Runs a connectivity check against every configured SCM/CI-CD integration for the
 GET /api/providers/integrations/usage-summary/
 ```
 
-Returns a compact summary across all integrations — how many services each one backs, when it was last synced, and whether it's healthy. Powers the Integrations index page.
+Returns a compact summary keyed by integration ID: `services_count` (how many services it backs) and `last_sync` (its `last_verified_at`). Powers the Integrations index page.
 
 ## Get Usage Statistics (Single Integration)
 

@@ -93,6 +93,31 @@ def _scored(row):
     }
 
 
+def affected_by_name(issues):
+    """Which components' open issues name each service as affected.
+
+    Returns ``{(project_id, service_name_lower): [component, ...]}`` from the
+    OPEN issues of an (already org/env/cluster-filtered) Issue queryset, read
+    from their ``affected_services``. As in :func:`health_by_component`, an
+    issue's project is its own, else its batch's, so a service is affected
+    only by issues of its own project. Names are matched without regard to
+    case; a component is never listed as affected by itself. One query.
+    """
+    result = {}
+    rows = (issues.filter(status='OPEN').exclude(component='').exclude(affected_services=[])
+            .annotate(pid=Coalesce('project_id', 'batch__project_id'))
+            .values_list('pid', 'component', 'affected_services').order_by())
+    for pid, component, names in rows:
+        for name in names if isinstance(names, list) else []:
+            if not isinstance(name, str) or not name.strip():
+                continue
+            key = name.strip().lower()
+            if key == component.lower():
+                continue
+            result.setdefault((pid, key), {}).setdefault(component.lower(), component)
+    return {key: sorted(comps.values(), key=str.lower) for key, comps in result.items()}
+
+
 def overall_health(issues):
     """Score a whole (already org/env/cluster-filtered) Issue queryset."""
     return _scored(issues.aggregate(**_counts()))

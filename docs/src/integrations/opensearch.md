@@ -132,7 +132,7 @@ service:
 
 The exporter writes to `ss4o_logs-<dataset>-<namespace>`: set the
 integration's **Index pattern** to `ss4o_logs-*`. Tested with the
-Collector contrib distribution on OpenSearch 2.17 (client C4, 2026-11-16).
+Collector contrib distribution on OpenSearch 2.17 (2026-11-16).
 
 ## Authentication Options
 

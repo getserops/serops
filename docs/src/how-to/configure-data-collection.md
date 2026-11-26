@@ -72,7 +72,7 @@ All log providers use the **same canonical field names**. Configure your log shi
 
 | Field | Required | Description | Example |
 |-------|----------|-------------|---------|
-| `organisation_name` | Yes | Organisation identifier (matches your org in SerOps) | `myorg` |
+| `organisation_name` | For metrics | Organisation identifier (matches your org in SerOps). Log queries do not filter on it; metric queries do | `myorg` |
 | `project_name` | Yes | Project identifier (matches your project in SerOps) | `demo` |
 | `service_name` | Yes | Service name (must match a registered ProjectService) | `backend` |
 | `environment` | Yes | Environment name | `production` |
@@ -649,7 +649,7 @@ After configuring your agents, verify data is flowing correctly:
 - [ ] **Environment names match**: The `environment` in your logs matches an enabled environment in your project settings (or a known alias)
 - [ ] **Logs are queryable**: Check your provider directly (Kibana, Grafana, Datadog UI) to confirm enriched fields are present on log entries
 - [ ] **Metrics have labels**: Query Prometheus/VictoriaMetrics directly to verify `organisation_name`, `project_name`, `environment` labels exist on `node_*` metrics
-- [ ] **Batches appear**: Navigate to **Analyses** in SerOps — batches should appear within the configured generation interval (default: 60 seconds)
+- [ ] **Batches appear**: Navigate to **Analyses** in SerOps — batches should appear within the configured generation interval (default: 15 minutes)
 
 ---
 

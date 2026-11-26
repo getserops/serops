@@ -64,7 +64,7 @@ Services connect your Git providers, infrastructure, or custom components to Ser
 
 SerOps uses a step-by-step wizard to guide you through service creation.
 
-1. Click **+ New Service** to open the wizard.
+1. Click **Add new Service** to open the wizard.
 
 #### Step 1: Choose Service Type
 Select the type of service you are adding:
@@ -82,14 +82,14 @@ Select the type of service you are adding:
     *   *Note*: The **Service Name** will automatically populate with the repository name (e.g., choosing `group/docs` sets name to `docs`). You can customize this if needed.
 
 **For Infrastructure:**
-1.  **Type**: Database, Cache, Message Queue, or Load Balancer.
-2.  **Provider**: AWS, GCP, Azure, or Self-Hosted.
+1.  **Type**: Database, Cache, Queue, or Other.
+2.  **Provider**: the technology, listed for the type: PostgreSQL, MySQL, MongoDB, Redis or Elasticsearch for a database; Redis, Memcached or Hazelcast for a cache; RabbitMQ, Kafka, SQS or Redis for a queue; Custom for other.
 3.  **Name & Description**: Define identifiers for the service.
 
 #### Step 3: CI/CD (Optional)
 For Application services, you can optionally configure CI/CD pipeline tracking:
 1.  **Skip**: Keep "Skip for now" selected if you don't need pipeline tracking.
-2.  **Add**: Select "Yes, set up CI/CD pipeline", choose the provider, and link the integration.
+2.  **Add**: Select "Yes, set up CI/CD", choose the provider, and link the integration.
 
 Click **Create Service** to finish.
 

@@ -18,7 +18,7 @@ per kind are supported.
 | **Slack** | Incoming Webhook URL | Block Kit message. Fallback text for mobile push. |
 | **Microsoft Teams** | Incoming Webhook connector URL | MessageCard. Colour by severity. |
 | **PagerDuty** | Events API v2 integration key | Emits a **change event** — attaches to existing incidents without creating new pages. |
-| **OpsGenie** | API key + region (us/eu) | Creates a P4 note-style alert. Non-paging. |
+| **OpsGenie** | API key + region (us/eu) | Creates an alert whose priority follows the top issue's severity: CRITICAL P2, WARNING P4, INFO P5. |
 | **Email** | None — uses the server's SMTP config | Recipients in `extra_config.to`. Plain-text summary with issue list. |
 
 All secrets encrypted at rest via Fernet; write-only on the API
@@ -41,15 +41,16 @@ SMTP itself is environment-only — see
 
 ## Routing
 
-Channels are destinations; they do not decide what reaches them.
-That is the job of **Alerts & routing → Routing Rules**, which pairs a matcher
+Channels are destinations. A channel's own `min_severity`, when set, is a
+floor: the channel skips an incident below it even when a rule targets it.
+Everything else about what reaches a channel is the job of **Alerts & routing → Routing Rules**, which pairs a matcher
 with a set of target channels:
 
 | Matcher axis | Values | Blank means |
 |---|---|---|
-| Minimum severity | `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` | Any severity |
+| Minimum severity | `INFO`, `WARNING`, `CRITICAL` | Any severity |
 | Environments | List of environment names | All environments |
-| Services | List of service names | All services |
+| Services | List of names, compared with the incident's **project** name | All projects |
 | Event types | `batch_analyzed`, `alert_triggered`, `critical_issue` | All events |
 
 All axes are ANDed. SerOps evaluates every active rule and notifies the
@@ -62,14 +63,26 @@ rules is contacted once.
 | `alert_triggered` | Only alert-triggered analyses (see [alerts guide](alerts.md)) |
 | `critical_issue` | Batch produced at least one CRITICAL issue |
 
-Severity is compared against the batch's **top** issue.
+Severity is compared against the batch's **top** issue, for the rule and
+for the channel's own floor:
+
+| Minimum severity | Fires when the batch's top issue is |
+|---|---|
+| Blank (any) | Anything, including an analysis with no issue |
+| `INFO` | `INFO`, `WARNING` or `CRITICAL` |
+| `WARNING` | `WARNING` or `CRITICAL` |
+| `CRITICAL` | `CRITICAL` |
+
+With a minimum severity set, an analysis with no issue, or whose top issue
+is `UNKNOWN`, does not fire. Values saved before 1.5.6 keep working: `LOW`
+counts as `INFO`, `MEDIUM` as `WARNING` and `HIGH` as `CRITICAL`.
 
 Typical setups:
 
-* **Slack for general awareness**: rule with `min_severity=HIGH`, no other filter, targeting the SRE Slack channel.
+* **Slack for general awareness**: rule with `min_severity=WARNING`, no other filter, targeting the SRE Slack channel.
 * **PagerDuty timeline attach**: rule with `event_types=[alert_triggered]` and no severity filter — you want context on every alert-triggered incident.
 * **OpsGenie for criticals only**: rule with `event_types=[critical_issue]`.
-* **Per-team routing**: rule with `services=[checkout, billing]` targeting that team's Slack channel and email list.
+* **Per-team routing**: rule with `services=[checkout, billing]` (the names of that team's projects) targeting that team's Slack channel and email list.
 
 !!! warning "No rules means no delivery"
     An organisation with delivery channels but no active routing rules
@@ -120,8 +133,7 @@ curl -X POST -H "Authorization: Token $ADMIN_TOKEN" -H "Content-Type: applicatio
     "name": "SRE Slack",
     "kind": "slack",
     "webhook_url_input": "https://hooks.slack.com/services/...",
-    "trigger_events": ["critical_issue"],
-    "min_severity": "HIGH",
+    "min_severity": "WARNING",
     "is_active": true
   }'
 

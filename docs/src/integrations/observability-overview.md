@@ -15,11 +15,11 @@ replacing it:
 2.  **Ingest Events**: Send enriched CI/CD event documents to your log store.
 3.  **Query Metrics**: Fetch CPU and memory (and, from Prometheus-compatible stores, Kubernetes state) for correlation.
 4.  **Collect Traces**: Receive spans over OpenTelemetry OTLP, or query Jaeger,
-    Zipkin or Datadog APM if your traces already live there.
+    Zipkin, Grafana Tempo or Datadog APM if your traces already live there.
 
 SerOps does not store your logs or metrics — it queries them where they are.
 **Traces are the one exception.** Spans pushed over OTLP are stored in SerOps'
-own database under a retention window you control, because unlike a log store
+own database until the organisation is deleted, because unlike a log store
 there is no external system to read them back from. Choose the pull route
 instead and nothing is stored. See [OTLP Traces](traces.md).
 
@@ -31,7 +31,7 @@ SerOps supports a wide range of providers, allowing you to mix and match per org
 |----------|---------------------|
 | **Logs** | [Elasticsearch](elasticsearch.md), [OpenSearch](opensearch.md), [Grafana Loki](loki.md), [Splunk](splunk.md), [Datadog](datadog.md), [AWS CloudWatch](cloudwatch.md), [Google Cloud Logging](gcp.md), [Azure Log Analytics](azure.md) |
 | **Metrics** | [Prometheus](prometheus.md), [VictoriaMetrics](victoriametrics.md), [Grafana Mimir](mimir.md), [Datadog](datadog.md), [AWS CloudWatch](cloudwatch.md), [Google Cloud Monitoring](gcp.md), [Azure Monitor](azure.md) |
-| **Traces** | [OpenTelemetry OTLP](traces.md) (push, stored by SerOps) · [Jaeger](traces.md#alternative-pull-from-jaeger-zipkin-datadog-apm), [Zipkin](traces.md#alternative-pull-from-jaeger-zipkin-datadog-apm), [Grafana Tempo](traces.md#alternative-pull-from-jaeger-zipkin-datadog-apm), [Datadog APM](traces.md#alternative-pull-from-jaeger-zipkin-datadog-apm) (pull) |
+| **Traces** | [OpenTelemetry OTLP](traces.md) (push, stored by SerOps) · [Jaeger](traces.md#alternative-pull-from-jaeger-zipkin-tempo-datadog-apm), [Zipkin](traces.md#alternative-pull-from-jaeger-zipkin-tempo-datadog-apm), [Grafana Tempo](traces.md#alternative-pull-from-jaeger-zipkin-tempo-datadog-apm), [Datadog APM](traces.md#alternative-pull-from-jaeger-zipkin-tempo-datadog-apm) (pull) |
 
 ### Provider Matrix
 
@@ -43,11 +43,14 @@ SerOps supports a wide range of providers, allowing you to mix and match per org
 | **[Splunk](splunk.md)** | Logs | Auth Token (bearer) | SPL | 30 days | Full-text, regex, aggregations, index scoping |
 | **[Google Cloud](gcp.md)** | Logs + Metrics | Service account JSON | GCP filter | 30 days | Full-text, substring, live tail, high cardinality |
 | **[Azure Monitor](azure.md)** | Logs + Metrics | Service principal | KQL | 30 days (logs), 93 days (metrics) | Full-text, regex, KQL power, high cardinality |
-| **[Datadog](datadog.md)** | Logs + Metrics | API Key + App Key | Datadog query | 15 days | Full-text, regex, aggregations, live tail |
-| **[CloudWatch](cloudwatch.md)** | Logs + Metrics | AWS Credentials | CloudWatch Insights | 14 days | Full-text, regex, aggregations |
+| **[Datadog](datadog.md)** | Logs + Metrics + Traces | API Key + App Key | Datadog query | 15 days | Full-text, regex, aggregations, live tail |
+| **[CloudWatch](cloudwatch.md)** | Logs + Metrics | AWS Credentials | CloudWatch Insights | 30 days (logs), 14 days (metrics) | Full-text, regex, aggregations |
 | **[Prometheus](prometheus.md)** | Metrics | Basic / Bearer | PromQL | 30 days | High cardinality, histograms, exemplars |
 | **[VictoriaMetrics](victoriametrics.md)** | Metrics | Basic / Bearer | MetricsQL | 90 days | High cardinality, histograms |
-| **[Grafana Mimir](mimir.md)** | Metrics | Basic / Tenant ID | PromQL | 365 days | High cardinality, histograms, exemplars, multi-tenant |
+| **[Grafana Mimir](mimir.md)** | Metrics | Basic / Bearer / Tenant ID | PromQL | 365 days | High cardinality, histograms, exemplars, multi-tenant |
+| **[Jaeger](traces.md#alternative-pull-from-jaeger-zipkin-tempo-datadog-apm)** | Traces | Basic / Bearer | Jaeger query API | Store retention | Search by service name, fetch by trace ID |
+| **[Zipkin](traces.md#alternative-pull-from-jaeger-zipkin-tempo-datadog-apm)** | Traces | Basic / Bearer | Zipkin v2 API | Store retention | Search by service name, fetch by trace ID |
+| **[Grafana Tempo](traces.md#alternative-pull-from-jaeger-zipkin-tempo-datadog-apm)** | Traces | Basic / Bearer / Tenant ID | Tempo search API | Store retention | Search by service name, fetch by trace ID, multi-tenant |
 
 ---
 
@@ -87,16 +90,16 @@ For each deployment the pipeline processes, `_best_integration()` scores every c
 
 ### Failover chain
 
-If the top-ranked integration returns an adapter error (5xx, timeout, auth failure), the pipeline transparently retries on the next tier. Configuration:
+If the top-ranked integration's adapter cannot be loaded (a missing optional library, or a configuration the adapter rejects), SerOps uses the next one in the same order. A query that fails on a loaded adapter (5xx, timeout, auth failure) is not retried on the next tier: that read fails. Configuration:
 
 - **Primary** — the golden path. Always tried first.
-- **Fallback** — kicks in when primary errors. Typical shape: same cluster, different provider (Loki fallback for an ES primary).
+- **Fallback** — used when the primary cannot be loaded. Typical shape: same cluster, different provider (Loki fallback for an ES primary).
 - **Tertiary** — last resort. Typical shape: unscoped catch-all (CloudWatch across all clusters).
 
 The Observability settings panel shows every registered integration as a row with tier badge + scope pills so operators can see the full chain at a glance.
 
 !!! warning "One log store per analysis"
-    An analysis reads logs from one integration: the best match for its cluster and scope. A fallback is only read when that one errors, not merged with it. If one project's services log to two stores (Kubernetes services in Cloud Logging and an AWS Lambda in CloudWatch, for example), the analysis sees only the services in the matching store. Until a project can read several stores, ship the other services' logs to the same store, or give them their own project.
+    An analysis reads logs from one integration: the best match for its cluster and scope. A fallback is only read when that one cannot be loaded, not merged with it. If one project's services log to two stores (Kubernetes services in Cloud Logging and an AWS Lambda in CloudWatch, for example), the analysis sees only the services in the matching store. Until a project can read several stores, ship the other services' logs to the same store, or give them their own project.
 
 ---
 
@@ -108,8 +111,8 @@ All providers share these common fields:
 |-------|------|---------|-------------|
 | `provider` | string | required | Provider code (see provider matrix above) |
 | `display_name` | string | required | Human-readable name |
-| `capabilities` | list | required | `["logs"]`, `["metrics"]`, or `["logs", "metrics"]` |
-| `host` | string | required | Provider endpoint URL |
+| `capabilities` | list | all of the provider's | Any of `"logs"`, `"metrics"`, `"traces"` the provider supports |
+| `host` | string | optional | Provider endpoint URL (not used by CloudWatch, Google Cloud or Azure Monitor) |
 | `username` | string | optional | Basic auth username |
 | `password` | string | optional | Basic auth password (write-only, never returned in API) |
 | `extra_config` | object | `{}` | Provider-specific options (see per-provider pages) |
@@ -122,14 +125,19 @@ All providers share these common fields:
 
 | Provider | Fields |
 |----------|--------|
-| **[Elasticsearch](elasticsearch.md)** | `api_key`, `verify_certs` (bool) |
-| **[OpenSearch](opensearch.md)** | `verify_certs` (bool) |
+| **[Elasticsearch](elasticsearch.md)** | `api_key`, `verify_certs` (bool), `index_pattern` |
+| **[OpenSearch](opensearch.md)** | `verify_certs` (bool), `index_pattern` |
 | **[Loki](loki.md)** | `bearer_token`, `tenant_id` |
 | **[Prometheus](prometheus.md)** | `bearer_token` |
 | **[VictoriaMetrics](victoriametrics.md)** | `bearer_token` |
-| **[Mimir](mimir.md)** | `path_prefix`, `tenant_id` |
+| **[Mimir](mimir.md)** | `path_prefix`, `tenant_id`, `bearer_token` |
 | **[Datadog](datadog.md)** | `site`, `api_key`, `app_key` |
-| **[CloudWatch](cloudwatch.md)** | `aws_region`, `aws_access_key_id`, `aws_secret_access_key`, `aws_session_token`, `default_log_group` |
+| **[CloudWatch](cloudwatch.md)** | `aws_region`, `log_groups`, `default_log_group` (the access key goes in `username` and `password`) |
+| **[Splunk](splunk.md)** | `index`, `app`, `owner`, `verify_ssl` |
+| **[Google Cloud](gcp.md)** | `project_id` |
+| **[Azure Monitor](azure.md)** | `tenant_id`, `client_id`, `workspace_id`, `default_table`, `default_resource_uri` |
+| **[Jaeger, Zipkin](traces.md#alternative-pull-from-jaeger-zipkin-tempo-datadog-apm)** | `bearer_token` |
+| **[Grafana Tempo](traces.md#alternative-pull-from-jaeger-zipkin-tempo-datadog-apm)** | `bearer_token`, `tenant_id` |
 
 ---
 
@@ -178,8 +186,12 @@ The `last_health_check` and `last_health_status` fields on the integration are u
 - [Elasticsearch](elasticsearch.md) -- Log provider
 - [OpenSearch](opensearch.md) -- Log provider
 - [Grafana Loki](loki.md) -- Log provider
+- [Splunk](splunk.md) -- Log provider
 - [Prometheus](prometheus.md) -- Metric provider
 - [VictoriaMetrics](victoriametrics.md) -- Metric provider
 - [Grafana Mimir](mimir.md) -- Metric provider
-- [Datadog](datadog.md) -- Log + Metric provider
+- [Datadog](datadog.md) -- Log + Metric + Trace provider
 - [AWS CloudWatch](cloudwatch.md) -- Log + Metric provider
+- [Google Cloud](gcp.md) -- Log + Metric provider
+- [Azure Monitor](azure.md) -- Log + Metric provider
+- [Distributed Traces](traces.md) -- OTLP receiver, and pull from Jaeger, Zipkin, Grafana Tempo and Datadog APM

@@ -68,8 +68,7 @@ Azure DevOps has no API that returns a commit's diff, so SerOps fetches each cha
 
 | Data | Description | Method |
 |------|-------------|--------|
-| **Commits** | Recent commits with diffs | Webhook + API |
-| **Pull Requests** | PR status and reviews | Webhook |
+| **Commits** | Recent commits with diffs | API |
 | **Build Pipelines** | Azure Pipelines status | Webhook |
 | **Deployments** | Release pipeline deployments | Webhook |
 
@@ -96,10 +95,11 @@ SerOps auto-generates a webhook secret when you create a CI/CD binding. To get t
 3. Create a new subscription:
    - **Service**: Web Hooks
    - **Trigger events**:
-     - ✅ Code pushed
-     - ✅ Pull request created/updated
-     - ✅ Build completed
+     - ✅ Run state changed (Pipelines)
      - ✅ Release deployment completed
+
+     SerOps ignores other event types on this URL, including Code pushed and
+     Build completed.
    - **URL**: The binding-specific URL from step 1
    - **Basic authentication password**: The auto-generated secret from step 1
    - **Resource details to send**: All

@@ -1,6 +1,6 @@
 ---
 seo_title: "Bitbucket integration (code and Pipelines)"
-description: "Connect Bitbucket Cloud or Server to SerOps for commits and Bitbucket Pipelines runs linked to incidents."
+description: "Connect Bitbucket Cloud to SerOps for commits and Bitbucket Pipelines runs linked to incidents."
 ---
 # Bitbucket Integration
 
@@ -8,7 +8,7 @@ Connect Bitbucket repositories to SerOps for code change tracking and pipeline m
 
 ## Prerequisites
 
-- Bitbucket Cloud or Bitbucket Server/Data Center
+- Bitbucket Cloud (SerOps uses the Bitbucket Cloud 2.0 API; Bitbucket Server and Data Center are not supported)
 - A Bitbucket **access token** (repository or workspace) with repository read access
 - (Optional) Webhook configuration access
 
@@ -46,14 +46,6 @@ Configuration is managed in **Integrations**.
 5. Click **Test Connection** to verify
 6. Click **Create Integration**
 
-### Bitbucket Server / Data Center
-
-1. In Bitbucket Server: **Manage Account → HTTP Access Tokens**
-2. Create a token with:
-   - `Repository read`
-   - `Project read`
-3. In SerOps: Enter your server URL (e.g., `https://bitbucket.company.com`)
-
 ---
 
 ## What Gets Synced
@@ -61,7 +53,6 @@ Configuration is managed in **Integrations**.
 | Data | Description | Method |
 |------|-------------|--------|
 | **Commits** | Recent commits with diffs | Webhook + API |
-| **Pull Requests** | PR status and metadata | Webhook |
 | **Pipelines** | Bitbucket Pipelines status | Webhook |
 
 > **Note**: Bitbucket **Deployments** tracking is not currently supported. Use pipelines for deployment visibility.
@@ -96,9 +87,13 @@ binding to replace it. To register the webhook with Bitbucket automatically:
      SerOps refuses any delivery that is unsigned or signed with another
      secret
    - **Triggers**:
-     - ✅ Repository: Push
-     - ✅ Pull Request: Created, Updated, Merged
-     - ✅ Build status: Created, Updated (for Pipelines; "Updated" carries the final result)
+     - ✅ Build status: Created, Updated ("Updated" carries the final result).
+       This URL refuses every other event with 403.
+
+Commits pushed to the repository arrive on a separate repository webhook,
+`https://your-serops.com/api/webhooks/scm/{scm_binding_id}/`, which
+`POST /api/projects/scm-bindings/{id}/setup-webhook/` registers with the
+repository connection's own secret.
 
 ---
 
@@ -127,4 +122,3 @@ SerOps will prompt for workspace when listing repositories.
 | "Invalid credentials" | Use an access token, not an app password (see the warning under Setup), and check its scopes |
 | "Repository not found" | Check workspace/repo path format |
 | "Rate limit exceeded" | Use team-level credentials or wait |
-| "SSL error" (Server) | Add Bitbucket Server CA to trust store |

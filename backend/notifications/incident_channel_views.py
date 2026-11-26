@@ -8,7 +8,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import IncidentNotificationChannel
+from .models import FLOOR_RANK, IncidentNotificationChannel
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,15 @@ class IncidentNotificationChannelSerializer(serializers.ModelSerializer):
 
     def get_has_api_key(self, obj):
         return bool(obj.api_key)
+
+    def validate_min_severity(self, value):
+        if not value:
+            return ''
+        if value.upper() not in FLOOR_RANK:
+            raise serializers.ValidationError(
+                f'Invalid severity {value!r}. Allowed: {sorted(FLOOR_RANK)}'
+            )
+        return value.upper()
 
     def validate_kind(self, value):
         valid = {k for k, _ in IncidentNotificationChannel.KIND_CHOICES}

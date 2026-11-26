@@ -20,8 +20,19 @@ GET /api/data/issues/
 |-----------|-------------|
 | `page` | Page number (default: 1) |
 | `page_size` | Results per page (default: 20) |
-| `severity` | Filter by `CRITICAL`, `WARNING` |
+| `severity` | Filter by `CRITICAL`, `WARNING`, `INFO`, `UNKNOWN` |
 | `status` | Filter by `OPEN`, `MUTED`, `RESOLVED` |
+| `sort_by` | `severity` (default), `timestamp`, `description`, `created_at`, `last_seen_at`, `count`, `component`, `type`, `status` |
+| `sort_dir` | `desc` (default) or `asc` |
+| `search` | Text search in description, component, root cause and error target |
+| `project` | Project ID |
+| `environment` | Environment name |
+| `component` | Service name; also finds issues that list it among affected services |
+| `cluster` | Cluster ID |
+| `deployment` | Deployment ID |
+| `region` | Deployment region |
+| `namespace` | Deployment namespace |
+| `since_hours` | Issues seen in the last N hours (1 to 8760) |
 
 **Response fields:**
 
@@ -31,7 +42,7 @@ GET /api/data/issues/
 | `component` | Affected service or module |
 | `status` | `OPEN`, `MUTED`, `RESOLVED` |
 | `occurrence_count` | Times this issue was detected |
-| `severity` | `CRITICAL`, `WARNING` |
+| `severity` | `CRITICAL`, `WARNING`, `INFO`, `UNKNOWN` |
 
 ## Issues by Batch
 
@@ -48,6 +59,15 @@ POST /api/data/issues/{issue_id}/resolve/
 ```
 
 Sets the issue status to `RESOLVED`. Returns the updated issue object.
+
+The body is optional. `root_cause` and `fix` (strings, up to 2,000 characters each) record what actually happened, as confirmed or corrected by the person resolving:
+
+```json
+{
+  "root_cause": "Connection pool exhausted after the 14:00 deploy",
+  "fix": "Rolled back and raised the pool size"
+}
+```
 
 ## Mute Issue
 

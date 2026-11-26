@@ -102,19 +102,30 @@ docker exec ollama ollama pull qwen3:8b
 *Settings → AI Providers*, select **Ollama (Local)**.
 
 - **Base URL**: `http://<ollama-host>:11434/v1/` (note the trailing
-  `/v1/` — that's Ollama's OpenAI-compat endpoint).
+  `/v1/` — that's Ollama's OpenAI-compat endpoint). The default is
+  `http://localhost:11434/v1/`. On the Docker Compose quick start the
+  backend runs in its own container, where `localhost` is that
+  container, not your host: use the host's address, or run Ollama on the
+  `serops` network (`docker run --network serops --name ollama ...`) and
+  use `http://ollama:11434/v1/`.
 - **Model**: `qwen3:8b` (or whichever you pulled).
 - **API key**: leave blank — Ollama is keyless.
 
 Or via API:
 
 ```bash
-# Update ollama provider record with your host URL
-curl -X PATCH https://your-serops-host/api/settings/ai/providers/<ollama-provider-id>/ \
+# Save your organisation's Ollama URL (no key needed)
+curl -X POST https://your-serops-host/api/settings/api-keys/ \
   -H "Authorization: Token $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"api_base_url": "http://10.0.5.42:11434/v1/", "default_model": "qwen3:8b"}'
+  -d '{"provider_id": <ollama-provider-id>, "base_url": "http://10.0.5.42:11434/v1/"}'
 ```
+
+The model is the provider's `default_model` in the AI provider catalogue,
+which every organisation on the install shares. Changing it
+(`PATCH /api/settings/ai/providers/<ollama-provider-id>/` with
+`{"default_model": "qwen3:8b"}`) needs a staff user, or an admin on an
+install with one organisation.
 
 Set Ollama as the default provider:
 
@@ -142,8 +153,8 @@ Response:
 {"reachable": true, "models": ["qwen3:8b", "llama3.1:8b"], "error": null}
 ```
 
-Then trigger an analysis (any batch under *Data →
-Analyze with AI*) and watch the celery-worker logs. First
+Then trigger an analysis (any batch under **Analyses** →
+**Analyze with AI**) and watch the celery-worker logs. First
 analysis takes ~30–60s on CPU / ~3–8s on GPU.
 
 ## Rate limits + concurrency
@@ -163,7 +174,7 @@ instance is fine.
 ## Cost budget still applies
 
 Even at $0 per token, you can enforce a "max batches per month"
-policy via **Settings → AI Providers → Monthly budget** (Q3.3) — set
+policy via **Settings → AI Providers → Monthly budget** — set
 `monthly_budget_usd` to a nominal value with tightened
 `price_input_per_million` / `price_output_per_million` on the
 Ollama row to represent your amortized hardware cost. The

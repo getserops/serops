@@ -23,6 +23,8 @@ import IncidentChannelsService from '../../services/incidentChannels.service';
 import { SettingsService } from '../../services/settings.service';
 import './SettingsLayout.css';
 import { formatAbsolute } from '../../utils/dates';
+import { FLOOR_CHOICES, floorChoice, floorToSave } from '../../utils/severityFloor';
+import { severityLabel } from '../../utils/severityLabel';
 
 
 /**
@@ -176,7 +178,6 @@ const TRIGGER_CHOICES = [
     ['alert_triggered', 'incidentChannels.triggerAlertBatch'],
     ['critical_issue', 'incidentChannels.triggerCriticalIssue'],
 ];
-const SEVERITY_CHOICES = ['', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
 const EMPTY_FORM = {
     name: '',
@@ -237,7 +238,7 @@ const IncidentChannelsSettings = () => {
             api_key_input: '',
             extra_config: channel.extra_config || {},
             trigger_events: channel.trigger_events || [],
-            min_severity: channel.min_severity || '',
+            min_severity: floorChoice(channel.min_severity),
             is_active: channel.is_active,
         });
         const to = channel.extra_config?.to;
@@ -250,7 +251,7 @@ const IncidentChannelsSettings = () => {
         try {
             setSaving(true);
             // Strip empty secret fields so we don't blank them on edit.
-            const payload = { ...form };
+            const payload = { ...form, min_severity: floorToSave(form.min_severity) };
             if (!payload.webhook_url_input) delete payload.webhook_url_input;
             if (!payload.api_key_input) delete payload.api_key_input;
             if (payload.kind === 'email') {
@@ -374,7 +375,7 @@ const IncidentChannelsSettings = () => {
                                             </Badge>
                                         ))}
                                 </td>
-                                <td data-label={t('incidentChannels.minSeverity')}>{c.min_severity || <span className="text-muted small">{t('incidentChannels.anySeverity')}</span>}</td>
+                                <td data-label={t('incidentChannels.minSeverity')}>{floorChoice(c.min_severity) ? severityLabel(t, floorChoice(c.min_severity)) : <span className="text-muted small">{t('incidentChannels.anySeverity')}</span>}</td>
                                 <td data-label={t('incidentChannels.status')}>
                                     {c.is_active
                                         ? <Badge bg="success">{t('common.active') || 'Active'}</Badge>
@@ -539,14 +540,14 @@ const IncidentChannelsSettings = () => {
                             </Form.Text>
                         </Form.Group>
 
-                        <Form.Group className="mb-3">
+                        <Form.Group className="mb-3" controlId="channel-min-severity">
                             <Form.Label>{t('incidentChannels.minSeverity')}</Form.Label>
                             <Form.Select
                                 value={form.min_severity}
                                 onChange={(e) => setForm({ ...form, min_severity: e.target.value })}
                             >
-                                {SEVERITY_CHOICES.map((s) => (
-                                    <option key={s || 'any'} value={s}>{s || t('incidentChannels.anySeverity')}</option>
+                                {FLOOR_CHOICES.map((s) => (
+                                    <option key={s || 'any'} value={s}>{s ? severityLabel(t, s) : t('incidentChannels.anySeverity')}</option>
                                 ))}
                             </Form.Select>
                         </Form.Group>

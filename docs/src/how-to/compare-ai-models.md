@@ -19,15 +19,15 @@ Re-analyze batches with different AI models and compare the results side by side
 
 ### Common Model Characteristics
 
-The models available for re-analysis depend on your organisation's configured API keys. Common options include:
+The models available for re-analysis depend on your organisation's configured API keys. A new install seeds these default models:
 
-| Model | Strengths | Trade-offs |
-|-------|-----------|------------|
-| **Gemini 1.5 Pro** | Thorough analysis, strong root-cause identification | Higher cost, slower |
-| **Gemini 1.5 Flash** | Good balance of speed and quality | Moderate cost |
-| **DeepSeek Chat** | Fast, cost-effective | May miss subtle patterns in complex logs |
-| **GPT-4** | Strong reasoning | Higher cost per token |
-| **Claude** | Excellent reasoning and nuance | Higher cost |
+| Provider | Default model |
+|----------|---------------|
+| **Google Gemini** | `gemini-3.6-flash` |
+| **Anthropic Claude** | `claude-sonnet-5-5` |
+| **OpenAI** | `gpt-5.6-terra` |
+| **DeepSeek** | `deepseek-v4-flash` |
+| **Ollama (Local)** | `qwen3:8b` |
 
 !!! note
     Any AI provider registered in **Settings > AI Providers** with a valid API key for your organisation will appear as a re-analysis option. See [Admin Guide - Settings](../admin/settings.md) for how to configure providers.
@@ -51,15 +51,15 @@ The models available for re-analysis depend on your organisation's configured AP
 ## Step 2: Re-Analyze with a Different Model
 
 1. Click the **"Analyze with AI"** dropdown button
-2. The dropdown dynamically shows all models your organisation has configured (based on active API keys)
-3. Select the model you want to use for re-analysis
-4. A confirmation dialog appears showing the number of batches and estimated token usage
-5. Click **Confirm**
+2. The dropdown dynamically shows all models your organisation has configured (based on active API keys), in two groups
+3. Choose one:
+    - **Re-run with {model}** — replaces the batch's primary analysis and updates its Issues
+    - **Compare with {model}** — keeps the primary analysis and adds the result to the batch's analysis history, for the comparison view
 
-The re-analysis task is queued as a background Celery task. Processing time depends on batch size and model.
+The re-analysis is queued as a background Celery task as soon as you choose; there is no confirmation step. Processing time depends on batch size and model.
 
 !!! info
-    Re-analysis does not replace the original analysis. Each model's results are stored separately, allowing you to compare them.
+    Both modes add the result to the batch's analysis history, which keeps the last five results.
 
 !!! warning "No models showing?"
     If the dropdown is empty, your organisation has no API keys configured for any active AI provider. Ask your admin to add API keys in **Settings > AI Providers**.
@@ -80,9 +80,9 @@ You can continue using SerOps while the re-analysis runs in the background.
 
 ## Step 4: Compare Model Results
 
-1. Select a batch that has been analyzed by multiple models
+1. Select one batch that has been analyzed by multiple models
 2. Click the **"Analyze with AI"** dropdown
-3. Select **"Compare Model Results"**
+3. Select **"Open comparison view"**
 4. A side-by-side comparison view opens showing:
 
     | Section | What It Shows |
@@ -102,7 +102,7 @@ First, check which models your organisation can use:
 
 ```bash
 curl https://api.yourdomain.com/api/settings/ai/available-models/ \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Token YOUR_TOKEN"
 ```
 
 Response:
@@ -121,11 +121,11 @@ Only models with an active API key (configured under Settings → AI Providers) 
 
 ### Queue a Re-Analysis
 
-The `model` field accepts any provider name returned by the available models endpoint:
+The `model` field accepts any provider name returned by the available models endpoint. The optional `mode` field is `compare` (the default) or `primary`, as in the two menu groups above:
 
 ```bash
 curl -X POST https://api.yourdomain.com/api/data/batches/reanalyze/ \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Token YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "batch_ids": ["batch-001", "batch-002"],
@@ -138,7 +138,10 @@ Response:
 ```json
 {
   "status": "queued",
-  "message": "2 batches queued for re-analysis with deepseek"
+  "message": "Comparison analysis queued for 2 batch(es) with model deepseek",
+  "batch_ids": ["batch-001", "batch-002"],
+  "model": "deepseek",
+  "mode": "compare"
 }
 ```
 
@@ -146,7 +149,7 @@ Response:
 
 ```bash
 curl https://api.yourdomain.com/api/data/batches/batch-001/history/ \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Token YOUR_TOKEN"
 ```
 
 Response:
@@ -179,14 +182,15 @@ Response:
 
 Each re-analysis consumes AI tokens that are recorded for [cost visibility](ai-costs.md). Token usage (input and output) is tracked per re-analysis and visible in the analysis history.
 
-Estimate token spend before running large batch comparisons. Reference pricing for common models:
+Estimate token spend before running large batch comparisons. The prices a new install uses for its cost estimates, per provider (see [Track AI Costs](ai-costs.md#what-gets-recorded)):
 
-| Model | Approximate Cost per 1M Input Tokens | Approximate Cost per 1M Output Tokens |
+| Provider (default model) | Estimate per 1M Input Tokens | Estimate per 1M Output Tokens |
 |-------|---------------------------------------|----------------------------------------|
-| Gemini 1.5 Pro | $0.075 | $0.30 |
-| Gemini 1.5 Flash | $0.02 | $0.08 |
-| DeepSeek Chat | $0.014 | $0.028 |
-| GPT-4 | $0.03 | $0.06 |
+| Google Gemini (`gemini-3.6-flash`) | $0.075 | $0.30 |
+| Anthropic Claude (`claude-sonnet-5-5`) | $2.00 | $10.00 |
+| OpenAI (`gpt-5.6-terra`) | $2.00 | $12.00 |
+| DeepSeek (`deepseek-v4-flash`) | $0.014 | $0.028 |
+| Ollama (Local) | $0 | $0 |
 
 !!! warning
     Running re-analysis on a large number of batches can consume significant tokens. Start with a small sample to evaluate model quality before scaling up.

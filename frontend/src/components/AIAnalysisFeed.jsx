@@ -1,16 +1,16 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaRobot, FaExclamationCircle, FaExclamationTriangle, FaArrowRight } from 'react-icons/fa';
+import { FaArrowRight } from 'react-icons/fa';
 import { SAMPLE_PATH } from '../sample/sampleIncident';
 import './AIAnalysisFeed.css';
-import { formatAbsolute, formatRelative } from '../utils/dates';
+import { formatAbsolute, formatDayMonth, formatTime } from '../utils/dates';
+import { severityChipClass } from '../utils/tones';
+import { severityLabel } from '../utils/severityLabel';
+import './overview/Overview.css';
 
-// Badge text: darker shades of the environment colours, readable on their
-// own 12% tint (the base colours measured under 3:1).
+// Five rows: when, the sentence (two lines), the severity (1.5.6).
 const FEED_SIZE = 5;
-
-const ENV_TEXT = { production: 'var(--tone-red-text)', staging: 'var(--tone-amber-text)', dev: 'var(--tone-green-text)', development: 'var(--tone-green-text)' };
 
 const AIAnalysisFeed = ({ data, loading }) => {
     const { t } = useTranslation();
@@ -20,7 +20,7 @@ const AIAnalysisFeed = ({ data, loading }) => {
         return (
             <div className="chart-card analysis-feed-card">
                 <div className="chart-header">
-                    <h2><FaRobot className="chart-icon" /> {t('dashboard.aiAnalysisFeed', 'Recent AI Analyses')}</h2>
+                    <h2>{t('dashboard.glance.recentAnalyses')}</h2>
                     <span className="chart-subtitle">{t('dashboard.latestFindings', 'Latest findings from AI analysis')} · {t('dashboard.window.latestAnalyses', { count: FEED_SIZE })}</span>
                 </div>
                 <div className="feed-skeleton">
@@ -42,7 +42,7 @@ const AIAnalysisFeed = ({ data, loading }) => {
         return (
             <div className="chart-card analysis-feed-card">
                 <div className="chart-header">
-                    <h2><FaRobot className="chart-icon" /> {t('dashboard.aiAnalysisFeed', 'Recent AI Analyses')}</h2>
+                    <h2>{t('dashboard.glance.recentAnalyses')}</h2>
                     <span className="chart-subtitle">{t('dashboard.latestFindings', 'Latest findings from AI analysis')} · {t('dashboard.window.latestAnalyses', { count: FEED_SIZE })}</span>
                 </div>
                 <div className="no-data-message">
@@ -53,20 +53,10 @@ const AIAnalysisFeed = ({ data, loading }) => {
         );
     }
 
-    const formatTime = (isoString) => formatRelative(isoString, { fallback: '' });
-
-    const envColors = {
-        production: '#ef476f',
-        staging: '#ffd166',
-        dev: '#06d6a0',
-        development: '#06d6a0',
-        unknown: '#8b96a5',
-    };
-
     return (
         <div className="chart-card analysis-feed-card">
             <div className="chart-header">
-                <h2><FaRobot className="chart-icon" /> {t('dashboard.aiAnalysisFeed', 'Recent AI Analyses')}</h2>
+                <h2>{t('dashboard.glance.recentAnalyses')}</h2>
                 <span className="chart-subtitle">
                     {t('dashboard.totalAnalyses', '{{count}} total analyses', { count: total_analyses })} · {t('dashboard.window.latestAnalyses', { count: FEED_SIZE })}
                 </span>
@@ -75,9 +65,6 @@ const AIAnalysisFeed = ({ data, loading }) => {
             <div className="feed-list">
                 {/* Five newest, no inner scroll box: the rest are a click away. */}
                 {feed.slice(0, FEED_SIZE).map((item, index) => {
-                    const envKey = (item.environment || 'unknown').toLowerCase();
-                    const envColor = envColors[envKey] || envColors.unknown;
-
                     return (
                         <div
                             key={index}
@@ -87,33 +74,16 @@ const AIAnalysisFeed = ({ data, loading }) => {
                             role="button"
                             tabIndex={0}
                         >
-                            <div className="feed-item-header">
-                                <span
-                                    className="feed-env-badge"
-                                    style={{ backgroundColor: `${envColor}20`, color: ENV_TEXT[envKey] || 'var(--text-secondary)', borderColor: envColor }}
-                                >
-                                    {item.environment || 'unknown'}
-                                </span>
-                                <span className="feed-time" title={formatAbsolute(item.analyzed_at, { fallback: '' })}>{formatTime(item.analyzed_at)}</span>
-                            </div>
-
-                            <p className="feed-summary">{item.summary || t('dashboard.noSummary', 'Analysis completed')}</p>
-
-                            <div className="feed-item-footer">
-                                {item.critical_count > 0 && (
-                                    <span className="feed-badge feed-badge-critical">
-                                        <FaExclamationCircle /> {item.critical_count} {t('issues.critical')}
-                                    </span>
-                                )}
-                                {item.warning_count > 0 && (
-                                    <span className="feed-badge feed-badge-warning">
-                                        <FaExclamationTriangle /> {item.warning_count} {t('issues.warning', 'Warning')}
-                                    </span>
-                                )}
-                                {item.model_name && (
-                                    <span className="feed-model">{item.model_name}</span>
-                                )}
-                            </div>
+                            <span className="feed-when" title={formatAbsolute(item.analyzed_at, { fallback: '' })}>
+                                <span>{formatDayMonth(item.analyzed_at, { fallback: '' })}</span>
+                                <span>{formatTime(item.analyzed_at, { seconds: false, fallback: '' })}</span>
+                            </span>
+                            <p className="feed-summary glance-clamp-2">{item.summary || t('dashboard.noSummary', 'Analysis completed')}</p>
+                            <span className="feed-severity">
+                                {item.critical_count > 0
+                                    ? <span className={severityChipClass('CRITICAL')}>{severityLabel(t, 'CRITICAL')}</span>
+                                    : item.warning_count > 0 && <span className={severityChipClass('WARNING')}>{severityLabel(t, 'WARNING')}</span>}
+                            </span>
                         </div>
                     );
                 })}

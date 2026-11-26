@@ -25,7 +25,7 @@ graph LR
     C -->|main| D[Production]
     C -->|staging| E[Staging]
     C -->|feature/*| F[Development]
-    C -->|No match| G[Default: Production]
+    C -->|No match| G[Default: Development]
 ```
 
 SerOps uses **branch patterns** to determine which environment a deployment belongs to.
@@ -91,8 +91,8 @@ The **Environment** picker at the top left of every page filters the whole
 app: Overview, Issues, Analyses, traces and the rest follow the same choice.
 Pick **All environments** or one of production, staging and development (an
 environment set elsewhere, for example from a shared link, is listed too).
-Organisations with registered Kubernetes clusters also get a **Cluster**
-picker next to it. On the Overview, Issues and Analyses pages both choices
+Organisations with two or more registered Kubernetes clusters also get a
+**Cluster** picker next to it. On the Overview, Issues and Analyses pages both choices
 are kept in the address (`?environment=staging&cluster=3`), so a link or a
 bookmark opens the same view.
 
@@ -142,8 +142,11 @@ Data is strictly isolated per environment:
 ## API Reference
 
 ### Update Project Environments
+
+The list replaces all of the project's environments.
+
 ```
-PATCH /api/projects/{project_id}/
+PUT /api/projects/{project_id}/
 {
   "environments": [
     {

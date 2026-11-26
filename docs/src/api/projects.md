@@ -178,11 +178,11 @@ POST /api/projects/scm-bindings/{id}/auto-link/
 
 ```json
 {
-  "pipeline_id": "job/build-main"
+  "suggestion_ids": ["job/build-main"]
 }
 ```
 
-Creates the CI/CD binding for the suggested pipeline in one call. Skips having to call `POST /api/projects/cicd-bindings/` separately.
+`suggestion_ids` lists the `pipeline_id` values of the suggestions to link. Without it, a binding is created for every suggestion. Creates the CI/CD bindings in one call. Skips having to call `POST /api/projects/cicd-bindings/` separately.
 
 ### Set Up SCM Webhook
 
@@ -198,7 +198,7 @@ Registers a repository webhook on the linked SCM provider that points back at `/
 POST /api/projects/scm-bindings/{id}/sync/
 ```
 
-Pulls the latest branch list and repository metadata for this binding. Also refreshes `last_sync_at`.
+Syncs commits from the SCM provider: the last 7 days on the first sync, then everything since `last_sync_at`. Also refreshes `last_sync_at`.
 
 ### Create CI/CD Binding
 
@@ -210,12 +210,17 @@ POST /api/projects/cicd-bindings/
 
 ```json
 {
-  "service": 1,
-  "provider_type": "jenkins",
-  "pipeline_id": "job/build-main",
-  "base_url": "https://jenkins.example.com"
+  "project_service": 1,
+  "integration": 4,
+  "binding_type": "build",
+  "pipeline_id": "build-main",
+  "pipeline_name": "Build main",
+  "auto_trigger": true,
+  "trigger_branches": ["main"]
 }
 ```
+
+`project_service` is the service ID and `integration` the ID of a CI/CD [provider integration](integrations.md) (GitLab, GitHub, Azure DevOps, Jenkins, Bitbucket, Argo CD or Flux). `binding_type` is `build` (default), `deploy`, `test` or `release`. `pipeline_name`, `pipeline_url`, `auto_trigger` and `trigger_branches` are optional.
 
 ### Trigger Build
 
@@ -227,11 +232,11 @@ POST /api/projects/cicd-bindings/{id}/trigger/
 
 ```json
 {
-  "branch": "main"
+  "parameters": {"BRANCH": "main"}
 }
 ```
 
-Triggers a new build on the linked CI/CD pipeline.
+Triggers a new build of the binding's `pipeline_id`. Jenkins only; other providers return `400`. `parameters` is optional and holds the Jenkins job's own build parameters.
 
 ### Set Up CI/CD Webhook
 
@@ -239,7 +244,7 @@ Triggers a new build on the linked CI/CD pipeline.
 POST /api/projects/cicd-bindings/{id}/setup-webhook/
 ```
 
-Registers a pipeline webhook that points back at the provider-specific SerOps handler under `/api/webhooks/{provider}/{binding_id}/`. Idempotent — running it again updates the existing webhook.
+Registers a pipeline webhook that points back at the provider-specific SerOps handler under `/api/webhooks/{provider}/{binding_id}/`. Idempotent — running it again updates the existing webhook. For Argo CD and Flux it registers nothing: it returns `manual_setup: true`, the `webhook_url` (`/api/providers/webhook/argocd/{binding_id}/` or `/api/providers/webhook/flux/{binding_id}/`) and the `webhook_secret` to configure on the controller.
 
 ### Sync CI/CD Binding
 

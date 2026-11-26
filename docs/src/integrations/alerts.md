@@ -199,8 +199,9 @@ SDK (`sentry_sdk.set_tag("service", "checkout-api")`) or name the Sentry
 project like the service. The environment comes from the event's
 `environment`.
 
-The secret is install-wide: every organisation on the install uses the
-same Sentry integration. Pulling Sentry errors into scheduled analyses
+The secret is install-wide, so Sentry alerts work only on a
+single-organisation install: once the install has more than one
+organisation, SerOps refuses every Sentry webhook with 401. Pulling Sentry errors into scheduled analyses
 (without an alert) is not available yet.
 
 ## 3. What happens when an alert fires
@@ -222,7 +223,7 @@ same Sentry integration. Pulling Sentry errors into scheduled analyses
 
 ## Rate limits + audit
 
-- **300 requests/min per source** via
+- **300 requests/min per client IP**, shared by every source, via
   `DEFAULT_THROTTLE_RATES["alert_webhook"]`. Sized for a noisy
   incident storm; bump in `settings.py` if you have more than that
   legitimately.

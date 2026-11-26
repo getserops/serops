@@ -4,13 +4,13 @@ description: "Register PostgreSQL, Redis, Kafka and other infrastructure compone
 ---
 # Set Up Infrastructure Services
 
-Register your infrastructure components (databases, caches, message queues, etc.) as services in SerOps to monitor their health and include them in batch analysis.
+Register your infrastructure components (databases, caches, message queues, etc.) as services in SerOps to include them in batch analysis.
 
 ---
 
 ## Overview
 
-Infrastructure Services represent the non-application components your system depends on. Unlike application services that are linked to SCM repositories, infrastructure services connect directly to your infrastructure providers for health monitoring.
+Infrastructure Services represent the non-application components your system depends on. Unlike application services that are linked to SCM repositories, infrastructure services have no repository: they record a component's type, provider, host and port. SerOps does not connect to them.
 
 ---
 
@@ -66,14 +66,13 @@ Each infrastructure type can be backed by a specific provider:
     | **Provider** | No | Specific technology (e.g., PostgreSQL, Redis) |
     | **Host** | No | Hostname or IP address |
     | **Port** | No | Port number |
-    | **Connection String** | No | Full connection URI (stored encrypted, write-only) |
-    | **Health Check URL** | No | URL for automated health monitoring |
+    | **Health Check URL** | No | Stored with the service. SerOps does not call it |
     | **Description** | No | Role and connections (max 500 chars). Passed to AI for better issue detection. |
 
 5. Click **Save**
 
 !!! warning "Connection Strings"
-    Connection strings are stored encrypted and are write-only -- they cannot be viewed after saving. If you need to update a connection string, enter the new value and save again.
+    The form has no connection string field; the API accepts one (`connection_string`). It is write-only -- it cannot be viewed after saving -- but it is stored unencrypted, so do not put a password in it. If you need to update a connection string, send the new value again.
 
 ---
 
@@ -81,7 +80,7 @@ Each infrastructure type can be backed by a specific provider:
 
 ```bash
 curl -X POST https://api.yourdomain.com/api/services/infra/ \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Token YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "project": 1,
@@ -118,21 +117,17 @@ Response:
 
 ---
 
-## Running Health Checks
+## Health Status
 
-Trigger a health check on any infrastructure service:
-
-=== "UI"
-
-    1. Navigate to **Projects > [Your Project] > Services**
-    2. Find the infrastructure service card
-    3. Click the **Health Check** button
+The `health_check` API action does not contact the service. It records
+the time in `last_health_check` and sets `health_status` to `healthy`.
+The UI has no button for it.
 
 === "API"
 
     ```bash
     curl -X POST https://api.yourdomain.com/api/services/infra/12/health_check/ \
-      -H "Authorization: Bearer YOUR_TOKEN"
+      -H "Authorization: Token YOUR_TOKEN"
     ```
 
     Response:
@@ -144,13 +139,10 @@ Trigger a health check on any infrastructure service:
     }
     ```
 
-### Health Status Values
-
 | Status | Meaning |
 |--------|---------|
-| `healthy` | Service is reachable and responding normally |
-| `unhealthy` | Service is unreachable or returning errors |
-| `unknown` | No health check has been performed yet |
+| `healthy` | The `health_check` action was called at least once |
+| `unknown` | The `health_check` action has never been called |
 
 ---
 

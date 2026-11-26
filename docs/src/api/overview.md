@@ -21,30 +21,28 @@ Authorization: Token <your-token>
 Tokens are obtained via the [Login endpoint](authentication.md#login) and follow a sliding expiration policy:
 
 - **Token lifetime**: 30 days from creation
-- **Auto-refresh**: Token is automatically extended on each authenticated request (at most once per hour)
-- **Hard limit**: Re-login required after 30 days of inactivity
+- **Auto-refresh**: Token is automatically extended on each authenticated request (at most once per minute)
+- **Idle timeout**: A token left unused for longer than the organisation's session timeout (default 8 hours) is deleted, and the next request returns `401`. 30 days is the ceiling, and the only limit when the timeout is set to "Never".
 
 ## Response Format
 
-### Success Response
+There is no single envelope: the shape is set per endpoint, and each page shows it.
 
-```json
-{
-  "results": [...],
-  "count": 42,
-  "next": "https://api.serops.ai/api/resource/?page=2",
-  "previous": null
-}
-```
+- Batch lists return `{"results": [...], "pagination": {"total", "limit", "offset", "next_offset", "previous_offset"}}`.
+- Issue lists return `{"results": [...], "pagination": {"total_issues", "page", "page_size", "total_pages", "next_page", "previous_page"}, "summary": {...}}`.
+- Many other lists, such as notifications and escalation rules, return a bare JSON array.
 
 ### Error Response
 
+Most errors return an `error` key:
+
 ```json
 {
-  "error": "Short title",
-  "detail": "Verbose description of what went wrong"
+  "error": "Short description of what went wrong"
 }
 ```
+
+Serializer validation errors (`400`) return the DRF default: one list of messages per field.
 
 ### Common HTTP Status Codes
 
@@ -61,14 +59,23 @@ Tokens are obtained via the [Login endpoint](authentication.md#login) and follow
 
 ## Rate Limiting
 
-Sensitive authentication endpoints are throttled per client IP via DRF's `ScopedRateThrottle`. Other endpoints are not globally rate-limited today.
+The endpoints below are throttled with DRF scoped rate limits, counted per client IP (the SCIM limit counts per SCIM token). Other endpoints are not rate-limited.
 
 | Scope | Endpoint | Rate |
 |-------|----------|------|
 | `auth_login` | `POST /api/auth/login` | 10 / minute |
 | `auth_register` | `POST /api/auth/register` | 5 / hour |
-| `auth_password_reset` | `POST /api/auth/password/forget` | 5 / hour |
+| `auth_password_reset` | `POST /api/auth/password/forget`, `POST /api/auth/accept/password` | 5 / hour |
 | `auth_sso_init` | `POST /api/auth/sso/init` | 20 / hour |
+| `auth_sso_exchange` | `POST /api/auth/sso/exchange` | 30 / hour |
+| `auth_demo_login` | `POST /api/auth/demo-login` | 30 / minute |
+| `auth_saml_acs` | `POST /api/ee/saml/{sp_id}/acs/` | 60 / minute |
+| `scim` | `/api/ee/scim/v2/*` | 600 / minute |
+| `otlp_ingest` | `POST /api/traces/v1/traces` | 3000 / minute |
+| `alert_webhook` | `POST /api/webhooks/alerts/{source}/{org_id}/` | 300 / minute |
+| `webhook_deployment` | `POST /api/providers/webhook/{deployment,argocd,flux}/{binding_id}/` | 600 / hour |
+
+Login also returns `429` after repeated failed sign-ins for one account: 10 from one address, or 100 in all, within 15 minutes.
 
 When rate-limited the API returns `429 Too Many Requests` with a `Retry-After` header telling the client when it may try again.
 
@@ -84,5 +91,7 @@ When rate-limited the API returns `429 Too Many Requests` with a `Retry-After` h
 | [Notifications](notifications.md) | Alerts, preferences, escalation rules |
 | [Integrations](integrations.md) | Global SCM/CI-CD provider integrations |
 | [Observability](observability.md) | Log and metric provider connections |
+| [Clusters](clusters.md) | Kubernetes cluster registration |
+| [Traces](traces.md) | OTLP trace ingestion, ingest keys, stored traces |
 | [Settings & Admin](settings.md) | Organisation settings, security, audit |
 | [Dashboard & Analytics](analytics.md) | Health scores, trends, MTTR, deployments |

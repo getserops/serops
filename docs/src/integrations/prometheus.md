@@ -53,7 +53,7 @@ Prometheus supports multiple authentication methods depending on your deployment
     metrics (`node_*`). On a cluster that only has container metrics it
     reads nothing, while the health check says OK. Set **Topology Mode →
     Kubernetes** on the integration (or `PATCH` `topology_mode:
-    kubernetes`) before anything else; since this release the health check
+    kubernetes`) before anything else; since 1.5.0 the health check
     also says so when it sees container metrics and no node metrics.
 
 Set the integration's `topology_mode` to `kubernetes` (Integrations → your Prometheus integration → Topology Mode, or `PATCH` the API) to switch SerOps from node-level PromQL to container-level metrics aggregated by service:

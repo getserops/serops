@@ -179,13 +179,13 @@ nav:
       - Google Cloud: integrations/gcp.md
       - Azure Monitor: integrations/azure.md
     - Distributed Traces:
-      - OpenTelemetry (OTLP): integrations/traces.md
+      - OTLP, Jaeger, Zipkin, Tempo, Datadog APM: integrations/traces.md
     - Real-time Alerts:
-      - Alertmanager / Grafana / Datadog Monitors: integrations/alerts.md
+      - Alertmanager / Grafana / Datadog Monitors / Sentry: integrations/alerts.md
     - GitOps:
       - ArgoCD + Flux: integrations/gitops.md
     - Post-RCA Notifications:
-      - Slack / Teams / PagerDuty / OpsGenie: integrations/notifications.md
+      - Slack / Teams / PagerDuty / OpsGenie / Email: integrations/notifications.md
   - Admin Guide:
     - Settings Reference: admin/settings.md
     - Integrations: admin/integrations.md

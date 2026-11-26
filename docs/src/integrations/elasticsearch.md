@@ -16,7 +16,7 @@ Elasticsearch is a distributed search and analytics engine used as a log provide
 
 - Elasticsearch 7.17 or later (tested: 7.17.25, 8.15.3 — see [Compatibility](compatibility.md))
 - Network access from the SerOps backend to the Elasticsearch cluster
-- A user or API key with read permissions on the target indices
+- A user or API key with read permissions on the target indices, and write access to `serops-cicd-*`: SerOps stores the CI/CD events it receives (deploys, builds) in `serops-cicd-<organisation>` with the bulk API and reads them back during an analysis
 
 ## Configuration
 
@@ -52,7 +52,7 @@ Elasticsearch is a distributed search and analytics engine used as a log provide
 Elasticsearch supports two authentication methods:
 
 - **Basic Auth**: Provide `username` and `password` at the top level of the configuration.
-- **API Key**: Provide a base64-encoded API key in `extra_config.api_key`. When an API key is present, it takes precedence over basic auth credentials.
+- **API Key**: Provide a base64-encoded API key in `extra_config.api_key`. Set one or the other: SerOps passes both to the Elasticsearch client when both are set.
 
 ## Extra Configuration
 
@@ -298,7 +298,7 @@ The same applies when shipping to OpenSearch or to Splunk through HEC.
 | "401 Unauthorized" | Check `username`/`password` or `api_key` are correct |
 | "SSL certificate error" | Ensure the cluster certificate is trusted, or set `verify_certs: false` in `extra_config` (not recommended for production) |
 | "No data returned" | Verify the time range has data; check that `capabilities` includes `"logs"`; set **Index pattern** if your logs are not in `logs-*`, `filebeat-*`, `logstash-*` or SerOps-named indices |
-| Filters return 0 hits on a fresh index | Apply the recommended index template above — or upgrade to a SerOps build ≥ `ce1f9aa` (Sept 2026) whose adapter auto-uses `.keyword` sub-fields |
+| Filters return 0 hits on a fresh index | Apply the recommended index template above. Every SerOps release since 1.0.0 also uses the `.keyword` sub-fields automatically |
 
 ## Related Pages
 

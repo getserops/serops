@@ -6,7 +6,7 @@ description: "Use SerOps with an OTEL-forward stack: OTLP traces to SerOps, Prom
 
 SerOps is **log-centric by design**. The onboarding wizard requires at
 least one observability integration with the `logs` capability before
-step 3 (Connect Observability) can complete. If you're running an
+the Connect Observability step can complete. If you're running an
 OTEL-forward stack — OTLP traces to SerOps, Prometheus for metrics,
 no dedicated log store — you'll hit this early:
 
@@ -74,7 +74,7 @@ service:
       exporters: [prometheusremotewrite]
 ```
 
-Then in SerOps → Integrations → Log Providers → Add Integration:
+Then in SerOps → Integrations → Log Providers → **Add log provider**:
 
 - **Provider**: Grafana Loki
 - **URL**: `http://loki:3100`
@@ -122,7 +122,7 @@ weaker than the equivalent log+trace analyses.
 Making SerOps first-class for OTEL-forward stacks means teaching the
 RCA prompt to reason from span events alone when logs are absent, and
 adjusting the correlation engine to elevate trace evidence when logs
-are empty. That's on the roadmap for post-v1.0. Until then, the
+are empty. That's on the roadmap. Until then, the
 Loki-bridge or ES-bridge above is the recommended path — both are
 one exporter block, both give you the full RCA quality SerOps was
 designed for.

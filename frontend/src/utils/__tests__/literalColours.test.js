@@ -29,7 +29,8 @@ describe('literal colour check', () => {
 
   it('the files this review wrote hold none', () => {
     const counts = scan();
-    for (const file of ['utils/tones.js', 'utils/dates.js', 'components/CorrelationStrip.jsx', 'components/ServiceHealthHeatmap.jsx',
-      'components/NeedsAttention.css']) expect(counts[file]).toBeUndefined();
+    for (const file of ['utils/tones.js', 'utils/dates.js', 'components/CorrelationStrip.jsx', 
+      'components/NeedsAttention.css', 'components/overview/StatusCard.jsx', 'components/overview/ServicesPanel.jsx',
+      'components/overview/CausesBar.jsx', 'components/overview/Overview.css']) expect(counts[file]).toBeUndefined();
   });
 });

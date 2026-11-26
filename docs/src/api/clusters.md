@@ -39,7 +39,7 @@ POST /api/integrations/clusters/
 {
   "name": "prod-eu-west-1",
   "region": "eu-west-1",
-  "provider": "aws",
+  "provider": "eks",
   "is_active": true
 }
 ```
@@ -48,7 +48,7 @@ POST /api/integrations/clusters/
 |-------|------|-------------|
 | `name` | string | Human-readable identifier, unique within the organisation. |
 | `region` | string | Cloud region or datacentre label. |
-| `provider` | string | Where it runs — for example `aws`, `gcp`, `azure`, `on-prem`. |
+| `provider` | string | Where it runs: `kubernetes`, `eks`, `gke`, `aks`, `openshift`, `rke`, `kind`, `minikube`, `bare_metal` or `other`. |
 | `is_active` | boolean | Inactive clusters are excluded from batch generation. |
 
 ## Scope Matching
@@ -56,7 +56,7 @@ POST /api/integrations/clusters/
 Clusters do not select integrations on their own. An
 `IntegrationScope` record binds an observability integration to some
 combination of cluster, environment, region, and namespace, and each
-scope carries a priority tier — `primary`, `fallback`, or `tertiary`.
+integration carries a priority tier — `primary`, `fallback`, or `tertiary`.
 
 When a batch runs for a deployment, SerOps scores every candidate
 integration by how specifically its scope matches, then walks the tiers

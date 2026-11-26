@@ -12,7 +12,7 @@ A batch is a snapshot of your system at a point in time:
 
 | Field | Description |
 |-------|-------------|
-| `batch_id` | Unique identifier (e.g., `batch_20260107_143000_a1b2`) |
+| `batch_id` | Unique identifier: the project name, `-batch-`, the creation time and a short suffix (e.g., `payment-platform-batch-20260107143000-a1b2`) |
 | `timestamp` | When the batch was created |
 | `logs_analyzed` | Number of log entries |
 | `issue_count` | Number of issues found |
@@ -23,7 +23,7 @@ A batch is a snapshot of your system at a point in time:
 
 ## Batch Creation
 
-Batches are created automatically at a configurable interval (default: every 10 minutes). Each organisation can set its own interval (5 minutes to 12 hours) under **Settings → Data Management → Batch Generation Interval**. See [Batch Generation Interval](../admin/data-retention.md#batch-generation-interval) for details.
+Batches are created automatically at a configurable interval (default: every 15 minutes). Each organisation can set its own interval (5 minutes to 12 hours) under **Settings → Data retention → Batch Generation Interval**. See [Batch Generation Interval](../admin/data-retention.md#batch-generation-interval) for details.
 
 ### Pipeline Overview
 
@@ -159,25 +159,28 @@ Navigate to **Analyses** in the sidebar.
 | Column | Description |
 |--------|-------------|
 | Timestamp | When created |
-| Batch ID | Click to view details |
-| Project | Parent project |
-| Environment | PRODUCTION / STAGING / DEV |
+| Analysis ID | The batch ID |
+| Projects | Parent project |
+| Environment | Production / Staging / Development |
+| **Trigger** | What created the batch: **Scheduled**, **Alert received** or **Investigation** |
 | **Sentinel** | Decision badge — see below |
-| Deploys | Deployment count |
-| Issues | Count and severity |
-| Status | Analyzed, Pending, Failed |
+| Issues | Number of issues found; click it to see them |
+| Status | Analyzed, Pending, Failed, Skipped, Sentinel: Quiet, Sentinel: Shadow |
+| Actions | Opens the analysis |
 
 ### Sentinel Decision Badges
 
-Each batch shows a colored badge indicating the Sentinel decision:
+Each batch shows a badge with the Sentinel decision. Hover it to see the reasons (for example **New deployment** or **Error rate spike**):
 
-| Badge | Color | Meaning |
-|-------|-------|---------|
-| **ALERT** | Red | Real triggers detected (deployment, error spike, anomaly, etc.) — AI analysis ran |
-| **ROUTINE** | Amber | Periodic health check — no real triggers, forced by safety net |
-| **QUIET** | Green | No triggers — AI skipped (active mode) or ran (shadow mode) |
-| **FIRST** | Blue | First batch for this project+environment — AI always runs |
-| **SHADOW** | Grey | Evaluated in shadow mode (pre-Sentinel or no decision) |
+| Badge | Meaning |
+|-------|---------|
+| **Signals found** | Real triggers detected (deployment, error spike, anomaly, etc.) — AI analysis ran |
+| **Periodic check** | Periodic health check — no real triggers, forced by safety net |
+| **AI skipped: nothing new** | No triggers — AI skipped (active mode) |
+| **Nothing new, AI ran anyway (shadow mode)** | No triggers — AI ran because Sentinel is in shadow mode |
+| **First analysis** | First batch for this project+environment — AI always runs |
+| **Shadow mode** | Evaluated in shadow mode (pre-Sentinel or no decision) |
+| **Not consulted** | An investigation; it always runs the AI |
 
 See [Sentinel How-To](../how-to/sentinel.md) for details on how decisions are made.
 
@@ -191,14 +194,15 @@ See [Sentinel How-To](../how-to/sentinel.md) for details on how decisions are ma
 
 ## Batch Details
 
-Click a batch to open the detail view, which features a single log viewer panel. Use the **Data Type** dropdown to switch between:
+Click a batch to open the detail view: a summary of the incident, then a row of tabs:
 
-| Data Type | Description |
-|-----------|-------------|
-| **Logs** | Application log entries with search and filtering |
-| **CI/CD Logs** | Pipeline logs with failure traces |
+| Tab | Description |
+|-----|-------------|
+| **Logs** | Log entries with search and filtering. The **Source** menu switches between **All**, **Logs** and **CI/CD Logs** (pipeline logs with failure traces) |
 | **Metrics** | Memory and CPU usage charts |
-| **Code Changes** | Deployed commits and file changes |
+| **Traces** | The distributed traces received for the batch |
+| **Code changes** | Deployed commits and file changes |
+| **Timeline** | One time-ordered list of the batch's events: logs, metrics, code changes, CI/CD and traces |
 
 ---
 
@@ -208,15 +212,15 @@ You can re-analyze batches with a different AI model:
 
 1. Select batch(es) via the checkbox in the batch list
 2. Click the **Analyze with AI** dropdown button
-3. Choose from the dynamically available models
+3. Choose **Re-run with {model}** for one of the configured models
 
 ### Model Comparison
 
 To compare results from different models:
 
 1. Select a batch
-2. Choose **Compare Model Results** from the dropdown
-3. This navigates to the batch detail page in comparison mode, showing side-by-side analysis results
+2. In the **Analyze with AI** dropdown, choose **Compare with {model}** to run another model while keeping the primary analysis
+3. Choose **Open comparison view** to see the analysis results side by side
 
 ---
 
@@ -225,7 +229,7 @@ To compare results from different models:
 Send batch context to AI Chat for deeper analysis:
 
 1. Select a batch
-2. Click **Chat about Batch**
+2. In the **Analyze with AI** dropdown, choose **Chat about Batch**
 3. Ask questions about the batch
 
 The AI will have full context of:
@@ -239,7 +243,7 @@ The AI will have full context of:
 
 ### Auto-Cleanup
 
-Configure in **Settings → Data Management**:
+Configure in **Settings → Data retention**:
 - Retention period (7-365 days)
 - Cleanup frequency (daily/weekly/monthly)
 
@@ -261,14 +265,9 @@ GET /api/data/batches/{batch_id}/
 ```
 POST /api/chat/analyze-batch/
 {
-  "batch_id": "batch_20260107_143000_a1b2",
+  "batch_id": "payment-platform-batch-20260107143000-a1b2",
   "model": "gemini"
 }
-```
-
-### Delete Batch
-```
-DELETE /api/data/batches/{batch_id}/
 ```
 
 ---

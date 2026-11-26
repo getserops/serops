@@ -18,13 +18,12 @@ Complete reference for all environment variables consumed by SerOps.
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `DEBUG` | No | `False` | Django debug mode. **Must be `False` in production.** |
-| `PROJECT_NAME` | No | `serops-backend` | Instance name used in emails |
 | `DJANGO_SECRET_KEY` | Yes | -- | Django secret key for cryptographic signing. Must be unique per deployment and at least 32 characters; SerOps refuses to start otherwise. |
 | `SEROPS_ENCRYPTION_KEY` | Yes | -- | Encrypts the credentials stored in the database. 32 random bytes in URL-safe base64: `openssl rand -base64 32 \| tr '+/' '-_'`. SerOps refuses to start without it. Back it up: without it stored credentials cannot be read. |
 | `SEROPS_ENCRYPTION_KEY_PREVIOUS` | No | -- | While changing the key: the old one, or several separated by commas. See [Upgrading](upgrading.md#changing-the-encryption-key). |
 | `SSO_TRUST_MISSING_EMAIL_VERIFIED` | No | `login.microsoftonline.com` | Comma-separated host names of identity providers that leave `email_verified` out of their claims. Any other provider must return `email_verified: true`. On these hosts a multi-tenant discovery URL (`/common/`, `/organizations/`, `/consumers/`) is refused. |
-| `ALLOWED_HOSTS` | Yes | -- | Comma-separated list of allowed hostnames (e.g., `serops.yourdomain.com,backend`) |
-| `CORS_ALLOWED_ORIGINS` | Yes | -- | Comma-separated CORS origins (e.g., `https://serops.yourdomain.com`) |
+| `ALLOWED_HOSTS` | Yes | `localhost,127.0.0.1` | Comma-separated list of allowed hostnames (e.g., `serops.yourdomain.com,backend`) |
+| `CORS_ALLOWED_ORIGINS` | Yes | `http://localhost:3003` | Comma-separated CORS origins (e.g., `https://serops.yourdomain.com`) |
 
 ---
 
@@ -32,7 +31,7 @@ Complete reference for all environment variables consumed by SerOps.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `REGISTRATION_ENABLED` | No | unset (automatic) | Whether anonymous visitors can create a **new organisation** via `POST /api/auth/register`. **Unset:** open until the first real organisation exists (first sign-up or `createsuperuser`), then closed — a single-company install closes itself once set up. **`True`:** always open, for an instance hosting several teams. **`False`:** always closed. When closed, registrations return `403 registration_disabled`; existing users can still log in, and invitations to join an existing organisation always work. |
+| `REGISTRATION_ENABLED` | No | unset (automatic) | Whether anonymous visitors can create a **new organisation** via `POST /api/auth/register`. **Unset:** open until the first real organisation exists (first sign-up or `createsuperuser`), then closed — a single-company install refuses new sign-ups once set up. **`True`:** always open, for an instance hosting several teams. **`False`:** always closed. When closed, the `/register` page says sign-up is closed and offers sign-in, with no form, and registrations return `403 registration_disabled`; existing users can still log in, and invitations to join an existing organisation always work. |
 | `DJANGO_ADMIN_ENABLED` | No | `False` | Exposes the Django admin at `/api/admin/` (staff accounts only; failed logins are limited to 10 per 10 minutes per client). Off by default: SerOps itself never needs it, and superusers sign in to the app normally. |
 | `SEROPS_API_DOCS` | No | `False` | Serves the interactive API reference (Swagger UI) at `/api/docs/`. Off by default outside `DEBUG`: it lists every endpoint to anyone who can reach the instance. |
 | `TRUSTED_PROXY_COUNT` | No | `1` | How many reverse proxies sit in front of the backend. Login rate limits identify a client by the address the trusted proxy adds to `X-Forwarded-For`, so a client can't dodge them with a fake header. `1` fits the bundled Caddy (Compose) and ingress-nginx (Helm); raise it if, for example, a cloud load balancer sits in front of those. |
@@ -87,7 +86,9 @@ id, no query string, no search or chat text. Do Not Track is respected.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SEROPS_VERSION` | No | `1.5.5` | Version tag for SerOps Docker images (backend + frontend) |
+| `SEROPS_VERSION` | No | `1.5.6` | Version tag for SerOps Docker images (backend + frontend) |
+| `SEROPS_BACKEND_IMAGE` | No | `ghcr.io/getserops/backend:${SEROPS_VERSION}` | Full backend image reference, for pulling from your own registry mirror (quick-start `docker-compose.yml`) |
+| `SEROPS_FRONTEND_IMAGE` | No | `ghcr.io/getserops/frontend:${SEROPS_VERSION}` | Full frontend image reference, for pulling from your own registry mirror (quick-start `docker-compose.yml`) |
 
 ---
 
@@ -97,9 +98,10 @@ id, no query string, no search or chat text. Do Not Track is respected.
 |----------|----------|---------|-------------|
 | `SEROPS_DOMAIN` | Yes | `localhost` | Bare hostname SerOps is served on (e.g. `serops.yourdomain.com`) — **no scheme**. Caddy uses it as its site address and requests a Let's Encrypt certificate for it. |
 | `API_URL` | Yes | -- | Public API URL, e.g. `https://serops.yourdomain.com/api`. Used to build account-activation links in emails. |
-| `SERVER_URL` | Yes | -- | Public API URL, normally the same as `API_URL`. Used for the webhook URLs SerOps registers in GitLab, GitHub and other providers — it must be reachable from them. |
+| `SERVER_URL` | Yes | -- | Public API URL, normally the same as `API_URL`. Used for the webhook URLs SerOps registers in GitLab, GitHub and other providers — it must be reachable from them. The Helm chart sets it to its public URL plus `/api`; a value under `backend.env` wins. |
 | `REACT_URL` | Yes | -- | Public UI URL, e.g. `https://serops.yourdomain.com`. Added to the CORS allow-list automatically. |
-| `BASE_URL` | Yes | -- | Public UI URL used in links inside emails and notifications. |
+| `BASE_URL` | Yes | -- | Public UI URL used in links inside emails and notifications. The Helm chart sets it to its public URL; a value under `backend.env` wins. |
+| `SEROPS_PUBLIC_BASE_URL` | No | value of `REACT_URL` | Older name for the UI URL in the analysis links that delivery channels send. When set, it wins over `REACT_URL`. |
 
 The quick-start `.env.example` derives all four from `SEROPS_DOMAIN`, so a
 compose install only sets the domain.
@@ -110,11 +112,14 @@ compose install only sets the domain.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DB_NAME` | No | `serops` | PostgreSQL database name |
-| `DB_USER` | No | `serops` | PostgreSQL username |
+| `POSTGRES_DB` | No | `serops` | Quick start only: database the `postgres` container creates. |
+| `POSTGRES_USER` | No | `serops` | Quick start only: user the `postgres` container creates. |
+| `POSTGRES_PASSWORD` | Yes (quick start) | -- | Quick start only: that user's password. The stack refuses to start without it. |
+| `DB_NAME` | No | -- | PostgreSQL database name |
+| `DB_USER` | No | -- | PostgreSQL username |
 | `DB_PASSWORD` | Yes | -- | PostgreSQL password |
-| `DB_HOST` | No | `postgres` | PostgreSQL host. Use `postgres` for the bundled container or your server hostname for external. |
-| `DB_PORT` | No | `5432` | PostgreSQL port |
+| `DB_HOST` | No | -- | PostgreSQL host. The quick-start's `docker-compose.yml` sets it to `postgres` for the backend, over any value in `.env`. |
+| `DB_PORT` | No | -- | PostgreSQL port. The quick-start's `docker-compose.yml` sets it to `5432`, over any value in `.env`. |
 | `DATABASE_URL` | No | -- | Full connection string, e.g. `postgres://user:pass@host:5432/serops`. When set and parseable it **overrides** all `DB_*` variables above. |
 
 !!! tip "`DATABASE_URL` or `DB_*` — pick one per install"
@@ -134,14 +139,15 @@ compose install only sets the domain.
     `DATABASE_URL` logs a warning and falls back to `DB_*` rather than
     silently connecting somewhere unintended.
 
-Example for external PostgreSQL:
+The quick-start `.env.example` sets `DB_NAME`, `DB_USER` and `DB_PASSWORD`
+from `POSTGRES_DB`, `POSTGRES_USER` and `POSTGRES_PASSWORD`.
+
+Example for external PostgreSQL with the quick-start (see
+[Production → Use an external Postgres](production.md#use-an-external-postgres)
+for the changes to `docker-compose.yml`):
 
 ```env
-DB_HOST=your-pg-server.internal
-DB_PORT=5432
-DB_NAME=serops
-DB_USER=serops
-DB_PASSWORD=s3cur3-pa$$word
+DATABASE_URL=postgres://serops:s3cur3-pa%24%24word@your-pg-server.internal:5432/serops
 ```
 
 ---
@@ -150,9 +156,22 @@ DB_PASSWORD=s3cur3-pa$$word
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `CELERY_BROKER_URL` | No | `redis://redis:6379/0` | Redis URL for the Celery message broker |
-| `CELERY_RESULT_BACKEND` | No | `redis://redis:6379/0` | Redis URL for Celery task results |
+| `REDIS_PASSWORD` | Yes (quick start) | -- | Quick start only: password of the bundled Redis, used in the three Redis URLs below. The stack refuses to start without it. |
+| `CELERY_BROKER_URL` | No | -- | Redis URL for the Celery message broker. The quick-start's `docker-compose.yml` sets `redis://:${REDIS_PASSWORD}@redis:6379/0`. |
+| `CELERY_RESULT_BACKEND` | No | -- | Redis URL for Celery task results. The quick-start's `docker-compose.yml` sets the same value as the broker. |
 | `REDIS_URL` | No | value of `CELERY_BROKER_URL` | Redis URL for the shared cache (login throttles, the AI circuit breaker and rate limiter, SAML request tracking) and the batch scheduler's lock. Falls back to `CELERY_BROKER_URL` when unset. `redis://`, `rediss://` (TLS) and `unix://` are accepted; outside `DEBUG`, any other scheme stops the backend at start, and with neither variable set it starts with a warning and keeps the cache per process. |
+
+---
+
+## Worker processes
+
+Read by `backend/start.sh` when the backend container starts.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `GUNICORN_WORKERS` | No | `3` | Gunicorn worker processes for the API |
+| `GUNICORN_THREADS` | No | `2` | Threads per Gunicorn worker |
+| `CELERY_CONCURRENCY` | No | `4` | Celery worker processes |
 
 ---
 
@@ -161,12 +180,13 @@ DB_PASSWORD=s3cur3-pa$$word
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `BATCH_SCHEDULER_TICK_RATE` | No | `1` | How often (in minutes) Celery Beat checks whether any organisation is due for a new batch. Keep at `1` unless you need to reduce scheduler overhead. |
-| `BATCH_GENERATION_INTERVAL` | No | `15` | Default batch interval in minutes for organisations that have not set their own. |
+| `BATCH_GENERATION_INTERVAL` | No | `15` | Default batch interval in minutes for organisations that have not set their own. Unset, two older code paths (the batch task lock and the window of a run with no interval) read it as `5`; the quick-start `.env.example` sets `15`. |
 | `SEROPS_MAX_LOG_WINDOW_MINUTES` | No | `360` | The longest window a scheduled run reads logs over. A run continues from where the last saved batch ended (a run whose log store refused the query does not count), so after quiet hours or an outage it would otherwise re-read hours of logs. When the cap applies, the batch says so. |
 | `SEROPS_ISSUE_CONTINUITY_HOURS` | No | `2` | How long an open issue keeps absorbing an incident that changes as it evolves (a memory leak, then crashing pods, then recovery) on the same project, environment and component, instead of opening a new issue per step. The issue keeps its history of types; two findings of one batch are never merged. `0` turns it off. |
+| `MAX_DEDUP_LOOKBACK_DAYS` | No | `30` | The furthest back, in days, that log deduplication compares new log lines with lines already in earlier batches. |
 
 !!! info "Batch Generation Interval"
-    Each organisation can override the interval in **Settings > Data Management > Batch Generation Interval**; `BATCH_GENERATION_INTERVAL` only applies where it has not.
+    `BATCH_GENERATION_INTERVAL` applies only to an organisation that has no data retention settings saved yet. Once it has them (they hold 15 minutes by default), its own **Batch Generation Interval** in **Settings > Data retention** applies.
 
 ---
 
@@ -181,6 +201,7 @@ DB_PASSWORD=s3cur3-pa$$word
 | `EMAIL_HOST_PASSWORD` | No | -- | SMTP password or app-specific password |
 | `EMAIL_USE_TLS` | No | `True` | Enable TLS encryption for SMTP connections |
 | `EMAIL_PORT` | No | `587` | SMTP port (587 for TLS, 465 for SSL) |
+| `EMAIL_USE_SSL` | No | `False` | Implicit TLS, for port 465. Set `EMAIL_USE_TLS=False` with it |
 | `DEFAULT_FROM_EMAIL` | No | -- | Sender email address for outgoing notifications |
 
 Example:
@@ -221,6 +242,7 @@ DEFAULT_FROM_EMAIL=SerOps <serops@yourdomain.com>
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `METRICS_ENABLED` | No | `false` | Enable metrics collection from configured providers. **Set this explicitly** — see the warning below. |
+| `SEROPS_METRICS_BASIC_AUTH` | No | -- | `user:password`. When set, SerOps's own `/metrics/` endpoint asks for these basic-auth credentials; see [Self-metrics](../admin/self-metrics.md). |
 
 !!! warning "The default is `false`, and it is easy to get caught by"
     Metrics are half of what the AI reasons over, so almost every install
@@ -232,6 +254,22 @@ DEFAULT_FROM_EMAIL=SerOps <serops@yourdomain.com>
       defaults to `true`.
     * **Anything else**: set it yourself, or SerOps runs log-only and the
       metric panels stay empty with no error explaining why.
+
+---
+
+## Alert webhook secrets
+
+Install-wide secrets for [real-time alerts](../integrations/alerts.md#global-env-var-secrets-fallback).
+They work only on an install with one organisation. For Alertmanager,
+Grafana and Datadog, a per-organisation secret takes precedence when one is
+set.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SEROPS_ALERTMANAGER_SECRET` | No | -- | Prometheus Alertmanager |
+| `SEROPS_GRAFANA_ALERT_SECRET` | No | -- | Grafana alerts |
+| `SEROPS_DATADOG_MONITOR_SECRET` | No | -- | Datadog monitors |
+| `SEROPS_SENTRY_CLIENT_SECRET` | No | -- | Sentry: the client secret its webhooks are signed with |
 
 ---
 

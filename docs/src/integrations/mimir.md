@@ -9,14 +9,14 @@ Grafana Mimir is a horizontally scalable, highly available, long-term storage so
 | | |
 |---|---|
 | **Type** | Metrics |
-| **Auth** | Basic / Tenant ID |
+| **Auth** | Basic / Bearer / Tenant ID |
 | **Query Language** | PromQL |
 
 ## Prerequisites
 
 - Grafana Mimir 2.x (tested: 2.14.2 — see [Compatibility](compatibility.md))
 - Network access from the SerOps backend to the Mimir endpoint
-- Valid credentials (basic auth or tenant ID)
+- Valid credentials (basic auth, bearer token or tenant ID)
 - Tenant ID if using multi-tenant mode
 
 ## Configuration
@@ -39,6 +39,7 @@ Grafana Mimir is a horizontally scalable, highly available, long-term storage so
 Mimir supports multiple authentication methods:
 
 - **Basic Auth**: Provide `username` and `password` at the top level.
+- **Bearer Token**: Provide `extra_config.bearer_token`; SerOps sends it as `Authorization: Bearer <token>`.
 - **Tenant ID**: When `tenant_id` is set, SerOps includes the `X-Scope-OrgID` header on all requests to support multi-tenant deployments.
 
 These can be combined (e.g., basic auth with a tenant ID).
@@ -47,7 +48,7 @@ These can be combined (e.g., basic auth with a tenant ID).
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `path_prefix` | string | Path prefix for the Prometheus-compatible API (e.g., `/prometheus`) |
+| `path_prefix` | string | Path prefix for the Prometheus-compatible API. Defaults to `/prometheus`, so `host` is the base URL without it |
 | `tenant_id` | string | Tenant ID for multi-tenant Mimir; sent via `X-Scope-OrgID` header |
 
 ## Required metric labels

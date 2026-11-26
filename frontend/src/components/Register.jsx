@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { describeRequestError } from "../utils/apiError";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import AuthService from "../services/auth.service";
 import "./Login.css";
 import { FaUser, FaEnvelope, FaBuilding, FaLock, FaArrowRight, FaArrowLeft, FaEye, FaEyeSlash } from "react-icons/fa";
 import BrandMark from './BrandMark';
+
+// How long the page waits for the registration status before showing the form.
+export const REGISTRATION_STATUS_WAIT_MS = 4000;
 
 const Register = () => {
   const { t } = useTranslation();
@@ -41,6 +44,28 @@ const Register = () => {
       navigate("/dash");
     }
   }, [navigate]);
+
+  // Whether this instance accepts sign-ups, asked before the form shows (as
+  // the login page does). Closed: say so and offer sign-in, instead of a
+  // form the server refuses at the last step. No answer, an old server or a
+  // slow one: the form, as before (the server still refuses).
+  const [signup, setSignup] = useState("checking");
+  useEffect(() => {
+    let settled = false;
+    const settle = (value) => {
+      if (settled) return;
+      settled = true;
+      setSignup(value);
+    };
+    const fallback = setTimeout(() => settle("open"), REGISTRATION_STATUS_WAIT_MS);
+    AuthService.registrationStatus()
+      .then((r) => settle(r?.data?.registration_enabled === false ? "closed" : "open"))
+      .catch(() => settle("open"));
+    return () => {
+      settled = true;
+      clearTimeout(fallback);
+    };
+  }, []);
 
   // Handlers
   const handleChange = (e) => {
@@ -149,6 +174,39 @@ const Register = () => {
         setLoading(false);
       });
   };
+
+  if (signup !== "open") {
+    return (
+      <div className="login-page">
+        <div className="login-form-panel">
+          <div className="form-container">
+            {signup === "checking" ? (
+              <div className="form-header" aria-busy="true">
+                <BrandMark className="form-logo" />
+                <span className="loading-spinner" role="status" aria-label={t("common.loading")}></span>
+              </div>
+            ) : (
+              <>
+                <div className="form-header">
+                  <BrandMark className="form-logo" />
+                  <h2>{t("register.closedTitle")}</h2>
+                  <p>{t("register.closedMessage")}</p>
+                </div>
+                <div className="login-form">
+                  <div className="sso-divider">
+                    <span>{t("auth.hasAccount")}</span>
+                  </div>
+                  <Link to="/login" className="sso-btn">
+                    {t("login.signIn")}
+                  </Link>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-page">

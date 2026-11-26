@@ -48,7 +48,7 @@ Notes:
 
 - **`password`** is the client secret (encrypted at rest with Fernet). Rotate it in Azure AD → App registrations → Certificates & secrets, then update this field.
 - **`tenant_id`** and **`client_id`** identify the service principal.
-- **`workspace_id`** is required for logs. **`default_resource_uri`** is required for metrics — callers can override per-query by supplying `resource_uri` in the labels dict.
+- **`workspace_id`** is required for logs. **`default_resource_uri`** is required for metrics, except in Kubernetes mode with a `workspace_id`, where metrics are read from the workspace — callers can override per-query by supplying `resource_uri` in the labels dict.
 - **`default_table`** (optional, defaults to `AppTraces`) is a log table to read as well as the ones SerOps finds by itself, and the one read when the workspace has none of them. SerOps always looks for `AppTraces`, `AppExceptions`, failed `AppRequests` and failed `AppDependencies` (Application Insights and the Azure Monitor OpenTelemetry exporter) and `ContainerLogV2` (Container Insights on AKS), and reads every one that received records in the last day. Set `Syslog` (Linux syslog through the Azure Monitor Agent) or `ContainerLog` (the Container Insights schema before ContainerLogV2) here to read those too. Other tables are read with the AppTraces columns (`Message`, `SeverityLevel`, `Properties`), so a custom table needs those columns.
 
 !!! warning "Service-principal-only auth"
@@ -73,7 +73,7 @@ AppTraces
 ```
 
 - **Severity** maps to Azure's `SeverityLevel` ordinal (Verbose=0, Information=1, Warning=2, Error=3, Critical=4). Requesting `["ERROR", "WARNING"]` becomes `SeverityLevel >= 2`.
-- **Labels** live under `Properties.<name>` in AppTraces — the canonical Application Insights schema. For `Perf`, `Syslog`, or `ContainerLog`, adjust the KQL manually via a raw-KQL query.
+- **Labels** live under `Properties.<name>` in AppTraces — the canonical Application Insights schema.
 - **Time range** is embedded as `datetime(<iso>)` literals. The `<iso>` value is validated by `_kql_datetime` before interpolation — only digits, dashes, colons, `T`, `Z`, `.`, `+` are permitted. Any character outside that set fails loudly (an unquoted KQL identifier is executable code, so silent rewrites here are the highest-severity risk in the schema layer).
 
 **Metrics (`AzureMonitorProvider`):**
@@ -100,7 +100,7 @@ POST /api/integrations/observability/{id}/health-check/
 Runs the cheapest authenticated call in each capability:
 
 - **Logs**: `print now()` KQL query — forces service-principal auth to actually run against the workspace
-- **Metrics**: `list_metric_definitions(default_resource_uri)` — proves the SP can read the target resource
+- **Metrics**: `list_metric_definitions(default_resource_uri)` — proves the SP can read the target resource. In Kubernetes mode without a resource URI, `print now()` on the workspace instead
 
 ## KQL Table Selection
 
@@ -110,7 +110,6 @@ The `default_table` sets what `LogQuery`-driven searches query. The three you'll
 |---|---|---|
 | `AppTraces` | Application Insights `trace()` calls, OpenTelemetry logs | Default. Tested with an OpenTelemetry collector (filelog receiver, `azuremonitor` exporter): `service.name` becomes `AppRoleName`, resource and log attributes become `Properties`. Lines shipped without a severity arrive as Information; SerOps reads their level from the text. |
 | `ContainerLogV2` | Log lines from AKS pods (Container Insights) | Kubernetes workloads; found automatically |
-| `Perf` | VM performance counters | VM CPU / memory / disk baselines |
 | `Syslog` | Linux syslog | On-prem VMs, network devices |
 
 Callers can always supply a raw KQL string instead — the adapter accepts `search(index="", query="AppExceptions | count")` and passes it through unchanged.

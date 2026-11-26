@@ -38,7 +38,7 @@ same time stay two issues. The horizon is `SEROPS_ISSUE_CONTINUITY_HOURS`
 
 ## Configuration Settings
 
-Navigate to **Settings > Data Management** to configure deduplication for your organisation.
+Navigate to **Settings > Data retention** to configure deduplication for your organisation.
 
 ### Settings Reference
 
@@ -46,9 +46,9 @@ Navigate to **Settings > Data Management** to configure deduplication for your o
 |---------|---------|---------|-------------|
 | **Deduplication Enabled** | `true` | `true` / `false` | When enabled, issues with matching fingerprints are grouped instead of duplicated |
 | **Dedup Window** | `7 days` | 7, 14, 30, 90 days, or Forever | How far back to look for matching issues. Issues older than this window are treated as new. |
-| **Default Mute Duration** | `7 days` | 1 day, 1 week, 30 days, or Forever | Default duration when a user mutes an issue from the UI |
-| **Auto-Resolve Enabled** | `false` | `true` / `false` | Automatically resolve issues that have not been detected for a configurable number of days |
-| **Auto-Resolve After** | `7 days` | Any positive integer | Number of days without detection before an issue is auto-resolved |
+| **Default Mute Duration** | `7 days` | 1 day, 1 week, 30 days, or Forever | Stored, but not used in 1.5.5: the mute dialog always pre-selects 7 days, and a mute lasts until someone reopens the issue |
+| **Auto-Resolve Enabled** | `false` | `true` / `false` | Stored, not applied: SerOps does not resolve issues automatically in 1.5.5 |
+| **Auto-Resolve After** | `7 days` | Any positive integer (API only) | Stored, not applied |
 
 ---
 
@@ -71,12 +71,12 @@ The dedup window controls how long SerOps remembers an issue fingerprint when ch
 
 ## Configure via the UI
 
-1. Navigate to **Settings > Data Management**
+1. Navigate to **Settings > Data retention**
 2. Adjust the settings:
     - Toggle **Deduplication Enabled** on or off
     - Select the **Dedup Window** from the dropdown
     - Set the **Default Mute Duration**
-    - Toggle **Auto-Resolve** and set the day threshold
+    - Toggle **Auto-Resolve** (stored, not applied in 1.5.5)
 3. Click **Save**
 
 ---
@@ -86,8 +86,8 @@ The dedup window controls how long SerOps remembers an issue fingerprint when ch
 ### Get Current Settings
 
 ```bash
-curl https://api.yourdomain.com/api/settings/issue-settings/ \
-  -H "Authorization: Bearer YOUR_TOKEN"
+curl https://api.yourdomain.com/api/settings/issues/ \
+  -H "Authorization: Token YOUR_TOKEN"
 ```
 
 Response:
@@ -107,8 +107,8 @@ Response:
 ### Update Settings
 
 ```bash
-curl -X PUT https://api.yourdomain.com/api/settings/issue-settings/ \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+curl -X PUT https://api.yourdomain.com/api/settings/issues/ \
+  -H "Authorization: Token YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "dedup_enabled": true,
@@ -121,27 +121,6 @@ curl -X PUT https://api.yourdomain.com/api/settings/issue-settings/ \
 
 !!! note
     Only organisation admins can modify issue settings. Users with the `user` or `viewer` role will receive a `403 Forbidden` response.
-
----
-
-## Auto-Resolve Workflow
-
-When auto-resolve is enabled, the lifecycle of an issue looks like this:
-
-```mermaid
-stateDiagram-v2
-    [*] --> Open: Issue detected
-    Open --> Open: Re-detected in new batch
-    Open --> Muted: User mutes issue
-    Open --> Resolved: Not seen for X days (auto)
-    Open --> Resolved: User resolves manually
-    Muted --> Open: Mute expires
-    Resolved --> Open: Re-detected in new batch
-    Resolved --> [*]: Archived
-```
-
-!!! warning
-    Auto-resolve only applies to issues that have not been detected in any batch for the configured number of days. If the underlying problem persists and keeps appearing in batches, the issue will remain open.
 
 ---
 

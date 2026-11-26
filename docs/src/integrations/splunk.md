@@ -106,7 +106,7 @@ Splunk search jobs are asynchronous. SerOps hides this from callers but the unde
 2. **Poll** — every 0.5s, `GET /jobs/{sid}` until `dispatchState=DONE`. Fails fast on `FAILED`, `USER_CANCEL`, `BAD_INPUT_CANCEL`, or if the job vanishes (404).
 3. **Fetch** — `GET /jobs/{sid}/results?output_mode=json&count=N`. Results are normalised into canonical `LogEntry` objects.
 
-Total budget: ~60 seconds. If a search doesn't complete in that window, SerOps abandons it and returns an empty list. For very large historical searches, run them from Splunk directly and let SerOps analyse the recent windows.
+Total budget: ~60 seconds. If a search doesn't complete in that window, SerOps cancels the Splunk job and reports the search as failed ("The log store refused the query"), not as a window with no logs. For very large historical searches, run them from Splunk directly and let SerOps analyse the recent windows.
 
 ## Troubleshooting
 

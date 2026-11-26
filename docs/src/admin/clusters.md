@@ -28,13 +28,15 @@ integrations serve everything by default.
 
 Enforced by the DB (not just serializer):
 
-- Per (org, provider, cluster) — one integration per provider per
-  cluster. You can't have two `prometheus` rows scoped to `prod-eks`.
-- Per (org, provider) unscoped — one unscoped fallback per provider
-  per org.
+- Per (org, provider, cluster, priority tier) — one integration per
+  provider per cluster per priority tier. You can't have two primary
+  `prometheus` rows scoped to `prod-eks`, but you can have a primary
+  and a fallback.
+- Per (org, provider, priority tier) unscoped — one unscoped fallback
+  per provider per priority tier per org.
 
-Combined: one cluster-scoped `prometheus` per cluster **plus** one
-unscoped fallback. The registry prefers the cluster-scoped one when
+Combined: per priority tier, one cluster-scoped `prometheus` per
+cluster **plus** one unscoped fallback. The registry prefers the cluster-scoped one when
 a cluster is specified; falls back to the unscoped one when no
 cluster match exists.
 
@@ -78,14 +80,10 @@ rename or a migration, not a full data purge.
 
 ## Assigning projects to clusters
 
-*Projects → (project) → Deployments → Cluster.* Or via API:
-
-```bash
-curl -X PATCH https://your-serops-host/api/projects/42/ \
-  -H "Authorization: Token $ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"cluster": 3}'
-```
+*Projects → (project) → Deployments → Cluster.* Or via the
+deployments API: see the
+[Projects & Services API](../api/projects.md#deployments). The project
+endpoint itself (`/api/projects/{id}/`) has no `cluster` field.
 
 Projects without a cluster assignment show under "All clusters" only.
 
@@ -95,11 +93,9 @@ A **cluster dropdown** appears in the header when your org has 2+
 clusters. It defaults to "All clusters" and persists in localStorage
 across sessions. Selecting a cluster filters:
 
-- Batches list (`Data` page)
+- Batches list (`Analyses` page)
 - Issues list (`Issues` page)
-- Dashboard analytics (per-cluster views coming — currently the
-  dashboard cards still show org-wide until the analytics endpoints
-  are cluster-aware)
+- The Overview cards and charts
 
 The picker forwards `?cluster=<id>` on relevant API calls. Backend
 endpoints silently ignore invalid ids (never 500 on stale picker
@@ -107,7 +103,7 @@ state).
 
 ## Workload view
 
-The **Workloads by Cluster** card on the dashboard groups all your
+The **Workloads by Cluster** card on **Settings → Clusters** groups all your
 projects + services under their assigned cluster. Rendered only
 when the org has 2+ clusters. Each cluster row expands to show
 project + service breakdown, sourced from
@@ -119,6 +115,3 @@ project + service breakdown, sourced from
   it at. If you run a federated Prom that aggregates across
   clusters, leave the integration unscoped and use the `cluster`
   label in your PromQL for filtering (Prometheus native).
-- **Cluster-scoped analytics** — the Dashboard cards (MTTR, Root
-  Cause, Trends) don't yet honour the cluster picker; they still
-  aggregate org-wide. Tracked in the Q1 quality backlog.

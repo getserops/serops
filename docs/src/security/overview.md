@@ -77,7 +77,9 @@ secret patterns. The patterns and the limits are listed in
   the query level ([multi-tenancy](../architecture/multi-tenancy.md)).
 - **Secrets at rest** (AI keys, integration credentials, webhook URLs) are
   encrypted with a key you hold (`SEROPS_ENCRYPTION_KEY`) and never returned
-  by the API ([secrets at rest](data-protection.md#secrets-at-rest)).
+  by the API. SCM and custom service tokens, infrastructure service connection
+  strings and webhook signing secrets are the exception: they are stored in plain text
+  ([secrets at rest](data-protection.md#secrets-at-rest)).
 
 ## Audit
 

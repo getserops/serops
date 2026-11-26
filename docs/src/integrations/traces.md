@@ -5,7 +5,8 @@ description: "Send OpenTelemetry traces to SerOps over OTLP/HTTP from any SDK, a
 # OpenTelemetry (OTLP) Traces
 
 SerOps ingests distributed traces via the [OpenTelemetry Protocol
-(OTLP)](https://opentelemetry.io/docs/specs/otlp/) over HTTP/JSON. Any
+(OTLP)](https://opentelemetry.io/docs/specs/otlp/) over HTTP, JSON or
+protobuf (gzip accepted). Any
 OTEL-compliant SDK, agent, or collector can point at your SerOps
 tenant and start streaming spans — no vendor lock-in, no custom
 instrumentation.
@@ -25,7 +26,7 @@ Ingest keys authenticate your OTEL Collector (or SDK) to SerOps.
 They are org-scoped and follow the GitHub-style Personal Access Token
 model — the plaintext is shown **once**, then only a fingerprint.
 
-**UI:** *Settings → Distributed Traces → New Ingest Key.* The plaintext
+**UI:** *Settings → Trace ingest keys → New Ingest Key.* The plaintext
 is displayed in a modal with a one-click copy button; once dismissed
 it cannot be retrieved. Revocations are soft-deletes (audit trail
 preserved) — revoked keys immediately start returning 401 to any
@@ -64,7 +65,7 @@ The receiver endpoint is:
 ```
 POST https://your-serops-host/api/traces/v1/traces
 Authorization: Bearer serops_otlp_...
-Content-Type: application/json
+Content-Type: application/json        # or application/x-protobuf
 ```
 
 ### OpenTelemetry Collector (recommended)
@@ -106,7 +107,7 @@ is fine for early testing.
 
 ## 3. Verify Ingest
 
-Once your collector is sending, go to **Settings → Distributed Traces** and click **View received
+Once your collector is sending, go to **Settings → Trace ingest keys** and click **View received
 traces** (or press ⌘K / Ctrl K and type "traces"). The page lists the most recent traces with filters
 for service, status (OK / ERROR / UNSET), minimum duration, and time
 window. Click any row to open the trace detail view — a proportional
@@ -124,9 +125,11 @@ curl https://your-serops-host/api/traces/keys/ \
 SerOps auto-detects the service name from any of the following
 resource attributes, in this order:
 
-- `service.name` (OTEL semantic convention — preferred)
+- `service_name` (SerOps canonical)
 - `service` (Datadog USM)
+- `service.name` (OTEL semantic convention)
 - `app` (Kubernetes label convention)
+- then `app.kubernetes.io/name` and the other Kubernetes and log-shipper names
 
 Environment is read from `deployment.environment.name` (current
 semantic conventions), `deployment.environment`, `env` or
@@ -149,8 +152,9 @@ NAT.
 
 ## Retention
 
-Traces follow the same tenant retention policy as logs and metrics
-(configurable in Settings → Data Management). Sampled-out spans at the
+Spans received over OTLP have no retention period: they are kept until the
+organisation is deleted. Automatic cleanup in Data Retention deletes analyses
+and audit-log entries, not spans. Sampled-out spans at the
 SDK level never reach SerOps, so head-based sampling is the standard
 knob for controlling volume.
 
@@ -168,9 +172,9 @@ with `send_batch_size: 512`) or raise the ceiling.
 trace IDs. OTLP requires 32-hex-char trace IDs and 16-hex-char span
 IDs.
 
-## Alternative: pull from Jaeger / Zipkin / Datadog APM
+## Alternative: pull from Jaeger / Zipkin / Tempo / Datadog APM
 
-If you already ship traces to Jaeger, Zipkin, or Datadog APM and don't
+If you already ship traces to Jaeger, Zipkin, Grafana Tempo or Datadog APM and don't
 want to change your pipeline, SerOps can **pull** traces from them at
 RCA time instead of receiving them via OTLP. Add one under
 **Settings → Integrations → Trace Providers → Add trace provider**:

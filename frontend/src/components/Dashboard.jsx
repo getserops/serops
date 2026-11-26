@@ -4,20 +4,18 @@ import { useTranslation } from "react-i18next";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
 import DashboardService from "../services/dash.service";
-import dataService from "../services/data.service";
 import { useCluster } from "../context/ClusterContext";
 import useFilterUrlSync from "../hooks/useFilterUrlSync";
 import { useQuery } from "@tanstack/react-query";
-import { FaExclamationTriangle, FaExclamationCircle } from "react-icons/fa";
 import { useMediaQuery } from "@mui/material";
 import { Search } from "lucide-react";
 import PageHeader from "./PageHeader";
 import "./Dashboard.css";
 
-import HealthScoreCard from "./HealthScoreCard";
 import TrendAnalysisChart from "./TrendAnalysisChart";
-import RootCausePie from "./RootCausePie";
-import ServiceHealthHeatmap from "./ServiceHealthHeatmap";
+import StatusCard from "./overview/StatusCard";
+import ServicesPanel from "./overview/ServicesPanel";
+import CausesBar from "./overview/CausesBar";
 import RecentDeploymentsCard from "./RecentDeploymentsCard";
 import AIAnalysisFeed from "./AIAnalysisFeed";
 import NeedsAttention from "./NeedsAttention";
@@ -61,39 +59,6 @@ const Dashboard = () => {
 
   // Every query keys on [name, environment, clusterId] so a change to
   // either filter refetches instead of serving a stale entry.
-
-  // Critical metrics: refresh every 60s
-  const {
-    data: severityData = [],
-    isLoading: loadingSeverity,
-    error: errorSeverity
-  } = useQuery({
-    queryKey: ["issue-stats", "open", environment, clusterId],
-    queryFn: () => DashboardService.getIssueStats(environment, "OPEN"),
-    staleTime: 60 * 1000,
-    refetchInterval: 60 * 1000,
-  });
-
-  // Every open issue, whatever its severity (the statistics above only
-  // count critical and warning).
-  const { data: openIssues, isLoading: loadingOpen } = useQuery({
-    queryKey: ["open-issue-count", environment, clusterId],
-    queryFn: () => {
-      const params = { status: "OPEN", page_size: 1 };
-      if (environment && environment !== "all") params.environment = environment;
-      if (clusterId != null) params.cluster = clusterId;
-      return dataService.getIssues(params);
-    },
-    staleTime: 60 * 1000,
-    refetchInterval: 60 * 1000,
-  });
-
-  const { data: healthData, isLoading: loadingHealth } = useQuery({
-    queryKey: ["system-health", environment, clusterId],
-    queryFn: () => DashboardService.getSystemHealth(environment),
-    staleTime: 60 * 1000,
-    refetchInterval: 60 * 1000,
-  });
 
   const { data: trendData, isLoading: loadingTrends } = useQuery({
     queryKey: ["trend-analysis", environment, clusterId],
@@ -140,20 +105,6 @@ const Dashboard = () => {
   if (loadingDeployments || deployServices.length === 0) hasDeployments = !isDemoUser();
   else hasDeployments = deployServices.some((s) => s.latest_pipeline);
 
-  const error = errorSeverity ? t('dashboard.errorLoadingStats') : null;
-
-  // Top-row tiles: both count issues that are open now.
-  const openCount = openIssues?.pagination?.total_issues ?? openIssues?.results?.length ?? 0;
-  const criticalCount = severityData.find(s => (s.name || '').toUpperCase() === "CRITICAL")?.value || 0;
-
-  // Skeleton placeholder for metric cards still loading
-  const MetricSkeleton = () => (
-    <div className="metric-card skeleton">
-      <div className="skeleton-line skeleton-icon" />
-      <div className="skeleton-line skeleton-value" />
-      <div className="skeleton-line skeleton-label" />
-    </div>
-  );
 
   // The skip link moves the focus, not the address (no "#main-content" left
   // in a link someone copies).
@@ -193,75 +144,40 @@ const Dashboard = () => {
               )}
             />
 
-            {/* What is broken now, why, and what to do — before the numbers. */}
+            {/* 1.5.6, top to bottom: the status of every service, the open
+                issues, the services by name beside the latest analyses,
+                then the week. */}
+            <StatusCard data={serviceHealthData} loading={loadingServiceHealth} />
+
             <NeedsAttention environment={environment} clusterId={clusterId} />
 
-            {/* Key numbers: open critical, open issues, system health.
-                Each tile handles its own loading. */}
-            <div className="overview-numbers">
-              {loadingSeverity ? <MetricSkeleton /> : (
-                <Link to="/dash/issues?status=OPEN&severity=Critical" className={`metric-card metric-kpi ${criticalCount > 0 ? 'metric-danger' : 'metric-calm'}`}>
-                  <div className="metric-icon" aria-hidden="true"><FaExclamationTriangle /></div>
-                  <div className="metric-content">
-                    <span className="metric-value">{criticalCount}</span>
-                    <span className="metric-label">{t('dashboard.openCritical')}</span>
-                  </div>
-                  {criticalCount > 0
-                    ? <div className="metric-trend negative">{t('dashboard.needsAttention')}</div>
-                    : <div className="metric-trend positive">{t('dashboard.allClear')}</div>}
-                </Link>
-              )}
-
-              {loadingOpen ? <MetricSkeleton /> : (
-                <Link to="/dash/issues?status=OPEN" className="metric-card metric-kpi metric-calm">
-                  <div className="metric-icon" aria-hidden="true"><FaExclamationCircle /></div>
-                  <div className="metric-content">
-                    <span className="metric-value">{openCount}</span>
-                    <span className="metric-label">{t('dashboard.openIssuesLabel')}</span>
-                  </div>
-                </Link>
-              )}
-
-              <HealthScoreCard score={healthData?.health_score || 0} status={healthData?.status} loading={loadingHealth} />
+            {/* On a phone the panels below "Needs attention now" are
+                reduced to their header, as in 1.5.5. */}
+            <div className="glance-cols">
+              <PhoneCollapse phone={isPhone} title={t('dashboard.glance.services')}>
+                <ServicesPanel data={serviceHealthData} loading={loadingServiceHealth} />
+              </PhoneCollapse>
+              <PhoneCollapse phone={isPhone} title={t('dashboard.glance.recentAnalyses')}>
+                <AIAnalysisFeed data={analysisFeedData} loading={loadingFeed} />
+              </PhoneCollapse>
             </div>
 
-            {error && (
-              <div className="error-banner">
-                <FaExclamationTriangle />
-                <span>{error}</span>
+            {hasDeployments && (
+              <div className="glance-deployments">
+                <PhoneCollapse phone={isPhone} title={t('dashboard.recentDeployments')}>
+                  <RecentDeploymentsCard data={deploymentsData} loading={loadingDeployments} />
+                </PhoneCollapse>
               </div>
             )}
 
-            {/* Latest AI findings beside the latest deploys */}
-            <div className="overview-split">
-              <div className="overview-main">
-                <AIAnalysisFeed data={analysisFeedData} loading={loadingFeed} />
-              </div>
-              {hasDeployments && (
-                <div className="overview-side">
-                  <PhoneCollapse phone={isPhone} title={t('dashboard.recentDeployments')}>
-                    <RecentDeploymentsCard data={deploymentsData} loading={loadingDeployments} />
-                  </PhoneCollapse>
-                </div>
-              )}
-            </div>
-
-            {/* What happened: the 7-day trend beside the causes. */}
-            <div className="charts-grid overview-charts">
-              <PhoneCollapse phone={isPhone} title={t('dashboard.trendTitle')}>
+            <div className="glance-week">
+              <PhoneCollapse phone={isPhone} title={t('dashboard.glance.weekIssues')}>
                 <TrendAnalysisChart data={trendData} loading={loadingTrends} />
               </PhoneCollapse>
-              <PhoneCollapse phone={isPhone} title={t('dashboard.rootCauseBreakdown')}>
-                <RootCausePie data={rootCauseData} loading={loadingRootCause} />
+              <PhoneCollapse phone={isPhone} title={t('dashboard.glance.weekCauses')}>
+                <CausesBar data={rootCauseData} loading={loadingRootCause} />
               </PhoneCollapse>
             </div>
-
-            {/* Where: one panel, the worst service first. Sentinel figures
-                are on Settings > Sentinel, correlation insights on Analyses,
-                workloads by cluster on Settings > Clusters. */}
-            <PhoneCollapse phone={isPhone} title={t('dashboard.serviceHealthMap')}>
-              <ServiceHealthHeatmap data={serviceHealthData} loading={loadingServiceHealth} />
-            </PhoneCollapse>
           </main>
         )}
 

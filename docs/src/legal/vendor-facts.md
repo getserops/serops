@@ -26,9 +26,9 @@ to the document that governs it; where this page and the
 - **Nothing of yours, by design.** SerOps is self-hosted: it runs on your
   infrastructure, and your logs, metrics, traces, code and analyses stay
   there. We have no account on your systems and no remote access to them.
-- **You see something only if you send it.** When you share data with us
+- **We see something only if you send it.** When you share data with us
   for support, we use it only for that support and delete it when it is no
-  longer needed ([Terms, section 6](enterprise-terms.md#6-your-data)).
+  longer needed ([Terms, section 8](enterprise-terms.md#8-your-data)).
 - **AI runs on your key.** SerOps calls the AI provider you configure, with
   your own API key, under your agreement with that provider. With a local
   model (Ollama) nothing leaves your network. Secrets and personal data are

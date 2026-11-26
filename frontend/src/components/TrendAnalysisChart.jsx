@@ -1,6 +1,5 @@
 import React, { memo } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
-import { FaHistory } from "react-icons/fa";
 
 import { useTranslation } from "react-i18next";
 import { formatCalendarDay } from '../utils/dates';
@@ -36,7 +35,7 @@ const TrendAnalysisChart = ({ data, loading }) => {
         return (
             <div className="chart-card">
                 <div className="chart-header">
-                    <h2><FaHistory className="chart-icon" /> {t('dashboard.trendTitle')}</h2>
+                    <h2>{t('dashboard.glance.weekIssues')}</h2>
                     <span className="chart-subtitle">{t('dashboard.trendSubtitle')}</span>
                 </div>
                 <div className="no-data-message">{t('dashboard.noTrendData')}</div>
@@ -44,17 +43,18 @@ const TrendAnalysisChart = ({ data, loading }) => {
         );
     }
 
+    // Lower than before (1.5.6): a small panel of the week, beside the causes.
     return (
         <div className="chart-card">
             <div className="chart-header">
-                <h2><FaHistory className="chart-icon" /> {t('dashboard.trendTitle')}</h2>
+                <h2>{t('dashboard.glance.weekIssues')}</h2>
                 <span className="chart-subtitle">{t('dashboard.trendSubtitle')}</span>
             </div>
 
             {/* Daily counts are whole numbers: bars, not a smoothed area
                 that drew hills between days. */}
             <div className="chart-container">
-                <ResponsiveContainer width="100%" height={320}>
+                <ResponsiveContainer width="100%" height={160}>
                     <BarChart
                         data={data}
                         margin={{ top: 10, right: 16, left: 0, bottom: 0 }}

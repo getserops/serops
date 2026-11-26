@@ -1,7 +1,7 @@
 # SerOps Quick Start (Self-Hosted)
 
 Runs the full SerOps stack — frontend + backend + Postgres + Redis
-behind a Caddy reverse proxy — on a single Docker host in about 5
+behind a Caddy reverse proxy — on a single Docker host in about 10
 minutes.
 
 **What this ships**
@@ -12,13 +12,14 @@ does not bundle Elasticsearch, Loki, Prometheus, or any log/metric
 shipper — you connect it to yours from the UI after signing in.
 
 Supported observability providers:
-Elasticsearch, OpenSearch, Grafana Loki, Datadog, AWS CloudWatch,
-Prometheus, VictoriaMetrics, Grafana Mimir.
+Elasticsearch, OpenSearch, Grafana Loki, Splunk, Datadog, AWS CloudWatch,
+Google Cloud Logging, Azure Log Analytics, Prometheus, VictoriaMetrics,
+Grafana Mimir, Google Cloud Monitoring, Azure Monitor.
 
 **System requirements**
 
 - Linux host with Docker 24+ and Docker Compose v2 or newer
-- ~2 GB RAM, 1 vCPU, 10 GB disk
+- ~2 GB RAM, 1 vCPU, 10 GB disk for a single-project evaluation
 - One of: Anthropic, Google Gemini, OpenAI, or DeepSeek API key — or Ollama
   (on-prem, no key needed)
 
@@ -72,14 +73,19 @@ The backend applies migrations itself on every start. Once
 `docker compose ps` shows `serops-backend` as `healthy`:
 
 ```bash
-docker compose exec backend python manage.py createsuperuser
+docker compose exec backend python manage.py create_superadmin \
+  --email admin@example.com --org "acme-cloud"
 ```
+
+It asks for a password. `--org` names the organisation: it cannot be
+changed in the UI, and your telemetry's `organisation_name` must match
+it exactly for metrics.
 
 ## 4. Log in
 
 Open `https://<SEROPS_DOMAIN>/login` (`https://localhost/login` for a local
 install — accept the certificate warning once) and sign in with the
-superuser you just created.
+admin you just created.
 
 ---
 
@@ -103,13 +109,14 @@ docker compose logs -f backend        # or any service name
 **Back up Postgres**
 
 ```bash
-docker compose exec postgres pg_dump -U serops serops > backup-$(date +%F).sql
+./scripts/backup.sh        # writes ./backups/serops_db_<timestamp>.dump
 ```
 
-The dump holds every credential SerOps stores (encrypted with the key in
-`.env`) and every user's email. Keep it readable by you only
-(`scripts/backup.sh` does), copy it off the host, and encrypt it there,
-for example with `gpg --symmetric`.
+The script writes a compressed `pg_dump` in custom format, keeps the last
+7, and prints the `pg_restore` command that restores it. The dump holds
+every credential SerOps stores (encrypted with the key in `.env`) and
+every user's email. The script makes it readable by you only; copy it off
+the host and encrypt it there, for example with `gpg --symmetric`.
 
 **Stop everything (keep data)**
 
@@ -192,10 +199,10 @@ DNS points at your host and the host firewall allows port 80.
 **AI analyses aren't producing issues**
 
 Either no AI provider key is configured, or the org has no observability
-integration wired. Check **Settings → AI** for the provider key, and
-**Settings → Global Integrations** to connect at least one of the supported
-log or metric providers (Elasticsearch, OpenSearch, Loki, Datadog,
-CloudWatch, Prometheus, VictoriaMetrics, Mimir).
+integration wired. Check **Settings → AI Providers** for the provider key, and
+**Integrations** to connect at least one of the supported log or metric
+providers (Elasticsearch, OpenSearch, Loki, Splunk, Datadog, CloudWatch,
+Google Cloud, Azure, Prometheus, VictoriaMetrics, Mimir).
 
 ---
 

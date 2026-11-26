@@ -54,7 +54,7 @@ SerOps auto-generates a webhook secret when you create a CI/CD binding. To regis
    - **Triggers**:
      - ✅ Push events
      - ✅ Pipeline events
-     - ✅ Deployment events
+     - ✅ Job events
 
 ---
 
@@ -76,7 +76,6 @@ For **failed jobs**, SerOps automatically fetches the full job trace:
 3. Trace stored as an **Enriched Event Document** in your configured Log Provider (Elasticsearch, Loki, Datadog, etc.):
    - `serops_meta` - Standardized metadata for correlation
    - `error_lines` - Filtered error summary (max 20 lines) used for AI analysis
-   - `trace` - Full output (truncated) attached to the event document
    - `environment` - Detected from branch (develop → development)
 
 ### Deployment Sync Fallback

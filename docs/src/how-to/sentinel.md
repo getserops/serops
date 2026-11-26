@@ -45,17 +45,17 @@ Key behaviours:
 
 ## Decision Types
 
-Every batch receives one of four Sentinel decisions:
+Every batch Sentinel evaluates receives one of three decisions:
 
 | Decision | Meaning | AI Runs? (Active Mode) |
 |----------|---------|----------------------|
 | **alert** | One or more triggers detected (error spike, deployment, new pattern, etc.) | Yes |
 | **quiet** | No triggers found; environment is stable | No (skipped) |
 | **first** | First batch ever seen for this project + environment combination (no baseline exists) | Yes |
-| **shadow** | Sentinel was in shadow mode when this batch was evaluated | Yes (always) |
+| **shadow** | Default value of the field; a batch Sentinel evaluated carries one of the three decisions above | — |
 
 !!! info
-    In shadow mode, all batches are recorded with the decision `shadow`. The underlying evaluation still happens internally, but the decision field shows `shadow` to indicate that gating was not active.
+    In shadow mode, batches are recorded with Sentinel's real decision (`alert`, `quiet` or `first`), and the AI runs on all of them. A `quiet` batch in shadow mode shows **Nothing new, AI ran anyway (shadow mode)**.
 
 ---
 
@@ -92,7 +92,7 @@ Shadow mode was the default up to v1.2.13. In this mode:
 - Every batch is evaluated by Sentinel
 - The decision is logged for observability
 - AI analysis **always runs** regardless of the decision
-- Batches appear with a grey **shadow** badge in the batch list
+- Quiet batches show **Nothing new, AI ran anyway (shadow mode)** in the batch list
 
 Use shadow mode to compare Sentinel's decisions with full analyses of every window, at the cost of an AI call per window.
 
@@ -103,7 +103,7 @@ Active mode is the default for new installations and organisations. In this mode
 - Batches with an `alert` or `first` decision run AI analysis as normal
 - Batches with a `quiet` decision **skip AI analysis entirely**
 - The `forced_periodic` safety net triggers after `max_quiet_batches` consecutive quiet batches
-- Skipped batches are still created and visible in the batch list, but have no AI-generated summary
+- A quiet window creates no batch: it is dropped before the batch is stored, so it does not appear in the batch list. Use shadow mode to keep a batch for every window
 
 !!! info "Upgrading from v1.2.13 or earlier"
     Organisations that never saved **Settings > Sentinel** move to active mode on upgrade. An organisation whose admin saved the Sentinel settings keeps the mode it saved.
@@ -170,11 +170,12 @@ The **Analyses** page displays a **Sentinel** column in the batch table. Each ba
 
 | Badge | Colour | Meaning |
 |-------|--------|---------|
-| **ALERT** | Red (`#fee2e2` / `#991b1b`) | Real triggers detected (deployment, error spike, anomaly, etc.) |
-| **ROUTINE** | Amber (`--warning-100` / `--warning-600`) | Periodic health check — no triggers, forced by safety net |
-| **QUIET** | Green (`#d1fae5` / `#065f46`) | No triggers, stable environment |
-| **FIRST** | Blue (`#dbeafe` / `#1e40af`) | First batch for this project + environment |
-| **SHADOW** | Grey (`#f3f4f6` / `#6b7280`) | Evaluated in shadow mode |
+| **Signals found** | Red | Real triggers detected (deployment, error spike, anomaly, etc.) |
+| **Periodic check** | Amber | Periodic health check — no triggers, forced by safety net |
+| **AI skipped: nothing new** | Green | No triggers in active mode, so the AI did not run |
+| **Nothing new, AI ran anyway (shadow mode)** | Green | No triggers, stable environment; in shadow mode the AI still runs |
+| **First analysis** | Blue | First batch for this project + environment |
+| **Shadow mode** | Grey | Evaluated in shadow mode |
 
 ### Dashboard
 

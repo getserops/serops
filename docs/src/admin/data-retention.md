@@ -8,7 +8,7 @@ Configure batch generation intervals, automatic cleanup policies, and audit log 
 
 ## Batch Generation Interval
 
-**Location**: Settings → Data Management → Batch Generation Interval
+**Location**: Settings → Data retention → Batch Generation Interval
 
 Controls how frequently SerOps collects logs, metrics, traces, and other data sources to create analysis batches. Each organisation can set its own interval independently.
 
@@ -34,7 +34,7 @@ Controls how frequently SerOps collects logs, metrics, traces, and other data so
 
 ### How to configure
 
-1. Go to **Settings → Data Management**
+1. Go to **Settings → Data retention**
 2. Open the **Batch Generation Interval** section
 3. Select the desired interval (5 minutes to 12 hours)
 4. Click **Save**
@@ -45,7 +45,7 @@ The new interval takes effect within 1 minute. Existing in-progress batches are 
 
 ## Retention Policy
 
-**Location**: Settings → Data Management → Retention Policy
+**Location**: Settings → Data retention → Retention Policy
 
 | Setting | Description |
 |---------|-------------|
@@ -71,17 +71,21 @@ The new interval takes effect within 1 minute. Existing in-progress batches are 
 
 ## Cleanup Frequency
 
-| Frequency | When |
+A cleanup check runs every hour. It runs the cleanup when enough time has passed since the last one, so the frequency is counted from the last run, not from a time of day:
+
+| Frequency | Runs when the last cleanup is older than |
 |-----------|------|
-| Daily | Midnight UTC |
-| Weekly | Sunday midnight |
-| Monthly | 1st of month |
+| Daily | 23 hours |
+| Weekly (**default**) | 6.5 days |
+| Monthly | 29 days |
+
+When no cleanup has run yet, the first check runs it at once.
 
 ---
 
 ## Audit Log Retention
 
-Separate setting for compliance logs:
+Separate setting for compliance logs. No screen has a control for it: set it through the API, `PUT /api/data/settings/retention-policy/` with `audit_log_retention_days` (`30`, `90`, `365`, or `0` for forever).
 
 | Period | Description |
 |--------|-------------|
@@ -102,9 +106,9 @@ Separate setting for compliance logs:
 
 For immediate cleanup:
 
-1. Go to the **Analyses** page
-2. Select batches to delete
-3. Click **Delete Selected**
+1. Go to **Settings → Data retention → Manual Cleanup**
+2. In **Delete Batches Older Than**, choose 1, 3, 7, 14, 30 or 60 days
+3. Click **Delete Now**
 4. Confirm
 
 ---

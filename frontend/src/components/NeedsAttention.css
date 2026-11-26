@@ -35,13 +35,6 @@
 .attention-label { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--text-primary); }
 .attention-grid p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--text-secondary); }
 /* "Why it is happening": three lines, the rest behind "Show more". */
-.attention-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
-.attention-steps { margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.55; color: var(--text-secondary); }
-.attention-steps li + li { margin-top: 4px; }
-.attention-steps li::marker { color: var(--text-primary); font-weight: 600; }
-.attention-more { margin-top: 6px; padding: 0; border: 0; background: none; font-size: 13px; font-weight: 600; color: var(--text-link); cursor: pointer; }
-.attention-more:hover { text-decoration: underline; }
-.attention-more:focus-visible { outline: 2px solid var(--text-link); outline-offset: 2px; border-radius: 2px; }
 
 .attention-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 

@@ -12,7 +12,7 @@ import logging
 from rest_framework import serializers, viewsets
 from rest_framework.permissions import IsAuthenticated
 
-from .models import IncidentNotificationChannel, NotificationRoutingRule
+from .models import FLOOR_RANK, IncidentNotificationChannel, NotificationRoutingRule
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class NotificationRoutingRuleSerializer(serializers.ModelSerializer):
     def validate_min_severity(self, value):
         if not value:
             return ''
-        allowed = set(IncidentNotificationChannel.SEVERITY_ORDER) | {''}
+        allowed = set(FLOOR_RANK)
         if value.upper() not in allowed:
             raise serializers.ValidationError(
                 f'Invalid severity {value!r}. Allowed: {sorted(allowed)}'

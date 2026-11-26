@@ -15,5 +15,7 @@ robots: "noindex, follow"
 - **[Notifications](api/notifications.md)** — Alerts, preferences, escalation rules
 - **[Integrations](api/integrations.md)** — Global SCM/CI-CD provider integrations
 - **[Observability](api/observability.md)** — Log and metric provider connections
+- **[Clusters](api/clusters.md)** — Kubernetes cluster registration
+- **[Traces](api/traces.md)** — OTLP trace ingestion, ingest keys, stored traces
 - **[Settings & Admin](api/settings.md)** — Organisation settings, security, audit
 - **[Dashboard & Analytics](api/analytics.md)** — Health scores, trends, MTTR, deployments

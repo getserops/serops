@@ -53,7 +53,7 @@ signal, prepares them, and uses AI to connect the dots:
 graph LR
     A[Logs<br/>Elasticsearch, OpenSearch, Loki, Splunk,<br/>Datadog, CloudWatch, GCP, Azure] -->|pull| P
     B[Metrics<br/>Prometheus, VictoriaMetrics, Mimir,<br/>Datadog, CloudWatch, GCP, Azure] -->|pull| P
-    T[Distributed Traces<br/>OpenTelemetry OTLP push,<br/>or pull from Jaeger / Zipkin / DD APM] -->|push or pull| P
+    T[Distributed Traces<br/>OTLP push, or pull from<br/>Jaeger / Zipkin / Tempo / DD APM] -->|push or pull| P
     C[Code Changes<br/>GitLab, GitHub,<br/>Bitbucket, Azure DevOps] -->|webhook| P
     D[CI/CD Pipelines<br/>GitLab CI, GitHub Actions,<br/>Jenkins, Bitbucket] -->|webhook| P
     P[Preprocessing<br/>dedup · anomaly detection · span summary<br/>PII redaction · cost gating] --> F[AI Analysis &<br/>Issue Detection]
@@ -66,7 +66,7 @@ graph LR
 
 Traces are the one signal that can arrive either way: ship them to SerOps
 directly over OTLP, or leave them where they are and let SerOps query Jaeger,
-Zipkin or Datadog APM. Raw signals are not sent to the model as they are — see
+Zipkin, Grafana Tempo or Datadog APM. Raw signals are not sent to the model as they are — see
 [preprocessing](#what-happens-before-the-ai-sees-anything) below.
 
 **Example**: SerOps detects a spike in database connection errors in your production logs, correlates it with a CPU spike from Prometheus, sees from the traces that the latency is concentrated in one downstream call, and links it to a commit pushed 30 minutes ago — then alerts your team via Slack with a root cause analysis and fix recommendation.
@@ -104,7 +104,7 @@ keeps analysis affordable and limits what reaches a third party:
 | **Model Comparison** | Re-analyse batches with different AI models and compare results side-by-side |
 | **PII Redaction** | Regex-based masking of credentials and personal data in batch analysis context, with known gaps listed in [Data Protection](security/data-protection.md#current-limits) |
 | **Notifications** | Slack, Teams, PagerDuty, OpsGenie and email, with routing rules, quiet hours, digests and escalation |
-| **Issue Lifecycle** | Muting, auto-resolution, acknowledgement, and MTTR tracking |
+| **Issue Lifecycle** | Resolving, muting and acknowledging issues |
 | **Integrations** | Log, metric and trace backends, SCM and CI/CD providers, GitOps deployment sources — see [Integrations](integrations/overview.md). Credentials are encrypted at rest |
 | **Users, roles and teams** | Built-in roles, teams, SSO via OpenID Connect with group-to-role and group-to-team mapping; custom roles and per-project access in [Enterprise](open-source-promise.md#what-enterprise-adds) |
 | **Audit & Compliance** | Full audit trail with export, data retention policies, and GDPR support |

@@ -69,7 +69,7 @@ The following services are included in the Docker Compose stack and do not requi
 
 | Detail | Value |
 |--------|-------|
-| **Version** | 7.2 (Alpine) |
+| **Version** | 7.4 (Alpine) |
 | **Purpose** | Celery message broker, result backend, and cache |
 | **Container** | `serops-redis` |
 
@@ -88,6 +88,9 @@ SerOps needs at least one log storage backend to ingest and analyze logs:
 | **Grafana Loki** | Lightweight, label-based log aggregation |
 | **Datadog** | SaaS log management |
 | **AWS CloudWatch** | AWS-native log storage |
+| **Splunk** | Splunk Enterprise or Splunk Cloud, through the REST search API |
+| **Google Cloud Logging** | Google Cloud-native log storage |
+| **Azure Log Analytics** | Azure-native log storage |
 
 See the [Observability Providers](../integrations/observability-overview.md) section for setup details.
 
@@ -100,6 +103,8 @@ See the [Observability Providers](../integrations/observability-overview.md) sec
 | **Grafana Mimir** | Scalable long-term metrics storage |
 | **Datadog** | SaaS metrics |
 | **AWS CloudWatch** | AWS-native metrics |
+| **Google Cloud Monitoring** | Google Cloud-native metrics |
+| **Azure Monitor** | Azure-native metrics |
 
 ---
 
@@ -109,9 +114,10 @@ See the [Observability Providers](../integrations/observability-overview.md) sec
 
 | Port | Protocol | Direction | Purpose |
 |------|----------|-----------|---------|
-| **80** | TCP | Inbound | Frontend (React app via Nginx) |
-| **443** | TCP | Inbound | HTTPS (when SSL is configured) |
-| **8000** | TCP | Inbound | Django API |
+| **80** | TCP | Inbound | HTTP, served by Caddy |
+| **443** | TCP | Inbound | HTTPS, served by Caddy |
+| **3000** | TCP | Internal | Frontend (nginx), reached through Caddy |
+| **8000** | TCP | Internal | Django API, reached through Caddy |
 | **5432** | TCP | Internal | PostgreSQL database |
 | **6379** | TCP | Internal | Redis broker |
 

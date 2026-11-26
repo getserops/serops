@@ -44,6 +44,11 @@ data:
   {{- end }}
   API_URL: {{ printf "%s/api" (trimSuffix "/" $publicUrl) | quote }}
   REACT_URL: {{ trimSuffix "/" $publicUrl | quote }}
+  # Webhook URLs registered in GitLab and other providers (SERVER_URL) and the
+  # links in notification emails (BASE_URL) were built from "None/" on Helm:
+  # the chart did not set them. A value under backend.env still wins.
+  SERVER_URL: {{ printf "%s/api" (trimSuffix "/" $publicUrl) | quote }}
+  BASE_URL: {{ trimSuffix "/" $publicUrl | quote }}
   # Behind TLS: Secure cookies and HSTS. No redirect from Django: the ingress
   # does it, and the probes reach the pods over plain HTTP.
   SEROPS_HTTPS: {{ ternary "True" "False" (hasPrefix "https://" $publicUrl) | quote }}

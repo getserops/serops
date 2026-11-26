@@ -14,7 +14,7 @@ at the bottom.
 | Issue | Check | Solution |
 |-------|-------|----------|
 | Cannot log in | Credentials | Verify email and password. Check if account is active. |
-| Token expired | Session | Tokens expire after 30 days of inactivity. Log in again. |
+| Token expired | Session | A session ends after the organisation's inactivity limit (**Settings > Security**, *Session Timeout Duration*, default 8 hours). With *Never*, a token ends after 30 days without use. Log in again. |
 | SSO login fails | Callback URL | Ensure the Redirect URI in your Identity Provider matches the one configured in **Settings > Security**. |
 | "403 Forbidden" on API calls | Permissions | Your role (built-in or custom) lacks the permission. **Settings → Audit Log** shows an *Access Denied* entry naming the missing permission; see [Users, roles and teams](admin/team.md#roles). |
 | A project is missing, or answers "not found", for some users | Project access | The project is restricted to teams. Add the user to one of its teams (**Settings → Teams**), or add a team in the project's **Access** tab (Enterprise). Organisation admins always see every project. |
@@ -39,14 +39,14 @@ at the bottom.
 
 | Issue | Check | Solution |
 |-------|-------|----------|
-| No batches appearing | Services | Ensure at least one service is connected to the project. |
+| No batches appearing | Services, Sentinel | Ensure at least one service is connected to the project. In Sentinel active mode (the default) a quiet window creates no batch, so a calm service can go hours without one: see [Sentinel](how-to/sentinel.md#active-mode-default). |
 | Empty batches | Logs | Verify logs exist in your log provider for the time window. Check `service_name` matches a registered service. See [Configure Data Collection Agents](how-to/configure-data-collection.md). |
 | "Unknown" batch status | Database | Run `docker exec serops-backend python manage.py migrate` to ensure migrations are current. |
 | Missing logs after filtering | Service registration | Ensure the `service_name` field in your logs matches the registered `ProjectService` names exactly. See [Configure Data Collection Agents](how-to/configure-data-collection.md). |
 | Wrong environment assignment | Branch patterns | Check that branch patterns in project environment settings match your actual branch names. |
 | Project page says "the log store refused the query" | Log provider | The search failed (expired token, store down, rejected query): the reason is on the project's Data tab. The next run reads the same window again once the store answers. |
 | Analysis says a source was UNAVAILABLE, PARTIAL or TRUNCATED | Data sources | SerOps tells the AI which sources did not answer, answered in part, or hit the record limit in that window, so missing evidence is not read as "nothing failed". The batch's `data_sources` field has the reason for each. |
-| Batch appears but never analyzes | Sentinel filter | Check **Settings > Sentinel** — under `ACTIVE` or `QUIET` mode, low-signal batches are skipped by design. Switch to `EAGER` to force analysis on every batch. |
+| Batch appears but never analyzes | Sentinel filter | Check **Settings > Sentinel** — in active mode (the default), quiet windows skip AI analysis by design. Turn off **Enable Active Mode** (shadow mode) to analyse every window. |
 
 ## Observability Providers
 
@@ -55,7 +55,7 @@ at the bottom.
 | "Connection refused" | All | Verify the `host` URL is reachable from the SerOps backend container. |
 | "401 Unauthorized" | ES, Prometheus | Check `username`/`password` or `bearer_token` configuration. |
 | "403 Forbidden" | Datadog | Verify both `api_key` and `app_key` are valid and have required permissions. |
-| "InvalidAccessKeyId" | CloudWatch | Check AWS credentials (`aws_access_key_id`, `aws_secret_access_key`) and region. |
+| "InvalidAccessKeyId" | CloudWatch | Check the AWS access key (the key ID goes in `username`, the secret access key in `password`) and `aws_region`. |
 | "No data returned" | All | Verify the time range has data. Check that `capabilities` match the provider type. |
 | "Tenant not found" | Loki, Mimir | Verify `tenant_id` in `extra_config` matches your provider's tenant configuration. |
 | "SSL certificate error" | ES, OpenSearch | Set `verify_certs: false` in `extra_config` (not recommended for production). |
@@ -73,7 +73,7 @@ batch. Codes below match `AIServiceError.code`.
 | `SERVER_ERROR` | Provider returned a 5xx | Check the provider's status page. If it's an outage, the fallback provider (if configured) will pick up. |
 | `TIMEOUT` | Request exceeded the adapter timeout (default 120s) | Batch is too large — split it via a shorter batch interval — or increase `timeout_seconds` under **Settings > AI Providers > Provider Config** (only recommended for slow local Ollama). |
 | `NETWORK_ERROR` | Connection failed at TCP / DNS level | Almost always self-hosted: Ollama container down, wrong `api_base_url`, network policy blocking egress. Test with `curl <api_base_url>/models`. |
-| `CONTENT_BLOCKED` | Provider safety filter refused the content | Gemini's SAFETY filter can trip on log content that looks like an attack. Retry usually fails — either switch providers for this batch or increase the PII-redaction aggressiveness in **Settings > Security**. |
+| `CONTENT_BLOCKED` | Provider safety filter refused the content | Gemini's SAFETY filter can trip on log content that looks like an attack. Retry usually fails — switch providers for this batch. |
 | `AI_BUDGET_EXCEEDED` | Monthly cost cap reached | Raise **Settings > AI Providers > Monthly budget** or wait for the calendar month to reset. Rule-based issue creation (Sentinel, correlation engine) still runs — AI polish is what's paused. |
 | `TRUNCATED` | Model hit its output-token limit mid-response | The partial answer is salvaged rather than discarded: the issues the model had finished writing are kept, the batch is labelled `(truncated)` with a note on the analysis, and any half-written trailing issue is dropped rather than published with missing fields. Re-analyse for the complete picture, or raise `max_tokens` under **Settings > AI Providers > Provider Config**. You will only see this code with no analysis attached when the response was cut before any usable text arrived. |
 | `PROVIDER_NOT_SUPPORTED` | Provider name doesn't map to a known adapter | Check that the provider is in the AIModelProvider catalog. |
@@ -109,7 +109,7 @@ is salvaged from the primary instead.
 | Issue | Check | Solution |
 |-------|-------|----------|
 | Not receiving emails | Email config | Verify SMTP settings in `.env`. Check spam/junk folder. |
-| Not receiving Slack alerts | Webhook URL | Verify the Slack webhook URL in **Settings > Delivery Channels**. Test with the "Send test" button on the channel. |
+| Not receiving Slack alerts | Webhook URL | Verify the Slack webhook URL in **Alerts & routing > Delivery channels**. Test with the "Test send" button on the channel. |
 | Slack channel accepted but no messages arrive | Channel filters | Check the channel's trigger filters + severity floor — you may be filtering the events out. |
 | PagerDuty pages nobody | Integration key | Ensure the Events API v2 integration key is for the correct service, not the account. |
 | OpsGenie alerts appear at P4 | Non-paging by design | SerOps posts as P4 to be additive to your existing pager schedule. Escalate manually via the alert if needed. |
@@ -121,8 +121,8 @@ is salvaged from the primary instead.
 
 | Issue | Check | Solution |
 |-------|-------|----------|
-| Collector returns 401 | Ingest key | Bearer token must match a key issued under **Settings > Distributed Traces**. |
-| Collector returns 400 | Payload | SerOps only accepts OTLP/HTTP JSON — set your Collector exporter to `otlphttp` (not `otlp`). |
+| Collector returns 401 | Ingest key | Bearer token must match a key issued under **Settings > Trace ingest keys**. |
+| Collector returns 400 | Payload | SerOps accepts OTLP/HTTP (JSON or protobuf), not gRPC — set your Collector exporter to `otlphttp` (not `otlp`). |
 | Traces ingested but not appearing on batches | Time window | Batch trace correlation uses the batch's time window. Traces older than the batch or from a service not in the project don't appear. |
 | Trace count on batch is 0 | Service names | The trace's `service.name` resource attribute must match a registered SerOps service name (case-insensitive). |
 
@@ -130,11 +130,11 @@ is salvaged from the primary instead.
 
 | Issue | Check | Solution |
 |-------|-------|----------|
-| Prometheus scrape returns empty | Path | Endpoint is `/metrics/` (trailing slash). Some scrapers strip it — configure the full path. |
+| Prometheus scrape returns empty | Path | Endpoint is `/metrics/` (trailing slash) on the backend. Some scrapers strip it — configure the full path. On the Docker Compose quick start, Caddy forwards only `/api/*` to the backend, so `/metrics/` on the public address returns the web app instead. |
 | Metrics endpoint returns 401 | Basic auth | If `SEROPS_METRICS_BASIC_AUTH` is set, configure Prometheus with matching creds. |
 | High cardinality warnings | Middleware | The HTTP middleware caps cardinality by grouping URLs — if you see unbounded labels, file an issue. |
 
-## Cost budget (Q3.3)
+## Cost budget
 
 | Symptom | Meaning | Action |
 |---|---|---|
@@ -148,7 +148,7 @@ is salvaged from the primary instead.
 |-------|-------|----------|
 | Container won't start | Logs | Run `docker logs serops-backend` to check for errors. |
 | Migration errors | Database | Verify database connection settings. Run `python manage.py showmigrations` to check state. |
-| Static files not loading | Build | Run `docker exec serops-frontend npm run build` to rebuild frontend assets. |
+| Static files not loading | Image | The frontend image ships prebuilt assets and has no `npm`. Pull the image again (`docker compose pull frontend`, then `docker compose up -d`), or rebuild it from source with `docker compose up -d --build frontend`. |
 | Redis connection refused | Network | Verify Redis is running and accessible at the configured `CELERY_BROKER_URL`. |
 | High memory usage | Configuration | Check batch generation interval. Consider increasing the interval for large deployments. |
 | Post-restore: all API keys "invalid" | Encryption key | Your restored DB has secrets encrypted with a *different* `SEROPS_ENCRYPTION_KEY` than the running backend. Restore the original `.env` — see [Backup & Restore](deployment/backup-restore.md). |
@@ -158,9 +158,9 @@ is salvaged from the primary instead.
 
 | Issue | Check | Solution |
 |-------|-------|----------|
-| Pods CrashLoopBackOff on first install | Secrets | Check that `secrets.postgresPassword` and `secrets.encryptionKey` are set. Never leave the chart defaults for production. |
+| Pods CrashLoopBackOff on first install | Database and Redis | Check that `database.url` and `broker.url` point at a reachable Postgres and Redis, or turn on `devServices.postgresql.enabled` and `devServices.redis.enabled` for a lab install. `django.secretKey` and `django.encryptionKey` (or `django.existingSecret`) are required: the chart refuses to install without them. |
 | Celery-beat pod has multiple replicas | Deployment strategy | Beat must be exactly 1 replica with `Recreate` strategy — the chart enforces this. If you overrode it in values, revert. |
-| `/metrics/` scrape returns 401 in-cluster | ServiceMonitor | Enable `serviceMonitor.enabled=true` in values and configure a Prometheus scrape that carries the basic-auth secret. |
+| `/metrics/` scrape returns 401 in-cluster | Basic auth | `selfMetrics.basicAuth` (`SEROPS_METRICS_BASIC_AUTH`) is set, and the chart's ServiceMonitor (`serviceMonitor.enabled=true`) sends no credentials. Leave it empty for an in-cluster scrape, or use your own scrape config with basic auth. If the scrape times out instead, allow Prometheus in `networkPolicy.backendExtraIngressFrom`. |
 | Migrations don't run on upgrade | Job status | The chart's `helm upgrade` runs `migrate` as a Job. Check `kubectl -n serops get jobs`. |
 
 ## Getting Help
@@ -171,10 +171,16 @@ If your issue is not listed above:
    ```bash
    docker logs serops-backend --tail 200
    # Or in Kubernetes:
-   kubectl -n serops logs -l app=serops-backend --tail 200
+   kubectl -n serops logs deploy/serops-backend --tail 200
    ```
 2. **Check `/metrics/`** for pipeline health — batch success rate,
    analysis duration, error counts (see [Self-metrics](admin/self-metrics.md)).
+   On the Docker Compose quick start it is not reachable through Caddy;
+   read it from inside the backend container (this example assumes
+   `SEROPS_METRICS_BASIC_AUTH` is not set):
+   ```bash
+   docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/metrics/').read().decode())"
+   ```
 3. **Check the audit log** — **Settings > Audit Log** captures every
    admin action + failure with structured details.
 4. **Read the architecture overview** — [Architecture Overview](architecture/overview.md)

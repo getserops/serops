@@ -69,6 +69,8 @@ POST   /api/traces/keys/
 DELETE /api/traces/keys/{id}/
 ```
 
+Admin only (`integration.manage`), for listing too.
+
 **Create request:**
 
 ```json

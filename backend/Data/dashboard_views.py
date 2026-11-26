@@ -23,7 +23,7 @@ from django.views.decorators.vary import vary_on_headers
 from django.db.models import Count, Avg, Q, F, ExpressionWrapper, fields
 from django.core.cache import cache
 from datetime import timedelta
-from .health import DEGRADED_MIN, HEALTHY_MIN, health_by_component, health_score
+from .health import DEGRADED_MIN, HEALTHY_MIN, affected_by_name, health_by_component, health_score
 from .models import AIAnalyzedBatch, Issue
 from notifications.models import Notification
 from Projects.models import Project
@@ -192,10 +192,15 @@ class MTTRView(OrgFilterMixin, APIView):
 class ServiceHealthView(OrgFilterMixin, APIView):
     """
     Service health map: one tile per registered service, in the selected
-    environment and cluster.
+    environment and cluster: every service, worst first, up to
+    SERVICE_LIST_CAP (200).
 
     A service's issues are the open issues whose component is the
-    service's name, in the service's project. Scored with the shared
+    service's name, in the service's project; ``project_name`` names that
+    project. ``affected_by`` lists the
+    components of the open issues that name the service in their
+    ``affected_services``, in the service's project (same filters, any
+    case, never the service itself). Scored with the shared
     formula and thresholds in Data/health.py, the same as System Health
     and Top Failing Services. A service whose registry status is
     ``error`` is shown critical, ``maintenance`` degraded.
@@ -203,6 +208,7 @@ class ServiceHealthView(OrgFilterMixin, APIView):
     Cached for 5 minutes (CACHE_TTL_DASHBOARD) for frequently refreshed dashboards.
     """
     permission_classes = [IsAuthenticated, Requires(GET='batch.read')]
+    SERVICE_LIST_CAP = 200
 
     def get(self, request):
         from Services.models import Service
@@ -226,19 +232,21 @@ class ServiceHealthView(OrgFilterMixin, APIView):
             # Strategy 1: Get services from the Service model (new architecture)
             org_services = scope(Service.objects.filter(
                 project__organisation=user_org, **cluster_kwargs,
-            ), request.user, 'batch.read').select_related('project')[:50]
+            ), request.user, 'batch.read').select_related('project')[:self.SERVICE_LIST_CAP]
 
             # Strategy 2: Also get services from ProjectService (legacy)
             project_services = scope(ProjectService.objects.filter(
                 project__organisation=user_org, **cluster_kwargs,
-            ), request.user, 'batch.read').select_related('project', 'gitlab_project')[:50]
+            ), request.user, 'batch.read').select_related('project', 'gitlab_project')[:self.SERVICE_LIST_CAP]
 
             # One query for every service: open issues per (project, component),
             # environment and cluster applied by the shared org filter.
-            stats = health_by_component(
-                self.filter_issues_by_org(request, Issue.objects.all()))
+            issues = self.filter_issues_by_org(request, Issue.objects.all())
+            stats = health_by_component(issues)
+            affected = affected_by_name(issues)
 
-            def tile(name, project_id, category, registry_status=None):
+            def tile(name, project, category, registry_status=None):
+                project_id = project.pk
                 s = stats.get((project_id, name.lower()))
                 if s:
                     score, status_val = s['health_score'], s['status']
@@ -250,6 +258,8 @@ class ServiceHealthView(OrgFilterMixin, APIView):
                     score, status_val = HEALTHY_MIN - 1, 'Degraded'
                 return {
                     'name': name,
+                    # Tells apart two services of the same name in different projects.
+                    'project_name': project.name,
                     'health_score': score,
                     'status': status_val.lower(),
                     'open_issues': s['open_issues'] if s else 0,
@@ -258,10 +268,12 @@ class ServiceHealthView(OrgFilterMixin, APIView):
                     # Open CRITICAL + WARNING, kept for the tile tooltip.
                     'error_count': (s['critical_issues'] + s['warning_issues']) if s else 0,
                     'category': category,
+                    'affected_by': [c for c in affected.get((project_id, name.lower()), [])
+                                    if c.lower() != name.lower()],
                 }
 
             services_list = [
-                tile(service.name, service.project_id, service.category, service.status)
+                tile(service.name, service.project, service.category, service.status)
                 for service in org_services
             ]
 
@@ -273,14 +285,14 @@ class ServiceHealthView(OrgFilterMixin, APIView):
                     continue
                 # D2 fix: real service_type values ('infrastructure',
                 # 'application', ...) so the heatmap groups services.
-                services_list.append(tile(service_name, ps.project_id, ps.service_type or 'other'))
+                services_list.append(tile(service_name, ps.project, ps.service_type or 'other'))
                 seen.add((ps.project_id, service_name.lower()))
 
             # Sort by health score (worst first for visibility)
             services_list.sort(key=lambda x: x['health_score'])
 
             return Response({
-                'services': services_list[:12],  # Limit to 12 for grid
+                'services': services_list[:self.SERVICE_LIST_CAP],
                 'total_services': len(services_list)
             })
 

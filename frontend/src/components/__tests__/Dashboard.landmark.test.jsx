@@ -21,8 +21,8 @@ vi.mock('../CommandPalette', () => ({ default: () => null }));
 vi.mock('../DemoBanner', () => ({ default: () => null }));
 vi.mock('../onboarding', () => ({ OnboardingWizard: () => null, OnboardingResumeChip: () => null }));
 vi.mock('../PageHeader', () => ({ default: ({ title }) => <h1>{title}</h1> }));
-for (const card of ['HealthScoreCard', 'TrendAnalysisChart', 'RootCausePie',
-  'ServiceHealthHeatmap', 'RecentDeploymentsCard', 'WorkloadsByCluster', 'CorrelationInsightsCard', 'AIAnalysisFeed',
+for (const card of ['overview/StatusCard', 'overview/ServicesPanel', 'overview/CausesBar', 'TrendAnalysisChart',
+  'RecentDeploymentsCard', 'WorkloadsByCluster', 'CorrelationInsightsCard', 'AIAnalysisFeed',
   'SentinelStatsCard', 'NeedsAttention']) {
   vi.doMock(`../${card}`, () => ({ default: () => null }));
 }

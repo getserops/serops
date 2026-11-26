@@ -78,26 +78,3 @@ describe("C8: the Analyses table and the log table fit at 1280", () => {
   });
 });
 
-describe("Overview: the three key numbers share one arrangement", () => {
-  const css = read("Dashboard.css");
-  const i = css.indexOf("The three key numbers share one arrangement");
-  const block = css.slice(i, css.indexOf("\n}\n", i));
-
-  it("puts icon and name on top, the value under them, from 1280 px only", () => {
-    expect(block).toMatch(/@media \(min-width: 1280px\)/);
-    expect(block).toMatch(/grid-template-areas: "icon label" "value value" "trend trend";/);
-    expect(block).toMatch(/\.metric-kpi \.metric-content \{ display: contents; \}/);
-  });
-
-  it("puts the health status beside the gauge, on the left", () => {
-    expect(block).toMatch(/\.health-card \.health-content \{ justify-content: flex-start; \}/);
-    expect(block).toMatch(/\.health-card \.health-details \{ text-align: left; \}/);
-    expect(block).toMatch(/\.health-card \.health-status \{ justify-content: flex-start; \}/);
-  });
-
-  it("keeps the markup the arrangement relies on", () => {
-    const jsx = read("Dashboard.jsx");
-    expect(jsx).toMatch(/className="metric-content">\s*<span className="metric-value">/);
-    expect(read("HealthScoreCard.jsx")).toMatch(/className="health-details"/);
-  });
-});

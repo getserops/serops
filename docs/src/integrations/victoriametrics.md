@@ -14,7 +14,7 @@ VictoriaMetrics is a fast, cost-effective, and scalable time-series database and
 
 ## Prerequisites
 
-- VictoriaMetrics (single-node or cluster)
+- VictoriaMetrics single-node 1.x (tested: 1.106.1 — see [Compatibility](compatibility.md)). The cluster version is not tested
 - Network access from the SerOps backend to the VictoriaMetrics endpoint
 - Valid credentials if authentication is enabled
 

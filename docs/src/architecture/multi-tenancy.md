@@ -12,7 +12,7 @@ SerOps enforces strict data isolation between organisations. This page details t
 
 | Layer | Mechanism | Implementation |
 |-------|-----------|----------------|
-| **API Queries** | `OrgFilterMixin` | All batch/issue queries filter by `project__organisation` |
+| **API Queries** | `OrgFilterMixin` | Batch and issue queries filter on their direct `organisation` FK (`organisation=user_org`) |
 | **Logs** | Per-organisation integration | Each organisation queries its own log provider with its own credentials; records are filtered by `project_name` and `environment` |
 | **Metrics** | Label filter | Queries select `organisation_name` (the organisation's name), `project_name` and `environment` |
 | **Code Changes** | Direct FK | `CodeChange` has a direct `organisation` FK for multi-tenancy filtering |
@@ -20,7 +20,7 @@ SerOps enforces strict data isolation between organisations. This page details t
 
 ## OrgFilterMixin Pattern
 
-All data views inherit from `OrgFilterMixin`:
+Most data views inherit from `OrgFilterMixin`; the rest filter by the caller's organisation directly:
 
 ```python
 class LogBatchView(OrgFilterMixin, APIView):
@@ -48,7 +48,7 @@ ts = provider.query_range(
 
 | Guarantee | Enforcement |
 |-----------|-------------|
-| User A cannot see Org B's batches | `project__organisation=user_org` filter |
+| User A cannot see Org B's batches | `organisation=user_org` filter |
 | User A cannot access Org B's integrations | `organisation` FK on ProviderIntegration |
 | No bypass for operators | Superusers and staff are held to their own organisation in the API like everyone else. Install-wide operations go through platform permissions (see [Permissions](../development/permissions.md)) |
 | Restricted projects stay within their teams | `Middlewares/project_access.py` scopes every project-scoped query; `test_project_scope_coverage.py` walks every route as a member outside the project |

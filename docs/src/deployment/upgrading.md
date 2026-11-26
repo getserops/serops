@@ -16,7 +16,7 @@ Before upgrading, complete the following steps:
   ```bash
   ./scripts/backup.sh
   ```
-- [ ] **Note the current version**: Check your `.env` file for `SEROPS_VERSION`
+- [ ] **Note the current version**: Check your `.env` file for `SEROPS_VERSION`; when it is not set, the default in `docker-compose.yml` applies
 - [ ] **Review the changelog**: Read the [Changelog](../changelog.md) for breaking changes, new required environment variables, or migration notes
 - [ ] **Check the compatibility matrix** below — some upgrades require intermediate stops
 - [ ] **Review new environment variables**: Compare `.env.example` with your `.env` for any new settings
@@ -43,15 +43,17 @@ review the migration notes.
 ### Kubernetes / Helm chart compatibility
 
 Since 1.1.0 the Helm chart is versioned with the app: chart 1.2.0 deploys SerOps 1.2.0.
+The 0.2.x chart numbers in the upgrade notes below are the `Chart.yaml`
+version in the source tree; the published chart carries the release number.
 
 | Chart version | App version | Kubernetes tested |
 |---|---|---|
-| Same as the app (1.1.0 and later) | 1.1.0 and later | 1.28, 1.29, 1.30, 1.31; AKS 1.36 (upgrade 1.2.14 → 1.3.0, 2026-11-11) |
+| Same as the app (1.1.0 and later) | 1.1.0 and later | Rendered for 1.31 in CI; installed by hand on AKS 1.36 (upgrade 1.2.14 → 1.3.0, 2026-11-11), GKE 1.36 (1.3.0, 2026-11-12) and EKS 1.36 (1.3.0, 2026-11-13) |
 | 0.1.x | 1.0.x | 1.28, 1.29, 1.30, 1.31 |
 
-We test the newest patch of each supported Kubernetes minor against
-`helm template` + `helm install` on a KinD cluster. Older Kubernetes
-minors may work but aren't gated by CI.
+CI runs `helm lint` and `helm template --kube-version 1.31.0` on each
+chart change. It does not install the chart on a cluster; the AKS, GKE and EKS
+installs above were done by hand ([AKS](aks.md), [GKE](gke.md), [EKS](eks.md)).
 
 ### PostgreSQL compatibility
 
@@ -67,7 +69,7 @@ then run the SerOps upgrade. See [Backup & Restore](backup-restore.md).
 
 | SerOps version | Redis version |
 |---|---|
-| 1.0.x | 6.x, 7.x |
+| 1.x | 7.x (bundled image: 7.4) |
 
 Redis holds only ephemeral state (Celery queue, cache) so version
 upgrades are safe with a brief restart.
@@ -77,6 +79,14 @@ upgrades are safe with a brief restart.
 ## Upgrade notes
 
 Releases that need something from you after upgrading. Migrations run on their own (`docker compose up` / the Helm migrate job).
+
+### 1.5.6: minimum severity filters, Helm links
+
+- **No migration and no new setting**: set the version and restart. Chart 0.2.8 sets `SERVER_URL` and `BASE_URL` (see below).
+- **Minimum severity now filters.** Until 1.5.5 the "Min severity" of a delivery channel or a routing rule never blocked anything, so a channel set to Critical received every analysis. From 1.5.6 the floor applies: Info lets Info, Warning and Critical through, Warning lets Warning and Critical through, Critical only Critical. With a floor set, an analysis with no issue does not notify. Floors saved before 1.5.6 as Low, Medium or High count as Info, Warning and Critical and need no re-saving. **Channels and rules with a floor will receive fewer notifications than before**: check the floors in **Alerts & routing** after the upgrade. A channel or rule with no floor (Any) is unchanged.
+- **Helm**: the chart now sets `SERVER_URL` and `BASE_URL` from the public URL, so GitLab webhook URLs and links in notification emails no longer start with `None/`. A value under `backend.env` still wins. If you connected GitLab on a Helm install before 1.5.6, check the project's webhooks in GitLab: an address that starts with `None/` should start with your public URL followed by `/api/webhooks/gitlab/`.
+- **If a script of yours reads the service-health API** (`GET /api/data/analytics/service-health/`): it now returns every service, up to 200, instead of the 12 worst, and each entry has two new fields, `project_name` and `affected_by` ([Analytics API](../api/analytics.md)). The fields that were there are unchanged.
+- **Going back to 1.5.5**: set the version back. There is no database step; floors saved from the 1.5.6 screen (INFO, WARNING, CRITICAL) are ignored again by 1.5.5, as all floors were.
 
 ### 1.5.5: web app changes only
 
@@ -122,6 +132,10 @@ Releases that need something from you after upgrading. Migrations run on their o
 - **New optional settings**: `SEROPS_ISSUE_CONTINUITY_HOURS`, `SEROPS_MAX_LOG_WINDOW_MINUTES`, `SEROPS_USAGE_SCRIPT_PATH`, `SEROPS_USAGE_WEBSITE_ID`, `SEROPS_API_DOCS`.
 - **New migrations**: Data 0062–0063, ai_model 0004, org_settings 0022, traces 0004. They only add columns and tables, except org_settings 0022, which moves the seeded Claude provider to `claude-sonnet-5-5` when no organisation uses it.
 
+### 1.4.0: SAML, SCIM and audit streaming
+
+- **New migrations**: Users 0017, ee 0002–0004, Data 0060–0061. Upgrading from 1.2.x: read the 1.3.0 notes first. 1.3.1 needs nothing.
+
 ### 1.3.0: users, roles and teams
 
 - **`SEROPS_ENCRYPTION_KEY` is required.** Stored credentials now have their own key instead of being encrypted with `DJANGO_SECRET_KEY`, and SerOps refuses to start without it. Generate one with `openssl rand -base64 32 | tr '+/' '-_'`, add it to your environment, and back it up. Keep `DJANGO_SECRET_KEY` unchanged. Once upgraded, run `python manage.py rotate_secrets` once: until then, existing credentials still depend on `DJANGO_SECRET_KEY`.
@@ -145,7 +159,7 @@ Releases that need something from you after upgrading. Migrations run on their o
 ### 1.2.14: security release
 
 - **SSO accounts only for listed domains.** A first SSO sign-in creates an account only when the email's domain is in *Email domains that can join* (Settings → Security → Single Sign-On). With no domain listed, only invited and existing members sign in. On an install with several organisations, only the operator (a staff user) sets these domains.
-- **Alert webhooks on an install with several organisations** need a per-organisation secret: `POST /api/organisation/alert-secret/rotate/`, then update the sender. The global `ALERT_WEBHOOK_SECRETS` and Sentry's client secret still work on a single-organisation install.
+- **Alert webhooks on an install with several organisations** need a per-organisation secret: `POST /api/organisation/alert-secret/rotate/`, then update the sender. The install-wide secrets (`SEROPS_ALERTMANAGER_SECRET`, `SEROPS_GRAFANA_ALERT_SECRET`, `SEROPS_DATADOG_MONITOR_SECRET` and Sentry's `SEROPS_SENTRY_CLIENT_SECRET`) still work on a single-organisation install.
 - **Changing an integration's host** asks for its credentials again.
 - **Activation links** sent before the upgrade no longer work; resend them from the login page.
 - Behind HTTPS (Helm with an HTTPS public URL, the quick-start), cookies become Secure and responses send HSTS. Nothing to do.
@@ -181,38 +195,9 @@ Releases that need something from you after upgrading. Migrations run on their o
 4. Run any command the notes ask for (`rotate_secrets` for 1.3.0) in a backend pod.
 5. Check `kubectl -n serops get pods`, `kubectl logs -n serops job/serops-migrate -c migrate` and `/api/version/`, then sign in.
 
-The rest of this page (`scripts/upgrade.sh`, `.env`, `docker compose`) is for the quick-start.
+The rest of this page (`scripts/backup.sh`, `.env`, `docker compose`) is for the quick-start.
 
-## Automated Upgrade
-
-The simplest way to upgrade the quick-start is using the included upgrade script:
-
-```bash
-./scripts/upgrade.sh [version]
-```
-
-For example:
-
-```bash
-# Upgrade to a specific version
-./scripts/upgrade.sh 1.5.5
-
-# Upgrade to the latest version
-./scripts/upgrade.sh
-```
-
-The script automatically:
-
-1. Creates a pre-upgrade database backup
-2. Pulls new images for the specified version
-3. Restarts the backend and frontend (PostgreSQL and Redis keep running)
-4. Reports which images were updated
-
----
-
-## Manual Upgrade Procedure
-
-If you prefer to upgrade manually:
+## Upgrading the quick-start
 
 ### Step 1: Back Up the Database
 
@@ -220,12 +205,12 @@ If you prefer to upgrade manually:
 ./scripts/backup.sh
 ```
 
-### Step 2: Update the Version (Optional)
+### Step 2: Set the New Version
 
-If upgrading to a specific version, edit `.env`:
+Set the release you are upgrading to in `.env`. Without it, `docker compose pull` fetches the version written in `docker-compose.yml` again:
 
 ```env
-SEROPS_VERSION=1.5.5
+SEROPS_VERSION=1.5.6
 ```
 
 ### Step 3: Pull New Images
@@ -252,8 +237,8 @@ docker compose ps
 # Check application logs for errors
 docker compose logs --tail 50 backend
 
-# Run the health check
-./scripts/healthcheck.sh
+# Check the API answers (add -k for a local install with Caddy's own certificate)
+curl -fsS https://<your-domain>/api/health/
 ```
 
 Log in and verify core functionality:
@@ -271,8 +256,10 @@ If an upgrade causes issues, roll back to the previous version:
 
 ### Step 1: Stop the Application
 
+Stop the web app and the API. PostgreSQL keeps running, because the restore needs it:
+
 ```bash
-docker compose down
+docker compose stop caddy frontend backend
 ```
 
 ### Step 2: Restore the Database
@@ -288,8 +275,8 @@ docker exec -i serops-postgres pg_restore \
 Set the previous version in `.env` and start:
 
 ```bash
-# Edit .env to set SEROPS_VERSION to the previous version
-SEROPS_VERSION=1.4.0 docker compose up -d
+# In .env: SEROPS_VERSION=1.4.0 (the previous version), then
+docker compose up -d
 ```
 
 ### Step 4: Verify the Rollback
@@ -320,7 +307,7 @@ docker compose logs backend
 docker exec serops-backend python manage.py showmigrations
 
 # Check actual database columns
-docker exec serops-backend python manage.py dbshell -c "\d tablename"
+docker exec serops-postgres psql -U serops -d serops -c '\d tablename'
 ```
 
 ### State Desync

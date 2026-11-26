@@ -22,10 +22,10 @@ of the in-cluster ones.
 ## 1. Verify what you install
 
 ```bash
-cosign verify ghcr.io/getserops/backend:1.5.5 \
+cosign verify ghcr.io/getserops/backend:1.5.6 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/docker\.yml@refs/tags/v'
-gh attestation verify oci://ghcr.io/getserops/backend:1.5.5 --owner getserops
+gh attestation verify oci://ghcr.io/getserops/backend:1.5.6 --owner getserops
 ```
 
 The same for `frontend` and the chart: see [Verifying what you pull](helm.md#verifying-what-you-pull).
@@ -45,6 +45,8 @@ What `up` runs, if you prefer your own cluster:
 ```bash
 az aks create -g <rg> -n <cluster> --tier free --node-count 2 --node-vm-size Standard_D2as_v7 \
   --network-plugin azure --network-plugin-mode overlay --network-dataplane cilium
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo add jetstack https://charts.jetstack.io
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --version 4.15.1 \
   -n ingress-nginx --create-namespace \
   --set controller.service.externalTrafficPolicy=Local \
@@ -52,6 +54,7 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --version 4.15.
 helm upgrade --install cert-manager jetstack/cert-manager --version v1.21.3 \
   -n cert-manager --create-namespace --set crds.enabled=true
 kubectl apply -f deploy/cloud/common/cluster-issuer.yaml
+kubectl create namespace serops
 ```
 
 * **NetworkPolicy needs an enforcing CNI.** The Cilium dataplane enforces the
@@ -73,6 +76,10 @@ kubectl -n serops create secret generic serops-django \
   --from-literal=django-secret-key="$(openssl rand -hex 64)" \
   --from-literal=encryption-key="$(openssl rand -base64 32 | tr '+/' '-_')"
 ```
+
+With the test Postgres and Redis that `cluster.sh up` installs, the hosts are
+`postgres:5432` and `redis:6379`, and the passwords are in the `serops-data`
+Secret.
 
 Back up `encryption-key`: without it the stored credentials cannot be read.
 
@@ -104,16 +111,16 @@ celeryWorker:
 ## 4. Install and sign in
 
 ```bash
-helm install serops oci://ghcr.io/getserops/charts/serops --version 1.5.5 \
+helm install serops oci://ghcr.io/getserops/charts/serops --version 1.5.6 \
   -n serops -f aks-values.yaml --wait --timeout 15m
 kubectl -n serops get certificate serops-tls      # READY True after ~30 s
 ```
 
-1.5.5 is the chart tested here as 1.3.0, with the fixes found on GKE and
+1.5.6 is the chart tested here as 1.3.0, with the fixes found on GKE and
 EKS since 1.3.1 ([changelog](../changelog.md)).
 
-Open `https://HOST`, register the first account (it becomes the admin; open
-registration then closes by itself), and only then restrict the load balancer
+Open `https://HOST`, register the first account (it becomes the admin; after
+that sign-up closes), and only then restrict the load balancer
 if you want to (`cluster.sh lock`): Let's Encrypt has to reach port 80 to issue
 the certificate.
 
@@ -171,7 +178,7 @@ Viewer (plus the team SRE) and a custom role.
    discovery URL `https://login.microsoftonline.com/<tenant-id>/v2.0/.well-known/openid-configuration`,
    groups claim `groups`, role rules by group ID, default role **Refuse sign-in**,
    **Update roles at every sign-in** on, team rules, and your Entra domain under
-   **Sign-in domains** so a first sign-in creates the account.
+   **Email domains that can join** so a first sign-in creates the account.
 
 Checked: each user landed with the mapped role (Admin; Viewer and a member of
 SRE, so it saw the restricted project; the custom role), the audit log shows
@@ -179,9 +186,12 @@ SRE, so it saw the restricted project; the custom role), the audit log shows
 user in no mapped group is sent back to `/login?sso=denied` (`SSO_DENIED`).
 
 !!! warning "Removing a user from the groups does not sign them out"
-    The next sign-in is refused, but the SerOps account keeps its role and any
-    session already open stays valid (up to 30 days). When someone leaves,
-    also remove or deactivate them in **Settings → Users**.
+    The next sign-in is refused, and that refusal also ends the sessions and
+    API tokens the user still holds (except for the organisation's last
+    active admin). Until they try to sign in again, the SerOps account keeps
+    its role and an open session stays valid within the organisation's
+    inactivity limit. When someone leaves, also remove or deactivate them in
+    **Settings → Users**.
 
 A custom role without `project.read` sees no project at all: include it in
 roles meant for on-call work.

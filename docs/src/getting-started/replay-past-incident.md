@@ -33,7 +33,7 @@ SerOps can find. On a new install, some of it is missing:
 | Logs | Yes, as stored, if the log store still keeps them. |
 | Metrics | Only if they carried the SerOps labels at the time (`organisation_name`, `project_name`, `environment`; see [Required labels for metrics](../how-to/configure-data-collection.md#required-labels-for-metrics)). Labels added today do not apply to past samples. On Google Cloud Monitoring a project rule on the namespace is enough. |
 | Deployments and commits | Mostly not. A repository's first **Sync** fetches the last 7 days of commits (up to 100). CI/CD runs come from polling of the last 2 hours, or the last 20 runs on a manual sync. Argo CD and Flux deploys are only known from the moment their webhook is set up. |
-| Traces | From Jaeger, Zipkin or Datadog APM, yes, within their retention. Through SerOps' own OTLP receiver, only from when you start sending them. |
+| Traces | From Jaeger, Zipkin, Grafana Tempo or Datadog APM, yes, within their retention. Through SerOps' own OTLP receiver, only from when you start sending them. |
 | Similar past incidents | None yet: this memory is built from issues resolved in SerOps. |
 
 Without deploys, the analysis cannot point at the change that caused the

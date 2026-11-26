@@ -98,10 +98,12 @@ Notification failures never break the analysis pipeline. If a Slack
 webhook returns 500, the batch analysis still succeeds and the
 channel's `last_error` records the response for you to investigate.
 
-Channels that fail with a permanent error (4xx — invalid URL, revoked
-key) are automatically deactivated, since the same request will fail
+Channels that fail with HTTP 400 or 422 (the request itself is wrong)
+are automatically deactivated, since the same request will fail
 identically every time. Fix the configuration and re-enable the
-channel.
+channel. Other errors, including 401, 403 and 404 (a revoked key or a
+deleted webhook), leave the channel active with the error in
+`last_error`.
 
 ---
 
@@ -119,12 +121,24 @@ this axis", so an entirely empty matcher matches every incident.
 
 | Axis | Values | Empty means |
 |------|--------|-------------|
-| **Minimum severity** | `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` | Any severity |
+| **Minimum severity** | `INFO`, `WARNING`, `CRITICAL` | Any severity |
 | **Environments** | List of environment names | All environments |
-| **Services** | List of service names | All services |
+| **Services** | List of project names (this axis is compared with the batch's project name) | All projects |
 | **Event types** | `batch_analyzed`, `alert_triggered`, `critical_issue` | All events |
 
-Severity is compared against the batch's highest-severity issue.
+Severity is compared against the batch's highest-severity issue. The
+channel's own minimum severity works the same way.
+
+| Minimum severity | Fires when the batch's top issue is |
+|---|---|
+| Blank (any) | Anything, including an analysis with no issue |
+| `INFO` | `INFO`, `WARNING` or `CRITICAL` |
+| `WARNING` | `WARNING` or `CRITICAL` |
+| `CRITICAL` | `CRITICAL` |
+
+With a minimum severity set, an analysis with no issue, or whose top issue
+is `UNKNOWN`, does not fire. Values saved before 1.5.6 keep working: `LOW`
+counts as `INFO`, `MEDIUM` as `WARNING` and `HIGH` as `CRITICAL`.
 
 | Event type | Fires when |
 |------------|-----------|
@@ -157,9 +171,9 @@ A typical setup separates paging from awareness:
 
 | Rule | Matcher | Targets |
 |------|---------|---------|
-| Page on-call | severity `CRITICAL`, env `production` | PagerDuty |
-| SRE awareness | severity `HIGH` | SRE Slack |
-| Payments team | services `checkout`, `billing` | Payments Slack, payments-oncall email |
+| Page on-call | event `critical_issue`, env `production` | PagerDuty |
+| SRE awareness | event `batch_analyzed` | SRE Slack |
+| Payments team | services (projects) `checkout`, `billing` | Payments Slack, payments-oncall email |
 | Alert context | event `alert_triggered` | PagerDuty |
 
 The third and fourth rules can both match the same incident; the
@@ -189,7 +203,7 @@ POST https://your-serops-host/api/webhooks/alerts/<source>/<org_id>/
 Authorization: Bearer serops_alert_...
 ```
 
-`<source>` is `alertmanager`, `grafana`, or `datadog`.
+`<source>` is `alertmanager`, `grafana`, or `datadog`. A fourth source, `sentry`, uses Sentry's own signature instead of this token (see [Real-time Alerts](../integrations/alerts.md#sentry)).
 
 !!! warning "Rotation takes effect immediately"
     The previous secret stops working the moment a new one is
@@ -208,12 +222,14 @@ configuration.
 
 Escalation is configured separately, under escalation rules, and is
 driven purely by whether a matching rule exists — there is no
-organisation-wide on/off switch.
+organisation-wide on/off switch. Without a rule, nothing escalates.
+The app has no screen for escalation rules: create them through the
+API (`/api/notification/escalation-rules/`).
 
 | Level | Default delay | Notifies |
 |-------|---------------|----------|
-| Level 1 | 15 minutes | Project admins |
-| Level 2 | 45 minutes | All organisation admins |
+| Level 1 | 15 minutes | All active organisation admins |
+| Level 2 | 45 minutes | All active organisation admins |
 
 Acknowledging or resolving the issue stops the chain. See
 [Set Up Escalation Rules](../how-to/escalation-rules.md).
@@ -225,7 +241,7 @@ Acknowledging or resolving the issue stops the chain. See
 | Symptom | Likely cause |
 |---------|--------------|
 | Nothing is sent at all | No active routing rule matches. Check Alerts & routing → Routing Rules |
-| One channel silent, others fine | Channel auto-deactivated after a permanent failure — check its `last_error` |
+| One channel silent, others fine | Channel auto-deactivated after a 400 or 422 — check its `last_error` |
 | No email received | SMTP not configured, or the channel's `extra_config.to` is empty |
 | Slack returns 404 | Webhook URL revoked or expired — regenerate it in Slack |
 | Teams returns an error | Regenerate the Incoming Webhook connector |
@@ -260,10 +276,9 @@ curl -X POST -H "Authorization: Token $ADMIN_TOKEN" \
   https://your-serops-host/api/notification/routing-rules/ \
   -d '{
     "name": "Page on-call for prod criticals",
-    "min_severity": "CRITICAL",
     "environments": ["production"],
     "services": [],
-    "event_types": [],
+    "event_types": ["critical_issue"],
     "target_ids": [3],
     "is_active": true
   }'

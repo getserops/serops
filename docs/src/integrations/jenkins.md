@@ -53,15 +53,7 @@ Once configured, you can link Jenkins to services via the **Add Service Wizard**
 | Feature | Description |
 |---------|-------------|
 | **Build Tracking** | Sync build status (Success/Failure/Unstable) |
-| **Log Ingestion** | Fetch console logs for failure analysis |
 | **Environment Detection** | Parse branch names to detect environment |
-
-### Console Log Capture
-
-For failed builds, SerOps fetches the console output:
-- Up to 1 MB of inline log stored
-- Error lines extracted for AI analysis
-- Full log available in batch details
 
 ---
 
@@ -126,8 +118,9 @@ empty in `post { always }` after a successful declarative build;
 A job that deploys several SerOps services calls the webhook once per service,
 each with that service's binding URL and token.
 
-Set `environment` to where this job deploys (`production`, `staging`, ...).
-Without it SerOps guesses from the job and branch names (see
+Set `environment` to where this job deploys. SerOps understands
+`production` or `prod`, `staging`, `stage` or `stag`, and `development`, `dev`
+or `develop` (any case). Without it, or with any other value, SerOps guesses from the job and branch names (see
 [Environment Mapping](#environment-mapping)); a job that is not built from
 Git has no `GIT_BRANCH`, and its deploys were recorded as `development`.
 

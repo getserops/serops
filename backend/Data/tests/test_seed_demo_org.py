@@ -33,7 +33,7 @@ from Data.demo_seed_time import TimeContext, parse_time, walk_times
 from Data.models import AIAnalyzedBatch, AlertEvent, AuditLog, Investigation, Issue, IssueOccurrence
 from ai_model.models import ChatSession, ChatMessage, AITokenUsage
 from integrations.models import Cluster, ObservabilityIntegration
-from notifications.models import IncidentNotificationChannel, Notification
+from notifications.models import IncidentNotificationChannel, Notification, NotificationRoutingRule
 from org_settings.models import AIModelProvider, OrganisationAISettings, OrganisationAPIKey
 from traces.models import IngestKey, Span, Trace
 
@@ -254,9 +254,29 @@ class SeedDemoOrgContentShapeTest(TestCase):
             checked = client.post(f'/api/integrations/observability/{first.pk}/health-check/')
             self.assertTrue(checked.json()['demo'])
 
-    def test_no_notification_channel_and_no_budget(self):
-        self.assertFalse(IncidentNotificationChannel.objects.filter(organisation=self.org).exists())
+    def test_one_oncall_channel_that_cannot_send_and_no_budget(self):
+        from notifications.incident_dispatcher import _is_demo_placeholder
+        from notifications.incident_channel_views import IncidentNotificationChannelSerializer
+        channels = IncidentNotificationChannel.objects.filter(organisation=self.org)
+        self.assertEqual([(c.name, c.kind, c.min_severity, c.is_active) for c in channels],
+                         [('Acme on-call (Slack)', 'slack', 'CRITICAL', True)])
+        channel = channels.get()
+        self.assertEqual(channel.get_webhook_url(), SEED_DEMO_PLACEHOLDER)
+        self.assertEqual(channel.api_key, '')
+        # The dispatcher skips it, and the API says only that a webhook is set.
+        self.assertTrue(_is_demo_placeholder(channel))
+        shown = IncidentNotificationChannelSerializer(channel).data
+        self.assertTrue(shown['has_webhook_url'])
+        self.assertNotIn('SEED_DEMO_PLACEHOLDER', str(shown))
         self.assertIsNone(OrganisationAISettings.objects.get(organisation=self.org).monthly_budget_usd)
+
+    def test_one_routing_rule_by_severity_and_environment(self):
+        rule = NotificationRoutingRule.objects.get(organisation=self.org, name='Production critical to on-call')
+        self.assertEqual((rule.is_active, rule.min_severity, rule.environments, rule.services, rule.event_types),
+                         (True, 'CRITICAL', ['production'], [], []))
+        self.assertEqual(list(rule.targets.values_list('name', flat=True)), ['Acme on-call (Slack)'])
+        self.assertTrue(rule.matches(event='batch_analyzed', severity='CRITICAL', environment='production', service=''))
+        self.assertFalse(rule.matches(event='batch_analyzed', severity='WARNING', environment='production', service=''))
 
     # ── Analyses ──────────────────────────────────────────────────────
 
@@ -755,6 +775,10 @@ class SeedDemoOrgIdempotencyTest(TestCase):
             'notifications': Notification.objects.filter(user__organisation=org).count(),
             'audit': AuditLog.objects.filter(organisation=org).count(),
             'usage': AITokenUsage.objects.filter(organisation=org).count(),
+            'channels': sorted(IncidentNotificationChannel.objects.filter(
+                organisation=org).values_list('name', flat=True)),
+            'rules': sorted(NotificationRoutingRule.objects.filter(
+                organisation=org).values_list('id', 'name')),
         }
 
     def test_second_run_gives_the_same_rows_and_keeps_the_stable_ids(self):
@@ -852,7 +876,9 @@ class SeedDemoOrgRebuildTest(TestCase):
         self.assertFalse(ObservabilityIntegration.objects.filter(organisation=org).exclude(host='').exists())
         self.assertFalse(ProviderIntegration.objects.filter(organisation=org, base_url__isnull=False).exists())
         self.assertFalse(ProviderIntegration.objects.filter(organisation=org, name='Jenkins').exists())
-        self.assertFalse(IncidentNotificationChannel.objects.filter(organisation=org).exists())
+        # The old placeholder channel is gone; only the on-call example is left.
+        self.assertEqual(list(IncidentNotificationChannel.objects.filter(organisation=org)
+                              .values_list('name', flat=True)), ['Acme on-call (Slack)'])
         self.assertIsNone(OrganisationAISettings.objects.get(organisation=org).monthly_budget_usd)
         self.assertFalse(AIAnalyzedBatch.objects.filter(batch_id='demo-05-2-production').exists())
         self.assertFalse(AlertEvent.objects.filter(organisation=org).exists())

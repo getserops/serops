@@ -14,8 +14,8 @@ Batches represent collected log data from a specific time window. Each batch is 
 GET /api/data/batches
 ```
 
-!!! note "No trailing slash"
-    This route, along with `GET /api/data/metrics`, is registered without a trailing slash. Requesting `/api/data/batches/` will not match.
+!!! note "Trailing slash"
+    This route, along with `GET /api/data/metrics`, is registered without a trailing slash. Requesting `/api/data/batches/` also works: the API retries a `404` without the slash.
 
 **Query parameters:**
 
@@ -58,7 +58,7 @@ POST /api/data/batches/reanalyze/
 | Field | Required | Description |
 |-------|----------|-------------|
 | `batch_ids` | yes | One or more batch IDs to re-analyse |
-| `model` | yes | Any active AI provider name (`claude`, `gemini`, `deepseek`, `openai`, `ollama`) |
+| `model` | no | Any active AI provider name (`claude`, `gemini`, `deepseek`, `openai`, `ollama`); default `gemini` |
 | `mode` | no | `compare` (default) or `primary` — see below |
 
 **The `mode` field decides what happens to the batch:**
@@ -146,10 +146,10 @@ Paginated; the response carries `total_events` and `has_more` so large incidents
 ## Get Post-mortem Draft
 
 ```
-GET /api/data/batches/{batch_id}/postmortem/
+POST /api/data/batches/{batch_id}/postmortem/
 ```
 
-Generates a post-mortem draft from the batch's analysis: timeline, root cause, contributing factors, and remediation steps, ready to paste into an incident report.
+Generates a post-mortem draft from the batch's analysis: timeline, root cause, contributing factors, and remediation steps, ready to paste into an incident report. It calls the AI, so it requires the `user` role or above. The response is `{"batch_id": "...", "markdown": "...", "generated_at": "..."}`.
 
 ## Delete Old Batches
 
@@ -157,7 +157,7 @@ Generates a post-mortem draft from the batch's analysis: timeline, root cause, c
 DELETE /api/data/delete-old-batches/?days=30
 ```
 
-Deletes every batch older than `days` (positive integer, default `30`) within the caller's organisation. Returns the number of deleted rows.
+Deletes every batch older than `days` (positive integer, default `30`) within the caller's organisation. Returns the number of deleted rows. Admin only (`settings.manage`).
 
 For automatic cleanup, configure a retention policy instead — see [Settings & Admin](settings.md).
 

@@ -30,7 +30,7 @@ graph TB
     end
 
     subgraph "Background Workers"
-        Celery[Celery Workers<br/>3 queues: high / normal / background]
+        Celery[Celery Workers<br/>queues: high_priority / normal / background, plus default]
         Beat[Celery Beat<br/>Periodic Scheduler]
     end
 
@@ -58,7 +58,7 @@ graph TB
     end
 
     subgraph "Notification Channels (outbound)"
-        Notify[Email / Slack / Teams]
+        Notify[Email / Slack / Teams /<br/>PagerDuty / OpsGenie]
     end
 
     Browser --> Proxy
@@ -98,14 +98,14 @@ instead and nothing is stored — see [OTLP Traces](../integrations/traces.md).
 | **API Layer** | Django 5 + DRF | REST API handling auth, business logic, async tasks, and data orchestration. |
 | **Datastore** | PostgreSQL 16 | relational data: Users, Projects, Batches, Issues, Deployments. |
 | **Log Store** | Configurable | Elasticsearch, OpenSearch, Loki, Splunk, Datadog, CloudWatch, Google Cloud Logging, or Azure Log Analytics (customer's stack). |
-| **Cache** | Redis 7 | API response caching, rate limiting, and session storage. |
+| **Cache** | Redis 7 | API response caching and rate limiting. |
 
 ### Data Flow
 
 #### Batch Analysis Pipeline
 
 1.  **Trigger**: Periodic internal scheduler at a configurable interval (default:
-    10 minutes via `BATCH_GENERATION_INTERVAL`). An alert webhook can also pin an
+    15 minutes via `BATCH_GENERATION_INTERVAL`). An alert webhook can also pin an
     explicit window so the analysis covers the period the alert fired in.
 2.  **Collection**: Fetch logs, metrics, spans, deployments and CI/CD output for
     the window. Logs and metrics are pulled from the configured providers; spans
@@ -176,31 +176,19 @@ The **Redaction Service** processes batch analysis context before it is sent:
 
 ### API Design
 -   **Style**: RESTful resources (Nouns for resources, Verbs for actions).
--   **Common Response Envelope**:
-    ```json
-    {
-      "results": [...],
-      "count": 42,
-      "next": "...",
-      "previous": null
-    }
-    ```
--   **Error Format**:
-    ```json
-    { "error": "Short title", "detail": "Verbose description" }
-    ```
+-   **Response Shape**: Set per endpoint; there is no single envelope. See the [API overview](../api/overview.md#response-format).
+-   **Error Format**: Mostly `{ "error": "..." }`; serializer validation errors use the DRF default (messages per field).
 
 ### Authentication and Security Policies
 -   **Authentication**: Token-based via `django-rest-knox`.
 -   **Token Policy**:
     -   **Lifetime**: Tokens valid for 30 days from creation.
-    -   **Auto-Refresh**: Automatically extended on each authenticated request (at most once per hour).
-    -   **Hard Limit**: Re-login required after 30 days of inactivity.
--   **Network**: All internal components (DB, Redis, ES) isolated in Docker network; only Nginx exposes ports 80/443.
+    -   **Auto-Refresh**: Automatically extended on each authenticated request (at most once per minute).
+    -   **Idle Timeout**: A token unused for longer than the organisation's session timeout (default 8 hours) is deleted; 30 days is the ceiling.
+-   **Network**: Internal components (PostgreSQL, Redis) are isolated in the Docker network; in the quick start only Caddy exposes ports 80/443.
 
 ### Scalability
 -   **Async-First**: Any operation taking >500ms should be offloaded to Celery.
--   **Log Retention**: Elasticsearch indices rotate every 30 days (default).
 -   **Rate Limiting**: Rate limiting can be configured via Django REST Framework throttle classes.
 
 ---

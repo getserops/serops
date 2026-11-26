@@ -4,14 +4,14 @@ description: "Set up CI/CD and deployment webhooks for SerOps: one URL per bindi
 ---
 # Webhook Setup Guide
 
-SerOps receives CI/CD pipeline events and deployment events via webhooks. Every webhook URL is tied to a specific **CI/CD Binding** you create in SerOps under **Projects → Services → CI/CD Bindings**. The binding provides multi-tenancy isolation (only your org's data flows to your batches) and lets you configure per-binding secrets for signature verification.
+SerOps receives CI/CD pipeline events and deployment events via webhooks. Every webhook URL is tied to a specific **CI/CD Binding** you create in SerOps under **Projects → Services → CI/CD Bindings**. The binding provides multi-tenancy isolation (only your org's data flows to your batches) and carries the per-binding secret that every request must prove it knows.
 
 This page covers:
 
 - Finding your webhook URL in SerOps
 - Configuring the webhook in each supported provider
 - The generic deployment webhook (ArgoCD, Flux, Helm, Terraform, kubectl)
-- HMAC signature verification (recommended for public-facing webhooks)
+- Signature and token checks (required on every request)
 
 ---
 
@@ -23,16 +23,16 @@ This page covers:
 4. Copy the **Webhook URL** shown on the binding detail page. It looks like:
 
 ```
-https://your-serops.com/api/providers/webhook/<provider>/<binding_id>/
+https://your-serops.com/api/webhooks/<provider>/<binding_id>/
 ```
 
-or, for the generic deployment webhook:
+where `<provider>` is `gitlab`, `github`, `bitbucket`, `azure-devops` or `jenkins`, or, for the generic deployment webhook:
 
 ```
 https://your-serops.com/api/providers/webhook/deployment/<binding_id>/
 ```
 
-Optionally set a **Webhook Secret** on the binding — SerOps will then require every request to include an HMAC-SHA256 signature (see [Signature verification](#signature-verification) below).
+SerOps generates a **Webhook Secret** when the binding is created; it cannot be left out. The create response returns it, and so does `POST /api/projects/cicd-bindings/{id}/setup-webhook/` for providers configured by hand (Jenkins, Azure DevOps, Bitbucket, Argo CD, Flux). Every request must prove it knows the secret, or SerOps answers **403 Forbidden** (see [Signature verification](#signature-verification) below).
 
 ---
 
@@ -40,37 +40,14 @@ Optionally set a **Webhook Secret** on the binding — SerOps will then require 
 
 ### GitHub Actions
 
-Two options: send a native GitHub webhook (recommended), or POST from within a workflow step.
-
 **Native webhook** (repo → Settings → Webhooks → Add webhook):
 
 - **Payload URL**: paste your SerOps webhook URL
 - **Content type**: `application/json`
-- **Secret**: paste your binding's Webhook Secret (if set)
-- **Which events**: at minimum, `Workflow runs`. Add `Pushes` and `Pull requests` for richer correlation.
-
-**Workflow step** (add near the end of your workflow):
-
-```yaml
-- name: Notify SerOps
-  if: always()
-  run: |
-    curl -X POST \
-      -H "Content-Type: application/json" \
-      -H "X-SerOps-Signature: sha256=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "${{ secrets.SEROPS_WEBHOOK_SECRET }}" | cut -d' ' -f2)" \
-      -d "$PAYLOAD" \
-      "${{ secrets.SEROPS_WEBHOOK_URL }}"
-  env:
-    PAYLOAD: |
-      {"pipeline_id":"${{ github.run_id }}",
-       "status":"${{ job.status }}",
-       "branch":"${{ github.ref_name }}",
-       "commit_shas":["${{ github.sha }}"]}
-```
+- **Secret**: paste your binding's Webhook Secret
+- **Which events**: `Workflow runs`. SerOps reads completed workflow runs of the bound repository and ignores every other event on this URL.
 
 ### GitLab CI
-
-Two options: project-level webhooks (recommended) or a `.gitlab-ci.yml` post-build job.
 
 **Project webhook** (project → Settings → Webhooks → Add webhook):
 
@@ -79,79 +56,60 @@ Two options: project-level webhooks (recommended) or a `.gitlab-ci.yml` post-bui
 - **Trigger**: `Job events` and `Pipeline events`
 - **SSL verification**: leave enabled
 
-**`.gitlab-ci.yml` post-build job**:
-
-```yaml
-notify-serops:
-  stage: .post
-  script:
-    - |
-      PAYLOAD='{"pipeline_id":"'$CI_PIPELINE_ID'","status":"'$CI_JOB_STATUS'","branch":"'$CI_COMMIT_REF_NAME'","commit_shas":["'$CI_COMMIT_SHA'"]}'
-      SIG=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "$SEROPS_WEBHOOK_SECRET" | cut -d' ' -f2)
-      curl -X POST -H "Content-Type: application/json" \
-        -H "X-SerOps-Signature: sha256=$SIG" \
-        -d "$PAYLOAD" \
-        "$SEROPS_WEBHOOK_URL"
-  when: always
-```
-
 ### Bitbucket Pipelines
 
 **Repository webhook** (Repository settings → Webhooks → Add webhook):
 
 - **URL**: your SerOps webhook URL
 - **Status**: Active
-- **Triggers**: `Repository:push`, `Pipeline:*`
-- **Secret**: paste your binding's Webhook Secret in the `Secret` field (Bitbucket Cloud only — self-hosted Server uses `Webhook signature`)
+- **Triggers**: `Build status created` and `Build status updated`. SerOps refuses any other event on this URL with 403.
+- **Secret**: paste your binding's Webhook Secret in the `Secret` field
 
 ### Azure DevOps Pipelines
 
 **Service hook** (Project settings → Service hooks → Create subscription):
 
 - **Service**: Web Hooks
-- **Trigger**: `Build completed` and `Release deployment completed`
+- **Trigger**: `Run state changed` and `Release deployment completed`. SerOps ignores other event types.
 - **URL**: your SerOps webhook URL
-- **Basic authentication username/password**: leave blank
-- **HTTP headers**: add `X-SerOps-Signature: sha256=<computed-per-request>` if using signature verification
+- **Basic authentication password**: the binding's Webhook Secret (the username can be empty)
 
 ### Jenkins
 
-Jenkins doesn't have first-class outbound webhooks. Use a post-build step in your `Jenkinsfile`:
+Jenkins doesn't have first-class outbound webhooks. Use a post-build step in your `Jenkinsfile` with the **HTTP Request** plugin, and send the binding's secret in the `X-Jenkins-Token` header:
 
 ```groovy
 pipeline {
-  agent any
-  stages {
-    stage('Build') {
-      steps { echo 'building...' }
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                sh 'make build'
+            }
+        }
     }
-  }
-  post {
-    always {
-      script {
-        def payload = """{
-          "pipeline_id":"${env.BUILD_ID}",
-          "status":"${currentBuild.result?.toLowerCase() ?: 'success'}",
-          "branch":"${env.BRANCH_NAME}",
-          "commit_shas":["${env.GIT_COMMIT}"]
-        }"""
-        def sig = sh(
-          script: "echo -n '${payload}' | openssl dgst -sha256 -hmac '\${SEROPS_WEBHOOK_SECRET}' | cut -d' ' -f2",
-          returnStdout: true,
-        ).trim()
-        sh """
-          curl -X POST -H "Content-Type: application/json" \
-            -H "X-SerOps-Signature: sha256=${sig}" \
-            -d '${payload}' \
-            "\${SEROPS_WEBHOOK_URL}"
-        """
-      }
+    post {
+        always {
+            httpRequest(
+                url: "https://your-serops.com/api/webhooks/jenkins/${SEROPS_BINDING_ID}/",
+                httpMode: 'POST',
+                contentType: 'APPLICATION_JSON',
+                customHeaders: [[name: 'X-Jenkins-Token', value: "${SEROPS_WEBHOOK_TOKEN}"]],
+                requestBody: """{
+                    "job_name": "${env.JOB_NAME}",
+                    "build_number": "${env.BUILD_NUMBER}",
+                    "status": "${currentBuild.currentResult}",
+                    "branch": "${env.GIT_BRANCH ?: ''}",
+                    "commit": "${env.GIT_COMMIT ?: ''}",
+                    "environment": "production"
+                }"""
+            )
+        }
     }
-  }
 }
 ```
 
-Store `SEROPS_WEBHOOK_URL` + `SEROPS_WEBHOOK_SECRET` as Jenkins credentials.
+Store `SEROPS_BINDING_ID` and `SEROPS_WEBHOOK_TOKEN` (the binding's Webhook Secret) as Jenkins credentials. The [Jenkins page](jenkins.md#webhook-configuration-optional) explains each field.
 
 ---
 
@@ -246,6 +204,7 @@ spec:
             - |
               PAYLOAD='{"commit_sha":"{{ .Values.image.tag }}","environment":"{{ .Release.Namespace }}","actor":"helm","version":"{{ .Chart.AppVersion }}"}'
               curl -fsSL -X POST -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $SEROPS_WEBHOOK_SECRET" \
                 -d "$PAYLOAD" \
                 "https://your-serops.com/api/providers/webhook/deployment/<binding_id>/"
 ```
@@ -259,6 +218,7 @@ resource "null_resource" "notify_serops" {
   provisioner "local-exec" {
     command = <<EOT
 curl -fsSL -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SEROPS_WEBHOOK_SECRET" \
   -d '{"commit_sha":"${var.git_sha}","environment":"${var.environment}","actor":"terraform","version":"${var.release_tag}"}' \
   "${var.serops_webhook_url}"
 EOT
@@ -267,32 +227,35 @@ EOT
 }
 ```
 
+Both examples read the binding's Webhook Secret from the `SEROPS_WEBHOOK_SECRET` environment variable; set it where the hook runs. Without the `Authorization` header the deployment webhook answers 403.
+
 ---
 
 ## Signature verification
 
-SerOps supports HMAC-SHA256 signatures on all webhook endpoints. Highly recommended for any webhook exposed on a public URL.
+Every webhook endpoint refuses a request that does not prove it knows the binding's Webhook Secret. Each provider proves it its own way:
 
-1. **Generate a secret**: any 32+ char random string. `openssl rand -hex 32` works.
-2. **Set it on the binding**: **Projects → Services → CI/CD Bindings → \<binding\> → Webhook Secret**.
-3. **Compute + attach the signature** on every request:
+| Endpoint | What SerOps checks |
+|---|---|
+| `/api/webhooks/gitlab/<binding_id>/` | `X-Gitlab-Token` equals the secret (GitLab's **Secret Token** field) |
+| `/api/webhooks/github/<binding_id>/` | `X-Hub-Signature-256: sha256=<HMAC-SHA256 of the body>` (GitHub's **Secret** field) |
+| `/api/webhooks/bitbucket/<binding_id>/` | `X-Hub-Signature: sha256=<HMAC-SHA256 of the body>` (Bitbucket's **Secret** field) |
+| `/api/webhooks/azure-devops/<binding_id>/` | `Authorization: Basic` whose password is the secret |
+| `/api/webhooks/jenkins/<binding_id>/` | `X-Jenkins-Token` header, or `?token=` in the URL, equals the secret |
+| `/api/providers/webhook/{deployment,argocd,flux}/<binding_id>/` | `X-SerOps-Signature: sha256=<HMAC-SHA256 of the body>`, `X-Signature: sha256=<…>` (Flux `generic-hmac`), or `Authorization: Bearer <secret>` |
+
+For the deployment endpoints, compute the signature over the raw request body:
 
 ```
 signature = HMAC-SHA256(secret, raw-request-body).hex()
 header    = X-SerOps-Signature: sha256=<signature>
 ```
 
-- If a binding has NO secret set, SerOps accepts requests without a signature (useful for private-network installs).
-- If a binding HAS a secret, missing / malformed / wrong signatures return **403 Forbidden**.
+- A missing, malformed or wrong signature or token returns **403 Forbidden**. So does a binding with no secret.
 - Comparison uses `hmac.compare_digest` (constant-time) — no timing side-channels.
 
 ## Rate limits
 
-All webhook endpoints are rate-limited to protect against runaway loops:
-
-| Endpoint | Limit |
-|---|---|
-| Per-provider CI/CD webhooks | 300/min per binding |
-| Generic deployment webhook | 600/hour per binding |
+The deployment endpoints (`/api/providers/webhook/{deployment,argocd,flux}/`) are limited to **600 requests per hour per client IP**, to protect against runaway loops. The per-provider CI/CD endpoints under `/api/webhooks/` have no rate limit of their own.
 
 If you legitimately need higher — e.g. a monorepo with 100+ pipelines/hour — contact `security@serops.ai`.

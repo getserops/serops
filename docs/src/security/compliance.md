@@ -42,13 +42,18 @@ Every significant action is logged with:
 | `PROJECT_ACCESS_CHANGE` | A project's access mode or team grants changed (before and after) |
 | `AI_MODEL_CHANGE` | AI provider changed |
 | `NOTIFICATION_TEST` | Test notification sent |
-| `EXPORT_DATA` | Data exported |
+| `EXPORT_DATA` | Audit log exported to CSV |
 | `INVESTIGATION_RUN` | Investigation started |
 | `ACCESS_DENIED` | A request was refused because the user's role lacks the permission. Details name the permission, role, method and path. Recorded once per user and path every 10 minutes |
 | `SSO_PROVISION` | Account created at a first SSO sign-in (email domain listed) |
 | `SSO_DENIED` | SSO sign-in refused: the person is in no mapped group and the default is *Refuse sign-in* |
 | `ACCOUNT_DELETE` | User deleted their account |
-| `ORG_DELETE` | Organisation deleted |
+| `SCIM_USER_CREATE` / `SCIM_USER_UPDATE` / `SCIM_USER_DEACTIVATE` / `SCIM_USER_DELETE` | User provisioned, changed (including reactivated), deprovisioned or deleted by SCIM |
+| `SCIM_GROUP_CREATE` / `SCIM_GROUP_UPDATE` / `SCIM_GROUP_DELETE` | Group created, changed or deleted by SCIM |
+| `SCIM_TOKEN_CREATE` / `SCIM_TOKEN_REVOKE` | SCIM token created or revoked |
+| `AUDIT_STREAM_CREATE` / `AUDIT_STREAM_UPDATE` / `AUDIT_STREAM_DELETE` | Audit stream destination added, changed (including switched on or off) or removed |
+
+Deleting an organisation deletes its audit log with it; no entry records the deletion.
 
 The IP address is the client's as seen by your reverse proxy: entries a client writes into `X-Forwarded-For` are ignored (`TRUSTED_PROXY_COUNT`, default `1`).
 
@@ -63,33 +68,9 @@ Navigate to **Settings → Audit Log**:
 
 ---
 
-## Redaction Reports
-
-Every batch analysis generates a `RedactionReport` for compliance:
-
-```json
-{
-  "batch_id": "batch_20260107_143000_a1b2",
-  "source_type": "logs",
-  "total_items_redacted": 47,
-  "critical_count": 3,
-  "high_count": 12,
-  "medium_count": 32,
-  "findings_summary": {
-    "api_key": 3,
-    "email": 28,
-    "ip_address": 16
-  },
-  "original_size_bytes": 524288,
-  "redacted_size_bytes": 521400
-}
-```
-
----
-
 ## Data Retention
 
-Configure automatic data cleanup in **Settings → Data Management**:
+Configure automatic data cleanup in **Settings → Data retention**:
 
 | Setting | Options |
 |---------|---------|
@@ -120,9 +101,9 @@ class RetentionPolicy:
 
 ### Export Options
 
-- **Batches**: Export batch data with analysis results
 - **Audit Logs**: Export action history (CSV)
-- **Redaction Reports**: Export compliance audit trail
+
+The audit log is the only export. Everything else is in your PostgreSQL.
 
 ### GDPR Considerations
 
@@ -135,16 +116,21 @@ SerOps helps with GDPR compliance:
 
 ### Right to Erasure — Delete Your Account
 
-Authenticated users can delete their own account and personal data with a single API call:
+Authenticated users can delete their own account and personal data with a single API call, which must carry a confirmation body:
 
 ```
 DELETE /api/auth/account
+Content-Type: application/json
+
+{"confirm": "DELETE"}
 ```
+
+Without that body the call returns `400`.
 
 What is removed:
 
 - The user record (email, name, avatar, phone)
-- Team memberships across all organisations the user belongs to
+- Team memberships in the user's organisation
 - Chat sessions and messages owned by the user
 
 What is retained (and why):

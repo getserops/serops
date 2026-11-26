@@ -154,8 +154,8 @@ If the webhook fires but nothing appears in SerOps, check
 ## Step 6 — Wait for the first batch
 
 SerOps aggregates logs, CPU and memory metrics, distributed traces, code changes, and CI/CD
-outputs into a **batch** at a configurable interval (default: every few
-minutes; see **Settings > Data Management**).
+outputs into a **batch** at a configurable interval (default: every 15
+minutes; see **Settings > Data retention**).
 
 1. Go to the **Analyses** page.
 2. When your first batch appears, click it to open the detail view.
@@ -181,7 +181,7 @@ burn through your quota:
    continues either way.
 
 See [Track AI Costs](../how-to/ai-costs.md) for the full breakdown
-and [Troubleshooting > Cost budget](../troubleshooting.md#cost-budget-q33)
+and [Troubleshooting > Cost budget](../troubleshooting.md#cost-budget)
 for what to do when the cap trips.
 
 ---
@@ -190,7 +190,7 @@ for what to do when the cap trips.
 
 | Issue | Solution |
 |-------|----------|
-| No batches ever appear | Check that at least one service is connected + the log provider is verified. Check **Settings > Data Management** for batch cadence. |
+| No batches ever appear | Check that at least one service is connected + the log provider is verified. In Sentinel active mode (the default) a quiet window creates no batch: see [Sentinel](../how-to/sentinel.md#active-mode-default). Check **Settings > Data retention** for batch cadence. |
 | Batches appear but are empty | Log provider isn't returning matches for the batch time window. Verify the `service_name` field in your logs matches the SerOps service name exactly — see [Configure Data Collection Agents](../how-to/configure-data-collection.md). |
 | Batches analyzed but AI shows "No API key configured" | Add an AI provider under **Settings > AI Providers** and click **Test Connection**. |
 | Analysis fails with `AUTH_ERROR` / `QUOTA_EXCEEDED` | See the [AI Analysis error table](../troubleshooting.md#ai-analysis). |
@@ -200,8 +200,8 @@ for what to do when the cap trips.
 
 ## Next steps
 
-- [Explore the Dashboard](../user-guide/dashboard.md) — cross-project
-  view, incident heatmap, cost tracking
+- [Explore the Overview](../user-guide/dashboard.md) — every service's
+  status, what is broken and the first step, the week
 - [Use AI Chat](../user-guide/ai-chat.md) — ask questions across all
   batches
 - [Set up Notifications](../admin/notifications.md) — Slack, Teams,

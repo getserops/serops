@@ -17,6 +17,7 @@ Personal preferences accessible from any page:
 | **Language** | English, Français |
 | **Appearance** | Light, Dark, System |
 | **Timezone** | Select from dropdown (shows current time) |
+| **Density** | Comfortable, Compact |
 
 > These settings are user-specific and stored in your browser.
 
@@ -28,7 +29,7 @@ Personal preferences accessible from any page:
 
 | Setting | Description |
 |---------|-------------|
-| Organisation Name | Display name for your org |
+| Organisation Name | Read-only: shown, but it cannot be changed, because metrics and logs depend on it |
 | Organisation Logo | PNG, JPEG, GIF or WebP up to 2 MB, shown next to the organisation name in the sidebar. Stored in the database, resized to at most 256 px. |
 | Website | Organisation website URL |
 
@@ -43,8 +44,8 @@ Personal preferences accessible from any page:
 | Setting | Options |
 |---------|---------|
 | **Primary Model** | Gemini, Claude, OpenAI, DeepSeek, Ollama (any registered `AIModelProvider`) |
-| **Fallback Model** | Same list, plus `None` to disable fallback |
-| **Use Custom Keys** | Yes/No |
+| **Fallback Model** | API only: `PUT /api/settings/ai/` with `fallback_provider` (a provider id, or `null` to disable fallback). The page has no control for it. |
+| **Use Custom Keys** | API only: `PUT /api/settings/ai/` with `use_custom_keys`. The page has no control for it, and 1.5.5 does not read it when it picks a key. |
 
 ### Provider Configuration
 
@@ -112,9 +113,9 @@ Alertmanager route table, flattened.
 
 | Field | Description |
 |-------|-------------|
-| Minimum severity | `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`, or blank for any |
+| Minimum severity | `INFO`, `WARNING`, `CRITICAL`, or blank for any: see [Notifications](notifications.md#matcher) |
 | Environments | List of environment names, blank for all |
-| Services | List of service names, blank for all |
+| Services | List of project names (compared with the batch's project name), blank for all |
 | Event types | `batch_analyzed`, `alert_triggered`, `critical_issue`, blank for all |
 | Targets | Which delivery channels this rule notifies |
 | Priority | Evaluation order (informational — results are unioned) |
@@ -130,7 +131,7 @@ targets; the union is de-duplicated so a channel is contacted once.
 
 ## Notification Preferences (Per User)
 
-**Location**: Settings → Preferences
+**Location**: Avatar menu → Notification preferences
 
 Personal delivery preferences — channels, severity filters, quiet
 hours, and digest frequency. These are per-user and independent of the
@@ -158,6 +159,10 @@ same checks, in the spirit of NIST 800-63B (length over composition rules):
 | Complexity rules (upper case, symbols…) | None |
 | Expiry | Never |
 
+The sign-up form and the first-admin command (`create_superadmin`) also
+require at least 10 characters, with an upper-case letter, a lower-case
+letter and a number.
+
 The rules are fixed: there is no password-policy setting in the UI or the
 API. Organisations that need stricter rules can require single sign-on
 (Settings → Security) and set them in their identity provider.
@@ -166,7 +171,7 @@ API. Organisations that need stricter rules can require single sign-on
 | Setting | Description |
 |---------|-------------|
 | Session Timeout | 30m / 1h / 4h / 8h / 24h / Never |
-| Token TTL | 30 days (auto-refresh on activity, at most once per hour) |
+| Token TTL | 30 days (auto-refresh on activity, at most once per minute) |
 
 ### SSO Configuration
 OpenID Connect with Keycloak, Okta, Azure AD / Entra ID, Google Workspace or any OIDC provider. Roles can come from the provider's groups, and people of listed email domains can join without an invitation: see [Authentication & SSO](../security/authentication.md#roles-from-your-identity-providers-groups).
@@ -213,16 +218,6 @@ Observability page.
 SerOps supports a hybrid model for Logs and Metrics storage (Internal vs External).
 See [Observability Providers](../integrations/observability-overview.md) for details.
 
-### Default Provider Configuration
-
-These environment variables configure the **System Default** providers for organisations that haven't set up their own integrations.
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ELASTICSEARCH_HOST` | Default Log Provider (ES) | `http://elasticsearch:9200` |
-| `ELASTICSEARCH_USERNAME` | ES User | `elastic` |
-| `ELASTICSEARCH_PASSWORD` | ES Password | `changeme` |
-
 ---
 
 ## Sentinel Settings
@@ -238,7 +233,7 @@ Controls the Sentinel tiered intelligence system that evaluates batches before A
 | **Enable Active Mode** | When ON, quiet batches skip AI analysis (saves cost). When OFF, shadow mode — all batches run AI. |
 
 !!! info "Active mode is the default"
-    Active mode is the default for new installations and organisations (shadow mode was the default up to v1.2.13). Switch to shadow mode to compare Sentinel's decisions with a full analysis of every window, at the cost of an AI call per window. Check the dashboard Sentinel Intelligence card to verify decisions are accurate.
+    Active mode is the default for new installations and organisations (shadow mode was the default up to v1.2.13). Switch to shadow mode to compare Sentinel's decisions with a full analysis of every window, at the cost of an AI call per window. Check the Sentinel figures at the top of **Settings → Sentinel** to verify decisions are accurate.
 
 ### Threshold Overrides
 
@@ -279,7 +274,7 @@ See the [Configuration Reference](../deployment/configuration.md#email-smtp) for
 
 ## Data Settings
 
-**Location**: Settings → Data Management
+**Location**: Settings → Data retention
 
 ### Retention Policy
 | Setting | Options |
@@ -291,19 +286,18 @@ See the [Configuration Reference](../deployment/configuration.md#email-smtp) for
 ### Batch Settings
 | Setting | Default |
 |---------|---------|
-| Generation Interval | 10 minutes |
-| Max Batch Size | 1000 logs |
+| Generation Interval | 15 minutes |
 
 ---
 
 ## Audit Log Settings
 
-**Location**: Settings → Audit
+**Location**: Settings → Audit Log
 
 | Setting | Options |
 |---------|---------|
-| Retention Days | 30/90/365/Forever |
-| Export Format | CSV, JSON |
+| Retention Days | 30/90/365/Forever (default 90). API only: `PUT /api/data/settings/retention-policy/` with `audit_log_retention_days` (`0` = forever). No screen has a control for it. |
+| Export Format | CSV |
 
 ---
 
@@ -313,7 +307,7 @@ See the [Configuration Reference](../deployment/configuration.md#email-smtp) for
 
 Register the Kubernetes clusters your projects run on. Clusters scope
 observability integrations and are one dimension of the deployment
-filter used across the Data and Issues pages.
+filter used across the Analyses and Issues pages.
 
 See [Clusters](clusters.md).
 
@@ -321,7 +315,7 @@ See [Clusters](clusters.md).
 
 ## Traces
 
-**Location**: Settings → Distributed Traces
+**Location**: Settings → Trace ingest keys
 
 Manage OTLP ingest keys for distributed tracing. Each key is shown
 once on creation and stored as a hash afterwards, following the same

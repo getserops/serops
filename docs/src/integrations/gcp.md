@@ -28,7 +28,7 @@ Google Cloud Operations (formerly Stackdriver) covers both **Cloud Logging** and
 
 ## Configuration
 
-In the UI: **Settings → Observability → Add → Google Cloud**, or the onboarding wizard's log provider step: the project ID, the key file's JSON, and whether your services run on GKE. The same fields through the API:
+In the UI: **Integrations → Log Providers (or Metric Providers) → Add Integration → Google Cloud**, or the onboarding wizard's log provider step: the project ID, the key file's JSON, and whether your services run on GKE. The same fields through the API:
 
 ```json
 {
@@ -45,8 +45,8 @@ In the UI: **Settings → Observability → Add → Google Cloud**, or the onboa
 
 Notes:
 
-- **`password`** must contain the *entire* JSON key file contents (a single JSON string). SerOps parses + validates it on save; a malformed or non-service-account key fails fast rather than blowing up on the first search.
-- **`extra_config.project_id`** is required and must match the `project_id` inside the JSON key. Two separate fields because Cloud Logging + Cloud Monitoring endpoints take the project name in the request, not the credential.
+- **`password`** must contain the *entire* JSON key file contents (a single JSON string). SerOps does not parse it on save: it is read when the adapter is first built, at **Test connection** (the health check) or the first search, and a malformed or non-service-account key fails there with a clear error.
+- **`extra_config.project_id`** is required: it names the project SerOps reads. It is a separate field because Cloud Logging + Cloud Monitoring endpoints take the project name in the request, not the credential.
 
 ## Authentication
 
@@ -81,12 +81,14 @@ AND timestamp<="2026-08-27T10:00:00Z"
 
 **Metrics (`GcpCloudMonitoringProvider`):**
 
-The canonical `TimeSeries` query uses a filter like:
+In VM mode (the default) SerOps reads these Compute Engine metrics:
 
-```
-metric.type="compute.googleapis.com/instance/cpu/utilization"
-AND metric.labels.env="prod"
-```
+| SerOps reads | Cloud Monitoring metric type |
+|---|---|
+| CPU | `compute.googleapis.com/instance/cpu/utilization`, scaled to a percentage |
+| Memory | `compute.googleapis.com/instance/memory/balloon/ram_size` and `.../balloon/ram_used`; on VMs without them, the Ops Agent's `agent.googleapis.com/memory/percent_used` |
+
+The filter names only the metric type. The `project_name`, `environment` and `service_name` scope labels are matched against the instances' own labels after the query, and narrow the result only when instances carry them. Kubernetes mode is described [below](#kubernetes-gke-mode).
 
 Canonical Prometheus-style metric names (`node_cpu_seconds_total`, `container_memory_usage_bytes`) map to the corresponding GCP metric types via a small dictionary in the adapter. The adapter passes unknown names through unchanged, but SerOps itself only asks for CPU and memory: there is no setting to make it query another GCP metric type. See [what SerOps reads](../user-guide/metrics.md#what-serops-reads).
 
@@ -111,9 +113,9 @@ Cloud Logging and Cloud Monitoring are both paged iterators. SerOps intentionall
 
 | Issue | Solution |
 |-------|----------|
-| "not valid JSON" on save | The `password` field is not a well-formed JSON string. Paste the whole file contents including the outer `{` and `}` |
+| "not valid JSON" at Test connection | The `password` field is not a well-formed JSON string. Paste the whole file contents including the outer `{` and `}` |
 | "expected a service-account JSON key" | The JSON is well-formed but is not a service-account key (probably a user credential or expired API key) |
-| `project_id` missing / mismatch | The integration record's `extra_config.project_id` differs from the `project_id` inside the JSON key. They must match |
+| "requires 'project_id' in extra_config" | The integration has no `extra_config.project_id`. Add the ID of the project SerOps reads |
 | 401 / 403 during search | The service account lacks `roles/logging.viewer` or `roles/monitoring.viewer` on the project |
 | Empty results with no error | No log in the window carries the project: on GKE, name the namespace after the project (or the environment), or add a project rule `namespace = <your namespace>` (**Check my data** offers it). Elsewhere, add `project_name` / `environment` / `service_name` labels |
 | Invalid GCP bareword error | A severity string contains characters outside `[A-Za-z0-9_]` — usually a bad config value |

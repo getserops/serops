@@ -30,7 +30,7 @@ at your own:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.5.5 \
+  --version 1.5.6 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set django.encryptionKey="$(openssl rand -base64 32 | tr '+/' '-_')" \
@@ -57,7 +57,7 @@ For a lab or demo cluster, let the chart run Postgres and Redis itself:
 
 ```bash
 helm install serops oci://ghcr.io/getserops/charts/serops \
-  --version 1.5.5 \
+  --version 1.5.6 \
   --namespace serops --create-namespace \
   --set django.secretKey="$(openssl rand -hex 64)" \
   --set django.encryptionKey="$(openssl rand -base64 32 | tr '+/' '-_')" \
@@ -82,17 +82,23 @@ ingress:
     - host: serops.company.io
       paths:
         - { path: /api, pathType: Prefix, service: backend }
-        - { path: /metrics, pathType: Prefix, service: backend }
         - { path: /, pathType: Prefix, service: frontend }
   tls:
     - hosts: [serops.company.io]
       secretName: serops-tls
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+    cert-manager.io/cluster-issuer: letsencrypt-prod   # your ClusterIssuer's name
 django:
   allowedHosts: "serops.company.io"
   corsAllowedOrigins: "https://serops.company.io"
 ```
+
+The chart sets `SERVER_URL` (the public URL plus `/api`, used for the
+webhook URL SerOps registers in GitLab) and `BASE_URL` (the public URL,
+used for the links in notification emails) from `django.publicUrl`, or
+from the first ingress host when it is empty. A value under `backend.env`
+wins; `backend.env` reaches the API pods, the workers, beat and the
+migration job.
 
 Set the whole `hosts` entry as above: `--set ingress.hosts[0].host=…`
 replaces the entry and drops its paths, and the install fails.
@@ -130,7 +136,7 @@ helm upgrade --install serops deploy/helm/serops \
   -f my-values.yaml   # your hostname: see my-values.yaml above
 ```
 
-Both **OCI** and **Helm HTTP repo** paths are published by the
+The OCI chart is published by the
 `helm-release` GitHub Actions workflow on every `v*.*.*` tag —
 users never touch the source tree to run SerOps in production.
 
@@ -146,8 +152,14 @@ waits for the database to accept connections first. Create your first admin
 user:
 
 ```bash
-kubectl exec -n serops -it deploy/serops-backend -- python manage.py createsuperuser
+kubectl exec -n serops -it deploy/serops-backend -- python manage.py create_superadmin \
+  --email admin@example.com --org "acme-cloud"
 ```
+
+It asks for a password: at least 10 characters, with an upper-case letter, a lower-case letter and a number, as on the sign-up form.
+The organisation is named by `--org`. Choose the name with care: it cannot
+be changed in the UI, and metrics are matched on it exactly (the
+`organisation_name` label).
 
 Check the migration Job if the backend does not come up:
 
@@ -197,8 +209,8 @@ django:
   # calls — which the login page reports as invalid credentials.
   allowedHosts: "serops.company.io"
   corsAllowedOrigins: "https://serops.company.io"
-  # Optional. The URL users open SerOps at, used for the SSO redirect URI and
-  # links in emails. Left empty, it is the first ingress host below, https
+  # Optional. The URL users open SerOps at, used for the SSO redirect URI,
+  # webhook URLs and links in emails. Left empty, it is the first ingress host below, https
   # when ingress TLS is set.
   # publicUrl: "https://serops.company.io"
 
@@ -207,36 +219,38 @@ ingress:
     - host: serops.company.io
       paths:
         - {path: /api, pathType: Prefix, service: backend}
-        - {path: /metrics, pathType: Prefix, service: backend}
         - {path: /, pathType: Prefix, service: frontend}
   tls:
     - hosts: [serops.company.io]
       secretName: serops-tls
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+    cert-manager.io/cluster-issuer: letsencrypt-prod   # your ClusterIssuer's name
 
 # Alert webhook secrets — env-only.
 alertSecrets:
   existingSecret: serops-alert-secrets
-    # keys: alertmanager, grafana, datadog
+    # keys: alertmanager, grafana, datadog, sentry
 
 # Outgoing email: account activation, password reset, invitations and
 # notifications. Without a host, SerOps sends no email.
 smtp:
-  existingSecret: serops-smtp   # keys: smtp-password (smtp-user etc. optional)
+  existingSecret: serops-smtp   # key: smtp-password (user, host and port are the values below)
   host: smtp.company.io
   port: 587
   security: starttls   # starttls (587), ssl (465) or none (plain relay)
   user: serops@company.io
   fromEmail: serops@company.io
 
-# Auto-scrape /metrics with Prometheus Operator.
+# Auto-scrape /metrics with Prometheus Operator. The ServiceMonitor sends no
+# credentials, so leave selfMetrics.basicAuth unset, and let Prometheus's
+# namespace through the backend's NetworkPolicy.
 serviceMonitor:
   enabled: true
-
-# Optional basic-auth on /metrics.
-selfMetrics:
-  basicAuth: "scraper:REPLACE_WITH_RANDOM"
+networkPolicy:
+  backendExtraIngressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring   # your Prometheus namespace
 ```
 
 ```bash
@@ -277,7 +291,7 @@ serving from the remaining node, and the investigation still named the cause.
 |---|---|---|
 | `serops-backend` | ≥ 2 | Django + gunicorn (4 workers/pod). HPA-friendly. |
 | `serops-frontend` | ≥ 2 | Vite build served by nginx. |
-| `serops-celery-worker` | ≥ 2 | Two queues: `high_priority` + `celery`. Alert-triggered batches jump ahead. |
+| `serops-celery-worker` | ≥ 2 | Four queues: `celery`, `high_priority`, `normal`, `background`. Alert-triggered batches jump ahead. |
 | `serops-celery-beat` | **exactly 1** | Scheduler — multiple copies double-fire tasks. |
 
 ## Security context
@@ -288,7 +302,7 @@ The settings are `podSecurityContext` and `containerSecurityContext` (backend, C
 
 ## Network policies, disruption budgets, service account
 
-The chart ships them on by default (chart 0.2.0):
+The chart ships them on by default (since 1.3.0):
 
 - **ServiceAccount** per release, with no token mounted on any pod: SerOps
   never calls the Kubernetes API. `serviceAccount.annotations` takes IRSA or
@@ -321,17 +335,17 @@ NetworkPolicy: without one, any pod in the cluster can reach it.
 ## Verifying what you pull
 
 The chart and both images are signed with cosign (keyless, bound to the
-release workflows of `github.com/getserops/serops`) and carry SBOM and
-provenance attestations. Before installing:
+release workflows of `github.com/getserops/serops`). The images also carry
+SBOM and provenance attestations; the chart does not. Before installing:
 
 ```bash
 # A tag publishes the chart; a failed publish is redone by hand from main
 # without moving the tag (chart 1.3.0 was), hence both refs.
-cosign verify ghcr.io/getserops/charts/serops:1.5.5 \
+cosign verify ghcr.io/getserops/charts/serops:1.5.6 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/helm-release\.yml@refs/(tags/v|heads/main$)'
 
-cosign verify ghcr.io/getserops/backend:1.5.5 \
+cosign verify ghcr.io/getserops/backend:1.5.6 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/getserops/serops/\.github/workflows/docker\.yml@refs/tags/v'
 ```
@@ -345,8 +359,10 @@ attestation check and how to read the SBOM.
 # Health probe
 curl -sS https://serops.company.io/api/health/
 
-# Self-metrics (basic-auth if configured)
-curl -sS https://serops.company.io/metrics/ | head
+# Self-metrics are not on the ingress: read them in the cluster
+# (add -u user:pass when selfMetrics.basicAuth is set)
+kubectl -n serops port-forward svc/serops-backend 8000:8000 &
+curl -sS http://localhost:8000/metrics/ | head
 
 # Prometheus Operator picks up the ServiceMonitor:
 kubectl get servicemonitor -n serops
@@ -360,7 +376,7 @@ from, with the same values:
 
 ```bash
 # OCI (as installed above)
-helm upgrade serops oci://ghcr.io/getserops/charts/serops --version 1.5.5 \
+helm upgrade serops oci://ghcr.io/getserops/charts/serops --version 1.5.6 \
   --namespace serops -f my-values.yaml --wait --timeout 15m
 
 # From a clone of the repository
@@ -385,9 +401,9 @@ Backend, frontend and worker roll one pod at a time and beat is `Recreate`
 !!! warning "Leave room for the rolling update"
     A rolling update starts each new pod before it stops an old one, so the
     nodes need free CPU for the largest pod: a worker requests 500m. With the
-    default replicas the release requests about 3.2 vCPU; on two 2-vCPU nodes
-    (about 1.9 allocatable each) the new worker stays `Pending` and the upgrade
-    waits until `--timeout`. Add a node for the upgrade, or lower
+    default replicas the release requests about 1.7 vCPU, plus the cluster's
+    own system pods; on two 2-vCPU nodes (about 1.9 allocatable each) the new
+    worker can stay `Pending`, and the upgrade then waits until `--timeout`. Add a node for the upgrade, or lower
     `celeryWorker.resources.requests.cpu`.
 
 !!! note "Migrations run after the new pods are ready"
@@ -400,8 +416,6 @@ Backend, frontend and worker roll one pod at a time and beat is `Recreate`
 
 ```bash
 helm uninstall serops --namespace serops
-# Persistent DBs (if bundled) survive — delete PVCs manually if intended:
-kubectl delete pvc --all -n serops
 kubectl delete namespace serops
 ```
 

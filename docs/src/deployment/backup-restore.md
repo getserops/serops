@@ -1,5 +1,5 @@
 ---
-description: "Back up SerOps (PostgreSQL and media) and restore it after data loss or before an upgrade, with Docker Compose and Kubernetes commands."
+description: "Back up SerOps (PostgreSQL and secrets) and restore it after data loss or before an upgrade, with Docker Compose and Kubernetes commands."
 title: Backup & Restore
 tags:
   - deployment
@@ -50,11 +50,10 @@ Only useful if you want in-flight Celery tasks to survive a restart.
 Most teams skip Redis backups — task loss just means a batch analysis
 retries on the next data collection cycle.
 
-### 4. Static uploads (if you use them)
+### 4. Uploads
 
-Avatar images and any customer uploads live in the `media/` volume
-(Compose) or a PVC (Helm). Small and easily backed up with a
-periodic `tar` or object-storage sync.
+Profile photos and organisation logos are stored in PostgreSQL, so the
+database backup covers them. There is nothing else to back up.
 
 ---
 
@@ -151,15 +150,15 @@ spec:
                 - /bin/bash
                 - -c
                 - |
-                  pg_dump -h serops-postgresql -U serops \
+                  pg_dump -h <postgres-service> -U serops \
                     --format=custom --compress=6 \
                     -d serops > /backup/serops_$(date +%Y%m%d_%H%M%S).dump
               env:
                 - name: PGPASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: serops-postgresql
-                      key: postgres-password
+                      name: <postgres-secret>
+                      key: <password-key>
               volumeMounts:
                 - name: backup
                   mountPath: /backup
@@ -169,13 +168,18 @@ spec:
                 claimName: serops-backup-pvc
 ```
 
+`<postgres-service>`, `<postgres-secret>` and `<password-key>` are the
+names of the database you run; the chart creates none of them.
+
 Pair the PVC with a sidecar that syncs to S3 / GCS, or use
 [Velero](https://velero.io/) for cluster-wide backup including PVCs.
 
 ### Option C: Velero
 
-For teams already using Velero, snapshot the whole `serops` namespace
-including the Postgres PVC:
+For teams already using Velero, snapshot the whole `serops` namespace.
+The chart creates no Postgres PVC (the lab `devServices` database runs on
+`emptyDir`), so this covers the database only when you run it in that
+namespace on a PVC:
 
 ```bash
 velero backup create serops-nightly \
@@ -230,10 +234,10 @@ kubectl -n serops scale deployment serops-celery-worker --replicas=0
 kubectl -n serops scale deployment serops-celery-beat --replicas=0
 
 # 2. Copy the dump into the Postgres pod
-kubectl -n serops cp serops_db_20260905.dump serops-postgresql-0:/tmp/dump
+kubectl -n serops cp serops_db_20260905.dump <postgres-pod>:/tmp/dump
 
 # 3. Run pg_restore inside the pod
-kubectl -n serops exec -it serops-postgresql-0 -- bash -c \
+kubectl -n serops exec -it <postgres-pod> -- sh -c \
     "pg_restore -U serops -d serops --clean --if-exists /tmp/dump"
 
 # 4. Scale back up
@@ -241,6 +245,10 @@ kubectl -n serops scale deployment serops-backend --replicas=2
 kubectl -n serops scale deployment serops-celery-worker --replicas=2
 kubectl -n serops scale deployment serops-celery-beat --replicas=1
 ```
+
+`<postgres-pod>` is a pod of the database you run (the chart's own
+`devServices` Postgres keeps no data). The deployment names above are
+those of a release named `serops`.
 
 For Velero restores:
 
@@ -254,8 +262,9 @@ If you're on RDS / Cloud SQL / equivalent, use the provider's
 point-in-time restore UI. Restore into a new database instance,
 verify the data, then either:
 
-* Update `DATABASE_URL` in your Helm values / `.env` to point at
-  the recovered instance, **or**
+* Point `database.url` in your Helm values (or the `database-url` key
+  of `database.existingSecret`), or `DATABASE_URL` in the quick-start
+  `.env`, at the recovered instance, **or**
 * Take a `pg_dump` from the recovered instance and restore it into
   your primary using the steps above.
 

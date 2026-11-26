@@ -36,11 +36,19 @@ describe('PhoneCollapse', () => {
     expect(css).toMatch(/@media \(max-width: 767px\) \{\s*\.heatmap-grid \{ grid-template-columns: minmax\(0, 1fr\); gap: 0; \}/);
   });
 
-  it('wraps the four lower panels of the Overview, not "Needs attention" or the analyses', () => {
+  // 1.5.6: as in 1.5.5, the panels below "Needs attention now" are reduced
+  // to their header on a phone; the status card and the open issues stay open.
+  it('wraps the lower panels on the Overview, not the status or the open issues', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../Dashboard.jsx'), 'utf8');
-    expect((src.match(/<PhoneCollapse phone=\{isPhone\}/g) || []).length).toBe(4);
-    for (const open of ['NeedsAttention', 'AIAnalysisFeed']) {
-      expect(src).not.toMatch(new RegExp(`<PhoneCollapse[^>]*>\\s*<${open}`));
+    expect((src.match(/<PhoneCollapse phone=\{isPhone\}/g) || []).length).toBe(5);
+    for (const panel of ['ServicesPanel', 'AIAnalysisFeed', 'RecentDeploymentsCard', 'TrendAnalysisChart', 'CausesBar']) {
+      expect(src).toMatch(new RegExp(`<PhoneCollapse[^>]*>\\s*<${panel}`));
     }
+    expect(src).not.toMatch(/<PhoneCollapse[^>]*>\s*<(StatusCard|NeedsAttention)/);
+  });
+
+  it('a glance panel keeps its title and summary while collapsed, in the stylesheet', () => {
+    const css = fs.readFileSync(path.resolve(__dirname, '../overview/Overview.css'), 'utf8');
+    expect(css).toContain('.phone-collapse.is-collapsed .glance-panel > :not(.glance-panel-title):not(.glance-panel-sub) { display: none; }');
   });
 });

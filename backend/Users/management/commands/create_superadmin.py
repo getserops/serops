@@ -6,18 +6,23 @@ Usage:
     python manage.py create_superadmin --email admin@company.com --org "My Company"
     
     # With password argument (less secure - visible in shell history)
-    python manage.py create_superadmin --email admin@company.com --password Pass123 --org "My Company"
+    python manage.py create_superadmin --email admin@company.com --password '<password>' --org "My Company"
     
     # With environment variable (good for Docker/CI)
-    ADMIN_PASSWORD=Pass123 python manage.py create_superadmin --email admin@company.com --org "My Company"
+    ADMIN_PASSWORD='<password>' python manage.py create_superadmin --email admin@company.com --org "My Company"
+
+The password follows the sign-up form's rule (Users/password_rules.py),
+whichever way it is given.
 """
 
+from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 import getpass
 import os
 
 from Users.models import User
+from Users.password_rules import check_signup_password
 from Organisations.models import Organisations
 
 
@@ -79,8 +84,10 @@ class Command(BaseCommand):
             if password != password_confirm:
                 raise CommandError('Passwords do not match!')
         
-        if len(password) < 8:
-            raise CommandError('Password must be at least 8 characters long')
+        try:
+            check_signup_password(password, User(email=email, first_name=first_name, last_name=last_name))
+        except ValidationError as exc:
+            raise CommandError(' '.join(exc.messages))
         
         # Check if user already exists
         if User.objects.filter(email__iexact=email).exists():

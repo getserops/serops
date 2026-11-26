@@ -8,7 +8,7 @@ View system performance metrics for each batch including memory and CPU usage.
 
 ## Overview
 
-Access metrics from the batch detail view by selecting **Metrics** from the **Data Type** dropdown.
+Access metrics from the batch detail view by opening the **Metrics** tab.
 
 ## What SerOps reads
 
@@ -73,15 +73,11 @@ Circular gauge with percentage and threshold indicators.
 
 ## Filtering
 
-### Host Filter
-Filter metrics by host when multiple hosts are present:
-- **All Hosts** (default)
-- Individual host names discovered from metrics
-
 ### Type Filter
-Both Memory and CPU usage are displayed simultaneously. Use the type dropdown to scroll to the selected metric type:
+Both Memory and CPU usage are displayed simultaneously. Use the type dropdown to scroll to the selected metric type, or to open the batch's issues:
 - Memory Usage
 - CPU Usage
+- Issues
 
 ---
 
@@ -90,8 +86,7 @@ Both Memory and CPU usage are displayed simultaneously. Use the type dropdown to
 | Action | Description |
 |--------|-------------|
 | **Back** | Returns to batch detail view |
-| **Type Dropdown** | Switch between metric types |
-| **Host Dropdown** | Filter by specific host |
+| **Type Dropdown** | Switch between metric types, or open the batch's issues |
 
 ---
 

@@ -78,7 +78,8 @@ Everything SerOps does as of **v1.2.4**, the last release before this page:
 - Audit log, including refused requests, with export
 - API keys
 - PII and secret redaction before anything reaches an AI provider
-- Credentials encrypted in your own database
+- Credentials encrypted in your own database, except the ones listed under
+  [secrets at rest](security/data-protection.md#secrets-at-rest)
 - Password reset and change with full session revocation; GDPR account and
   organisation deletion
 

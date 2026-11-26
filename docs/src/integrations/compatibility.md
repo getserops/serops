@@ -85,7 +85,7 @@ and Splunk through HEC).
 |---|---|---|---|
 | [GitLab](gitlab.md) (SCM + CI) | 17.11 and later (CE / EE) | 17.11 CE (2026-09-13) | Live-tested |
 | [Jenkins](jenkins.md) | Current LTS line | 2.541.3 LTS | Live-tested |
-| [GitHub](github.md) (SCM + Actions) | github.com, GitHub Enterprise Server | github.com (2026-11-02, fine-grained read-only token; commits, Actions runs and deployments via Sync and polling; webhooks not yet tested live; fixes on `main`, not yet in a release). GitHub Enterprise Server not tested | Live-tested (github.com) |
+| [GitHub](github.md) (SCM + Actions) | github.com, GitHub Enterprise Server | github.com (2026-11-02, fine-grained read-only token; commits, Actions runs and deployments via Sync and polling; webhooks not yet tested live; the fixes from that run shipped in 1.2.14). GitHub Enterprise Server not tested | Live-tested (github.com) |
 | [Bitbucket](bitbucket.md) | Bitbucket Cloud | — | Unit-tested |
 | [Azure DevOps](azure-devops.md) | Azure DevOps Services | — | Unit-tested |
 

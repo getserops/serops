@@ -4,7 +4,7 @@ description: "Connect Grafana Loki to SerOps: LogQL queries, labels, multi-tenan
 ---
 # Grafana Loki
 
-Grafana Loki is a horizontally scalable, highly available log aggregation system designed to be cost-effective and easy to operate. SerOps uses it as a log provider supporting full-text search, regex queries, live tail, and multi-tenant isolation via the LogQL query language.
+Grafana Loki is a horizontally scalable, highly available log aggregation system designed to be cost-effective and easy to operate. SerOps uses it as a log provider supporting full-text search, regex queries and multi-tenant isolation via the LogQL query language.
 
 | | |
 |---|---|
@@ -16,7 +16,7 @@ Grafana Loki is a horizontally scalable, highly available log aggregation system
 
 - Grafana Loki 2.9 or later (tested: 2.9.10, 3.2.1 — see [Compatibility](compatibility.md))
 - Network access from the SerOps backend to the Loki endpoint
-- Valid credentials (basic auth or bearer token)
+- Valid credentials (basic auth or bearer token) that can read and also push: SerOps writes the CI/CD events it receives (deploys, builds) to Loki through the push API and reads them back during an analysis
 - Tenant ID if using multi-tenant mode
 
 ## Configuration

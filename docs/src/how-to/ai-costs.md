@@ -6,7 +6,7 @@ description: "See the tokens and estimated cost of every AI call SerOps makes, s
 
 SerOps records every AI API call (batch analysis, chat message, re-analysis) along with input/output token counts and an estimated USD cost. This page explains where the data lives, how to query it, and how to keep costs predictable.
 
-There is no quota enforcement in SerOps — this is **observability**, not a hard cap. If you need to gate AI spending, pair this data with [Sentinel Tiered Intelligence](sentinel.md), which skips AI analysis on batches that don't warrant it.
+To cap AI spending, set a monthly budget in **Settings → AI Providers**: once the calendar month's estimated spend reaches it, AI calls stop until the next month, and rule-based issue creation continues. [Sentinel Tiered Intelligence](sentinel.md) lowers spend by skipping AI analysis on batches that don't warrant it.
 
 ---
 
@@ -14,7 +14,7 @@ There is no quota enforcement in SerOps — this is **observability**, not a har
 
 SerOps has to be honest about a real trap self-hosters hit day one: **most AI providers' free tiers cap daily requests below the volume SerOps generates on a single project.**
 
-Anecdote from our own audit runs — Gemini's free tier for `gemini-3.6-flash` allows **20 requests per project per day**. With the default 5-minute batch cadence and even one active service, SerOps can generate 288 potential batches per day; the free tier is exhausted before lunch. When you hit the wall you'll see this in Celery logs and on failed batches:
+Anecdote from our own audit runs — Gemini's free tier for `gemini-3.6-flash` allows **20 requests per project per day**. With the default 15-minute batch interval and even one active service, SerOps can generate 96 potential batches per day for each environment; the free tier runs out long before the day ends. When you hit the wall you'll see this in Celery logs and on failed batches:
 
 ```
 Gemini Adapter Error: 429 RESOURCE_EXHAUSTED.
@@ -30,7 +30,7 @@ Realistic minimums by workload:
 | Multi-project / multi-cluster | **Paid Claude Sonnet / Gemini Pro** on a workspace-scoped key with a monthly budget cap set at Settings → AI Providers |
 | Air-gapped / privacy-sensitive | **Ollama on the same VM** — unlimited, ~8-16 GB RAM, [setup guide](on-prem-ai-ollama.md) |
 
-**How to blunt the impact if you must stay free:** raise `BATCH_GENERATION_INTERVAL` to 30 minutes (from the 5-minute default), enable Sentinel active mode with a strict `quiet_min_error_count` threshold, and pin analysis to one project. That combination realistically fits under 20 AI calls per day.
+**How to blunt the impact if you must stay free:** raise the batch interval to 30 minutes (from the 15-minute default) in **Settings → Data retention**, keep Sentinel active mode on (the default), and pin analysis to one project. That combination realistically fits under 20 AI calls per day.
 
 **How to catch it early:** the [Track AI Costs](#what-gets-recorded) section below covers the SerOps side. On the provider side, monitor your account's quota dashboard directly — SerOps surfaces the 429 as `FAILED (QUOTA_EXCEEDED)` on the batch, but the daily-limit warning has to come from the provider.
 
@@ -44,7 +44,7 @@ Every successful AI call writes one `AITokenUsage` row with:
 |-------|-------------|
 | `organisation` | Multi-tenancy scope |
 | `batch` | Linked batch (null for chat) |
-| `model_name` | e.g. `claude-sonnet-4-20250514`, `gemini-2.5-flash` |
+| `model_name` | e.g. `claude-sonnet-5-5`, `gemini-3.6-flash` |
 | `tokens_input` | Prompt tokens |
 | `tokens_output` | Completion tokens |
 | `tokens_total` | Sum |
@@ -111,8 +111,8 @@ SerOps has five levers, roughly in order of impact:
       * **OpenAI / DeepSeek**: system-role message with a ≥1,024-token prefix qualifies for automatic caching (OpenAI ~50% off, DeepSeek ~90% off).
       * **Gemini**: implicit caching kicks in at 4,096 tokens — SerOps' prefix falls under that on 3.5-flash, so no cache win here today. Wiring is in place for later prefix growth.
       The whole batch-analysis prompt was refactored into `(system_static, user_dynamic)` tuples in `ai_model/prompts.get_batch_analysis_prompt_parts` — the static half is byte-stable across batches (verified by tests) so cache hits are guaranteed.
-4. **Recent Resolutions Context cap** — `memory_max_items` in Settings → Data Management bounds how many past resolutions get injected per prompt. Lower = fewer input tokens.
-5. **Cheaper default model** — most analyses don't need the largest model. Switch the org default to a cheaper provider (e.g. `gemini-2.5-flash` or `claude-haiku-4.5`) under Settings → AI Providers.
+4. **Recent Resolutions Context cap** — `memory_max_items` in Settings → Data retention bounds how many past resolutions get injected per prompt. Lower = fewer input tokens.
+5. **Cheaper default model** — most analyses don't need the largest model. Switch the org default to a cheaper provider (e.g. `gemini-3.6-flash` or `claude-haiku-5-5`) under Settings → AI Providers.
 
 ---
 

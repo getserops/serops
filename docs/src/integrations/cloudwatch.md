@@ -61,8 +61,8 @@ stored integration needs credentials that keep working.
 | Field | Type | Description |
 |-------|------|-------------|
 | `aws_region` | string | AWS region for CloudWatch (e.g., `eu-west-1`). Defaults to `us-east-1`. |
-| `log_groups` | string | Log groups to search, comma-separated, up to 50. Left empty, SerOps searches the groups whose name starts with `/aws/<project>` or contains the project name, plus the EKS Container Insights application groups (`/aws/containerinsights/<cluster>/application`) |
-| `default_log_group` | string | Log group for searches that name none, such as the log explorer. Left empty, the first 50 groups of the account and region |
+| `log_groups` | string | Log groups to search, comma-separated. Logs Insights takes 50 groups a query, so more run as several queries, up to 10 (500 groups); past that only the first 500 are searched. Left empty, SerOps searches the groups whose name starts with `/aws/<project>` or contains the project name, plus the EKS Container Insights application groups (`/aws/containerinsights/<cluster>/application`) |
+| `default_log_group` | string | Log group for searches that name none, such as the log explorer. Left empty, the groups of the account and region (up to 20 pages of the log group listing), searched 50 a query as above |
 
 ### How log events are read
 
@@ -127,7 +127,6 @@ SerOps keeps only the matching ones.
 
 ## Limitations
 
-- **14-day max query window**: CloudWatch Logs Insights queries are limited to a 14-day time range.
 - **No high cardinality**: CloudWatch metrics do not support high-cardinality label sets like Prometheus-based providers.
 - **No histograms**: CloudWatch does not natively support histogram metric types.
 

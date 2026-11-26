@@ -19,7 +19,7 @@ observability tools you already run.
 
 | Requirement | Minimum | Recommended |
 |---|---|---|
-| Docker | 20.10+ | 24+ |
+| Docker | 24+ | 24+ |
 | Docker Compose | v2 (built-in) | v2 |
 | CPU | 2 cores | 4+ cores |
 | RAM | 4 GB | 8+ GB |
@@ -104,8 +104,14 @@ manual `manage.py migrate` needed.
 ## Step 4: Create the first admin
 
 ```bash
-docker compose exec backend python manage.py createsuperuser
+docker compose exec backend python manage.py create_superadmin \
+  --email admin@example.com --org "acme-cloud"
 ```
+
+It asks for a password: at least 10 characters, with an upper-case letter, a lower-case letter and a number, as on the sign-up form.
+The organisation is named by `--org`. Choose the name with care: it cannot
+be changed in the UI, and metrics are matched on it exactly (the
+`organisation_name` label).
 
 Alternatively, open the web UI at your `SEROPS_DOMAIN` and use the
 registration page — the first user through gets admin.
@@ -162,7 +168,9 @@ elsewhere:
 2. Point your ingress at `frontend:3000` and `backend:8000` (routing
    `/api/*` to backend (uploaded images are served under `/api` too),
    everything else to frontend
-   — see `config/caddy/Caddyfile` for the exact rules).
+   — see `config/caddy/Caddyfile` for the exact rules). Neither service
+   publishes a host port in `docker-compose.yml`: add `ports:` to both, or
+   attach your proxy to the `serops` network.
 3. Keep `SEROPS_HTTPS: "True"` on the backend (already in
    `docker-compose.yml`): cookies are Secure and responses send HSTS. Your
    load balancer must set `X-Forwarded-Proto` and replace any value the
@@ -197,10 +205,17 @@ docker exec -i serops-postgres pg_restore \
 If you already run Postgres and want SerOps to use it instead of the
 bundled container:
 
-1. Comment out the `postgres` service block in `docker-compose.yml`.
-2. In `.env`, set `DB_HOST` to your Postgres hostname and
-   `DB_PORT` if it's non-standard.
+1. In `docker-compose.yml`, remove the `postgres` service block and the
+   `postgres:` entry (with its `condition:` line) under the backend's
+   `depends_on`.
+2. In `.env`, set `DATABASE_URL=postgres://<user>:<password>@<host>:5432/<database>`
+   (percent-encode special characters in the password). It takes precedence
+   over the `DB_*` variables, including the `DB_HOST: postgres` and
+   `DB_PORT` that `docker-compose.yml` sets for the backend.
 3. `docker compose up -d`.
+
+`./scripts/backup.sh` backs up the bundled container only; back up your own
+database with its own tools.
 
 ### Monitoring the deployment
 

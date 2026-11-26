@@ -140,7 +140,7 @@ metadata:
     notifications.argoproj.io/subscribe.on-sync-serops-cart.serops-cart: ""
 ```
 
-Do not list several webhooks in one template: on a phase 3 test cluster
+Do not list several webhooks in one template: on a test cluster
 (Argo CD 2.13) that posted one service's deploy to another service's binding.
 The part of the annotation key after `notifications.argoproj.io/` is limited
 to 63 characters, so keep trigger and service names short.

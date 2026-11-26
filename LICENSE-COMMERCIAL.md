@@ -35,7 +35,7 @@ We'll get back to you within two business days. Prices for Business and Enterpri
 A commercial license does not:
 
 - restrict what anyone else can do with the AGPL version
-- change the AGPL license on the public repositories
+- change the AGPL license on the public repository
 - imply that AGPL users are getting a "lesser" product — the commercial license covers the same source code
 
 ## What it does do

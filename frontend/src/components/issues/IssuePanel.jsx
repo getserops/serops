@@ -6,7 +6,8 @@ import { useTranslation } from "react-i18next";
 import { FaCheck, FaVolumeMute, FaRedo, FaBell, FaComments, FaLink, FaSearch, FaFileAlt } from "react-icons/fa";
 import { isDemoUser } from "../../utils/demo";
 import { commitPath } from "../../utils/linkTargets";
-import { headline } from "../../utils/sentences";
+import { headline, splitSentences } from "../../utils/sentences";
+import { Clamped, Fold, SentenceFold, Steps } from "../TextFold";
 import { statusChipClass, severityChipClass } from "../../utils/tones";
 import { severityLabel, confidenceLabel } from "../../utils/severityLabel";
 import { formatAbsolute } from '../../utils/dates';
@@ -76,10 +77,17 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
     .map((r) => (typeof r === "string" ? r.replace(/^\s*\d+[.)]\s*/, "").trim() : JSON.stringify(r)))
     .filter(Boolean);
   const open = issue.status === "OPEN";
-  // The title is the headline; the whole description shows once, below it,
-  // when the headline is only a part of it.
+  // The title is the headline. Below it, the rest of the description: the
+  // sentences after the first, or all of it when the headline had to be cut.
   const title = headline(issue.description) || issue.description;
-  const summary = issue.description && issue.description.trim() !== title ? issue.description : null;
+  const sentences = splitSentences(issue.description);
+  const summary = !issue.description || issue.description.trim() === title ? null
+    : sentences[0] === title ? sentences.slice(1).join(" ") || null
+    : issue.description;
+  const firstSeen = when(issue.created_at);
+  const lastSeen = issue.last_seen_at ? when(issue.last_seen_at) : firstSeen;
+  const occurrences = issue.occurrence_count ?? 1;
+  const confidence = issue.confidence ? confidenceLabel(t, issue.confidence, issue.confidence_display) : null;
   const affected = Array.isArray(issue.affected_services) ? issue.affected_services : [];
 
   return (
@@ -102,16 +110,9 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
         </div>
       </Offcanvas.Header>
       <Offcanvas.Body>
-        <dl className="issue-panel-facts">
-          <div><dt>{t("issues.panel.firstSeen")}</dt><dd>{when(issue.created_at)}</dd></div>
-          <div><dt>{t("issues.panel.lastSeen")}</dt><dd>{when(issue.last_seen_at)}</dd></div>
-          <div><dt>{t("issues.panel.occurrences")}</dt><dd>{issue.occurrence_count ?? 1}×</dd></div>
-          {issue.confidence && <div><dt>{t("issues.panel.confidence")}</dt><dd>{confidenceLabel(t, issue.confidence, issue.confidence_display)}</dd></div>}
-        </dl>
-
         {summary && (
-          <section className="issue-panel-section">
-            <p>{summary}</p>
+          <section className="issue-panel-section issue-panel-summary">
+            <Clamped text={summary} t={t} />
           </section>
         )}
         <section className="issue-panel-section">
@@ -121,14 +122,13 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
                 ? t("issues.panel.confirmedRootCause", { name: issue.resolved_by_name })
                 : t("issues.panel.confirmedRootCauseTeam")}</h3>
               <p>{teamCause}</p>
-              {corrected && issue.root_cause && (
-                <p className="issue-panel-ai-said">{t("issues.panel.aiSaid", { text: issue.root_cause })}</p>
-              )}
             </>
           ) : (
             <>
               <h3>{t("issues.panel.rootCause")}</h3>
-              <p>{issue.root_cause || <span className="text-muted">{t("issues.panel.noRootCause")}</span>}</p>
+              {issue.root_cause
+                ? <SentenceFold text={issue.root_cause} shown={2} t={t} />
+                : <p><span className="text-muted">{t("issues.panel.noRootCause")}</span></p>}
             </>
           )}
         </section>
@@ -138,16 +138,32 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
             <p>{issue.resolution_fix}</p>
           </section>
         )}
+        {corrected && issue.root_cause && (
+          <Fold className="issue-panel-section issue-panel-ai-said-fold" title={t("issues.panel.aiSaidTitle")}>
+            <p className="issue-panel-ai-said">{issue.root_cause}</p>
+          </Fold>
+        )}
         {issue.recommendation && (
           <section className="issue-panel-section">
             <h3>{t("issues.panel.recommendation")}</h3>
-            <p>{issue.recommendation}</p>
+            <Steps text={issue.recommendation} t={t} />
           </section>
         )}
-        {reasoning.length > 0 && (
-          <section className="issue-panel-section">
-            <h3>{t("issues.panel.reasoning")}</h3>
+        {reasoning.length > 0 ? (
+          <Fold className="issue-panel-section issue-panel-reasons" title={t("issues.panel.reasoning")}
+            extra={confidence && (
+              <span className="ds-chip ds-chip-neutral issue-panel-confidence">
+                <span className="ds-visually-hidden">{t("issues.panel.confidence")} </span>{confidence}
+              </span>
+            )}>
             <ol>{reasoning.map((r, i) => <li key={i}>{r}</li>)}</ol>
+          </Fold>
+        ) : confidence && (
+          <section className="issue-panel-section issue-panel-reasons">
+            <h3 className="text-fold-title">
+              <span>{t("issues.panel.confidence")}</span>
+              <span className="ds-chip ds-chip-neutral issue-panel-confidence">{confidence}</span>
+            </h3>
           </section>
         )}
         {(commits.length > 0 || issue.metric_anomaly_type) && (
@@ -171,6 +187,12 @@ const IssuePanel = ({ issue, onClose, onResolve, onMute, onReopen, onAcknowledge
             </ul>
           </section>
         )}
+
+        <dl className="issue-panel-facts">
+          <div><dt>{t("issues.panel.firstSeen")}</dt><dd>{firstSeen}</dd></div>
+          {lastSeen !== firstSeen && <div><dt>{t("issues.panel.lastSeen")}</dt><dd>{lastSeen}</dd></div>}
+          {occurrences > 1 && <div><dt>{t("issues.panel.occurrences")}</dt><dd>{occurrences}×</dd></div>}
+        </dl>
 
         <div className="issue-panel-links">
           {issue.batch_id_str && (

@@ -24,7 +24,6 @@ account; SerOps never writes to GitHub.
 2. **Repository access**: *Only select repositories*, and pick yours
 3. **Repository permissions**, all **Read-only**:
    - Contents (commits and diffs)
-   - Pull requests
    - Actions (workflow runs)
    - Deployments
    - Metadata is added by GitHub
@@ -62,8 +61,7 @@ acknowledged and ignored, never filed under this service.
 
 | Data | Description | Without a webhook | With a webhook |
 |------|-------------|-------------------|----------------|
-| **Commits** | Message, author, diff | **Sync** button in the service details, and the deploy commits found by polling | On every push |
-| **Pull Requests** | PR details and status | — | On every PR event |
+| **Commits** | Message, author, diff | **Sync** button in the service details, and the deploy commits found by polling | On every push (repository webhook, below) |
 | **Pipelines** | GitHub Actions workflow runs | Polled every 10 minutes | On every run |
 | **Deployments** | Successful deploy runs, with their commit | Polled every 10 minutes | On every run |
 
@@ -74,7 +72,7 @@ A webhook needs GitHub to reach your SerOps over the internet. When it cannot
 GitHub Actions runs of each pipeline, records each successful deploy with its
 commit, and the **Sync** button in the service details fetches the recent
 commits. An investigation then shows the commit behind an outage on the
-analysis page, in the **Code changes** tab. Pull requests need the webhook.
+analysis page, in the **Code changes** tab.
 
 ---
 
@@ -97,11 +95,17 @@ SerOps auto-generates a webhook secret when you create a CI/CD binding. To regis
    - **Payload URL**: The binding-specific URL from step 1
    - **Content type**: `application/json`
    - **Secret**: The auto-generated secret from step 1
-   - **Events**:
-     - ✅ Push
-     - ✅ Pull requests
-     - ✅ Workflow runs
-     - ✅ Deployments
+   - **Events**: ✅ Workflow runs. This URL acts only on completed workflow
+     runs of the bound repository; other events are acknowledged and ignored.
+
+### Repository webhook (commits)
+
+Pushes go to a second URL, tied to the service's repository connection (SCM
+binding) rather than to the pipeline:
+`https://your-serops.com/api/webhooks/scm/{scm_binding_id}/`. SerOps registers
+it for you with `POST /api/projects/scm-bindings/{id}/setup-webhook/`, which
+needs the token's Webhooks permission (Read and write) and uses the
+connection's own secret. That URL reads push events only.
 
 ---
 

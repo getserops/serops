@@ -63,7 +63,7 @@ Update your notification preferences using the API:
 
 ```bash
 curl -X PATCH https://api.yourdomain.com/api/notification/preferences/ \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Token YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "quiet_hours_enabled": true,
@@ -97,7 +97,7 @@ Response:
 
 ```bash
 curl https://api.yourdomain.com/api/notification/preferences/ \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Token YOUR_TOKEN"
 ```
 
 ---

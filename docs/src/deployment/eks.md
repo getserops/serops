@@ -73,6 +73,8 @@ provisioner: ebs.csi.aws.com
 parameters: {type: gp3}
 volumeBindingMode: WaitForFirstConsumer
 EOF
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo add jetstack https://charts.jetstack.io
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --version 4.15.1 \
   -n ingress-nginx --create-namespace --set controller.service.externalTrafficPolicy=Local \
   --set-string 'controller.service.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-type=nlb' \
@@ -80,6 +82,7 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --version 4.15.
 helm upgrade --install cert-manager jetstack/cert-manager --version v1.21.3 \
   -n cert-manager --create-namespace --set crds.enabled=true
 kubectl apply -f deploy/cloud/common/cluster-issuer.yaml
+kubectl create namespace serops
 ```
 
 * **NetworkPolicy needs the VPC CNI's `enableNetworkPolicy`** (or Calico).
@@ -102,7 +105,7 @@ kubectl apply -f deploy/cloud/common/cluster-issuer.yaml
 As on AKS: [secrets and values](aks.md#3-secrets-and-values), then
 
 ```bash
-helm install serops oci://ghcr.io/getserops/charts/serops --version 1.5.5 \
+helm install serops oci://ghcr.io/getserops/charts/serops --version 1.5.6 \
   -n serops -f eks-values.yaml --wait --timeout 15m
 kubectl -n serops get certificate serops-tls      # READY True
 ```
@@ -110,8 +113,9 @@ kubectl -n serops get certificate serops-tls      # READY True
 Use 1.3.1 or later: the fix for several clusters in one region, found on
 this test, is in every release since (see [Known issues](#known-issues)).
 
-The defaults fit three `t3.medium` nodes: no resource override is needed.
-Open `https://HOST`, register the first account (registration then closes),
+The defaults fit three `t3.medium` nodes: omit the `celeryWorker` block of the
+AKS values.
+Open `https://HOST`, register the first account (after that sign-up closes),
 and only then restrict the load balancer if you want to (`cluster.sh lock`).
 
 Checked after install: HSTS with `includeSubDomains`, plain HTTP redirected

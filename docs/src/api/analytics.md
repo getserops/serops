@@ -56,7 +56,7 @@ Returns the mean time to resolution of the issues created in the last `days` (de
 GET /api/data/analytics/service-health/
 ```
 
-Returns one entry per registered service (up to 12, worst first) with `health_score`, `status`, `open_issues`, `critical_issues`, `warning_issues` and `error_count` (open critical + warning). A service's issues are the open issues whose component is the service's name, in its project.
+Returns every registered service, worst first (up to 200), and `total_services`. Each entry has `name`, `project_name` (the service's project, which tells apart two services of the same name), `health_score`, `status`, `open_issues`, `critical_issues`, `warning_issues`, `error_count` (open critical + warning) and `affected_by`. A service's issues are the open issues whose component is the service's name, in its project. `affected_by` lists the components of the open issues of the service's project that name the service among their affected services, under the same organisation, `environment` and `cluster` filters; names are matched without regard to case, a service is never listed as affected by itself, and the list is empty when no open issue names it.
 
 ## Root Cause Statistics
 
@@ -64,7 +64,7 @@ Returns one entry per registered service (up to 12, worst first) with `health_sc
 GET /api/data/analytics/root-causes/
 ```
 
-Returns the distribution of root cause categories (e.g., memory, CPU, database, network).
+Returns the distribution of root cause categories: `Infrastructure`, `Code`, `Configuration`, `Dependency` and `Unknown`.
 
 ## Recent Deployments
 
@@ -96,7 +96,7 @@ Returns a feed of the most recent AI analyses performed across all projects.
 GET /api/data/hosts/
 ```
 
-Returns discovered hosts and their metadata, based on log data analysis.
+Returns discovered hosts and their metadata, from the organisation's metric provider.
 
 ## Node Memory Metrics
 

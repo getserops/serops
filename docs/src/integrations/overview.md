@@ -4,7 +4,7 @@ description: "Every SerOps integration in one matrix: log, metric and trace back
 ---
 # Integrations Overview
 
-SerOps integrates with log, metric and trace backends, source-control and CI/CD providers. This page is the complete matrix.
+SerOps integrates with log, metric and trace backends, source-control and CI/CD providers. This page is the matrix of those; GitOps, alert sources and notification channels are listed under [Other integrations](#other-integrations).
 
 ## Provider Matrix
 
@@ -14,22 +14,22 @@ Source Code Management providers connect your repositories for code change track
 
 | Provider | Auth Method | Features | Guide |
 |----------|-------------|----------|-------|
-| **GitLab** | Personal Access Token (`api` scope) | Commits, MRs, pipelines, deployments, webhooks | [Setup](gitlab.md) |
-| **GitHub** | Fine-grained token, read-only | Commits, PRs, Actions, deployments, webhooks | [Setup](github.md) |
-| **Azure DevOps** | Personal Access Token | Commits, PRs, pipelines, deployments | [Setup](azure-devops.md) |
-| **Bitbucket** | Access token (repository or workspace) | Commits, PRs, pipelines | [Setup](bitbucket.md) |
+| **GitLab** | Personal Access Token (`api` scope) | Commits, pipelines, deployments, webhooks | [Setup](gitlab.md) |
+| **GitHub** | Fine-grained token, read-only | Commits, Actions, deployments, webhooks | [Setup](github.md) |
+| **Azure DevOps** | Personal Access Token | Commits, pipelines, deployments | [Setup](azure-devops.md) |
+| **Bitbucket** | Access token (repository or workspace) | Commits, pipelines | [Setup](bitbucket.md) |
 
 ### CI/CD Providers
 
-Build and deployment pipeline providers for tracking deployments and CI/CD logs.
+Build and deployment pipeline providers for tracking deployments. SerOps reads job logs from GitLab CI only.
 
 | Provider | Auth Method | Features | Guide |
 |----------|-------------|----------|-------|
 | **GitLab CI** | Via SCM token | Pipeline status, job logs, deployment events | [Setup](gitlab.md) |
-| **GitHub Actions** | Via SCM token | Workflow runs, job logs, deployment events | [Setup](github.md) |
-| **Jenkins** | API Token + Base URL | Build status, console logs, pipeline triggers | [Setup](jenkins.md) |
-| **Azure Pipelines** | Via SCM token | Pipeline runs, stage logs, deployment events | [Setup](azure-devops.md) |
-| **Bitbucket Pipelines** | Via SCM token | Pipeline status, step logs, deployment events | [Setup](bitbucket.md) |
+| **GitHub Actions** | Via SCM token | Workflow runs, deployment events | [Setup](github.md) |
+| **Jenkins** | API Token + Base URL | Build status, pipeline triggers | [Setup](jenkins.md) |
+| **Azure Pipelines** | Via SCM token | Pipeline runs, deployment events | [Setup](azure-devops.md) |
+| **Bitbucket Pipelines** | Via SCM token | Pipeline status, deployment events | [Setup](bitbucket.md) |
 
 ### Observability Providers
 
@@ -47,8 +47,8 @@ Log, metric, and trace providers: the logs and traces of your applications, and 
 | **Azure Monitor** | Logs + Metrics | Service Principal | KQL | [Setup](azure.md) |
 | **Prometheus** | Metrics | Basic / Bearer | PromQL | [Setup](prometheus.md) |
 | **VictoriaMetrics** | Metrics | Basic / Bearer | MetricsQL | [Setup](victoriametrics.md) |
-| **Grafana Mimir** | Metrics | Basic / Tenant ID | PromQL | [Setup](mimir.md) |
-| **Grafana Tempo** | Traces | Basic / Bearer / Tenant ID | TraceQL | [Setup](traces.md) |
+| **Grafana Mimir** | Metrics | Basic / Bearer / Tenant ID | PromQL | [Setup](mimir.md) |
+| **Grafana Tempo** | Traces | Basic / Bearer / Tenant ID | Tempo search API | [Setup](traces.md) |
 | **Jaeger** | Traces | Basic / Bearer | Jaeger query API | [Setup](traces.md) |
 | **Zipkin** | Traces | Basic / Bearer | Zipkin query API | [Setup](traces.md) |
 
@@ -59,6 +59,15 @@ Log, metric, and trace providers: the logs and traces of your applications, and 
     and don't want to change their pipeline. Datadog APM works the
     same way via the Datadog integration. See
     [Distributed Traces](traces.md) for both paths.
+
+### Other integrations
+
+| Kind | Integrations | Guide |
+|------|--------------|-------|
+| **GitOps deploy events** | Argo CD, Flux | [Setup](gitops.md) |
+| **Generic deployment webhook** | Helm hooks, Terraform, `kubectl` wrappers | [Setup](webhooks.md#generic-deployment-webhook) |
+| **Alert sources** | Prometheus Alertmanager, Grafana, Datadog monitors, Sentry | [Setup](alerts.md) |
+| **Notification channels** | Slack, Microsoft Teams, PagerDuty, OpsGenie, email | [Setup](notifications.md) |
 
 ## Tested environments
 
@@ -73,7 +82,7 @@ and tested per integration: [Compatibility](compatibility.md).
 | Live-tested backends | Elasticsearch, OpenSearch, Grafana Loki, Splunk, Prometheus, VictoriaMetrics, Grafana Mimir, Jaeger, Zipkin, Tempo, Alertmanager, GitLab, Jenkins, Argo CD, Flux, Keycloak (versions in [Compatibility](compatibility.md)). |
 | Managed Kubernetes (EKS, GKE, AKS) | **AKS validated** (November 2026: one node, then two, with Container Insights). **GKE validated** (2026-11-12: SerOps 1.3.0 on two nodes, Cloud Logging and Monitoring, an incident found end to end). **EKS validated** (2026-11-13: SerOps 1.3.0 on three nodes, CloudWatch Container Insights, an incident found end to end). The Datadog Kubernetes mode ran on a local cluster sending to the real service. Use the credentials each integration page describes: Google Cloud and Azure deliberately never use the host's own cloud identity (GKE Workload Identity, AKS managed identity), so one organisation on a shared instance cannot borrow it. |
 | Multi-node clusters | **AKS with two nodes** (each service on both): logs and per-service metrics summed over pods on different nodes. The other Kubernetes testing ran on one node. |
-| GitHub and GitHub Actions | Run against github.com (2026-11-02) with a fine-grained read-only token: connect a repository, commits, Actions runs and deployments through Sync and polling. Webhooks not yet tested live. The fixes from that run are on `main`, not yet in a release. |
+| GitHub and GitHub Actions | Run against github.com (2026-11-02) with a fine-grained read-only token: connect a repository, commits, Actions runs and deployments through Sync and polling. Webhooks not yet tested live. The fixes from that run shipped in 1.2.14. |
 | Datadog, AWS CloudWatch | Run against a live account (Datadog EU, AWS `eu-central-1`, October 2026): logs, host metrics, ECS and Lambda log groups. On Kubernetes, the full journey from the UI (add the integration, Check my data, investigate a bad deploy) with the Datadog Agent Helm chart and with AWS's Container Insights quickstart, on a single-node local cluster. |
 | Azure Monitor | Run against a live account (November 2026): AKS Container Insights logs and metrics, Application Insights logs from an OpenTelemetry collector. VM metrics not yet. |
 | Google Cloud | Logs and metrics checked against a live GKE cluster (November 2026); four faults that kept SerOps from reading any of it were fixed. Incidents found end to end on GKE with Cloud Logging and Monitoring: the 12 November validation (two nodes), then the "Hybrid" client estate of the November benchmark (GKE and Cloud Run, 17 November). The other four client estates ran on GKE with their own log and metric stores. |

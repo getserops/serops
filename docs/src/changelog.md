@@ -16,6 +16,61 @@ v1.0.0. Entries under **[Unreleased]** ship in the next tagged release.
 
 ---
 
+## [1.5.6] - 2026-11-26
+
+A new Overview that reads at a glance, an issue panel that puts the cause
+and the steps first, and minimum severity on delivery channels and routing
+rules that now filters. Helm installs build correct webhook and email links,
+the sign-up page says when sign-up is closed, and the first-admin command asks
+for the same password as the form. No database migration.
+
+Set `SEROPS_VERSION=1.5.6` or `--version 1.5.6`. **Channels and rules with a
+minimum severity will receive fewer notifications than before**: see the
+[upgrade notes](deployment/upgrading.md#156-minimum-severity-filters-helm-links).
+
+### Changed
+
+- **Overview**: one status card with a sentence that says how many services
+  have an open critical issue, and one square per service: open issue, affected by
+  one, healthy. "Needs attention now" shows the three worst open issues: what
+  is broken, why, the first step. **Services** lists every service by name in
+  the three groups, in place of the 12-tile map. The week is two small panels,
+  issues per day and the causes as one bar. A service name two projects share
+  shows its project ("notifier · Fleet"). On a phone the lower panels show
+  only their header, as in 1.5.5.
+- **Issue panel**: the summary, then the root cause (first two sentences, with
+  "Show more"), then the recommended action as numbered steps, all shown. "Why
+  the AI thinks so" is folded, with the confidence on its title. On a resolved
+  issue whose cause the team corrected, the confirmed cause and "What fixed
+  it" come first. No text is removed; folded text stays in the page.
+- **Service health API**: returns every service, up to 200 (before: the 12
+  worst), with `project_name` and `affected_by` on each.
+- **Demo data**: the demo organisation has one Slack delivery channel and one
+  routing rule (Critical, production). The channel's webhook is a placeholder
+  that is never sent to.
+
+### Fixed
+
+- **Minimum severity filters**: until 1.5.5 the "Min severity" of a delivery
+  channel or a routing rule never blocked anything. It now applies: Info lets
+  Info, Warning and Critical through, Warning lets Warning and Critical
+  through, Critical only Critical; with a floor set, an analysis with no issue
+  does not notify. The dropdowns offer Any, Info, Warning and Critical, in
+  English and French; floors saved as Low, Medium or High show as Info,
+  Warning and Critical and keep working without being re-saved.
+- **Helm links**: the chart (0.2.8) sets `SERVER_URL` and `BASE_URL` from the
+  public URL. Before, the GitLab webhook URL and the links in notification
+  emails started with `None/` on Helm. A value under `backend.env` still wins.
+- **Sign-up page**: once sign-up is closed, `/register` says so and links to
+  sign in, with no form. Invitation links are not affected.
+- **First admin**: `create_superadmin` asks for at least 10 characters with an
+  upper-case letter, a lower-case letter and a number, as the sign-up form
+  does.
+- **Single sign-on**: the email domains hint names the right command,
+  `manage.py sso_domains`.
+
+---
+
 ## [1.5.5] - 2026-11-24
 
 Fixes in the web app: scripts and stylesheets compressed behind a proxy, the

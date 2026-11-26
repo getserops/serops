@@ -17,8 +17,8 @@ by cosine similarity.
 
 ### Where you see it
 
-* **ChatIssues detail page** — a *Similar past incidents* card
-  appears below the correlations card, showing up to 5 matches with
+* **AI Chat**, when the chat is about an issue — a *Similar past
+  incidents* card appears below the correlations card, showing up to 5 matches with
   their prior-fix text.
 * **API**: `GET /api/data/issues/<id>/similar/?limit=5`
 * **AI prompt**: similar past incidents feed into the RCA prompt as

@@ -10,8 +10,8 @@ How well does SerOps name the cause of an incident? The benchmark answers it wit
 
 | Set | Count | What it is for |
 |---|---|---|
-| **Held-out v3** | 34 held out (28 incidents, 6 healthy windows); 6 more moved to the tuned set on 2026-11-16 (w19 staging-only and the five incidents over 3–6 windows, after MR !121 was shaped on their first results) | Production-shaped incidents from November 2026 (table below), including incidents that evolve over several analysis windows of one project. Committed in its own pre-registration commit before any model run, under the same rule. Opt-in: `--set held_out_v3`. |
-| **Held-out v2** | 33 (30 incidents, 3 healthy windows) | The measure from November 2026, written to cover what the first sets do not (table below). Committed in its own commit (`5ecbd317`) before any model run, under the same rule. Opt-in: `--set held_out_v2`. |
+| **Held-out v3** | 34 held out (28 incidents, 6 healthy windows); 6 more moved to the tuned set on 2026-11-16 (w19 staging-only and the five incidents over 3–6 windows, after the fix that keeps one evolving incident as one issue and scopes batch logs to their environment was shaped on their first results) | Production-shaped incidents from November 2026 (table below), including incidents that evolve over several analysis windows of one project. Committed in its own pre-registration commit before any model run, under the same rule. Opt-in: `--set held_out_v3`. |
+| **Held-out v2** | 32 held out (30 incidents, 2 healthy windows); v29 moved to the tuned set on 2026-11-16 (a prompt rule and engine change were shaped on it) | The measure from November 2026, written to cover what the first sets do not (table below). Committed in its own commit (`5ecbd317`) before any model run, under the same rule. Opt-in: `--set held_out_v2`. |
 | **Held-out** | 9 (8 incidents, 1 healthy window) | The October 2026 measure. Written and committed before any model saw them; no prompt rule was changed for them. If one ever is, it moves to the tuned set and the commit says so. |
 | **Tuned** | 16 (14 incidents, 2 healthy windows) | Regression guard. The product was changed while some of these failed, so passing them is expected and is not evidence. Three came from the held-out set: `h09`, a clean deploy with one retried request, raised a warning on its first run, and the log filter now keeps recovery lines because of it; `h04`, clock skew on one node, showed that warnings never reached the AI (the filter wanted `WARNING`, the pipeline writes `WARN`), and that filter was fixed because of it; `h07`, a feature-flag rollout, had Claude name a commit only to clear it while the issue still linked it, and commit links now come from the analysis' explicit list. `t01`, a traffic surge that slowed every service, comes from production scenario R9 on Online Boutique, where the analysis blamed one service's client code; it was written together with the traffic counts that fix it. |
 
@@ -38,7 +38,7 @@ They cover bad deploys (a connection leak on an error path, a retry storm, a dro
 | Adversarial and privacy | – | v23 injection in a log line, v24 injection in an alert, v25 personal data in logs |
 | Volume | – | v26 eight errors under 2300 lines of noise |
 | Misleading input | h11 old unrelated noise | v27 an engineer's report blaming the wrong deploy |
-| Healthy windows | h09, h10, s09 | v28 noisy hour, v29 deploy warm-up, v30 nightly backup |
+| Healthy windows | h09, h10, s09 | v28 noisy hour, v30 nightly backup (v29 deploy warm-up moved to the tuned set) |
 
 ### What v3 adds (2026-11-16)
 
@@ -86,7 +86,7 @@ A failed AI call is an error, never a quiet healthy window. The report quotes wh
 
 ## Run it yourself
 
-Every scenario is one real AI call, billed to your key (an incident over several windows is one call per window). The default run (held-out and tuned) is 25 calls; `--set held_out_v2` is 33; `--set held_out_v3` is 34; the six v3 scenarios moved to the tuned set (w19 and the five multi-window incidents, 24 windows) are tuned scenarios, opt-in with `--set tuned_v3`.
+Every scenario is one real AI call, billed to your key (an incident over several windows is one call per window). The default run (held-out and tuned) is 25 calls; `--set held_out_v2` is 32; `--set held_out_v3` is 34; the seven scenarios moved to the tuned set (v3 w19 and the five multi-window incidents, 24 windows, and v2 v29) are tuned scenarios, opt-in with `--set tuned_v3` (25 calls).
 
 ```bash
 # In a backend container connected to a SerOps database (never production).

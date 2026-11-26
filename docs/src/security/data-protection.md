@@ -1,6 +1,6 @@
 ---
 seo_title: "Data protection and PII redaction before the AI"
-description: "How SerOps masks secrets and personal data in logs before anything reaches an AI model, and what you can configure."
+description: "How SerOps masks secrets and personal data in logs before anything reaches an AI model, and what it stores."
 ---
 # Data Protection & PII Redaction
 
@@ -20,7 +20,7 @@ If nothing may leave your network, use a local model through
 graph LR
     A[Raw Logs] --> B[Redaction Scanner]
     B --> C{Sensitive Data?}
-    C -->|Yes| D[Mask & Report]
+    C -->|Yes| D[Mask]
     C -->|No| E[Safe Data]
     D --> E
     E --> F[AI Analysis]
@@ -151,7 +151,7 @@ For most teams the organisation boundary is the right unit — a whole SerOps or
 | Credentials in a URL query | `?access_token=...`, `&token=...`, `&key=...`, `api_key`, `client_secret` | the value only: `[REDACTED]` |
 | Cookies | `Cookie:` and `Set-Cookie:` values (every cookie) | `[REDACTED]` |
 | Command-line passwords | `curl -u user:pass`, `mysql -p<password>` | the password only: `*****` |
-| Unlabelled secrets | a long hex or base64 value just after `key`, `secret`, `signing`, `signature` or `hmac` | `[SECRET]` |
+| Unlabelled secrets | a hex or base64 value of 32 characters or more, within 20 characters after `secret`, `secret key`, `client secret`, `signing key`, `signature`, `hmac`, `private key`, `master key`, `encryption key`, `api key` or `access key` (not after the bare word `key`) | `[SECRET]` |
 
 ### Personal Information (High)
 | Pattern | Example | Masked As |
@@ -164,30 +164,17 @@ For most teams the organisation boundary is the right unit — a whole SerOps or
 ### Infrastructure (Medium)
 | Pattern | Example | Masked As |
 |---------|---------|-----------|
-| IP addresses | `192.168.1.100`, `203.0.113.7` | `[PRIVATE_IP]`, `[PUBLIC_IP]` (loopback, link-local and netmasks are kept) |
+| IPv4 addresses | `192.168.1.100`, `203.0.113.7` | `[PRIVATE_IP]`, `[PUBLIC_IP]` (loopback, link-local and netmasks are kept; IPv6 addresses are not masked) |
 | Connection strings | `postgresql://user:pass@host/db`, `DATABASE_URL=...` | `*****`, `[CONNECTION_STRING]`, `[DATABASE_URL]` |
 | Credentials in URLs | `https://user:pass@api.com` | `https://user:*****` (the host goes with the password) |
 | S3 buckets | `s3://my-bucket` | `s3://[BUCKET]` |
 
 ## Batch Log Redaction
 
-When batch analysis runs (every 15 minutes by default), logs are automatically scanned:
-
-```python
-# Automatic redaction before AI analysis
-from Utils.data_redaction import redact_batch_logs
-
-redacted_logs, summary = redact_batch_logs(raw_logs)
-# summary contains counts by severity: critical, high, medium
-```
-
-### Internal Logging
- 
-Redaction activity is logged internally for compliance, tracking:
- 
-- **Total items redacted**
-- **Count by severity** (critical, high, medium)
-- **Original vs redacted size**
+When batch analysis runs (every 15 minutes by default), the log messages are
+masked before the prompt is built, and the whole prompt is masked again on its
+way to the AI provider. When items were masked, the backend log records how
+many.
 
 ---
 
@@ -206,16 +193,19 @@ scanner before persistence or egress (`Utils/redaction_helpers.py`).
 | `redact_raw_payload` | Raw webhook bodies | Recursive walk, depth-capped at 8 |
 
 Redaction happens at **write** time, not read time. A trace summary is
-scrubbed before it is stored on the batch, so the raw text never lands
-in the database, never reaches an AI prompt, and never appears in a
-support export. The same applies to alert payloads: what you see in
-the UI is already the redacted form.
+scrubbed before it is stored on the batch, and alert payloads before the
+alert is stored: what you see in the UI is already the redacted form.
+
+These storage-side helpers fail open: if the scanner raises an error on a
+value, that value is stored unmasked so the batch or the alert is not
+lost. It still cannot reach the AI provider unmasked, because every
+prompt is masked again on the way out, and that step fails closed (see
+[Current limits](#current-limits)).
 
 !!! note "Depth cap on raw payloads"
-    `redact_raw_payload` stops recursing at depth 8. Alert bodies are
-    provider-shaped and occasionally self-referential; the cap keeps a
-    pathological payload from stalling ingest. Anything deeper than 8
-    levels is dropped rather than passed through unscanned.
+    `redact_raw_payload` stops recursing at depth 8, so a pathological
+    payload cannot stall ingest. A value nested inside eight or more levels
+    of objects and lists is stored as received, unmasked.
 
 ---
 
@@ -236,6 +226,11 @@ attacker gets from a database dump.
 | Alert-ingest secret | SHA-256 hash plus a short display prefix | **No** — plaintext is shown once at rotation and never stored |
 | Channel webhook URLs / API keys | Fernet-encrypted, write-only via the API | Only with `SEROPS_ENCRYPTION_KEY` |
 | Observability integration credentials (`password`, and `extra_config` secrets such as Datadog `api_key`/`app_key` and `bearer_token`) | Fernet-encrypted, write-only via the API | Only with `SEROPS_ENCRYPTION_KEY` |
+| SCM service access tokens, infrastructure service connection strings and custom service API keys (`/api/services/scm/`, `/api/services/infra/`, `/api/services/custom/`) | Plain text, write-only via the API | **Yes**, from the database |
+| Webhook signing secrets of repository bindings, CI/CD bindings and SCM services | Plain text. A CI/CD binding's secret is returned when the binding is created and by its webhook setup when the webhook is configured by hand | **Yes**, from the database |
+
+The last two rows are not encrypted and `python manage.py rotate_secrets`
+does not cover them.
 
 Write-only means what it says: once set, `webhook_url` and `api_key`
 are never returned by any endpoint. Responses expose the booleans
@@ -264,9 +259,8 @@ When users type messages in the AI Chat, real-time scanning warns about sensitiv
 2. Frontend calls `scanMessageForSensitiveData(message)`
 3. If sensitive data found → **Warning Modal** appears
 4. User can:
-   - **Edit** the message to remove sensitive data
-   - **Send Anyway** (consent tracked for audit)
-   - **Cancel** the message
+   - **Cancel & Edit**: close the warning and edit the message
+   - **Send Anyway**: send the message
 
 If you send anyway, the server still masks what it recognises before the
 message reaches the AI provider; the warning lets you remove what it would not.
@@ -280,30 +274,12 @@ The modal shows:
 
 ---
 
-## Configuration
-
-### Enable/Disable Patterns
-
-The redaction service is configured in `Utils/data_redaction.py`:
-
-```python
-service = DataRedactionService(config={
-    'patterns': ['api_key', 'password', 'email'],  # Enable specific patterns
-    'custom_patterns': {
-        'internal_id': r'INTERNAL-\d{6}'  # Add custom patterns
-    }
-})
-```
-
----
-
 ## Best Practices
 
+The patterns are fixed in the code: no setting adds, removes or changes one.
+
 !!! tip "Recommendations"
-    1. **Review Redaction Reports** - Check weekly for patterns in detected sensitive data
-    2. **Train Teams** - Educate developers to not log sensitive data
-    3. **Custom Patterns** - Add company-specific patterns (internal IDs, etc.)
-    4. **Audit Regularly** - Export reports for compliance audits
+    1. **Train Teams** - Educate developers to not log sensitive data
 
 !!! warning "Limitations"
     - Redaction uses regex patterns; novel formats may not be detected

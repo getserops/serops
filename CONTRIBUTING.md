@@ -116,8 +116,13 @@ cp .env.example .env
 # rest. Nothing reads ANTHROPIC_API_KEY or its siblings from the environment.
 docker compose up -d --build
 docker compose exec backend python manage.py migrate
-docker compose exec backend python manage.py createsuperuser
+docker compose exec backend python manage.py create_superadmin \
+  --email you@example.com --org "Your Org"
 ```
+
+`--org` names the organisation; metrics are matched on that name
+(`organisation_name`). `createsuperuser` also works, but names the
+organisation after the part of the email before the `@`.
 
 API on http://localhost:8000/api/, Swagger at `/api/docs/`.
 

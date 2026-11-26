@@ -17,9 +17,10 @@ import { Button, Modal, Form, Spinner, Table, Alert, Badge } from 'react-bootstr
 import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { SettingsService } from '../../services/settings.service';
+import { FLOOR_CHOICES, floorChoice, floorToSave } from '../../utils/severityFloor';
+import { severityLabel } from '../../utils/severityLabel';
 import './SettingsLayout.css';
 
-const SEVERITY_CHOICES = ['', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const EVENT_CHOICES = [
     ['batch_analyzed', 'settings.routing.eventAnyBatch'],
     ['alert_triggered', 'settings.routing.eventAlertTriggered'],
@@ -86,7 +87,7 @@ const RoutingRulesSettings = () => {
         setForm({
             name: rule.name || '',
             is_active: rule.is_active,
-            min_severity: rule.min_severity || '',
+            min_severity: floorChoice(rule.min_severity),
             environments: rule.environments || [],
             services: rule.services || [],
             event_types: rule.event_types || [],
@@ -103,12 +104,13 @@ const RoutingRulesSettings = () => {
             return;
         }
         setSaving(true);
+        const payload = { ...form, min_severity: floorToSave(form.min_severity) };
         try {
             if (editing) {
-                await SettingsService.updateRoutingRule(editing.id, form);
+                await SettingsService.updateRoutingRule(editing.id, payload);
                 toast.success(t('settings.routing.ruleUpdated'));
             } else {
-                await SettingsService.createRoutingRule(form);
+                await SettingsService.createRoutingRule(payload);
                 toast.success(t('settings.routing.ruleCreated'));
             }
             setShowModal(false);
@@ -180,9 +182,9 @@ const RoutingRulesSettings = () => {
                             <tr key={r.id}>
                                 <td>{r.name}</td>
                                 <td>
-                                    {r.min_severity && (
+                                    {floorChoice(r.min_severity) && (
                                         <Badge bg="danger" className="me-1">
-                                            ≥ {r.min_severity}
+                                            ≥ {severityLabel(t, floorChoice(r.min_severity))}
                                         </Badge>
                                     )}
                                     {(r.event_types || []).map((t) => (
@@ -200,7 +202,7 @@ const RoutingRulesSettings = () => {
                                             {t('settings.routing.svcBadge', { value: s })}
                                         </Badge>
                                     ))}
-                                    {!r.min_severity
+                                    {!floorChoice(r.min_severity)
                                         && (!r.event_types || r.event_types.length === 0)
                                         && (!r.environments || r.environments.length === 0)
                                         && (!r.services || r.services.length === 0)
@@ -269,8 +271,8 @@ const RoutingRulesSettings = () => {
                                     onChange={(e) => setForm({ ...form, min_severity: e.target.value })}
                                     aria-label={t('settings.routing.minSeverityAria')}
                                 >
-                                    {SEVERITY_CHOICES.map((s) => (
-                                        <option key={s} value={s}>{s || t('settings.routing.anySeverity')}</option>
+                                    {FLOOR_CHOICES.map((s) => (
+                                        <option key={s || 'any'} value={s}>{s ? severityLabel(t, s) : t('settings.routing.anySeverity')}</option>
                                     ))}
                                 </Form.Select>
                             </Form.Group>

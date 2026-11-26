@@ -9,9 +9,41 @@ This module provides:
 - NotificationQueue: Pending notifications for digest/retry
 - EscalationRule: Escalation chains for unacknowledged issues
 """
+import logging
+
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
+
+
+# One ordering for the minimum-severity floor of delivery channels and
+# routing rules. Issues carry CRITICAL, WARNING, INFO (or UNKNOWN); floors
+# saved before 1.5.6 may hold the older LOW / MEDIUM / HIGH, which map to
+# the same three levels, so no migration is needed.
+SEVERITY_RANK = {'INFO': 1, 'WARNING': 2, 'CRITICAL': 3}
+FLOOR_RANK = {**SEVERITY_RANK, 'LOW': 1, 'MEDIUM': 2, 'HIGH': 3}
+_warned_floors = set()
+
+
+def severity_meets_floor(severity, floor, owner='') -> bool:
+    """True when ``severity`` (the top issue's) is at or above ``floor``.
+
+    An empty floor lets everything through, including an analysis with no
+    issue. With a floor set, no issue or an UNKNOWN severity does not pass.
+    A floor that is not a known value is treated as empty and logged once.
+    """
+    floor_key = (floor or '').strip().upper()
+    if not floor_key:
+        return True
+    floor_rank = FLOOR_RANK.get(floor_key)
+    if floor_rank is None:
+        if (owner, floor_key) not in _warned_floors:
+            _warned_floors.add((owner, floor_key))
+            logger.warning('Unknown minimum severity %r on %s: treated as no floor', floor, owner or 'a filter')
+        return True
+    return SEVERITY_RANK.get((severity or '').strip().upper(), 0) >= floor_rank
 
 User = get_user_model()
 
@@ -468,7 +500,8 @@ class IncidentNotificationChannel(models.Model):
     * ``trigger_events`` — subset of ``TRIGGER_CHOICES``. When empty,
       channel matches all events (fires on every analysis).
     * ``min_severity`` — severity threshold; only issues at or above
-      fire (CRITICAL > HIGH > MEDIUM > LOW > INFO). Empty = any.
+      fire (CRITICAL > WARNING > INFO; see ``severity_meets_floor``).
+      Empty = any.
 
     Security:
 
@@ -501,8 +534,6 @@ class IncidentNotificationChannel(models.Model):
         ('alert_triggered', 'Alert-triggered batch analyzed'),
         ('critical_issue', 'Batch produced ≥1 critical issue'),
     ]
-
-    SEVERITY_ORDER = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 
     organisation = models.ForeignKey(
         'Organisations.Organisations',
@@ -596,14 +627,7 @@ class IncidentNotificationChannel(models.Model):
 
     def meets_severity(self, severity: str) -> bool:
         """True when the given issue severity is >= min_severity."""
-        if not self.min_severity:
-            return True
-        try:
-            floor = self.SEVERITY_ORDER.index(self.min_severity.upper())
-            got = self.SEVERITY_ORDER.index((severity or '').upper())
-            return got >= floor
-        except ValueError:
-            return True   # unknown severity → don't block
+        return severity_meets_floor(severity, self.min_severity, f'channel {self.pk}')
 
 
 class NotificationRoutingRule(models.Model):
@@ -618,8 +642,8 @@ class NotificationRoutingRule(models.Model):
     control).
 
     Matcher fields are all AND-ed:
-    * ``min_severity`` — same 5-level ordering as
-      ``IncidentNotificationChannel.SEVERITY_ORDER``.
+    * ``min_severity`` — same ordering as the channel floor
+      (``severity_meets_floor``).
     * ``environments`` — list of env names the rule fires for.
       Empty list = every environment.
     * ``services`` — list of service names. Empty = every service.
@@ -696,16 +720,6 @@ class NotificationRoutingRule(models.Model):
             return False
         if self.services and service and service not in self.services:
             return False
-        if self.min_severity:
-            try:
-                floor = IncidentNotificationChannel.SEVERITY_ORDER.index(
-                    self.min_severity.upper(),
-                )
-                got = IncidentNotificationChannel.SEVERITY_ORDER.index(
-                    (severity or '').upper(),
-                )
-                if got < floor:
-                    return False
-            except ValueError:
-                pass  # unknown severity → don't block
+        if not severity_meets_floor(severity, self.min_severity, f'routing rule {self.pk}'):
+            return False
         return True

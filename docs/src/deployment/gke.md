@@ -40,6 +40,8 @@ What `up` runs, if you prefer your own cluster:
 gcloud container clusters create <cluster> --zone europe-west1-b \
   --num-nodes 2 --machine-type e2-standard-2 --disk-type pd-standard --disk-size 50 \
   --enable-dataplane-v2 --release-channel regular --logging=SYSTEM,WORKLOAD --monitoring=SYSTEM
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo add jetstack https://charts.jetstack.io
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --version 4.15.1 \
   -n ingress-nginx --create-namespace --set controller.service.externalTrafficPolicy=Local
 helm upgrade --install cert-manager jetstack/cert-manager --version v1.21.3 \
@@ -76,7 +78,7 @@ cluster, 2026-11-16). The `serops-data` passwords then go into the
 As on AKS: [secrets and values](aks.md#3-secrets-and-values), then
 
 ```bash
-helm install serops oci://ghcr.io/getserops/charts/serops --version 1.5.5 \
+helm install serops oci://ghcr.io/getserops/charts/serops --version 1.5.6 \
   -n serops -f gke-values.yaml --wait --timeout 15m
 kubectl -n serops get certificate serops-tls      # READY True after ~30 s
 ```
@@ -84,7 +86,7 @@ kubectl -n serops get certificate serops-tls      # READY True after ~30 s
 Use 1.3.1 or later: the fix for plain-text errors on stdout, found on the
 1.3.0 test, is in every release since (see [Known issues](#known-issues)).
 
-Open `https://HOST`, register the first account (registration then closes),
+Open `https://HOST`, register the first account (after that sign-up closes),
 and only then restrict the load balancer if you want to (`cluster.sh lock`).
 
 Checked after install: HSTS with `includeSubDomains`, plain HTTP redirected

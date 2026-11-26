@@ -1005,25 +1005,6 @@ a.metric-kpi:focus-visible { outline: 2px solid var(--brand-fill); outline-offse
 .metric-kpi.metric-danger .metric-icon { background: var(--tone-red-soft); color: var(--tone-red-text); }
 .metric-kpi.metric-calm .metric-icon { background: var(--tone-gray-soft); color: var(--tone-gray-text); }
 .health-card { background: var(--bg-card); }
-/* The three key numbers share one arrangement from 1280 px (1.5.5, approved
-   on pictures): icon and name on top, the value under them on the left,
-   then the status; on System Health the status sits beside the gauge. */
-@media (min-width: 1280px) {
-  .overview-numbers > .metric-kpi {
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas: "icon label" "value value" "trend trend";
-    align-content: start;
-    gap: var(--space-2) var(--space-3);
-  }
-  .overview-numbers > .metric-kpi .metric-content { display: contents; }
-  .overview-numbers > .metric-kpi .metric-icon { grid-area: icon; }
-  .overview-numbers > .metric-kpi .metric-label { grid-area: label; font-weight: 500; color: var(--text-secondary); }
-  .overview-numbers > .metric-kpi .metric-value { grid-area: value; line-height: 1.1; }
-  .overview-numbers > .metric-kpi .metric-trend { grid-area: trend; }
-  .overview-numbers > .health-card .health-content { justify-content: flex-start; }
-  .overview-numbers > .health-card .health-details { text-align: left; }
-  .overview-numbers > .health-card .health-status { justify-content: flex-start; }
-}
 .service-heatmap { margin-top: var(--space-6); }
 @media (max-width: 767px) {
     .overview-numbers { grid-template-columns: minmax(0, 1fr); }

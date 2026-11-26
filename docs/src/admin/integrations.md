@@ -53,11 +53,13 @@ Each integration is displayed as a card showing:
 
 1. Click **+ Add Integration**
 2. Select provider from the grid:
-   - GitLab, GitHub, Bitbucket, Azure DevOps, Jenkins
+   - GitLab, GitHub, Bitbucket, Azure DevOps, Jenkins, Argo CD, Flux
 3. Fill in the configuration:
    - **Name**: Identifier (e.g., "Corporate GitLab")
    - **URL**: Provider URL (leave blank for cloud defaults)
    - **Access Token**: API token with required scopes
+
+   Argo CD and Flux need no credentials: they only send events to SerOps.
 
 ### Token Generation Links
 
@@ -96,7 +98,9 @@ Click **Verify Connection** to test the integration. This updates the "Connected
 | **GitHub** | ✅ | ✅ | ✅ |
 | **Azure DevOps** | ✅ | ✅ | ✅ |
 | **Bitbucket** | ✅ | ✅ | ❌ |
-| **Jenkins** | ❌ | ✅ | ❌ |
+| **Jenkins** | ❌ | ✅ | ✅ |
+| **Argo CD** | ❌ | ❌ | ✅ |
+| **Flux** | ❌ | ❌ | ✅ |
 
 ---
 

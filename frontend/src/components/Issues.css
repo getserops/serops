@@ -481,13 +481,20 @@ button.issue-stat-card:focus-visible { outline: 2px solid var(--primary-600, #2f
 .issue-panel-id { color: var(--text-tertiary); font-size: 0.8125rem; }
 .issue-panel-title { font-size: 1.05rem; font-weight: 600; line-height: 1.4; margin: 0; color: var(--text-primary); }
 .issue-panel-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.8125rem; color: var(--text-secondary); }
-.issue-panel-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0 0 20px; }
-.issue-panel-facts dt { font-size: 0.75rem; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.04em; }
-.issue-panel-facts dd { margin: 2px 0 0; font-size: 0.875rem; color: var(--text-primary); }
-.issue-panel-section { margin-bottom: 20px; }
+/* Facts: one compact line ("First seen … · Last seen … · Occurrences 3×"). */
+.issue-panel-facts { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 16px; font-size: 0.8125rem; }
+.issue-panel-facts > div { display: flex; gap: 6px; }
+.issue-panel-facts dt { font-weight: 500; color: var(--text-tertiary); }
+.issue-panel-facts dd { margin: 0; color: var(--text-secondary); }
+.issue-panel-section { margin-bottom: 16px; }
+/* No paragraph gap of its own: "Show more" and the next paragraph sit close. */
+.issue-panel-section p { margin: 0; }
+.issue-panel-section p + p { margin-top: 6px; }
 .issue-panel-section h3 { font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.04em; }
 .issue-panel-section p, .issue-panel-section li { font-size: 0.9rem; line-height: 1.55; color: var(--text-primary); }
 .issue-panel-section ul, .issue-panel-section ol { padding-left: 18px; margin: 0; }
+/* The confidence on the title line of "Why the AI thinks so". */
+.issue-panel-confidence { text-transform: none; letter-spacing: normal; }
 .issue-panel-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .issue-panel-footer { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border-default, #e5e7eb); background: var(--bg-card, #fff); }
 
@@ -631,7 +638,7 @@ button.issue-stat-card:focus-visible { outline: none; box-shadow: var(--focus-ri
 .issue-resolve-form textarea { font-size: 0.875rem; resize: vertical; }
 .issue-resolve-hint { color: var(--text-tertiary); font-size: 0.75rem; }
 .issue-resolve-actions { display: flex; gap: 8px; margin-top: 6px; }
-.issue-panel-ai-said { font-size: 0.8125rem !important; color: var(--text-tertiary) !important; margin-top: 4px; }
+.issue-panel-ai-said { font-size: 0.8125rem !important; color: var(--text-tertiary) !important; }
 
 /* Component column: wide enough for a service name ("checkoutservice",
    "shippingservice") beside the "+2" of the other services. Most of the

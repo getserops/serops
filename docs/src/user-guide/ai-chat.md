@@ -29,7 +29,7 @@ SerOps AI Chat is powered by pluggable AI models (Claude, Gemini, DeepSeek, or a
 
 From the **Analyses** page:
 1. Select a batch
-2. Click **Chat about Batch**
+2. In the **Analyze with AI** dropdown, choose **Chat about Batch**
 3. The batch context is automatically included
 
 ---
@@ -56,11 +56,12 @@ The AI has access to:
 
 ## Sensitive Data Protection
 
-!!! warning "A warning, not masking"
-    Your message is scanned in the browser before it is sent. If it looks
-    sensitive you get a warning; if you choose **Send anyway**, the message
-    goes to the AI provider as typed. Chat does not yet mask the log lines
-    it pulls from the batch either (see
+!!! warning "A warning, then masking"
+    Your message is scanned before it is sent. If it looks sensitive you get
+    a warning. If you choose **Send anyway**, the server still masks what it
+    detects in your message, and in the log lines chat pulls from the batch,
+    before anything reaches the AI provider; anything it does not detect is
+    sent as written (see
     [Current limits](../security/data-protection.md#current-limits)).
 
 ### How It Works
@@ -104,13 +105,13 @@ See [Data Protection](../security/data-protection.md) for full details.
 ## Model Selection
 
 Configure the AI model in **Settings → AI Providers**.
-SerOps supports a pluggable architecture. While **Gemini** and **DeepSeek** are defaults, you can register other providers (like Claude) in the database.
+SerOps supports a pluggable architecture. While **Gemini** and **DeepSeek** are defaults, you can add other providers (like Claude) with **Add Provider** on the same page (see [AI Settings](../admin/settings.md#ai-settings)).
 
 | Model | Best For |
 |-------|----------|
 | **Gemini** | General analysis, faster responses (Default) |
 | **DeepSeek** | Deep technical analysis, code understanding |
-| **Custom** | Any compliant provider added to `AIModelProvider` |
+| **Custom** | Any compliant provider added with **Add Provider** |
 
 ### Fallback Configuration
 
@@ -119,6 +120,8 @@ If the primary model fails, SerOps automatically tries the fallback:
 ```
 Primary (e.g., Gemini) → Fallback (e.g., DeepSeek)
 ```
+
+The fallback model has no control in **Settings → AI Providers**. It is set through the API: `PUT /api/settings/ai/` with `fallback_provider` (the provider's id).
 
 ---
 
@@ -142,11 +145,13 @@ POST /api/chat/generate-text/
 Content-Type: application/json
 
 {
-  "prompt": "What caused the error in batch_20260107?",
-  "ai_model": "gemini",
-  "chat_id": "optional-session-id"
+  "type": "chat",
+  "prompt": {"message": "What caused the error in this batch?"},
+  "ai_model": "gemini"
 }
 ```
+
+`"type": "chat"` is required: without it the request is treated as a batch analysis. To continue a conversation, add `"chat_id"` with the UUID of an existing chat; without it a new chat is created. `"batch_id"` attaches a batch to the chat.
 
 ### Get Chat History
 ```

@@ -1,14 +1,14 @@
 ---
 seo_title: "Datadog logs and metrics: AI root cause analysis"
-description: "Connect Datadog to SerOps for both logs and metrics with one API and application key, and get root causes across your stack."
+description: "Connect Datadog to SerOps for logs, metrics and APM traces with one API and application key, and get root causes across your stack."
 ---
 # Datadog
 
-Datadog is a cloud-based monitoring and analytics platform. SerOps integrates with Datadog as a dual provider supporting both log retrieval and metric queries in a single integration, using the Datadog API with API key and application key authentication.
+Datadog is a cloud-based monitoring and analytics platform. SerOps integrates with Datadog as one provider for log retrieval, metric queries and APM traces in a single integration, using the Datadog API with API key and application key authentication.
 
 | | |
 |---|---|
-| **Type** | Logs + Metrics |
+| **Type** | Logs + Metrics + Traces |
 | **Auth** | API Key + App Key |
 | **Query Language** | Datadog query syntax |
 
@@ -24,7 +24,7 @@ Datadog is a cloud-based monitoring and analytics platform. SerOps integrates wi
 {
   "provider": "datadog",
   "display_name": "Datadog Production",
-  "capabilities": ["logs", "metrics"],
+  "capabilities": ["logs", "metrics", "traces"],
   "host": "https://api.datadoghq.com",
   "extra_config": {
     "site": "datadoghq.com",
@@ -44,7 +44,7 @@ Datadog uses API key and application key authentication. Both keys must be provi
 - **API Key** (`api_key`): Authenticates requests to the Datadog API.
 - **App Key** (`app_key`): Grants access to specific Datadog resources and scopes.
 
-Create the application key under **Organization Settings → Application Keys → New Key** (not a Personal Access Token, whose key starts with `ddpat_`). SerOps only reads, so scope it down to:
+Create the application key under **Organization Settings → Application Keys → New Key** (not a Personal Access Token, whose key starts with `ddpat_`). SerOps also writes: it sends the CI/CD events it receives (deploys, builds) to Datadog's log intake (`/api/v2/logs`) with the same keys. For reading, scope the application key down to:
 
 | Scope | Used for |
 |-------|----------|
@@ -153,6 +153,12 @@ Response:
     {
       "provider": "DatadogMetricProvider",
       "provider_type": "metric",
+      "healthy": true,
+      "message": "OK"
+    },
+    {
+      "provider": "DatadogTraceAdapter",
+      "provider_type": "trace",
       "healthy": true,
       "message": "OK"
     }

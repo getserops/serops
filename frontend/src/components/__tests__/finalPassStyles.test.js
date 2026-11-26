@@ -23,9 +23,8 @@ describe('final pass: layout and tone', () => {
     expect(source).toContain('className="ds-chip ds-chip-neutral"');
   });
 
-  it('draws gauge and span tracks from a token, for the dark theme', () => {
+  it('draws span tracks from a token, for the dark theme', () => {
     expect(read('TraceDetail.jsx')).not.toContain('#f1f3f5');
-    expect(read('HealthScoreCard.jsx')).not.toContain('#e9ecef');
     expect(read('Metrics.jsx')).not.toMatch(/trailColor: "#/);
   });
 

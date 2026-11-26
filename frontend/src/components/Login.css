@@ -538,6 +538,8 @@
 }
 :is(html, :root[data-theme]) .sso-btn:hover:not(:disabled) { background: var(--bg-hover); border-color: var(--text-tertiary); color: var(--text-primary); transform: none; box-shadow: none; }
 :is(html, :root[data-theme]) .sso-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* The sign-in link of a closed sign-up page looks like the button. */
+:is(html, :root[data-theme]) a.sso-btn { text-decoration: none; }
 :is(html, :root[data-theme]) .sso-btn:disabled { background: var(--bg-card); opacity: 0.55; }
 :is(html, :root[data-theme]) .sso-btn .btn-icon-left { color: var(--text-secondary); }
 :is(html, :root[data-theme]) .sso-divider::before,

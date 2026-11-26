@@ -6,7 +6,7 @@ description: "API endpoints for login, registration, profile, SSO and account ma
 
 Endpoints for user authentication, registration, profile management, SSO, one-click demo login, and account deletion.
 
-All endpoints in this section use the `/api/auth/` prefix. `login`, `register`, `registration-status`, `activate`, `password/forget`, `password/set`, `accept/invitation`, `accept/password`, and the `sso/*` endpoints do not require an authentication token; all others do.
+All endpoints in this section use the `/api/auth/` prefix. `login`, `demo-login`, `register`, `registration-status`, `activate`, `email/confirm/{token}`, `password/forget`, `password/set`, `accept/invitation`, `accept/password`, `avatar/{key}`, `sso/init`, `sso/callback` and `sso/exchange` do not require an authentication token; all others do, including `sso/config`.
 
 Several endpoints are rate-limited per client IP — see the [API Overview](overview.md#rate-limiting) for the current limits.
 
@@ -62,6 +62,14 @@ Public flags the login page reads at mount time. Safe to call anonymously.
 
 Controlled by the `REGISTRATION_ENABLED` env var. Left unset, it is `true` until the first organisation exists and `false` afterwards — see [Configuration Reference](../deployment/configuration.md#public-access-control).
 
+## Demo Login
+
+```
+POST /api/auth/demo-login
+```
+
+No request body. Returns a token and user for the seeded read-only demo user, in the same shape as the login response. Demo tokens last a fixed `SEROPS_DEMO_TOKEN_HOURS` (8 by default) and are not renewed on use. Returns `404` with `{"error": "demo_not_configured"}` when no demo organisation exists (`python manage.py seed_demo_org` creates one).
+
 ## Register
 
 ```
@@ -88,6 +96,8 @@ POST /api/auth/register
 ```
 
 Creates a new organisation with the caller as its first admin. Sends an activation email.
+
+When the instance sets `BETA_INVITE_CODE`, the body must also carry `"invite_code"` with that value; a missing or wrong code returns `400`.
 
 **When registration is disabled:**
 
@@ -176,7 +186,8 @@ POST /api/auth/password/set/{uidb64}/{token}
 
 ```json
 {
-  "password": "new-password"
+  "new_password": "new-password",
+  "new_password_confirm": "new-password"
 }
 ```
 
@@ -216,11 +227,13 @@ POST /api/auth/accept/password
 
 ```json
 {
-  "password": "new-password"
+  "token": "<invitation token from the email link>",
+  "password": "new-password",
+  "password_confirmation": "new-password"
 }
 ```
 
-Sets the password for a user who joined via team invitation.
+Sets the password for a user who joined via team invitation. A missing field or passwords that differ return `400`; an expired or invalid invitation token returns `401`.
 
 ## Logout
 
@@ -236,11 +249,19 @@ Invalidates the current authentication token.
 DELETE /api/auth/account
 ```
 
+**Request body:**
+
+```json
+{
+  "confirm": "DELETE"
+}
+```
+
 Permanently deletes the authenticated user's account and their personal profile data (name, avatar, phone). Team memberships are removed and any chat sessions owned by the user are deleted. Batches, issues, and other organisation-scoped data are retained under the organisation's control.
 
-If the user is the sole admin of an organisation, the request is rejected — transfer admin to another member first, or delete the organisation via `/api/organisation/delete/{id}/`.
+If the user is the sole admin of an organisation, the request is rejected with `409` — transfer admin to another member first, or delete the organisation via `/api/organisation/delete/{id}/`.
 
-**Response:** `204 No Content`.
+**Response:** `204 No Content`. Without `{"confirm": "DELETE"}` in the body it returns `400`.
 
 ## SSO Configuration
 

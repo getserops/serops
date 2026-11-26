@@ -22,8 +22,8 @@ graph TD
     SEND --> CHAN{Channel}
     CHAN --> EMAIL[Email]
     CHAN --> INAPP[In-App]
-    SEND --> ACK{Resolved/Muted?}
-    ACK -->|No, 15 min| ESC1[Escalation L1<br/>Project Admins]
+    SEND --> ACK{Acknowledged/Resolved/Muted?}
+    ACK -->|No, 15 min| ESC1[Escalation L1<br/>All Org Admins]
     ACK -->|No, 45 min| ESC2[Escalation L2<br/>All Org Admins]
     ACK -->|Yes| STOP[Stop Escalation]
 ```
@@ -32,7 +32,7 @@ graph TD
 
 ## User Preferences
 
-Each user can fully customize how and when they receive notifications. Access your settings via **User Avatar dropdown > Notifications**.
+Each user can fully customize how and when they receive notifications. Access your settings via **User Avatar dropdown > Notification preferences**.
 
 ### Channels
 - **Email**: Receive alerts via your registered email address.
@@ -93,19 +93,19 @@ To manage subscriptions:
 
 ---
 
-## Escalation Rules (Automated)
+## Escalation Rules
 
-For **Critical Issues** that are not acknowledged, SerOps enforces an automatic escalation policy to ensure coverage.
+For **Critical Issues** that are not acknowledged, SerOps can escalate. Escalation runs only when the organisation has an escalation rule. The app has no screen for these rules: an admin creates them through the API (`/api/notification/escalation-rules/`). Without a rule, nothing escalates.
 
 ### Hierarchy
-Escalation follows a role-based path:
-1.  **Level 1 (15 min)**: Notifies **Project Admins** (Admins who are members of the affected project).
-2.  **Level 2 (45 min)**: Notifies **All Organization Admins** (Safety net for the entire org).
+Escalation follows a two-level path, counted from when the issue was created (default delays):
+1.  **Level 1 (15 min)**: Notifies **All Organization Admins** (every active admin).
+2.  **Level 2 (45 min)**: Notifies **All Organization Admins** again.
 
 ### Stopping Escalation
-Escalation is an automated backend process. To stop escalation, resolve or mute the issue:
+Escalation is an automated backend process. To stop escalation, acknowledge, resolve or mute the issue:
 1.  Click "View Issue" in the email or dashboard notification.
-2.  Resolve or mute the issue from the issue detail page.
+2.  Click **Acknowledge**, **Resolve** or **Mute** in the issue panel. On the analysis page, **Acknowledge** acknowledges every open issue of the analysis.
 3.  This stops further escalation notifications to your team.
 
 ---

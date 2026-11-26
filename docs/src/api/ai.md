@@ -16,13 +16,15 @@ POST /api/chat/generate-text/
 
 ```json
 {
-  "prompt": "What caused the errors?",
+  "type": "chat",
+  "prompt": {"message": "What caused the errors?"},
   "ai_model": "gemini",
-  "chat_id": "optional-session-id"
+  "chat_id": "3f0c9a52-6d1e-4b8a-9c2f-1e7d5a4b8c90",
+  "batch_id": "batch_20260107_143000"
 }
 ```
 
-Sends a prompt to the AI model and returns the generated response. If `chat_id` is provided, the conversation continues within that existing session. If omitted, a new session is created.
+Sends a prompt to the AI model and returns the generated response. `"type": "chat"` is required for a chat message; without it the endpoint expects a batch-analysis request instead. `chat_id` (a UUID) and `batch_id` are optional. If `chat_id` is provided, the conversation continues within that existing session. If omitted, a new session is created. When the organisation's monthly AI budget is spent, it returns `409`.
 
 ## Trigger Batch Analysis
 
@@ -34,8 +36,7 @@ POST /api/chat/analyze-batch/
 
 ```json
 {
-  "batch_id": "batch_20260107_143000",
-  "model": "gemini"
+  "batch_id": "batch_20260107_143000"
 }
 ```
 
@@ -60,7 +61,7 @@ Returns the full message history and details for a specific chat session.
 ## Update Chat Session
 
 ```
-PUT /api/chat/chats/{chat_id}/update/
+PATCH /api/chat/chats/{chat_id}/update/
 ```
 
 **Request body:**
@@ -79,13 +80,13 @@ Renames a chat session. Only fields you include are changed.
 DELETE /api/chat/chats/delete/{chat_id}
 ```
 
-Permanently deletes a chat session and all of its messages.
+Archives the chat session: it is hidden from the session lists and can no longer be continued. The response is `{"status": "success", "message": "Chat session archived"}`.
 
 ---
 
-## AI Admin (Admin Only)
+## AI Admin (Platform Staff Only)
 
-Endpoints for monitoring and managing AI provider health. These require admin-level permissions.
+Endpoints for monitoring and managing AI provider health. These require the `platform.manage` permission, which only platform staff (`is_staff`) hold; an organisation admin gets `403`.
 
 ### Get AI Health Status
 
@@ -130,6 +131,8 @@ POST /api/chat/admin/circuits/{provider}/reset/
 ```
 
 Manually closes a circuit to resume requests after the provider has recovered.
+
+`{provider}` is `gemini`, `deepseek`, `claude` or `openai` for reset and trip; any other name returns 400.
 
 ### Trip Circuit Breaker
 

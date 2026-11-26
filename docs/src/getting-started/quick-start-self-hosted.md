@@ -28,6 +28,8 @@ after signing in:
   AWS CloudWatch, Google Cloud Logging, Azure Log Analytics
 - **Metrics**: Prometheus, VictoriaMetrics, Grafana Mimir, Datadog,
   AWS CloudWatch, Google Cloud Monitoring, Azure Monitor
+- **Traces**: built-in OTLP receiver, Jaeger, Zipkin, Grafana Tempo,
+  Datadog APM
 - **SCM + CI/CD**: GitLab, GitHub, Bitbucket, Azure DevOps, Jenkins
 
 ## Prerequisites
@@ -134,18 +136,32 @@ schema is ready once `serops-backend` reports `healthy`
 Create the first admin account:
 
 ```bash
-docker compose exec backend python manage.py createsuperuser
+docker compose exec backend python manage.py create_superadmin \
+  --email admin@example.com --org "acme-cloud"
 ```
 
-It asks for an email address, a username and a password. The account
-gets its own organisation, named after the part of the email address
-before the `@` (`admin@example.com` gives "Admin's Organisation").
+It asks for a password (at least 10 characters, with an upper-case
+letter, a lower-case letter and a number, as on the sign-up form) and
+creates the account as an admin of a new organisation named by `--org`. Choose that name
+with care: it cannot be changed in the UI, and metrics are matched on
+it exactly (it is the `organisation_name` value in
+[Step 7](#step-7-tag-your-telemetry)). `createsuperuser` also works, but
+names the organisation after the part of the email address before the
+`@` (`admin@example.com` gives "Admin's Organisation").
 
-Once this organisation exists, the public sign-up page closes
-automatically: invite teammates from **Settings → Users** instead (a
-sign-up would create a separate organisation). To let other teams create
+Once this organisation exists, sign-up closes: the `/register` page says
+so and offers sign-in, with no form, and the server refuses new sign-ups
+(`403 registration_disabled`). Invite teammates from **Settings → Users** instead (a sign-up would create a
+separate organisation). To let other teams create
 their own organisations on this instance, set `REGISTRATION_ENABLED=True`
 in `.env`.
+
+Invitations are emails, and a default install does not send them:
+`.env.example` sets the console email backend, which only prints each
+email to the backend log. Before inviting anyone, set the SMTP variables
+in the *Email / SMTP* section of `.env`, run `docker compose up -d`
+again, and send a test email with
+`docker compose exec backend python manage.py check_smtp you@example.com`.
 
 ## Step 5: Add an AI provider key
 
@@ -195,7 +211,7 @@ a Datadog Agent…) must stamp these fields on every record:
 
 | Field | Example | What it maps to |
 |---|---|---|
-| `organisation_name` | `acme-cloud` | Your SerOps organisation |
+| `organisation_name` | `acme-cloud` | Your SerOps organisation's name, exactly (the `--org` value from Step 4). Needed for metrics; log queries do not filter on it |
 | `project_name` | `checkout-api` | A SerOps project |
 | `service_name` | `checkout` | A service inside that project |
 | `environment` | `production` | The environment being analysed |
@@ -239,10 +255,10 @@ set the new version first:
 
 ```bash
 # 1. Back up the database — always, before any upgrade
-docker compose exec postgres pg_dump -U serops serops > backup-$(date +%F).sql
+./scripts/backup.sh
 
 # 2. Set the release you want in .env (see the releases page), e.g.
-#    SEROPS_VERSION=1.5.5
+#    SEROPS_VERSION=1.5.6
 
 # 3. Pull and restart — the backend applies migrations on start
 git pull
@@ -266,8 +282,11 @@ docker compose logs -f backend        # or any service name
 **Back up Postgres**
 
 ```bash
-docker compose exec postgres pg_dump -U serops serops > backup-$(date +%F).sql
+./scripts/backup.sh        # writes ./backups/serops_db_<timestamp>.dump
 ```
+
+It writes a `pg_dump` in custom format and prints the `pg_restore`
+command that restores it ([Backup & Restore](../deployment/backup-restore.md)).
 
 **Stop everything (keep data)**
 

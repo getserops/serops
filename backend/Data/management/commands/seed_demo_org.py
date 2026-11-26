@@ -33,8 +33,14 @@ What it creates:
     address, host or credential, so the Integrations page shows what the
     analyses read and nothing can be called
 
+  - One delivery channel and one routing rule, so Alerts & routing shows
+    how a critical incident reaches the on-call: a Slack channel whose
+    webhook is the seed placeholder (the incident dispatcher never sends
+    to it, and the API only says that a webhook is set) and a rule for
+    critical issues in production
+
 What it never creates: AI usage or cost rows (the captures hold none),
-an AI budget, alert events, pipelines, notification channels, or an
+an AI budget, alert events, pipelines, a channel that can send, or an
 integration pointing at a host.
 
 Every analysis is moved by one whole number of days, so that the newest
@@ -74,7 +80,7 @@ from integrations.field_aliases import ENVIRONMENT_ALIASES, PROJECT_NAME_ALIASES
 from integrations.models import ObservabilityIntegration, Cluster
 from notifications.models import (
     Notification, ProjectSubscription, EscalationRule,
-    IncidentNotificationChannel,
+    IncidentNotificationChannel, NotificationRoutingRule,
 )
 from org_settings.encryption import encrypt_api_key
 from org_settings.models import (
@@ -105,6 +111,10 @@ DEMO_AI_PROVIDER = 'claude'
 # material ever leaves the API, and the incident dispatcher does not send
 # to a channel that holds it.
 SEED_DEMO_PLACEHOLDER = 'SEED_DEMO_PLACEHOLDER_NOT_A_REAL_SECRET'
+
+# The on-call example on Alerts & routing (video v11, line 12).
+DEMO_ONCALL_CHANNEL = 'Acme on-call (Slack)'
+DEMO_ONCALL_RULE = 'Production critical to on-call'
 
 # Team members get an address on a reserved domain (RFC 2606): no mail
 # sent to it, a password reset link included, can reach anyone.
@@ -162,6 +172,7 @@ class Command(BaseCommand):
             self._upsert_ai_settings(org)
             self._upsert_ai_key(org)
             self._upsert_sentinel_config(org)
+            self._upsert_oncall_routing(org)
 
             batches = self._load_analyses(org, seeds, projects, team)
             issues = self._load_issues(org, seeds, delta, projects, batches, team)
@@ -365,6 +376,29 @@ class Command(BaseCommand):
         IncidentNotificationChannel.objects.filter(organisation=org).delete()
         Cluster.objects.filter(organisation=org).exclude(pk__in=keep_clusters).delete()
         IngestKey.objects.filter(organisation=org).exclude(name=DEMO_INGEST_KEY_NAME).delete()
+
+    def _upsert_oncall_routing(self, org: Organisations) -> None:
+        """One Slack channel and one routing rule for critical issues in
+        production. Runs after ``_remove_old_structure``, which deletes the
+        organisation's channels, so the channel is written again each run;
+        the rule keeps its id. The webhook is ``SEED_DEMO_PLACEHOLDER``:
+        ``incident_dispatcher`` never sends to a channel holding it. The
+        rule filters on severity and environment only (its service filter
+        is compared with the project name)."""
+        channel = IncidentNotificationChannel(
+            organisation=org, name=DEMO_ONCALL_CHANNEL, kind='slack',
+            min_severity='CRITICAL', trigger_events=[], is_active=True,
+        )
+        channel.set_webhook_url(SEED_DEMO_PLACEHOLDER)
+        channel.save()
+        rule, _ = NotificationRoutingRule.objects.update_or_create(
+            organisation=org, name=DEMO_ONCALL_RULE,
+            defaults={
+                'is_active': True, 'min_severity': 'CRITICAL',
+                'environments': ['production'], 'services': [], 'event_types': [],
+            },
+        )
+        rule.targets.set([channel])
 
     # ── Integrations: what each environment had connected ─────────────
 

@@ -33,11 +33,12 @@ SerOps categorizes issues into 25+ types for accurate deduplication:
 
 | Category | Types |
 |----------|-------|
-| **Performance** | MEMORY_HIGH, CPU_HIGH, DISK_FULL, LATENCY_HIGH, RATE_LIMIT |
-| **Errors** | API_ERROR, DATABASE_ERROR, AUTH_FAILURE, PERMISSION_DENIED |
-| **Infrastructure** | CONNECTION_TIMEOUT, SERVICE_UNAVAILABLE, DNS_FAILURE |
-| **CI/CD** | BUILD_FAILURE, DEPLOY_FAILURE, TEST_FAILURE, CONFIG_ERROR |
-| **Security** | SECURITY_ALERT, SSL_CERT_EXPIRY, INVALID_TOKEN |
+| **Application** | CONNECTION_TIMEOUT, CONNECTION_REFUSED, DATABASE_ERROR, AUTH_FAILURE, PERMISSION_DENIED, API_ERROR, NULL_POINTER, SERVICE_UNAVAILABLE, RATE_LIMITED |
+| **Infrastructure** | MEMORY_HIGH, MEMORY_LEAK, CPU_HIGH, DISK_FULL, NETWORK_ERROR, DNS_FAILURE |
+| **Availability** | SERVICE_DOWN, SERVICE_RESTART, POD_CRASH, HEALTH_CHECK_FAILED |
+| **CI/CD** | BUILD_FAILED, TEST_FAILED, DEPLOY_FAILED, PIPELINE_TIMEOUT |
+| **Code review** | CODE_QUALITY, POTENTIAL_BUG, SECURITY_RISK, DEPRECATED_USAGE |
+| **Catch-all** | OTHER |
 
 ---
 
@@ -80,29 +81,34 @@ Separate issues are raised only when the causes are different.
 Navigate to **Issues** in the sidebar.
 
 #### Filters
+- **Search** - Keyword search
 - **Severity** - Critical, Warning
 - **Status** - Open, Muted, Resolved
-- **Search** - Keyword search
+- **Time** - Any time, or seen in the last 24 h, 7 days or 30 days
+- **Project**, **Environment** and **Service**
+
+The time, project, environment and service filters are not shown on the issues of a single batch.
 
 #### Columns
 | Column | Description |
 |--------|-------------|
-| ID | Issue number (click to copy link) |
+| Component | Where the cause lives (see [Component Identification](#component-identification)) |
 | Description | Issue summary with severity icon |
+| Last seen | Most recent occurrence |
+| Occurrences | How many times the issue was detected |
 | Severity | Color-coded badge (CRITICAL, WARNING, INFO) |
 | Status | Colored dot indicator (hover for label) |
-| Age | Time since issue was first detected |
-| Actions | Three-dot dropdown menu with View Details, Resolve, Mute, Reopen |
+| Actions | Three-dot dropdown menu with View details, Open analysis, Ask AI, Copy link, Resolve, Mute, Reopen |
 
-All columns are sortable by clicking the column header.
+Click a column header to sort by it (all columns except ID, Correlations and Actions).
 
-> **Hidden by default:** Type, Correlations (use Columns dropdown to show)
+> **Hidden by default:** ID, Type, Age, Correlations (use Columns dropdown to show)
 
 #### UI Features
 
 | Feature | Description |
 |---------|-------------|
-| **Summary Stats Bar** | Shows severity counts (X Critical, Y Warning) and status counts (X Open, Y Muted, Z Resolved) at top for quick overview |
+| **Summary tiles** | Four tiles at the top: **Critical**, **Warning**, **Open**, **Resolved**. Click one to filter the list on it |
 | **Severity Stripe** | Each row has a colored left border matching severity (red=Critical, orange=Warning) |
 | **Column Visibility** | Click "Columns" dropdown to show/hide columns |
 | **Correlation Badges** | Shows 📊 memory/cpu or 🔗 commit badges when issue correlates with metrics or code changes |
@@ -121,7 +127,7 @@ SerOps uses **fingerprint-based deduplication** to prevent duplicate issues whil
 
 1. **Fingerprint Generation**: Each issue gets a unique fingerprint (SHA-256) based on:
    - Issue type (MEMORY_HIGH, CPU_HIGH, etc.)
-   - Scope (SERVICE, INFRASTRUCTURE, PIPELINE)
+   - Scope (SERVICE, INFRASTRUCTURE, PIPELINE, CODE)
    - Component (normalized service name)
    - Environment (development, staging, production)
    - **Error Class** (v3) - AI-classified error category
@@ -202,7 +208,7 @@ Mark an issue as fixed:
 Resolving from the dropdown or in bulk skips step 2.
 
 !!! tip "Your corrections teach future analyses"
-    When **Recent Resolutions Context** is enabled (Settings → Data Management), resolved issues are passed to the AI as diagnostic context for new batches in the same project. Root causes the team confirmed or corrected come first and are labelled as such; a correction is shown next to what the AI had said, so the AI learns what it got wrong. Similar-incident search uses the team's version too. One-word root causes like "fixed" are filtered out. See [Recent Resolutions Context](../admin/issue-settings.md#recent-resolutions-context) for the full configuration.
+    When **Recent Resolutions Context** is enabled (Settings → Data retention), resolved issues are passed to the AI as diagnostic context for new batches in the same project. Root causes the team confirmed or corrected come first and are labelled as such; a correction is shown next to what the AI had said, so the AI learns what it got wrong. Similar-incident search uses the team's version too. One-word root causes like "fixed" are filtered out. See [Recent Resolutions Context](../admin/issue-settings.md#recent-resolutions-context) for the full configuration.
 
 ### Evidence links
 
@@ -210,10 +216,12 @@ On the analysis page, the evidence under the root cause opens the page that show
 
 ### Mute
 
-Suppress notifications for a period:
+Suppress notifications:
 1. Select **Mute** from the dropdown (OPEN issues only)
 2. Select duration: 1 day, 7 days, 30 days, 90 days, or Forever
 3. Issue status changes to MUTED
+
+In 1.5.5 a mute lasts until someone reopens the issue: the duration is stored, but nothing reopens the issue when it runs out.
 
 !!! info "Muted Issue Behavior"
     - Muted issues remain visible in the issues list with a "Muted" badge
@@ -273,7 +281,6 @@ graph LR
     G -->|OPEN| H[Notify if Critical]
     G -->|RESOLVED| I[Reopen Issue]
     G -->|MUTED| J[Track Silently]
-    J -->|Mute expires| K[Return to OPEN]
 ```
 
 ---
@@ -314,6 +321,6 @@ Configure in **Alerts & routing → Delivery Channels** and **Alerts & routing �
 - [Analyses](batches.md) — Batches that produce issues
 - [AI Chat](ai-chat.md) — Send issues to AI for deeper analysis
 - [Notifications](notifications.md) — Get alerted when issues are detected
-- [Tune Issue Deduplication](../how-to/tune-deduplication.md) — Configure dedup windows and auto-resolve
+- [Tune Issue Deduplication](../how-to/tune-deduplication.md) — Configure dedup windows
 - [Issue Settings](../admin/issue-settings.md) — Organisation-wide issue configuration
 - [Issues API](../api/issues.md) — REST API reference

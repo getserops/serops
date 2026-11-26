@@ -477,7 +477,7 @@ django:
   # password were wrong.
   corsAllowedOrigins: "https://serops.example.com"
   # The URL users open SerOps at, e.g. "https://serops.example.com". Used for
-  # the SSO redirect URI and links in emails. Empty: the first ingress host,
+  # the SSO redirect URI, webhook URLs and links in emails. Empty: the first ingress host,
   # https when ingress.tls is set.
   publicUrl: ""
   # Off by default, for debugging and benchmarks. Records every query SerOps

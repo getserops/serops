@@ -60,9 +60,8 @@ Every response is refused, and the browser sent back to the login page, unless:
   this organisation's entity ID, and the **destination** and **recipient**
   are this organisation's ACS URL.
 - It is within its validity (`NotBefore`, `NotOnOrAfter`), with **180 seconds**
-  of clock difference tolerated (`SAML_CLOCK_SKEW_SECONDS`), and was issued
-  less than **10 minutes** ago (`SAML_MAX_ASSERTION_AGE_SECONDS`), whatever
-  validity the identity provider gave it.
+  of clock difference tolerated, and was issued less than **10 minutes** ago
+  plus the same 180 seconds, whatever validity the identity provider gave it.
 - **It has not been used before.** Each assertion ID is accepted once
   (replay protection, kept in the database until the assertion would have
   expired anyway).
@@ -179,7 +178,7 @@ Keycloak sends one `groups` attribute per group; SerOps merges them.
 
 ```
 GET  /api/ee/saml/config/                    settings.read
-PUT  /api/ee/saml/config/                    settings.manage + every admin permission; license required
+PUT  /api/ee/saml/config/                    settings.manage (+ every admin permission, see below); license required
 GET  /api/ee/saml/<id>/metadata/             public: SP metadata (404 without the license)
 POST /api/ee/saml/<id>/acs/                  public: the identity provider's response (HTTP-POST binding)
 ```
@@ -189,7 +188,9 @@ every URL an admin sets: no cloud metadata addresses, optional private-address
 block), `idp_metadata_xml`, `refresh_metadata: true`, or the three values
 typed in (`idp_entity_id`, `idp_sso_url`, `idp_certificate`), plus
 `email_attribute`, `first_name_attribute`, `last_name_attribute`,
-`want_assertions_encrypted` and `allow_idp_initiated`. Each change is
+`want_assertions_encrypted` and `allow_idp_initiated`. Changing any of these
+except `first_name_attribute` and `last_name_attribute` also needs every
+permission of an admin. Each change is
 audited (`SETTINGS_CHANGE`, `setting: saml`). The response never contains the
 SerOps private key, which is stored encrypted with `SEROPS_ENCRYPTION_KEY`
 and re-encrypted by `python manage.py rotate_secrets`.

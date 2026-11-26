@@ -47,70 +47,50 @@ notification-settings group that survives.
 Requires an admin role. The URL is not persisted — pass it here to
 validate it, then create the channel with it.
 
-### Get AI Settings
+### Get / Update AI Settings
 
 ```
 GET /api/settings/ai/
+PUT /api/settings/ai/
 ```
 
-Returns the organisation-level AI configuration (enabled models, default provider).
+Admin only (`settings.manage`). Returns the organisation's AI configuration: `default_provider` and `fallback_provider` (provider IDs, with `*_name` and `*_display`), `use_custom_keys`, `monthly_budget_usd` and `budget_warn_pct`.
 
-### List AI Providers
-
-```
-GET /api/settings/ai/providers/
-```
-
-Returns all configured AI providers for the organisation.
-
-### Add AI Provider
-
-```
-POST /api/settings/ai/providers/
-```
-
-**Request body:**
+`PUT` is a partial update:
 
 ```json
 {
-  "provider": "anthropic",
-  "api_key": "sk-ant-...",
-  "is_default": false
+  "default_provider": 2,
+  "fallback_provider": 3,
+  "monthly_budget_usd": "50.00",
+  "budget_warn_pct": 80
 }
 ```
 
-Stores the API key encrypted at rest (Fernet). Once created, the key is never returned by the API.
+The fallback provider cannot be the same as the default (`400`). Leave `monthly_budget_usd` empty (`null`) for no cap.
 
-### Get AI Provider Detail
-
-```
-GET /api/settings/ai/providers/{id}/
-```
-
-### Update AI Provider
+### AI Provider Catalogue (Platform)
 
 ```
-PATCH /api/settings/ai/providers/{id}/
-```
-
-**Request body (partial update):**
-
-```json
-{
-  "api_key": "sk-ant-EXAMPLE-NOT-A-REAL-KEY",
-  "is_default": true
-}
-```
-
-Send `api_key` only if you want to rotate the key. Omit to keep the current value.
-
-### Delete AI Provider
-
-```
+GET    /api/settings/ai/providers/
+POST   /api/settings/ai/providers/
+GET    /api/settings/ai/providers/{id}/
+PATCH  /api/settings/ai/providers/{id}/
 DELETE /api/settings/ai/providers/{id}/
 ```
 
-Removes the provider from the organisation. The provider's API key is deleted; other providers remain unaffected.
+The catalogue of AI providers is shared by every organisation on the install; it holds no API keys. Each entry has `id`, `name`, `display_name`, `is_active`, `requires_api_key`, `default_model`, `adapter_class`, `rate_limits`, `circuit_config`, `validation_config`, `is_system` and `env_key_name`.
+
+Any member can list it. Reading one entry needs `settings.manage`. Writes need `ai_catalogue.manage`: platform staff, or the admin of a single-organisation install. A system provider cannot be deleted (`403`); set `is_active` to `false` instead.
+
+```json
+{
+  "is_active": true,
+  "default_model": "claude-sonnet-5-5"
+}
+```
+
+An organisation's key for a provider is set with [Create or Rotate an API Key](#create-or-rotate-an-api-key); its default provider with `PUT /api/settings/ai/`.
 
 ### Get Available AI Models
 
@@ -118,7 +98,7 @@ Removes the provider from the organisation. The provider's API key is deleted; o
 GET /api/settings/ai/available-models/
 ```
 
-Returns AI models available for the current user's organisation. Only providers that are both system-wide active **and** have an API key configured for the organisation (or an environment variable fallback) are included. Returns an empty list if no models are available.
+Returns AI models available for the current user's organisation. Only providers that are both system-wide active **and** have an API key configured for the organisation (or, for a keyless provider such as Ollama, a saved base URL) are included. Returns an empty list if no models are available.
 
 **Response:**
 
@@ -210,7 +190,7 @@ PUT /api/settings/sentinel/
 GET /api/settings/api-keys/
 ```
 
-Returns the API keys configured for external integrations. Keys themselves are never returned — only the provider ID and a masked hint.
+Returns the API keys configured for AI providers. Keys themselves are never returned — only the provider ID and a masked hint.
 
 ### Create or Rotate an API Key
 
@@ -223,11 +203,11 @@ POST /api/settings/api-keys/
 ```json
 {
   "provider_id": 3,
-  "api_key": "secret-value"
+  "api_key": "sk-ant-EXAMPLE-NOT-A-REAL-KEY"
 }
 ```
 
-Stores the key encrypted at rest. Reusing the same `provider_id` overwrites the previous value (used for rotation).
+For a provider that requires a key, a key shorter than 20 characters returns `400`. A keyless provider (Ollama) takes `base_url` instead. Stores the key encrypted at rest. Reusing the same `provider_id` overwrites the previous value (used for rotation).
 
 ### Delete an API Key
 
@@ -245,20 +225,6 @@ Removes the stored key for the specified provider.
 
 ```
 GET /api/organisation/info/
-```
-
-### Create Organisation
-
-```
-POST /api/organisation/create/
-```
-
-**Request body:**
-
-```json
-{
-  "name": "My Organisation"
-}
 ```
 
 ### Update Organisation
@@ -422,9 +388,12 @@ GET /api/organisation/onboarding/status/
 Returns the current onboarding progress for the organisation.
 
 !!! note "There is no endpoint to mark a step complete"
-    `/onboarding/status/` is **GET-only**. Onboarding progress is
-    computed from real database state on every read — a step counts as
-    done when the thing it asks for actually exists.
+    Onboarding progress is computed from real database state on every
+    read — a step counts as done when the thing it asks for actually
+    exists. `PUT /onboarding/status/` (`project.write`) cannot mark a
+    step complete; it accepts only `{"action": "skip_step", "step":
+    "connect_scm"}` (or `connect_cicd`) and `{"action": "store_data",
+    "data": {...}}`.
 
     Earlier releases had a self-attested checklist where the client
     `PUT` a step as complete. That let a wizard report 100% on an
@@ -460,11 +429,18 @@ Resets the onboarding flow back to the first step.
 
 ```
 GET /api/data/settings/security/
+PUT /api/data/settings/security/
 ```
 
+`GET` needs `settings.read`, `PUT` needs `settings.manage`. `PUT` sets the session timeout:
+
+```json
+{
+  "session": {"timeout_minutes": 480}
+}
 ```
-PATCH /api/data/settings/security/
-```
+
+`timeout_minutes` is one of `30`, `60`, `240`, `480`, `1440` or `0` (never); any other value is ignored.
 
 ---
 
@@ -481,9 +457,12 @@ GET /api/data/settings/audit-log/
 | Parameter | Description |
 |-----------|-------------|
 | `action` | Filter by action type (`LOGIN`, `SETTINGS_CHANGE`, etc.) |
-| `user` | Filter by user |
-| `start_date` | Start of date range |
-| `end_date` | End of date range |
+| `user_id` | Filter by user ID |
+| `date_from` | Start of date range (`YYYY-MM-DD` or ISO 8601) |
+| `date_to` | End of date range (`YYYY-MM-DD` or ISO 8601) |
+| `search` | Text search in the entry details |
+| `page` | Page number (default `1`) |
+| `page_size` | Entries per page (default `25`) |
 
 ### Export Audit Log
 
@@ -491,11 +470,11 @@ GET /api/data/settings/audit-log/
 GET /api/data/settings/audit-log/export/
 ```
 
-Returns a CSV or JSON export of audit entries.
+Returns a CSV export of audit entries (up to 10,000), filtered by `action`, `user_id`, `date_from` and `date_to` as above.
 
 ---
 
-## Data Management
+## Data retention
 
 ### Data Usage
 
@@ -540,11 +519,7 @@ All fields are optional — include only the ones you want to change.
 
 ### Delete Old Batches
 
-```
-POST /api/data/delete-old-batches/
-```
-
-Triggers manual cleanup of batches older than the configured retention period.
+See [Delete Old Batches](batches.md#delete-old-batches) (`DELETE`, with `?days=N`).
 
 ---
 

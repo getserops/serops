@@ -8,7 +8,7 @@ SerOps is open-source software licensed under the **GNU Affero General Public Li
 
 Copyright © 2026 SerOps contributors.
 
-The full license text is in the `LICENSE` file at the root of each repository, and available online at [gnu.org/licenses/agpl-3.0.html](https://www.gnu.org/licenses/agpl-3.0.html).
+The full license text is in the `LICENSE` file at the root of the repository, and available online at [gnu.org/licenses/agpl-3.0.html](https://www.gnu.org/licenses/agpl-3.0.html).
 
 ## What you can do freely (no permission needed)
 

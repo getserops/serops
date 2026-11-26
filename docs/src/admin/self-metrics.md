@@ -1,6 +1,6 @@
 ---
 seo_title: "SerOps Prometheus metrics (/metrics)"
-description: "Scrape SerOps' own metrics in Prometheus format: HTTP requests, batches created and analysed, AI tokens, alerts and OTLP spans."
+description: "Scrape SerOps' own metrics in Prometheus format: liveness, HTTP requests, alerts and OTLP spans."
 ---
 # Self-metrics (`/metrics/`)
 
@@ -44,9 +44,7 @@ scrape_configs:
 | Metric | Type | Labels | What it measures |
 |---|---|---|---|
 | `serops_up` | Gauge | — | 1 while the process serves traffic. Liveness. |
-| `serops_batch_created_total` | Counter | `outcome=created|skipped` | Batches produced by the scheduler / on-demand pipeline. |
-| `serops_batch_analyzed_total` | Counter | `provider`, `outcome` | AI analysis attempts per provider. |
-| `serops_ai_tokens_total` | Counter | `provider`, `direction=input|output` | Token consumption (cost signal). |
+| `serops_batch_created_total` | Counter | `outcome=created|skipped|skipped_precreation` | Batches produced by the pipeline. Counted in the Celery worker, so in 1.5.5 it has no samples on `/metrics/`, which the web process serves (see below). |
 | `serops_alert_received_total` | Counter | `source`, `outcome=accepted|deduplicated|rejected` | Alert webhook ingestion (Alertmanager / Grafana / Datadog). |
 | `serops_otlp_spans_received_total` | Counter | — | Spans persisted via the OTLP receiver. |
 | `serops_http_requests_total` | Counter | `method`, `endpoint_group`, `status_class=2xx|3xx|4xx|5xx` | Request throughput by bucketed endpoint. |
@@ -69,6 +67,10 @@ pod). If you need process-shared exposition (Prometheus
 multi-process mode), file an issue — it's not enabled by default
 because it's an extra deployment artefact.
 
+The Celery workers have registries of their own, which `/metrics/`
+does not read. A counter incremented in a background task, such as
+`serops_batch_created_total`, has no samples on `/metrics/`.
+
 ## Suggested alerts
 
 ```yaml
@@ -76,15 +78,6 @@ because it's an extra deployment artefact.
 - alert: SeropsDown
   expr: up{job="serops"} == 0
   for: 2m
-
-# AI provider errors.
-- alert: SeropsAiErrorsHigh
-  expr: |
-    sum(rate(serops_batch_analyzed_total{outcome="error"}[5m]))
-    /
-    sum(rate(serops_batch_analyzed_total[5m]))
-    > 0.1
-  for: 10m
 
 # Alert webhook 5xx from SerOps itself.
 - alert: SeropsAlertWebhookFailing

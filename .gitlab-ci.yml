@@ -218,6 +218,14 @@ chart:
       --set ingress.tls[0].secretName=serops-tls
       --set devServices.postgresql.enabled=true
       --set devServices.redis.enabled=true
+    # The backend builds webhook URLs from SERVER_URL and email links from
+    # BASE_URL; the chart must set both (they read "None/" before 1.5.6).
+    - |
+      helm template serops deploy/helm/serops --kube-version 1.31.0 --set django.secretKey=ci-render-only --set django.encryptionKey=ci-render-only --set 'ingress.tls[0].hosts[0]=serops.example.com' --set ingress.tls[0].secretName=serops-tls > /tmp/rendered.yaml
+    - |
+      grep -q 'SERVER_URL: "https://serops.example.com/api"' /tmp/rendered.yaml
+    - |
+      grep -q 'BASE_URL: "https://serops.example.com"' /tmp/rendered.yaml
     - "! helm template serops deploy/helm/serops --kube-version 1.31.0 --set django.secretKey=ci-render-only --set django.encryptionKey=ci-render-only"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"

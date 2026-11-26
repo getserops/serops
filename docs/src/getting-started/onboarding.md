@@ -21,7 +21,7 @@ thing it asks for exists.
 | Step | Name | Skippable | Description |
 |------|------|:---------:|-------------|
 | 1 | **AI Model** | — | Add an API key for Gemini, Claude, OpenAI or DeepSeek, or configure Ollama (local, no key). Keys are stored per organisation and encrypted at rest. |
-| 2 | **Observability** | — | Connect a log or metric provider. SerOps needs at least one to analyse anything. |
+| 2 | **Observability** | — | Connect a log provider. A metrics-only integration does not complete this step. |
 | 3 | **Project** | — | Create your first project. |
 | 4 | **Service** | — | Add a service to the project. |
 | 5 | **Source Control** | ✅ | Link the service to a GitLab / GitHub / Bitbucket / Azure DevOps repository, so incidents can be correlated with commits and deployments. |
